@@ -5,7 +5,6 @@ import sys
 from zope.interface import classProvides
 
 from twisted.python import usage
-
 from twisted import plugin
 
 from axiom import iaxiom
@@ -16,7 +15,7 @@ from xmantissa.website import WebSite, StaticSite, WebConfigurationError
 class WebConfiguration(usage.Options):
     classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
 
-    name = 'mantissa-web'
+    name = 'web'
     description = 'Web.  Yay.'
 
     optParameters = [
