@@ -1,0 +1,11 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <ul nevow:render="sequence" nevow:data="tabs">
+    <li nevow:pattern="item" nevow:render="tab">
+      <a>
+        <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+        <nevow:slot name="name" />
+      </a>
+      <nevow:slot name="subtabs" />
+    </li>
+  </ul>
+</div>

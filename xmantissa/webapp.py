@@ -1,10 +1,8 @@
-
 """
 This module is the basis for Mantissa-based web applications.  It provides
 several basic pluggable application-level features, most notably Powerup-based
 integration of the extensible hierarchical navigation system defined in
 xmantissa.webnav
-
 """
 
 from zope.interface import implements
@@ -15,6 +13,7 @@ from axiom.attributes import text, integer
 from nevow.rend import Page, Fragment, NotFound
 from nevow.livepage import LivePage
 from nevow.inevow import IResource
+from nevow import tags as t
 
 from xmantissa.website import PrefixURLMixin
 from xmantissa.webtheme import getAllThemes
@@ -30,7 +29,7 @@ def _reorderForPreference(themeList, preferredThemeName):
     Returns None.
     """
     for t in themeList:
-        if preferredThemeName == t.name:
+        if preferredThemeName == t.themeName:
             themeList.remove(t)
             themeList.insert(0,t)
             return
@@ -38,20 +37,24 @@ def _reorderForPreference(themeList, preferredThemeName):
 
 class NavFragment(Fragment):
     def __init__(self, docFactory, navigation):
-        Fragment.__init__(self, docFactory)
+        Fragment.__init__(self, docFactory=docFactory)
         self.navigation = navigation
 
-    def data_navigation(self, ctx):
-        return self.navigation
-
     def render_tab(self, ctx, data):
-        ctx.fillSlots('name', self.stuff.name)
-        ctx.fillSlots('link', self.linkTarget)
+        name = data.name
+        subtabs = data.children
+        self.subtabs = subtabs
+        ctx.fillSlots('href', data.suffixURL)
+        ctx.fillSlots('name', name)
+        if subtabs:
+            st = t.br(), 'subtabs:', NavFragment(self.docFactory, subtabs)
+        else:
+            st = t.br(), 'no sub'
+        ctx.fillSlots('subtabs', st)
         return ctx.tag
 
-    def render_subtabs(self, ctx, data):
-        return NavFragment(docFactory=self.docFactory, navigation=self.data.subtabs)
-
+    def data_tabs(self, ctx, data):
+        return self.navigation
 
 
 class NavMixin(object):
@@ -62,14 +65,15 @@ class NavMixin(object):
         self.webapp = webapp
         self.navigation = navigation
 
-    def getDocFactory(self, fragmentName):
-        return self.webapp.getDocFactory(fragmentName)
+    def getDocFactory(self, fragmentName, default=None):
+        return self.webapp.getDocFactory(fragmentName, default)
 
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
 
     def render_navigation(self, ctx, data):
-        return NavFragment(self.getDocFactory('navigation'), self.navigation)
+        return NavFragment(self.getDocFactory('navigation'),
+                           self.navigation)
 
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
@@ -78,12 +82,11 @@ class NavMixin(object):
         return ctx.tag
 
 
-
 class GenericNavigationPage(Page, NavMixin):
-
     def __init__(self, webapp, navigation, fragment):
-        Page.__init__(self, webapp, navigation, fragment)
-        NavMixin.__init__(self, webapp, navigation, fragment)
+        Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
+        NavMixin.__init__(self, webapp, navigation)
+        self.fragment = fragment
 
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
@@ -91,9 +94,18 @@ class GenericNavigationPage(Page, NavMixin):
 class GenericNavigationLivePage(LivePage, NavMixin):
     # XXX TODO: support live nav, live fragments somehow
     def __init__(self, webapp, navigation, fragment):
-        Page.__init__(self, webapp, navigation, fragment)
-        NavMixin.__init__(self, webapp, navigation, fragment)
+        Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
+        NavMixin.__init__(self, webapp, navigation)
+        self.fragment = fragment
 
+    def locateHandler(self, ctx, path, name):
+        return getattr(self.fragment, 'handle_' + name)
+
+    def render_head(self, ctx, data):
+        return ctx.tag[
+            t.invisible(render=t.directive("liveid")),
+            t.invisible(render=t.directive("liveglue")),
+            ]
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
@@ -117,7 +129,7 @@ class PrivateRootPage(Page, NavMixin):
         except ValueError:
             return NotFound
         else:
-            o = self.store.getItemByID(storeID, None)
+            o = self.webapp.store.getItemByID(storeID, None)
             if o is None:
                 return NotFound
             res = IResource(o, None)
@@ -126,6 +138,10 @@ class PrivateRootPage(Page, NavMixin):
             fragment = INavigableFragment(o, None)
             if fragment is None:
                 return NotFound
+            if fragment.fragmentName is not None:
+                fragDocFactory = self.webapp.getDocFactory(fragment.fragmentName, None)
+                if fragDocFactory is not None:
+                    fragment.docFactory = fragDocFactory
             if fragment.live:
                 return GenericNavigationLivePage(
                     self.webapp, self.navigation, fragment)
@@ -154,6 +170,7 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     preferredTheme = text()
     hitCount = integer()
+
     prefixURL = 'private'
 
     def install(self):
@@ -161,18 +178,16 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     def createResource(self):
         return PrivateRootPage(
-            self, getTabs(self.store.pluginsFor(INavigableElement)))
+            self, getTabs(self.store.powerupsFor(INavigableElement)))
 
     def resourceFactory(self, segments):
-        self.hitCount += 1
         return super(PrivateApplication, self).resourceFactory(segments)
 
-    def getDocFactory(self, fragmentName):
+    def getDocFactory(self, fragmentName, default=None):
         l = list(getAllThemes())
         _reorderForPreference(l, self.preferredTheme)
         for t in l:
-            fact = t.getDocFactory(fragmentName)
+            fact = t.getDocFactory(fragmentName, None)
             if fact is not None:
                 return fact
-        raise KeyError("No such theme element: %r in themes: %r" %
-                       (fragmentName, l))
+        return default

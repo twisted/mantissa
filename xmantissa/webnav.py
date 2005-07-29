@@ -1,3 +1,4 @@
+# -*- test-case-name: xmantissa.test.test_webnav -*-
 
 from zope.interface import implements
 
@@ -16,7 +17,8 @@ class TabInfo(_structlike):
         'priority',
         'number',
         'suffixURL',
-        'children']
+        'children',
+        'authoritative']
 
 class Tab(object):
     """Represent part or all of the layout of a single navigation tab.
@@ -30,23 +32,31 @@ class Tab(object):
     this tab amongst its peers.  Higher priorities sort sooner.
 
     @ivar children: A tuple of tabs beneath this one.
+
+    @ivar authoritative: A flag indicating whether this instance of the
+    conceptual tab with this name takes precedent over any other instance of
+    the conceptual tab with this name.  It is an error for two instances of the
+    same conceptual tab to be authoritative.
+
     """
 
     _item = None
     implements(ITab)
 
-    def __init__(self, name, suffixURL, priority, children=()):
+    def __init__(self, name, suffixURL, priority, children=(), authoritative=True):
         self.name = name
         self.suffixURL = suffixURL
         self.priority = priority
         self.children = tuple(children)
+        self.authoritative = authoritative
 
     def __repr__(self):
-        return '<%s %r/%0.3f %r [%r]>' % (self.__class__.__name__,
-                                          self.name,
-                                          self.priority,
-                                          self.suffixURL,
-                                          self.children)
+        return '<%s%s %r/%0.3f %r [%r]>' % (self.authoritative and '*' or '',
+                                            self.__class__.__name__,
+                                            self.name,
+                                            self.priority,
+                                            self.suffixURL,
+                                            self.children)
 
     def __iter__(self):
         raise TypeError("%r are not iterable" % (self.__class__.__name__,))
@@ -97,12 +107,13 @@ def getTabs(navElements):
             else:
                 info = primary[tab.name]
 
-                if info.suffixURL is None:
-                    if tab.suffixURL is not None:
-                        info.suffixURL = tab.suffixURL
-                elif tab.suffixURL is not None:
-                    if info.suffixURL is not tab.suffixURL:
+                if info.authoritative:
+                    if tab.authoritative:
                         raise TabMisconfiguration(info, tab)
+                else:
+                    if tab.authoritative:
+                        info.authoritative = True
+                        info.suffixURL = tab.suffixURL
 
                 if tab.priority is not None:
                     info.priority += tab.priority
@@ -124,4 +135,4 @@ def getTabs(navElements):
 
     resultTabs.sort(key=key)
 
-    return Tab(".", lambda nothing: None, 1.0, resultTabs)
+    return resultTabs

@@ -15,14 +15,16 @@ from zope.interface import implements
 from twisted.application.service import IService, Service
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
+from twisted.python.util import sibpath
 
 from twisted.internet import reactor
 
-from nevow.rend import NotFound
+from nevow.rend import NotFound, Page
 from nevow.guard import SessionWrapper
 from nevow.inevow import IResource
 from nevow.appserver import NevowSite
-from nevow import static
+from nevow.loaders import xmlfile
+from nevow.static import File
 
 from axiom.item import Item
 from axiom.attributes import integer, inmemory, text
@@ -58,6 +60,9 @@ class SiteRootMixin(object):
             s = s.parent
         return NotFound
 
+class LoginPage(Page):
+    docFactory = xmlfile(sibpath(__file__, "login.html"))
+
 class UnguardedWrapper(SiteRootMixin):
     implements(IResource)
 
@@ -69,6 +74,8 @@ class UnguardedWrapper(SiteRootMixin):
         self.guardedRoot = guardedRoot
 
     def locateChild(self, ctx, segments):
+        if segments[0] == 'login':
+            return LoginPage(), ()
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x
@@ -120,7 +127,7 @@ class StaticSite(Item, PrefixURLMixin):
     staticContentPath = text()
 
     def createResource(self):
-        return static.File(self.staticContentPath)
+        return File(self.staticContentPath)
 
 
 class WebSite(Item, Service, SiteRootMixin):

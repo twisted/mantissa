@@ -4,7 +4,9 @@ from zope.interface import classProvides
 from xmantissa.ixmantissa import IWebTheme
 from twisted.plugin import IPlugin
 
-from nevow.loaders import stan
+from twisted.python.util import sibpath
+
+from nevow.loaders import xmlfile, stan
 from nevow import tags as t
 
 class PlainTheme(object):
@@ -17,8 +19,8 @@ class PlainTheme(object):
 
     shellTemplate = stan(
         t.html[
-            t.head(render="head")[
-                t.title(render="title")
+            t.head(render=t.directive("head"))[
+                t.title(render=t.directive("title"))
                 ],
             t.body[
                 t.table[
@@ -27,20 +29,15 @@ class PlainTheme(object):
                             t.div(render=t.directive("navigation")),
                             ],
                         t.td[
-                            t.h1(render="title"),
+                            t.h1(render=t.directive("title")),
                             t.div(render=t.directive("content"))]]]]])
 
-    navBoxTemplate = stan(
-        t.ul(render='sequence', data='navigation')[
-            t.li(pattern='item')[
-                t.a(href=t.slot('link'))[
-                    t.slot(name='name')],
-                t.invisible(render='subtabs')
-                ]
-            ])
+    navBoxTemplate = xmlfile(sibpath(__file__, 'navbox.html'))
 
-    def getDocFactory(self, fragmentName):
+    def getDocFactory(cls, fragmentName, default=None):
         if fragmentName == 'shell':
-            return self.shellTemplate
+            return cls.shellTemplate
         elif fragmentName == 'navigation':
-            return self.navBoxTemplate
+            return cls.navBoxTemplate
+        return default
+    getDocFactory = classmethod(getDocFactory)
