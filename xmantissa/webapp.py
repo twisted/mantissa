@@ -47,9 +47,9 @@ class NavFragment(Fragment):
         ctx.fillSlots('href', data.suffixURL)
         ctx.fillSlots('name', name)
         if subtabs:
-            st = t.br(), 'subtabs:', NavFragment(self.docFactory, subtabs)
+            st = NavFragment(self.docFactory, subtabs)
         else:
-            st = t.br(), 'no sub'
+            st = ''
         ctx.fillSlots('subtabs', st)
         return ctx.tag
 

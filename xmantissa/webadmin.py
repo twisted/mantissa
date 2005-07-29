@@ -43,9 +43,9 @@ class REPL(rend.Fragment):
     fragmentName = 'admin-python-repl'
 
     docFactory = loaders.stan(T.div[
-            T.span(id='count'),
-            T.span(id='output'),
-            T.form(onsubmit="server.handle('input', source.value); return false;")[
+            T.div(id='count'),
+            T.div(id='output'),
+            T.form(onsubmit="server.handle('input', source.value); source.value = ''; return false;")[
                 T.input(type='text', id='source')]])
 
     def handle_input(self, ctx, source):
@@ -53,7 +53,7 @@ class REPL(rend.Fragment):
         self.original.statementCount = self.original.statementCount or 0
         self.original.statementCount += 1
         return [
-            livepage.append('output', source), livepage.eol,
+            livepage.append('output', T.div[source]), livepage.eol,
             livepage.set('count', self.original.statementCount), livepage.eol,
             ]
 
