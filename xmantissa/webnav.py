@@ -15,7 +15,7 @@ class TabInfo(_structlike):
     __names__ = [
         'priority',
         'number',
-        'itemFactory',
+        'suffixURL',
         'children']
 
 class Tab(object):
@@ -23,8 +23,8 @@ class Tab(object):
 
     @ivar name: This tab's name.
 
-    @ivar itemFactory: A callable of one argument which returns something which
-    can be rendered.
+    @ivar suffixURL: A /-separated string containing URL segments to be
+    rendered as part of a link on the web.
 
     @ivar priority: A float between 0 and 1 indicating the relative ordering of
     this tab amongst its peers.  Higher priorities sort sooner.
@@ -35,9 +35,9 @@ class Tab(object):
     _item = None
     implements(ITab)
 
-    def __init__(self, name, itemFactory, priority, children=()):
+    def __init__(self, name, suffixURL, priority, children=()):
         self.name = name
-        self.itemFactory = itemFactory
+        self.suffixURL = suffixURL
         self.priority = priority
         self.children = tuple(children)
 
@@ -45,7 +45,7 @@ class Tab(object):
         return '<%s %r/%0.3f %r [%r]>' % (self.__class__.__name__,
                                           self.name,
                                           self.priority,
-                                          self.itemFactory,
+                                          self.suffixURL,
                                           self.children)
 
     def __iter__(self):
@@ -59,13 +59,6 @@ class Tab(object):
         if tabs:
             return tabs[0]
         raise KeyError(key)
-
-    def loadForAvatar(self, avatar):
-        """Resolve my 'item' attribute by running my itemFactory against an avatar.
-        """
-        if self._item is None:
-            self._item = self.itemFactory(avatar)
-        return self._item
 
     def pathFromItem(self, item, avatar):
         """
@@ -99,16 +92,16 @@ def getTabs(navElements):
                 primary[tab.name] = TabInfo(
                     priority=tab.priority,
                     number=1,
-                    itemFactory=tab.itemFactory,
+                    suffixURL=tab.suffixURL,
                     children=list(tab.children))
             else:
                 info = primary[tab.name]
 
-                if info.itemFactory is None:
-                    if tab.itemFactory is not None:
-                        info.itemFactory = tab.itemFactory
-                elif tab.itemFactory is not None:
-                    if info.itemFactory is not tab.itemFactory:
+                if info.suffixURL is None:
+                    if tab.suffixURL is not None:
+                        info.suffixURL = tab.suffixURL
+                elif tab.suffixURL is not None:
+                    if info.suffixURL is not tab.suffixURL:
                         raise TabMisconfiguration(info, tab)
 
                 if tab.priority is not None:
@@ -127,7 +120,7 @@ def getTabs(navElements):
         info.children.sort(key=key)
 
         resultTabs.append(
-            Tab(name, info.itemFactory, info.priority, info.children))
+            Tab(name, info.suffixURL, info.priority, info.children))
 
     resultTabs.sort(key=key)
 

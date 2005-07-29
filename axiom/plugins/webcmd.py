@@ -42,13 +42,13 @@ class WebConfiguration(usage.Options):
                 self.didSomething = 1
             for webPath, filePath in self.staticPaths:
                 for ss in s.query(StaticSite,
-                                  StaticSite.activationURL == webPath):
+                                  StaticSite.prefixURL == webPath):
                     ss.staticContentPath = filePath
                     break
                 else:
                     ss = StaticSite(store=s,
                                     staticContentPath=filePath,
-                                    activationURL=webPath)
+                                    prefixURL=webPath)
                     ss.install()
                 self.didSomething = 1
         try:
@@ -77,7 +77,7 @@ class WebConfiguration(usage.Options):
             print 'No configured webservers.'
 
         for ss in s.query(StaticSite):
-            print '/%s => %s' % (ss.activationURL, ss.staticContentPath)
+            print '/%s => %s' % (ss.prefixURL, ss.staticContentPath)
 
     opt_static.__doc__ = """
     Add an element to the mapping of web URLs to locations of static

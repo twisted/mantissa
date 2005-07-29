@@ -1,5 +1,5 @@
 
-from zope.interface import Interface
+from zope.interface import Interface, Attribute
 
 class IWebTheme(Interface):
     """
@@ -56,6 +56,23 @@ class INavigableElement(Interface):
                         0.8)
                     ])]
         """
+
+class INavigableFragment(Interface):
+    """
+    Register an adapter to this interface in order to provide web UI content
+    within the context of the 'private' application with navigation, etc.
+
+    You will still need to produce some UI by implementing INavigableElement
+    and registering a powerup for that as well, which allows users to navigate
+    to this object.
+    """
+
+    live = Attribute("""
+
+    A boolean, telling us whether or not this fragment requires a LivePage to
+    function properly.
+
+    """)
 
 
 class ITab(Interface):

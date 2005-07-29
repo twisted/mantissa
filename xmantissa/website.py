@@ -5,7 +5,8 @@ This module defines the basic engine for web sites and applications using
 Mantissa.  It defines the basic in-database web server, and an authentication
 binding using nevow.guard.
 
-To interact with the code defined here, create a web site using 
+To interact with the code defined here, create a web site using the
+command-line 'axiomatic' program using the 'web' subcommand.
 
 """
 
@@ -42,6 +43,8 @@ class SiteRootMixin(object):
             "This _must_ be installed at the root of a server.")
 
     def locateChild(self, ctx, segments):
+        self.hitCount = self.hitCount or 0
+        self.hitCount += 1
         s = self.store
         P = self.powerupInterface
         while s is not None:
@@ -59,6 +62,7 @@ class UnguardedWrapper(SiteRootMixin):
     implements(IResource)
 
     powerupInterface = ISessionlessSiteRootPlugin
+    hitCount = 0
 
     def __init__(self, store, guardedRoot):
         self.store = store
@@ -73,28 +77,18 @@ class UnguardedWrapper(SiteRootMixin):
 
 JUST_SLASH = ('',)
 
-class StaticSite(Item):
-    implements(ISessionlessSiteRootPlugin)
-
-    schemaVersion = 1
-    typeName = 'static_web_site'
-
-    staticContentPath = text()
-    activationURL = text()
-
-    def install(self):
-        # Only 256 segments are allowed in URL paths.  We want to make sure
-        # that static powerups always lose priority ordering to dynamic
-        # powerups, since dynamic powerups will have information
-
-        self.store.powerUp(self, ISessionlessSiteRootPlugin,
-                           priority=self.activationURL.count('/')-256)
+class PrefixURLMixin:
+    """
+    Mixin for use by I[Sessionlesss]SiteRootPlugin implementors; provides a
+    resourceFactory method which looks for an 'prefixURL' string on self,
+    and calls and returns self.createResource().
+    """
 
     def resourceFactory(self, segments):
-        if not self.activationURL:
+        if not self.prefixURL:
             needle = ()
         else:
-            needle = tuple(self.activationURL.split('/'))
+            needle = tuple(self.prefixURL.split('/'))
         S = len(needle)
         if segments[:S] == needle:
             if segments == JUST_SLASH:
@@ -102,7 +96,31 @@ class StaticSite(Item):
                 subsegments = segments
             else:
                 subsegments = segments[S:]
-            return static.File(self.staticContentPath), subsegments
+            return self.createResource(), subsegments
+
+    def install(self):
+        # Only 256 segments are allowed in URL paths.  We want to make sure
+        # that static powerups always lose priority ordering to dynamic
+        # powerups, since dynamic powerups will have information
+        priority = self.prefixURL.count('/') - 256
+        for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
+            if iface.providedBy(self):
+                self.store.powerUp(self, iface, priority)
+
+class StaticSite(Item, PrefixURLMixin):
+    implements(ISessionlessSiteRootPlugin,     # implements both so that it
+               ISiteRootPlugin)                # works in both super and sub
+                                               # stores.
+
+
+    schemaVersion = 1
+    typeName = 'static_web_site'
+
+    prefixURL = text()
+    staticContentPath = text()
+
+    def createResource(self):
+        return static.File(self.staticContentPath)
 
 
 class WebSite(Item, Service, SiteRootMixin):
@@ -110,9 +128,7 @@ class WebSite(Item, Service, SiteRootMixin):
     schemaVersion = 1
 
     portno = integer()
-    staticpath = text()         # I'm setting this up as a non-store-relative
-                                # path because I assume the relevant files are
-                                # going to be in SVN.
+    hitCount = integer()
 
     parent = inmemory()
     running = inmemory()

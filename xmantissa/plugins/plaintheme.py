@@ -17,7 +17,8 @@ class PlainTheme(object):
 
     shellTemplate = stan(
         t.html[
-            t.head[
+            t.head(render="head")[
+                t.title(render="title")
                 ],
             t.body[
                 t.table[
@@ -26,6 +27,7 @@ class PlainTheme(object):
                             t.div(render=t.directive("navigation")),
                             ],
                         t.td[
+                            t.h1(render="title"),
                             t.div(render=t.directive("content"))]]]]])
 
     navBoxTemplate = stan(
