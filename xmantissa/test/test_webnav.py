@@ -7,14 +7,14 @@ from xmantissa.ixmantissa import INavigableElement
 
 class FakeNavigator1(object):
     def getTabs(self):
-        return [webnav.Tab('Hello', 'fake1', 1.,
+        return [webnav.Tab('Hello', 1234, 1.,
                            [webnav.Tab('Super', 'sup', 1.0),
                             webnav.Tab('Mega', 'meg', 0.5)],
                            False)]
 
 class FakeNavigator2(object):
     def getTabs(self):
-        return [webnav.Tab('Hello', 'fake2', 1.,
+        return [webnav.Tab('Hello', 5678, 1.,
                            [webnav.Tab('Ultra', 'ult', 0.75),
                             webnav.Tab('Hyper', 'hyp', 0.25)]),
                 webnav.Tab('Goodbye', None, 0.9)]
@@ -30,7 +30,7 @@ class NavConfig(unittest.TestCase):
         self.assertEquals(
             nav[0].name, 'Hello')
         self.assertEquals(
-            nav[0].suffixURL, 'fake2')
+            nav[0].storeID, 5678)
 
         self.assertEquals(
             nav[1].name, 'Goodbye')

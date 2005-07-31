@@ -16,7 +16,7 @@ class TabInfo(_structlike):
     __names__ = [
         'priority',
         'number',
-        'suffixURL',
+        'storeID',
         'children',
         'authoritative']
 
@@ -25,7 +25,7 @@ class Tab(object):
 
     @ivar name: This tab's name.
 
-    @ivar suffixURL: A /-separated string containing URL segments to be
+    @ivar storeID: A /-separated string containing URL segments to be
     rendered as part of a link on the web.
 
     @ivar priority: A float between 0 and 1 indicating the relative ordering of
@@ -43,9 +43,9 @@ class Tab(object):
     _item = None
     implements(ITab)
 
-    def __init__(self, name, suffixURL, priority, children=(), authoritative=True):
+    def __init__(self, name, storeID, priority, children=(), authoritative=True):
         self.name = name
-        self.suffixURL = suffixURL
+        self.storeID = storeID
         self.priority = priority
         self.children = tuple(children)
         self.authoritative = authoritative
@@ -55,7 +55,7 @@ class Tab(object):
                                             self.__class__.__name__,
                                             self.name,
                                             self.priority,
-                                            self.suffixURL,
+                                            self.storeID,
                                             self.children)
 
     def __iter__(self):
@@ -102,7 +102,7 @@ def getTabs(navElements):
                 primary[tab.name] = TabInfo(
                     priority=tab.priority,
                     number=1,
-                    suffixURL=tab.suffixURL,
+                    storeID=tab.storeID,
                     children=list(tab.children))
             else:
                 info = primary[tab.name]
@@ -113,7 +113,7 @@ def getTabs(navElements):
                 else:
                     if tab.authoritative:
                         info.authoritative = True
-                        info.suffixURL = tab.suffixURL
+                        info.storeID = tab.storeID
 
                 if tab.priority is not None:
                     info.priority += tab.priority
@@ -131,7 +131,7 @@ def getTabs(navElements):
         info.children.sort(key=key)
 
         resultTabs.append(
-            Tab(name, info.suffixURL, info.priority, info.children))
+            Tab(name, info.storeID, info.priority, info.children))
 
     resultTabs.sort(key=key)
 

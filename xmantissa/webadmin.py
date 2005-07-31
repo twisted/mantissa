@@ -32,8 +32,8 @@ class DeveloperApplication(Item):
 
     # INavigableElement
     def getTabs(self):
-        return [webnav.Tab('Admin', str(self.storeID), 0.0,
-                           [webnav.Tab('REPL', str(self.storeID), 0.0)],
+        return [webnav.Tab('Admin', self.storeID, 0.0,
+                           [webnav.Tab('REPL', self.storeID, 0.0)],
                            authoritative=False)]
 
 

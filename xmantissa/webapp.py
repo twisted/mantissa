@@ -18,6 +18,7 @@ from nevow import tags as t
 from xmantissa.website import PrefixURLMixin
 from xmantissa.webtheme import getAllThemes
 from xmantissa.webnav import getTabs
+from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
     ISiteRootPlugin
@@ -36,18 +37,19 @@ def _reorderForPreference(themeList, preferredThemeName):
 
 
 class NavFragment(Fragment):
-    def __init__(self, docFactory, navigation):
+    def __init__(self, docFactory, navigation, webapp):
         Fragment.__init__(self, docFactory=docFactory)
         self.navigation = navigation
+        self.webapp = webapp
 
     def render_tab(self, ctx, data):
         name = data.name
         subtabs = data.children
         self.subtabs = subtabs
-        ctx.fillSlots('href', data.suffixURL)
+        ctx.fillSlots('href', self.webapp.linkTo(data.storeID))
         ctx.fillSlots('name', name)
         if subtabs:
-            st = NavFragment(self.docFactory, subtabs)
+            st = NavFragment(self.docFactory, subtabs, self.webapp)
         else:
             st = ''
         ctx.fillSlots('subtabs', st)
@@ -73,7 +75,8 @@ class NavMixin(object):
 
     def render_navigation(self, ctx, data):
         return NavFragment(self.getDocFactory('navigation'),
-                           self.navigation)
+                           self.navigation,
+                           self.webapp)
 
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
@@ -87,6 +90,7 @@ class GenericNavigationPage(Page, NavMixin):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, navigation)
         self.fragment = fragment
+        fragment.page = self
 
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
@@ -97,6 +101,7 @@ class GenericNavigationLivePage(LivePage, NavMixin):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, navigation)
         self.fragment = fragment
+        fragment.page = self
 
     def locateHandler(self, ctx, path, name):
         return getattr(self.fragment, 'handle_' + name)
@@ -124,30 +129,29 @@ class PrivateRootPage(Page, NavMixin):
         return 'Root page: possibly this should be a redirect instead.  Temporarily not.'
 
     def childFactory(self, ctx, name):
-        try:
-            storeID = int(name)
-        except ValueError:
+        storeID = self.webapp.linkFrom(name)
+        if storeID is None:
+            return None
+
+        o = self.webapp.store.getItemByID(storeID, None)
+        if o is None:
             return NotFound
+        res = IResource(o, None)
+        if res is not None:
+            return res
+        fragment = INavigableFragment(o, None)
+        if fragment is None:
+            return NotFound
+        if fragment.fragmentName is not None:
+            fragDocFactory = self.webapp.getDocFactory(fragment.fragmentName, None)
+            if fragDocFactory is not None:
+                fragment.docFactory = fragDocFactory
+        if fragment.live:
+            return GenericNavigationLivePage(
+                self.webapp, self.navigation, fragment)
         else:
-            o = self.webapp.store.getItemByID(storeID, None)
-            if o is None:
-                return NotFound
-            res = IResource(o, None)
-            if res is not None:
-                return res
-            fragment = INavigableFragment(o, None)
-            if fragment is None:
-                return NotFound
-            if fragment.fragmentName is not None:
-                fragDocFactory = self.webapp.getDocFactory(fragment.fragmentName, None)
-                if fragDocFactory is not None:
-                    fragment.docFactory = fragDocFactory
-            if fragment.live:
-                return GenericNavigationLivePage(
-                    self.webapp, self.navigation, fragment)
-            else:
-                return GenericNavigationPage(self.webapp,
-                                             self.navigation, fragment)
+            return GenericNavigationPage(self.webapp,
+                                         self.navigation, fragment)
 
 
 
@@ -170,8 +174,25 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     preferredTheme = text()
     hitCount = integer()
+    privateKey = integer()
 
     prefixURL = 'private'
+
+    def __init__(self, **kw):
+        super(PrivateApplication, self).__init__(**kw)
+        gk = genkey()
+        print 'privateKey in', gk
+        self.privateKey = gk
+        print 'privateKey out', self.privateKey
+
+    def linkTo(self, obj):
+        # currently obj must be a storeID, but other types might come eventually
+        # print 'linkTo privateKey', self.privateKey
+        return '/private/'+storeIDToWebID(self.privateKey, obj)
+
+    def linkFrom(self, webid):
+        # print 'linkFrom privateKey', self.privateKey
+        return webIDToStoreID(self.privateKey, webid)
 
     def install(self):
         self.store.powerUp(self, ISiteRootPlugin)
