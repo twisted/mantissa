@@ -23,7 +23,9 @@ class DeveloperApplication(Item):
     statementCount = integer()
 
     def __init__(self, statementCount=0, **kw):
-        Item.__init__(self, statementCount=statementCount, **kw)
+        super(
+            DeveloperApplication, self).__init__(
+            statementCount=statementCount, **kw)
 
     def install(self):
         self.store.powerUp(self, INavigableElement)
