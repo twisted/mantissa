@@ -1,15 +1,16 @@
 
 from zope.interface import implements
 
-from twisted.internet import defer
-from twisted.internet import reactor
 from twisted.cred.portal import IRealm
+
+from twisted.mail import smtp, relaymanager
 
 from axiom.item import Item, transacted
 from axiom.attributes import integer, reference, text, AND
 from axiom.iaxiom import IBeneficiary
 
 from nevow.rend import Page, NotFound
+from nevow.url import URL
 from nevow.livepage import LivePage, glue, set
 from nevow.inevow import IResource, ISession
 from nevow.flat.ten import flatten
@@ -64,11 +65,8 @@ class TicketBooth(Item, PrefixURLMixin):
                    email=email,
                    nonce=self._generateNonce())
         self.createdTicketCount += 1
-        print 'woop', repr(t.nonce)
+        return t.nonce
 
-        d = defer.Deferred()
-        reactor.callLater(2, d.callback, t.nonce)
-        return d
     createTicket = transacted(createTicket)
 
     def ticketClaimed(self, ticket):
@@ -94,21 +92,40 @@ class FreeSignerUpper(LivePage):
         return "Sign Up"
 
     def handle_issueTicket(self, ctx, emailAddress):
-        def hooray(nonce):
+        def hooray(whatever):
             return set('signup-status',
                        flatten([
                         'Check your email, or ',
-                        t.a(href='/'+self.original.booth.prefixURL+'/'+nonce)
+                        t.a(href=uuu)
                         ['click here.']]))
         def ono(err):
             return set(
                 'signup-status',
                 flatten('That did not work: ' + err.getErrorMessage()))
         emailAddress = unicode(emailAddress, 'ascii')
-        return self.original.booth.createTicket(
+
+        nonce = self.original.booth.createTicket(
             self.original,
             emailAddress,
-            self.original.benefactor).addCallbacks(hooray, ono)
+            self.original.benefactor)
+
+        uuu = '/'+self.original.booth.prefixURL+'/'+nonce
+
+        msg = (
+            "Subject: WElcome,.",
+            "To: %s",
+            "Date: Now",
+            "Content-Type: text/html",
+            "",
+            "Hi.  Click on this link,.: <a href='%s'>now.</a>")
+
+        msg = '\r\n'.join(msg) % (
+            emailAddress, flatten(URL.fromContext(ctx).click(uuu)))
+
+        def gotMX(mx):
+            return smtp.sendmail(str(mx.name), 'signup@internet.host', [emailAddress], msg)
+        mxc = relaymanager.MXCalculator()
+        return mxc.getMX(emailAddress.split('@', 1)[1]).addCallback(gotMX).addCallbacks(hooray, ono)
 
     def render_content(self, ctx, data):
         return getLoader('signup').load()
