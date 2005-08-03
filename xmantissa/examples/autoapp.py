@@ -2,9 +2,10 @@
 from axiom.store import Store
 from axiom.userbase import LoginSystem
 
-from xmantissa.webadmin import DeveloperApplication
+from xmantissa.webadmin import DeveloperApplication, DONTUSETHISBenefactor
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite
+from xmantissa.signup import FreeTicketSignup, TicketBooth
 
 s = Store("test.axiom", debug=True)
 def _():
@@ -28,6 +29,19 @@ def _():
     WebSite(store=s3).install()
 
     PrivateApplication(store=s3).install()
+
+    # MECHANISM
+    bth = TicketBooth(store=s)
+    bth.install()
+
+    # POLICY
+    ben = DONTUSETHISBenefactor(store=s)
+    fre = FreeTicketSignup(store=s,
+                           benefactor=ben,
+                           prefixURL=u'admin-signup',
+                           booth=bth)
+    fre.install()
+
 
 
 s.transact(_)

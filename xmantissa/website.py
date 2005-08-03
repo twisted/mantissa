@@ -45,7 +45,6 @@ class SiteRootMixin(object):
             "This _must_ be installed at the root of a server.")
 
     def locateChild(self, ctx, segments):
-        self.hitCount = self.hitCount or 0
         self.hitCount += 1
         s = self.store
         P = self.powerupInterface
@@ -134,8 +133,8 @@ class WebSite(Item, Service, SiteRootMixin):
     typeName = 'mantissa_web_powerup'
     schemaVersion = 1
 
-    portno = integer()
-    hitCount = integer()
+    portno = integer(default=0)
+    hitCount = integer(default=0)
 
     parent = inmemory()
     running = inmemory()
@@ -145,24 +144,23 @@ class WebSite(Item, Service, SiteRootMixin):
     site = inmemory()
 
     def install(self):
-        x = IRealm(self.store, None)
-        if x is None:
-            raise WebConfigurationError(
-                'No realm: you need to install a userbase before anything else.')
-        y = ICredentialsChecker(self.store, None)
-        if y is None:
-            raise WebConfigurationError(
-                'No checkers: you need to install a userbase before anything else.')
-
         self.store.powerUp(self, IService)
         self.store.powerUp(self, IResource)
 
     def privilegedStartService(self):
+        realm = IRealm(self.store, None)
+        if realm is None:
+            raise WebConfigurationError(
+                'No realm: '
+                'you need to install a userbase before using this service.')
+        chkr = ICredentialsChecker(self.store, None)
+        if chkr is None:
+            raise WebConfigurationError(
+                'No checkers: '
+                'you need to install a userbase before using this service.')
 
         guardedRoot = SessionWrapper(
-            Portal(IRealm(self.store),
-                   [ICredentialsChecker(self.store),
-                    AllowAnonymousAccess()]))
+            Portal(realm, [chkr, AllowAnonymousAccess()]))
 
         self.site = NevowSite(UnguardedWrapper(self.store, guardedRoot))
 

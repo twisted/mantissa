@@ -81,3 +81,17 @@ class ITab(Interface):
     concrete representation is xmantissa.webnav.Tab
     """
 
+class IBenefactor(Interface):
+    """
+    Make users and give them things to use.
+    """
+
+    def endow(emailAddress):
+        """
+        Make a user and return it.  Give the newly created user new powerups or
+        other functionality.
+
+        This is only called when the user has confirmed the email address
+        passed in by receiving a message and clicking on the link in the
+        provided email.
+        """
