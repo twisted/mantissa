@@ -8,12 +8,13 @@ xmantissa.webnav
 from zope.interface import implements
 
 from axiom.item import Item
-from axiom.attributes import text, integer
+from axiom.attributes import text, integer, reference
 
 from nevow.rend import Page, Fragment, NotFound
 from nevow.livepage import LivePage
 from nevow.inevow import IResource
 from nevow import tags as t
+from nevow.url import URL
 
 from xmantissa.website import PrefixURLMixin
 from xmantissa.webtheme import getAllThemes
@@ -103,30 +104,43 @@ class GenericNavigationLivePage(LivePage, NavMixin):
         self.fragment = fragment
         fragment.page = self
 
+    def goingLive(self, ctx, client):
+        getattr(self.fragment, 'goingLive', lambda x, y: None)(ctx, client)
+
     def locateHandler(self, ctx, path, name):
         return getattr(self.fragment, 'handle_' + name)
 
     def render_head(self, ctx, data):
         return ctx.tag[
-            t.invisible(render=t.directive("liveid")),
             t.invisible(render=t.directive("liveglue")),
             ]
+
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-
 class PrivateRootPage(Page, NavMixin):
-
     addSlash = True
 
     def __init__(self, webapp, navigation):
-        docFactory = webapp.getDocFactory('shell')
         self.webapp = webapp
-        Page.__init__(self, docFactory=docFactory)
+        Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, navigation)
 
+    def child_(self, ctx):
+        if not self.navigation:
+            return self
+        # /private/XXXX ->
+        click = self.webapp.linkTo(self.navigation[0].storeID)
+        return URL.fromContext(ctx).click(click)
+
+    def render_title(self, ctx, data):
+        return 'OMG, WTF'
+
     def render_content(self, ctx, data):
-        return 'Root page: possibly this should be a redirect instead.  Temporarily not.'
+        return """
+        You have no default root page set, and no navigation plugins installed.  I
+        don't know what to do.
+        """
 
     def childFactory(self, ctx, name):
         storeID = self.webapp.linkFrom(name)
@@ -157,7 +171,6 @@ class PrivateRootPage(Page, NavMixin):
 
 class PrivateApplication(Item, PrefixURLMixin):
     """
-
     This is the root of a private, navigable web application.  It is designed
     to be installed on avatar stores after installing WebSite.
 
@@ -166,7 +179,21 @@ class PrivateApplication(Item, PrefixURLMixin):
     those powerups will be linked to; provide IResource adapters for said
     items.
 
+    @ivar preferredTheme: A C{unicode} string naming the preferred theme for
+    this application.  Templates and suchlike will be looked up for this theme
+    first.
+
+    @ivar hitCount: Number of page loads of this application.
+
+    @ivar privateKey: A random integer used to deterministically but
+    unpredictably perturb link generation to avoid being the target of XSS
+    attacks.
+
+    @ivar privateIndexPage: A reference to the Item whose IResource or
+    INavigableFragment adapter will be displayed on login and upon viewing the
+    'root' page, /private/.
     """
+
     implements(ISiteRootPlugin)
 
     typeName = 'private_web_application'
@@ -175,6 +202,8 @@ class PrivateApplication(Item, PrefixURLMixin):
     preferredTheme = text()
     hitCount = integer()
     privateKey = integer()
+
+    privateIndexPage = reference()
 
     prefixURL = 'private'
 
