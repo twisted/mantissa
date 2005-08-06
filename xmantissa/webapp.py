@@ -149,13 +149,13 @@ class PrivateRootPage(Page, NavMixin):
 
         o = self.webapp.store.getItemByID(storeID, None)
         if o is None:
-            return NotFound
+            return None
         res = IResource(o, None)
         if res is not None:
             return res
         fragment = INavigableFragment(o, None)
         if fragment is None:
-            return NotFound
+            return None
         if fragment.fragmentName is not None:
             fragDocFactory = self.webapp.getDocFactory(fragment.fragmentName, None)
             if fragDocFactory is not None:
