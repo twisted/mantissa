@@ -75,6 +75,14 @@ class INavigableFragment(Interface):
     """)
 
 
+    def head():
+        """
+        Provide some additional content to be included in the <head>
+        section of the page when this fragment is being rendered.
+
+        May return None if nothing needs to be added there.
+        """
+
 class ITab(Interface):
     """
     Abstract, non-UI representation of a tab that shows up in the UI.  The only

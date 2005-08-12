@@ -93,6 +93,12 @@ class GenericNavigationPage(Page, NavMixin):
         self.fragment = fragment
         fragment.page = self
 
+    def render_head(self, ctx, data):
+        extra = self.fragment.head()
+        if extra is not None:
+            return ctx.tag[extra]
+        return ctx.tag
+
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
@@ -111,9 +117,11 @@ class GenericNavigationLivePage(LivePage, NavMixin):
         return getattr(self.fragment, 'handle_' + name)
 
     def render_head(self, ctx, data):
-        return ctx.tag[
-            t.invisible(render=t.directive("liveglue")),
-            ]
+        children = [t.invisible(render=t.directive("liveglue"))]
+        extra = self.fragment.head()
+        if extra is not None:
+            children.append(extra)
+        return ctx.tag[children]
 
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
