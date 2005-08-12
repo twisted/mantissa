@@ -1,19 +1,44 @@
 
+import sys
+
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
+from twisted.python.util import sibpath
+
+from twisted.conch import manhole
 
 from axiom.attributes import integer
 from axiom.item import Item
 
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
-from xmantissa.website import WebSite
-from xmantissa.ixmantissa import INavigableElement, INavigableFragment
+from xmantissa.website import WebSite, PrefixURLMixin
+from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
+    ISessionlessSiteRootPlugin
+
+from nevow import rend, flat, json, livepage, loaders, static, tags as T
 
 
-from nevow import rend, livepage, loaders, tags as T
+class DeveloperSite(Item, PrefixURLMixin):
+    """Provides static content sessionlessly for the developer application.
+    """
+    implements(ISessionlessSiteRootPlugin)
 
+    typeName = 'developer_site'
+    schemaVersion = 1
+
+    prefixURL = 'static/webadmin'
+
+    # Counts of each kind of user
+    developers = integer()
+    administrators = integer()
+
+    def install(self):
+        self.store.powerUp(self, ISessionlessSiteRootPlugin)
+
+    def createResource(self):
+        return static.File(sibpath(__file__, 'static'))
 
 class DeveloperApplication(Item):
     """
@@ -38,23 +63,47 @@ class DeveloperApplication(Item):
 class REPL(rend.Fragment):
     """
     """
+    implements(INavigableFragment)
 
     live = True
     fragmentName = 'admin-python-repl'
 
     docFactory = loaders.stan(T.div[
-            T.div(id='count'),
+            T.div['Statement count: ', T.span(id='count')],
             T.div(id='output'),
-            T.form(onsubmit="server.handle('input', source.value); source.value = ''; return false;")[
+            T.form(onsubmit="return submitInput(source)")[
                 T.input(type='text', id='source')]])
+
+    def __init__(self, *a, **kw):
+        rend.Fragment.__init__(self, *a, **kw)
+        self.namespace = {}
+        self.interpreter = manhole.ManholeInterpreter(self)
+
+    def head(self):
+        return T.script(
+            language='javascript',
+            src='/static/webadmin/repl.js')
+
+    def goingLive(self, ctx, client):
+        self.client = client
+        self.client.send(livepage.set('count', self.original.statementCount))
+
+    def addOutput(self, output, async=False):
+        # Manhole callback
+        lines = livepage.js(json.serialize(output.splitlines()))
+        cmd = livepage.js.appendManholeOutput(lines)
+        cmd = flat.flatten(cmd)
+        self.client.send(cmd)
 
     def handle_input(self, ctx, source):
         # IClientHandle(ctx)
-        self.original.statementCount += 1
-        return [
-            livepage.append('output', T.div[source]), livepage.eol,
-            livepage.set('count', self.original.statementCount), livepage.eol,
-            ]
+        more = self.interpreter.push(source)
+        if more:
+            o = self.addOutput('... ')
+        else:
+            o = self.addOutput('>>> ')
+            self.original.statementCount += 1
+        return [o, livepage.eol, livepage.set('count', self.original.statementCount)]
 
 registerAdapter(REPL, DeveloperApplication, INavigableFragment)
 
