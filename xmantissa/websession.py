@@ -146,7 +146,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
 
     def createSessionForKey(self, key, user):
-        print 'CREATING A SESSION FOR', repr(key), repr(user)
         PersistentSession(
             store=self.store,
             sessionKey=key,
@@ -154,8 +153,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
 
     def authenticatedUserForKey(self, key):
-        for session in self.store.query(PersistentSession):
-            print 'woop', session
         for session in self.store.query(PersistentSession, PersistentSession.sessionKey == key):
             session.renew()
             return session.authenticatedAs
@@ -182,7 +179,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         if they have a valid persistant session.
         """
         if isinstance(creds, credentials.Anonymous):
-            print 'Woop', session.uid
             preauth = self.authenticatedUserForKey(session.uid)
             ## Don't try to preauth someone if they have a cookie for another
             ## domain.  This can only happen in a virtual hosting
@@ -192,11 +188,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                 request.getHeader('host').split(':')[0]):
                 self.savorSessionCookie(request)
                 creds = userbase.Preauthenticated(preauth)
-                print 'preauth!!!!!!!!!!!!!'
-            else:
-                print 'shit'
-                print preauth
-                print request.getHeader('host')
 
         def cbLoginSuccess(input):
             """User authenticated successfully.
@@ -204,9 +195,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
             Create the persistent session, and associate it with the
             username. (XXX it doesn't work like this now)
             """
-
-            print 'Successfully logged in as', creds
-
 
             user = request.args.get('username')
             if user is not None:
@@ -217,12 +205,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                     self.savorSessionCookie(request)
             return input
 
-        def ebLoginFailed(err):
-            print err
-            return err
-
         return guard.SessionWrapper.login(self, request, session, creds, segments
-                                          ).addCallbacks(cbLoginSuccess, ebLoginFailed)
+                                          ).addCallback(cbLoginSuccess)
 
 
     def explicitLogout(self, session):
