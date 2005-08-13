@@ -31,8 +31,8 @@ class DeveloperSite(Item, PrefixURLMixin):
     prefixURL = 'static/webadmin'
 
     # Counts of each kind of user
-    developers = integer()
-    administrators = integer()
+    developers = integer(default=0)
+    administrators = integer(default=0)
 
     def install(self):
         self.store.powerUp(self, ISessionlessSiteRootPlugin)
