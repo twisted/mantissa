@@ -30,6 +30,7 @@ from axiom.item import Item
 from axiom.attributes import integer, inmemory, text
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin
+from xmantissa import websession
 
 class WebConfigurationError(RuntimeError):
     """You specified some invalid configuration.
@@ -159,7 +160,8 @@ class WebSite(Item, Service, SiteRootMixin):
                 'No checkers: '
                 'you need to install a userbase before using this service.')
 
-        guardedRoot = SessionWrapper(
+        guardedRoot = websession.PersistentSessionWrapper(
+            self.store,
             Portal(realm, [chkr, AllowAnonymousAccess()]))
 
         self.site = NevowSite(UnguardedWrapper(self.store, guardedRoot))
