@@ -2,7 +2,7 @@
 from axiom.store import Store
 from axiom.userbase import LoginSystem
 
-from xmantissa.webadmin import DeveloperApplication, DONTUSETHISBenefactor
+from xmantissa.webadmin import DeveloperSite, DeveloperApplication, DONTUSETHISBenefactor
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite
 from xmantissa.signup import FreeTicketSignup, TicketBooth
@@ -13,6 +13,7 @@ def _():
     ls.install()
     s.checkpoint()
     WebSite(store=s, portno=8080).install()
+    DeveloperSite(store=s).install()
 
     la = ls.addAccount('admin', 'localhost', 'password')
     s2 = la.avatars.open()
