@@ -122,28 +122,28 @@ class WebAdministration(usage.Options):
     def postOptions(self):
         s = self.parent.getStore()
 
-        # Make sure site-wide dependency is available
-        for devsite in s.query(webadmin.DeveloperSite):
-            break
-        else:
-            devsite = webadmin.DeveloperSite(store=s)
-            devsite.install()
-
         didSomething = False
+
         if self['admin']:
             didSomething = True
-            raise usage.UsageError('Sorry, unimplemented.')
+            if self['disable']:
+                for app in s.query(webadmin.AdminStatsApplication):
+                    app.deleteFromStore()
+                    break
+                else:
+                    raise usage.UsageError('Administrator controls already disabled.')
+            else:
+                webadmin.AdminStatsApplication(store=s).install()
+
         if self['developer']:
             didSomething = True
             if self['disable']:
                 for app in s.query(webadmin.DeveloperApplication):
                     app.deleteFromStore()
-                    devsite.developers -= 1
                     break
                 else:
                     raise usage.UsageError('Developer controls already disabled.')
             else:
                 webadmin.DeveloperApplication(store=s).install()
-                devsite.developers += 1
         if not didSomething:
             raise usage.UsageError("Specify something or I won't do anything.")

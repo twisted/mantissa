@@ -10,6 +10,7 @@ from twisted.conch import manhole
 
 from axiom.attributes import integer
 from axiom.item import Item
+from axiom import userbase
 
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
@@ -40,10 +41,104 @@ class DeveloperSite(Item, PrefixURLMixin):
     def createResource(self):
         return static.File(sibpath(__file__, 'static'))
 
-class DeveloperApplication(Item):
+class ParentCounterMixin:
+    def _getDevSite(self):
+        # Developer site is required.  Make one if there isn't one.
+        # Make sure site-wide dependency is available
+        for devsite in self.store.parent.query(DeveloperSite):
+            break
+        else:
+            devsite = DeveloperSite(store=self.store.parent)
+            devsite.install()
+        return devsite
+
+    # XXX WAaah.  self.store.parent is None sometimes, depending on
+    # how we got opened :/
+    def increment(self):
+#         devsite = self._getDevSite()
+#         setattr(devsite, self.counterAttribute, getattr(devsite, self.counterAttribute) + 1)
+        pass
+
+    def decrement(self):
+#         devsite = self._getDevSite()
+#         setattr(devsite, self.counterAttribute, getattr(devsite, self.counterAttribute) - 1)
+        pass
+
+class AdminStatsApplication(Item, ParentCounterMixin):
     """
     """
     implements(INavigableElement)
+
+    schemaVersion = 1
+    typeName = 'administrator_application'
+
+    counterAttribute = 'administrators'
+
+    updateInterval = integer(default=5)
+
+    def install(self):
+        self.increment()
+        self.store.powerUp(self, INavigableElement)
+
+    def deletedFromStore(self, *a, **kw):
+        self.decrement()
+        return super(AdminStatsApplication, self).deletedFromStore(*a, **kw)
+
+    def getTabs(self):
+        return [webnav.Tab('Admin', self.storeID, 0.0,
+                           [webnav.Tab('Stats', self.storeID, 0.1)],
+                           authoritative=False)]
+
+
+class AdminStatsFragment(rend.Fragment):
+    implements(INavigableFragment)
+
+    live = False
+    fragmentName = 'admin-stats'
+
+    def head(self):
+        return None
+
+    def _query(self, *a, **kw):
+        return self.original.store.parent.query(*a, **kw)
+
+    def render_loginCount(self, ctx, data):
+        for ls in self._query(userbase.LoginSystem):
+            return ls.loginCount
+
+    def render_failedLoginCount(self, ctx, data):
+        for ls in self._query(userbase.LoginSystem):
+            return ls.failedLogins
+
+    def render_userCount(self, ctx, data):
+        count = 0
+        for la in self._query(userbase.LoginAccount):
+            count += 1
+        return count
+
+    def render_disabledUserCount(self, ctx, data):
+        count = 0
+        for la in self._query(userbase.LoginAccount, userbase.LoginAccount.disabled != 0):
+            count += 1
+        return count
+
+    def render_developerCount(self, ctx, data):
+        for ds in self._query(DeveloperSite):
+            return ds.developers
+
+    def render_administratorCount(self, ctx, data):
+        for ds in self._query(DeveloperSite):
+            return ds.administrators
+
+registerAdapter(AdminStatsFragment, AdminStatsApplication, INavigableFragment)
+
+
+class DeveloperApplication(Item, ParentCounterMixin):
+    """
+    """
+    implements(INavigableElement)
+
+    counterAttribute = 'developers'
 
     schemaVersion = 1
     typeName = 'developer_application'
@@ -51,7 +146,12 @@ class DeveloperApplication(Item):
     statementCount = integer(default=0)
 
     def install(self):
+        self.increment()
         self.store.powerUp(self, INavigableElement)
+
+    def deletedFromStore(self, *a, **kw):
+        self.decrement()
+        return super(DeveloperApplication, self).deletedFromStore(*a, **kw)
 
     # INavigableElement
     def getTabs(self):
