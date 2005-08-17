@@ -190,6 +190,11 @@ class REPL(rend.Fragment):
 
     def addOutput(self, output, async=False):
         # Manhole callback
+        try:
+            output = unicode(output)
+        except UnicodeDecodeError, e:
+            output = u'UnicodeDecodeError: ' + str(e)
+
         lines = livepage.js(json.serialize(output.splitlines()))
         cmd = livepage.js.appendManholeOutput(lines)
         cmd = flat.flatten(cmd)
