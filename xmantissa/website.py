@@ -16,7 +16,7 @@ from twisted.application.service import IService, Service
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
 from twisted.python.util import sibpath
-
+from twisted.protocols import policies
 from twisted.internet import reactor
 
 from nevow.rend import NotFound, Page
@@ -118,8 +118,6 @@ class StaticSite(Item, PrefixURLMixin):
     implements(ISessionlessSiteRootPlugin,     # implements both so that it
                ISiteRootPlugin)                # works in both super and sub
                                                # stores.
-
-
     schemaVersion = 1
     typeName = 'static_web_site'
 
@@ -144,6 +142,8 @@ class WebSite(Item, Service, SiteRootMixin):
     port = inmemory()
     site = inmemory()
 
+    debug = False
+
     def install(self):
         self.store.powerUp(self, IService)
         self.store.powerUp(self, IResource)
@@ -165,6 +165,9 @@ class WebSite(Item, Service, SiteRootMixin):
             Portal(realm, [chkr, AllowAnonymousAccess()]))
 
         self.site = NevowSite(UnguardedWrapper(self.store, guardedRoot))
+
+        if self.debug:
+            self.site = policies.TrafficLoggingFactory(self.site, 'http')
 
         self.port = reactor.listenTCP(self.portno, self.site)
 

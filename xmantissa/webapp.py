@@ -218,17 +218,13 @@ class PrivateApplication(Item, PrefixURLMixin):
     def __init__(self, **kw):
         super(PrivateApplication, self).__init__(**kw)
         gk = genkey()
-        print 'privateKey in', gk
         self.privateKey = gk
-        print 'privateKey out', self.privateKey
 
     def linkTo(self, obj):
         # currently obj must be a storeID, but other types might come eventually
-        # print 'linkTo privateKey', self.privateKey
-        return '/private/'+storeIDToWebID(self.privateKey, obj)
+        return '/%s/%s' % (self.prefixURL, storeIDToWebID(self.privateKey, obj))
 
     def linkFrom(self, webid):
-        # print 'linkFrom privateKey', self.privateKey
         return webIDToStoreID(self.privateKey, webid)
 
     def install(self):

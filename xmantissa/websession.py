@@ -180,12 +180,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         """
         if isinstance(creds, credentials.Anonymous):
             preauth = self.authenticatedUserForKey(session.uid)
-            ## Don't try to preauth someone if they have a cookie for another
-            ## domain.  This can only happen in a virtual hosting
-            ## situation. (Question: Why is the browser sending the cookie even
-            ## though it is for another domain?)
-            if (preauth is not None and preauth.split('@')[1] ==
-                request.getHeader('host').split(':')[0]):
+            if preauth is not None:
                 self.savorSessionCookie(request)
                 creds = userbase.Preauthenticated(preauth)
 
