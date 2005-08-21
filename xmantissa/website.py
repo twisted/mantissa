@@ -22,7 +22,7 @@ from twisted.internet import reactor
 from nevow.rend import NotFound, Page
 from nevow.guard import SessionWrapper
 from nevow.inevow import IResource
-from nevow.appserver import NevowSite
+from nevow.appserver import NevowSite, NevowRequest
 from nevow.loaders import xmlfile
 from nevow.static import File
 
@@ -128,6 +128,22 @@ class StaticSite(Item, PrefixURLMixin):
         return File(self.staticContentPath)
 
 
+class AxiomRequest(NevowRequest):
+    def __init__(self, store, *a, **kw):
+        NevowRequest.__init__(self, *a, **kw)
+        self.store = store
+
+    def process(self, *a, **kw):
+        return self.store.transact(NevowRequest.process, self, *a, **kw)
+
+
+class AxiomSite(NevowSite):
+    def __init__(self, store, *a, **kw):
+        NevowSite.__init__(self, *a, **kw)
+        self.store = store
+        self.requestFactory = lambda *a, **kw: AxiomRequest(self.store, *a, **kw)
+
+
 class WebSite(Item, Service, SiteRootMixin):
     typeName = 'mantissa_web_powerup'
     schemaVersion = 1
@@ -164,7 +180,7 @@ class WebSite(Item, Service, SiteRootMixin):
             self.store,
             Portal(realm, [chkr, AllowAnonymousAccess()]))
 
-        self.site = NevowSite(UnguardedWrapper(self.store, guardedRoot))
+        self.site = AxiomSite(self.store, UnguardedWrapper(self.store, guardedRoot))
 
         if self.debug:
             self.site = policies.TrafficLoggingFactory(self.site, 'http')
