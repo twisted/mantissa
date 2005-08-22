@@ -18,7 +18,9 @@ from zope.interface import Interface, Attribute
 from twisted.python import reflect
 from twisted.cred import credentials
 
-from axiom import extime, attributes, item, userbase
+from epsilon import extime
+
+from axiom import attributes, item, userbase
 
 from nevow import guard
 
