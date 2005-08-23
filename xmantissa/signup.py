@@ -210,13 +210,6 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     booth = reference()
     benefactor = reference()
 
-    issuedTicketCount = integer(default=0)
-
-    claimedTicketCount = integer(default=0)
-
-    def ticketClaimed(self, ticket):
-        self.claimedTicketCount += 1
-
     def createResource(self):
         return FreeSignerUpper(self)
 
@@ -225,11 +218,11 @@ class Ticket(Item):
     schemaVersion = 1
     typeName = 'ticket'
 
-    issuer = reference()
-    booth = reference()
+    issuer = reference(allowNone=False)
+    booth = reference(allowNone=False)
     avatar = reference()
     claimed = integer(default=0)
-    benefactor = reference()
+    benefactor = reference(allowNone=False)
 
     email = text()
     nonce = text()
@@ -248,7 +241,6 @@ class Ticket(Item):
                 acct = realm.addAccount(username, domain, None)
             self.avatar = acct
             self.claimed += 1
-            self.issuer.ticketClaimed(self)
             self.booth.ticketClaimed(self)
             self.benefactor.endow(IBeneficiary(self.avatar))
         return self.avatar
