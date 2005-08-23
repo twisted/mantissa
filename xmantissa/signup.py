@@ -1,9 +1,12 @@
 
+import os, rfc822
+
 from zope.interface import implements
 
 from twisted.cred.portal import IRealm
 
 from twisted.mail import smtp, relaymanager
+from twisted.python.util import sibpath
 
 from axiom.item import Item, transacted
 from axiom.attributes import integer, reference, text, AND
@@ -17,12 +20,8 @@ from nevow.flat.ten import flatten
 from nevow import tags as t
 
 from xmantissa.ixmantissa import ISiteRootPlugin
-
 from xmantissa.website import PrefixURLMixin
-
 from xmantissa.webtheme import getAllThemes
-
-import os
 
 class TicketClaimer(Page):
     def childFactory(self, ctx, name):
@@ -33,7 +32,7 @@ class TicketClaimer(Page):
             res = IResource(T.claim())
             lgo = getattr(res, 'logout', lambda : None)
             ISession(ctx).setDefaultResource(res, lgo)
-            break
+            return URL.fromContext(ctx).click("/")
         else:
             return NotFound
 
@@ -53,24 +52,96 @@ class TicketBooth(Item, PrefixURLMixin):
     def createResource(self):
         return TicketClaimer(self)
 
-    def _generateNonce(self):
-        return unicode(os.urandom(16).encode('hex'), 'ascii')
-
     def createTicket(self, issuer, email, benefactor):
-        t = Ticket(store=self.store,
-                   benefactor=benefactor,
-                   booth=self,
-                   avatar=None,
-                   issuer=issuer,
-                   email=email,
-                   nonce=self._generateNonce())
-        self.createdTicketCount += 1
+        t = self.store.findOrCreate(
+            Ticket,
+            benefactor=benefactor,
+            booth=self,
+            avatar=None,
+            issuer=issuer,
+            email=email)
         return t
 
     createTicket = transacted(createTicket)
 
     def ticketClaimed(self, ticket):
         self.claimedTicketCount += 1
+
+    def issueViaEmail(self, issuer, email, benefactor,
+                      domainName, httpPort=80, templateFileObj=None):
+        """
+        Send a ticket via email to the supplied address, which, when claimed, will
+        create an avatar and allow the given benefactor to endow it with
+        things.
+
+        @param issuer: An object, preferably a user, to track who issued this
+        ticket.
+
+        @param email: a str, formatted as an rfc2821 email address
+        (user@domain) -- source routes not allowed.
+
+        @param benefactor: an implementor of ixmantissa.IBenefactor
+
+        @param domainName: a domain name, used as the domain part of the
+        sender's address, and as the web server to generate a link to within
+        the email.
+
+        @param httpPort: a port number for the web server running on domainName
+
+        @param templateFileObj: Optional, but suggested: an object with a
+        read() method that returns a string containing an rfc2822-format email
+        message, which will have several python values interpolated into it
+        dictwise:
+
+            %(from)s: To be used for the From: header; will contain an
+             rfc2822-format address.
+
+            %(to)s: the address that we are going to send to.
+
+            %(date)s: an rfc2822-format date.
+
+            %(message-id)s: an rfc2822 message-id
+
+            %(link)s: an HTTP URL that we are generating a link to.
+
+        """
+
+        if templateFileObj is None:
+            templateFileObj = file(sibpath(__file__, 'signup.rfc2822'))
+
+        nonce = self.createTicket(issuer,
+                                  unicode(email, 'ascii'),
+                                  benefactor).nonce
+
+        if httpPort == 80:
+            httpPort = ''
+        else:
+            httpPort = ':'+str(httpPort)
+
+        ticketLink = 'http://%s%s/%s/%s' % (domainName, httpPort,
+                                            self.prefixURL, nonce)
+
+        signupInfo = {'from': 'signup@'+domainName,
+                      'to': email,
+                      'date': rfc822.formatdate(),
+                      'message-id': smtp.messageid(),
+                      'link': ticketLink}
+
+        msg = templateFileObj.read() % signupInfo
+        templateFileObj.close()
+        msg = '\r\n'.join(msg.splitlines())
+
+        def gotMX(mx):
+            return smtp.sendmail(str(mx.name),
+                                 'signup@internet.host',
+                                 [email],
+                                 msg)
+
+        mxc = relaymanager.MXCalculator()
+        return mxc.getMX(email.split('@', 1)[1]).addCallback(gotMX)
+
+def _generateNonce():
+    return unicode(os.urandom(16).encode('hex'), 'ascii')
 
 
 def getLoader(n):
@@ -84,6 +155,14 @@ def getLoader(n):
 
     raise RuntimeError("No loader for %r anywhere" % (n,))
 
+def domainAndPortFromContext(ctx):
+    netloc = URL.fromContext(ctx).netloc.split(':', 1)
+    if len(netloc) == 1:
+        domain, port = netloc[0], 80
+    else:
+        domain, port = netloc[0], int(netloc[1])
+    return domain, port
+
 class FreeSignerUpper(LivePage):
     def __init__(self, original):
         Page.__init__(self, original, docFactory = getLoader('shell'))
@@ -92,40 +171,24 @@ class FreeSignerUpper(LivePage):
         return "Sign Up"
 
     def handle_issueTicket(self, ctx, emailAddress):
+        domain, port = domainAndPortFromContext(ctx)
+
         def hooray(whatever):
             return set('signup-status',
                        flatten([
-                        'Check your email, or ',
-                        t.a(href=uuu)
-                        ['click here.']]))
+                        'Check your email!']))
         def ono(err):
             return set(
                 'signup-status',
                 flatten('That did not work: ' + err.getErrorMessage()))
-        emailAddress = unicode(emailAddress, 'ascii')
 
-        nonce = self.original.booth.createTicket(
+        return self.original.booth.issueViaEmail(
             self.original,
             emailAddress,
-            self.original.benefactor).nonce
-
-        uuu = '/'+self.original.booth.prefixURL+'/'+nonce
-
-        msg = (
-            "Subject: WElcome,.",
-            "To: %s",
-            "Date: Now",
-            "Content-Type: text/html",
-            "",
-            "Hi.  Click on this link,.: <a href='%s'>now.</a>")
-
-        msg = '\r\n'.join(msg) % (
-            emailAddress, flatten(URL.fromContext(ctx).click(uuu)))
-
-        def gotMX(mx):
-            return smtp.sendmail(str(mx.name), 'signup@internet.host', [emailAddress], msg)
-        mxc = relaymanager.MXCalculator()
-        return mxc.getMX(emailAddress.split('@', 1)[1]).addCallback(gotMX).addCallbacks(hooray, ono)
+            self.original.benefactor,
+            domain,
+            port
+            ).addCallbacks(hooray, ono)
 
     def render_content(self, ctx, data):
         return getLoader('signup').load()
@@ -170,6 +233,11 @@ class Ticket(Item):
 
     email = text()
     nonce = text()
+
+    def __init__(self, **kw):
+        super(Ticket, self).__init__(**kw)
+        self.booth.createdTicketCount += 1
+        self.nonce = _generateNonce()
 
     def claim(self):
         if not self.claimed:

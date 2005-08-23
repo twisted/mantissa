@@ -10,13 +10,13 @@ from zope.interface import implements
 from axiom.item import Item
 from axiom.attributes import text, integer, reference
 
-from nevow.rend import Page, Fragment, NotFound
+from nevow.rend import Page, Fragment
 from nevow.livepage import LivePage
 from nevow.inevow import IResource
 from nevow import tags as t
 from nevow.url import URL
 
-from xmantissa.website import PrefixURLMixin
+from xmantissa.website import PrefixURLMixin, StaticRedirect
 from xmantissa.webtheme import getAllThemes
 from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
@@ -176,7 +176,6 @@ class PrivateRootPage(Page, NavMixin):
                                          self.navigation, fragment)
 
 
-
 class PrivateApplication(Item, PrefixURLMixin):
     """
     This is the root of a private, navigable web application.  It is designed
@@ -229,6 +228,9 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     def install(self):
         self.store.powerUp(self, ISiteRootPlugin)
+        self.store.findOrCreate(StaticRedirect,
+                                prefixURL=u'',
+                                targetURL=u'/'+self.prefixURL).install(-1)
 
     def createResource(self):
         return PrivateRootPage(

@@ -176,8 +176,9 @@ class REPL(rend.Fragment):
 
     def __init__(self, *a, **kw):
         rend.Fragment.__init__(self, *a, **kw)
-        self.namespace = {}
-        self.interpreter = manhole.ManholeInterpreter(self)
+        self.namespace = {'s': self.original.store}
+        self.interpreter = manhole.ManholeInterpreter(self,
+                                                      self.namespace)
 
     def head(self):
         return T.script(

@@ -20,11 +20,11 @@ from twisted.protocols import policies
 from twisted.internet import reactor
 
 from nevow.rend import NotFound, Page
-from nevow.guard import SessionWrapper
 from nevow.inevow import IResource
 from nevow.appserver import NevowSite, NevowRequest
 from nevow.loaders import xmlfile
 from nevow.static import File
+from nevow.url import URL
 
 from axiom.item import Item
 from axiom.attributes import integer, inmemory, text
@@ -105,11 +105,11 @@ class PrefixURLMixin:
                 subsegments = segments[S:]
             return self.createResource(), subsegments
 
-    def install(self):
+    def install(self, priorityModifier=0):
         # Only 256 segments are allowed in URL paths.  We want to make sure
         # that static powerups always lose priority ordering to dynamic
         # powerups, since dynamic powerups will have information
-        priority = self.prefixURL.count('/') - 256
+        priority = (self.prefixURL.count('/') - 256) + priorityModifier
         for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
             if iface.providedBy(self):
                 self.store.powerUp(self, iface, priority)
@@ -126,6 +126,28 @@ class StaticSite(Item, PrefixURLMixin):
 
     def createResource(self):
         return File(self.staticContentPath)
+
+
+class StaticRedirect(Item, PrefixURLMixin):
+    implements(IResource,
+               ISessionlessSiteRootPlugin,
+               ISiteRootPlugin)
+
+    schemaVersion = 1
+    typeName = 'web_static_redirect'
+
+    targetURL = text(allowNone=False)
+
+    prefixURL = text(allowNone=False)
+
+    def locateChild(self, ctx, segments):
+        return self, ()
+
+    def renderHTTP(self, ctx):
+        return URL.fromContext(ctx).click(self.targetURL)
+
+    def createResource(self):
+        return self
 
 
 class AxiomRequest(NevowRequest):
