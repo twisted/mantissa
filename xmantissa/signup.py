@@ -65,7 +65,7 @@ class TicketBooth(Item, PrefixURLMixin):
                    email=email,
                    nonce=self._generateNonce())
         self.createdTicketCount += 1
-        return t.nonce
+        return t
 
     createTicket = transacted(createTicket)
 
@@ -107,7 +107,7 @@ class FreeSignerUpper(LivePage):
         nonce = self.original.booth.createTicket(
             self.original,
             emailAddress,
-            self.original.benefactor)
+            self.original.benefactor).nonce
 
         uuu = '/'+self.original.booth.prefixURL+'/'+nonce
 
