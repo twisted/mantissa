@@ -242,6 +242,6 @@ class Ticket(Item):
             self.avatar = acct
             self.claimed += 1
             self.booth.ticketClaimed(self)
-            self.benefactor.endow(IBeneficiary(self.avatar))
+            self.benefactor.endow(self, IBeneficiary(self.avatar))
         return self.avatar
     claim = transacted(claim)

@@ -219,7 +219,7 @@ class DONTUSETHISBenefactor(Item):
 
     didYouUseIt = integer(default=0)
 
-    def endow(self, avatar):
+    def endow(self, ticket, avatar):
         self.didYouUseIt += 1 # OMFG can you *read*??
         for X in WebSite, PrivateApplication, DeveloperApplication:
             X(store=avatar).install()
