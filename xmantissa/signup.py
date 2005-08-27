@@ -34,8 +34,7 @@ class TicketClaimer(Page):
             lgo = getattr(res, 'logout', lambda : None)
             ISession(ctx).setDefaultResource(res, lgo)
             return URL.fromContext(ctx).click("/")
-        else:
-            return NotFound
+        return None
 
 
 class TicketBooth(Item, PrefixURLMixin):
