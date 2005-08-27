@@ -234,6 +234,7 @@ class Ticket(Item):
 
     def claim(self):
         if not self.claimed:
+            log.msg("Claiming a ticket for the first time for %r" % (self.email,))
             username, domain = self.email.split('@', 1)
             realm = IRealm(self.store)
             acct = realm.accountByAddress(username, domain)
@@ -243,5 +244,7 @@ class Ticket(Item):
             self.claimed += 1
             self.booth.ticketClaimed(self)
             self.benefactor.endow(self, IBeneficiary(self.avatar))
+        else:
+            log.msg("Ignoring re-claim of ticket for: %r" % (self.email,))
         return self.avatar
     claim = transacted(claim)
