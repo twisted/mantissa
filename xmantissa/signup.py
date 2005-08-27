@@ -7,6 +7,7 @@ from twisted.cred.portal import IRealm
 
 from twisted.mail import smtp, relaymanager
 from twisted.python.util import sibpath
+from twisted.python import log
 
 from axiom.item import Item, transacted
 from axiom.attributes import integer, reference, text, AND
