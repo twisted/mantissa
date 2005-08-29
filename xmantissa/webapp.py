@@ -85,8 +85,11 @@ class NavMixin(object):
     def render_head(self, ctx, data):
         return ctx.tag
 
+class FragmentWrapperMixin:
+    def render_title(self, fragment):
+        return getattr(self.fragment, 'title', self.fragment.__class__.__name__)
 
-class GenericNavigationPage(Page, NavMixin):
+class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
     def __init__(self, webapp, navigation, fragment):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, navigation)
@@ -102,7 +105,7 @@ class GenericNavigationPage(Page, NavMixin):
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-class GenericNavigationLivePage(LivePage, NavMixin):
+class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
     # XXX TODO: support live nav, live fragments somehow
     def __init__(self, webapp, navigation, fragment):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
@@ -142,7 +145,7 @@ class PrivateRootPage(Page, NavMixin):
         return URL.fromContext(ctx).click(click)
 
     def render_title(self, ctx, data):
-        return 'OMG, WTF'
+        return 'Private Root Page (You Should Not See This)'
 
     def render_content(self, ctx, data):
         return """
