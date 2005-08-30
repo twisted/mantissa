@@ -133,7 +133,7 @@ class TicketBooth(Item, PrefixURLMixin):
 
         def gotMX(mx):
             return smtp.sendmail(str(mx.name),
-                                 'signup@internet.host',
+                                 signupInfo['from'],
                                  [email],
                                  msg)
 
