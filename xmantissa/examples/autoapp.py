@@ -7,7 +7,7 @@ from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite
 from xmantissa.signup import FreeTicketSignup, TicketBooth
 
-s = Store("test.axiom", debug=True)
+s = Store("autoapp.axiom")
 def _():
     # Install a user database so that people can log in.
     ls = LoginSystem(store=s)
