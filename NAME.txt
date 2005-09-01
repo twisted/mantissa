@@ -6,7 +6,7 @@ See: http://mathworld.wolfram.com/Mantissa.html
 In computer science, mantissa is the component of a floating-point number that
 denotes the value of the number witout its order of magnitude.
 
-Divmod Mantissa is an application server.  It is named for the flaoting-point
+Divmod Mantissa is an application server.  It is named for the floating-point
 mantissa because it is the container for the "value" portion of an application.
 This is explicitly linked to Divmod's other, proprietary project that has
 parity with Mantissa, called "Exponent", which provides increased power for
