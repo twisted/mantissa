@@ -11,10 +11,10 @@ from nevow.loaders import xmlfile
 from xmantissa.ixmantissa import IWebTheme
 
 from xmantissa import plugins
-from twisted.plugin import getPlugins
+from twisted.plugin import getPlugIns
 
 def getAllThemes():
-    l = list(getPlugins(IWebTheme, plugins))
+    l = list(getPlugIns(IWebTheme, plugins))
     l.sort(key=lambda o: o.priority)
     l.reverse()
     return l
