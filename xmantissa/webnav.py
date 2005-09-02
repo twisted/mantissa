@@ -9,6 +9,7 @@ from xmantissa.ixmantissa import ITab, INavigableElement
 class TabMisconfiguration(Exception):
     def __init__(self, info, tab):
         Exception.__init__(
+            self,
             "Inconsistent tab item factory information",
             info, tab)
 
