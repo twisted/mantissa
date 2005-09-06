@@ -109,7 +109,19 @@ class PrefixURLMixin:
         # Only 256 segments are allowed in URL paths.  We want to make sure
         # that static powerups always lose priority ordering to dynamic
         # powerups, since dynamic powerups will have information
-        priority = (self.prefixURL.count('/') - 256) + priorityModifier
+        pURL = self.prefixURL
+        priority = (pURL.count('/') - 256) + priorityModifier
+        if pURL == '':
+            # Did I mention I hate the web?  Plugins at / are special in 2
+            # ways.  Their segment length is kinda-sorta like 0 most of the
+            # time, except when it isn't.  We subtract from the priority here
+            # to make sure that [''] is lower-priority than ['foo'] even though
+            # they are technically the same number of segments; the reason for
+            # this is that / is special in that it pretends to be the parent of
+            # everything and will score a hit for *any* URL in the hierarchy.
+            # Above, we special-case JUST_SLASH to make sure that the other
+            # half of this special-casing holds true.
+            priority -= 1
         for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
             if iface.providedBy(self):
                 self.store.powerUp(self, iface, priority)
