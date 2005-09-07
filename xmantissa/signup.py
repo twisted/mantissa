@@ -24,6 +24,18 @@ from xmantissa.ixmantissa import ISiteRootPlugin
 from xmantissa.website import PrefixURLMixin
 from xmantissa.webtheme import getAllThemes
 
+_theMX = None
+def getMX():
+    """
+    Retrieve the single MXCalculator instance, creating it first if
+    necessary.
+    """
+    global _theMX
+    if _theMX is None:
+        _theMX = relaymanager.MXCalculator()
+    return _theMX
+
+
 class TicketClaimer(Page):
     def childFactory(self, ctx, name):
         for T in self.original.store.query(
@@ -137,7 +149,7 @@ class TicketBooth(Item, PrefixURLMixin):
                                  [email],
                                  msg)
 
-        mxc = relaymanager.MXCalculator()
+        mxc = getMX()
         return mxc.getMX(email.split('@', 1)[1]).addCallback(gotMX)
 
 def _generateNonce():
