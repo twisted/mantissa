@@ -229,11 +229,11 @@ class PrivateApplication(Item, PrefixURLMixin):
     def linkFrom(self, webid):
         return webIDToStoreID(self.privateKey, webid)
 
-    def install(self):
-        self.store.powerUp(self, ISiteRootPlugin)
-        self.store.findOrCreate(StaticRedirect,
-                                prefixURL=u'',
-                                targetURL=u'/'+self.prefixURL).install(-1)
+    def installOn(self, other):
+        other.powerUp(self, ISiteRootPlugin)
+        other.store.findOrCreate(StaticRedirect,
+                                 prefixURL=u'',
+                                 targetURL=u'/'+self.prefixURL).installOn(other, -1)
 
     def createResource(self):
         return PrivateRootPage(

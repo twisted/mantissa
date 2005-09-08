@@ -31,10 +31,10 @@ class SiteRootTest(unittest.TestCase):
         s = Store()
 
         PrefixTester(store=s,
-                     prefixURL=u"hello").install()
+                     prefixURL=u"hello").installOn(s)
 
         PrefixTester(store=s,
-                     prefixURL=u"").install()
+                     prefixURL=u"").installOn(s)
 
         ws = WebSite(store=s)
         res, segs = ws.locateChild(None, ('hello',))

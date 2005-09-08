@@ -44,7 +44,7 @@ class WebConfiguration(usage.Options):
                     break
                 else:
                     ws = WebSite(store=s, portno=portno)
-                    ws.install()
+                    ws.installOn(s)
                 self.didSomething = 1
             for webPath, filePath in self.staticPaths:
                 for ss in s.query(StaticSite,
@@ -55,7 +55,7 @@ class WebConfiguration(usage.Options):
                     ss = StaticSite(store=s,
                                     staticContentPath=filePath,
                                     prefixURL=webPath)
-                    ss.install()
+                    ss.installOn(s)
                 self.didSomething = 1
         try:
             s.transact(_)
@@ -104,7 +104,7 @@ class WebApplication(usage.Options):
         webapp.PrivateApplication(
             store=s,
             preferredTheme=decodeCommandLine(self['theme']),
-            hitCount=0).install()
+            hitCount=0).installOn(s)
 
 class WebAdministration(usage.Options):
     classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
@@ -133,7 +133,7 @@ class WebAdministration(usage.Options):
                 else:
                     raise usage.UsageError('Administrator controls already disabled.')
             else:
-                webadmin.AdminStatsApplication(store=s).install()
+                webadmin.AdminStatsApplication(store=s).installOn(s)
 
         if self['developer']:
             didSomething = True
@@ -144,6 +144,6 @@ class WebAdministration(usage.Options):
                 else:
                     raise usage.UsageError('Developer controls already disabled.')
             else:
-                webadmin.DeveloperApplication(store=s).install()
+                webadmin.DeveloperApplication(store=s).installOn(s)
         if not didSomething:
             raise usage.UsageError("Specify something or I won't do anything.")

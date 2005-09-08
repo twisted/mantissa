@@ -11,18 +11,18 @@ s = Store("autoapp.axiom")
 def _():
     # Install a user database so that people can log in.
     ls = LoginSystem(store=s)
-    ls.install()
+    ls.installOn(s)
     s.checkpoint()
     # Install an HTTP server and root resource so we have some way to
     # access it through the web: point it at port 8080.
-    WebSite(store=s, portno=8080).install()
+    WebSite(store=s, portno=8080).installOn(s)
     # Install static resources required for DeveloperApplication
     # below.  This is installed 'sessionlessly', meaning for everyone,
     # because although only developers will have access to the
     # *server* component of the Python command line, there is no
     # security reason to restrict access to the browser parts of it
     # (and it's faster that way)
-    DeveloperSite(store=s).install()
+    DeveloperSite(store=s).installOn(s)
 
     # Add an account for our administrator, so they can log in through
     # the web.
@@ -34,7 +34,7 @@ def _():
 
     # XXX delete this eventually, broken dependency (required by the
     # next line, but should not be)
-    LoginSystem(store=s2).install()
+    LoginSystem(store=s2).installOn(s)
 
     # Install a web site for the individual user as well.  This is
     # necessary because although we have a top-level website for
@@ -43,34 +43,34 @@ def _():
     # Note, however, that there is no port number, because the
     # WebSite's job in this case is to be a web *resource*, not a web
     # *server*.
-    WebSite(store=s2).install()
+    WebSite(store=s2).installOn(s2)
 
     # Now we install the 'private application' plugin for 'admin', on
     # admin's private store, This provides the URL "/private", but
     # only when 'admin' is logged in.  It is a hook to hang other
     # applications on.  (XXX Rename: PrivateApplication should
     # probably be called PrivateAppShell)
-    PrivateApplication(store=s2).install()
+    PrivateApplication(store=s2).installOn(s2)
 
     # This is a plugin *for* the PrivateApplication; it publishes an
     # object via the tab-based navigation which is a Python
     # interactive interpreter.
-    DeveloperApplication(store=s2).install()
+    DeveloperApplication(store=s2).installOn(s2)
 
     # Testing a broken user; XXX ignore
     brok = ls.addAccount('broken', 'localhost', 'password')
 
     s3 = brok.avatars.open()
-    LoginSystem(store=s3).install()
-    WebSite(store=s3).install()
+    LoginSystem(store=s3).installOn(s3)
+    WebSite(store=s3).installOn(s3)
 
-    PrivateApplication(store=s3).install()
+    PrivateApplication(store=s3).installOn(s3)
 
     # This is a plugin for the top-level store, which provides
     # ticket-based invitations and account creation in a generic way.
     # It is a prerequiste for ...
     bth = TicketBooth(store=s)
-    bth.install()
+    bth.installOn(s)
 
     # A "benefactor" is an object that will grant a set of features to
     # a user when they are signed up; DONTUSETHISBenefactor is named
@@ -91,7 +91,7 @@ def _():
                            benefactor=ben,
                            prefixURL=u'admin-signup',
                            booth=bth)
-    fre.install()
+    fre.installOn(s)
 
 
 

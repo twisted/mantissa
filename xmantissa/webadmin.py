@@ -35,8 +35,8 @@ class DeveloperSite(Item, PrefixURLMixin):
     developers = integer(default=0)
     administrators = integer(default=0)
 
-    def install(self):
-        self.store.powerUp(self, ISessionlessSiteRootPlugin)
+    def installOn(self, other):
+        other.powerUp(self, ISessionlessSiteRootPlugin)
 
     def createResource(self):
         return static.File(sibpath(__file__, 'static'))
@@ -49,7 +49,7 @@ class ParentCounterMixin:
             break
         else:
             devsite = DeveloperSite(store=self.store.parent)
-            devsite.install()
+            devsite.installOn(self.store.parent)
         return devsite
 
     # XXX WAaah.  self.store.parent is None sometimes, depending on
@@ -76,9 +76,9 @@ class AdminStatsApplication(Item, ParentCounterMixin):
 
     updateInterval = integer(default=5)
 
-    def install(self):
+    def installOn(self, other):
         self.increment()
-        self.store.powerUp(self, INavigableElement)
+        other.powerUp(self, INavigableElement)
 
     def deletedFromStore(self, *a, **kw):
         self.decrement()
@@ -145,9 +145,9 @@ class DeveloperApplication(Item, ParentCounterMixin):
 
     statementCount = integer(default=0)
 
-    def install(self):
+    def installOn(self, other):
         self.increment()
-        self.store.powerUp(self, INavigableElement)
+        other.powerUp(self, INavigableElement)
 
     def deletedFromStore(self, *a, **kw):
         self.decrement()
@@ -222,4 +222,4 @@ class DONTUSETHISBenefactor(Item):
     def endow(self, ticket, avatar):
         self.didYouUseIt += 1 # OMFG can you *read*??
         for X in WebSite, PrivateApplication, DeveloperApplication:
-            X(store=avatar).install()
+            X(store=avatar).installOn(avatar)

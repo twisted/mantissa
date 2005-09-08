@@ -105,7 +105,7 @@ class PrefixURLMixin:
                 subsegments = segments[S:]
             return self.createResource(), subsegments
 
-    def install(self, priorityModifier=0):
+    def installOn(self, other, priorityModifier=0):
         # Only 256 segments are allowed in URL paths.  We want to make sure
         # that static powerups always lose priority ordering to dynamic
         # powerups, since dynamic powerups will have information
@@ -124,7 +124,7 @@ class PrefixURLMixin:
             priority -= 1
         for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
             if iface.providedBy(self):
-                self.store.powerUp(self, iface, priority)
+                other.powerUp(self, iface, priority)
 
 class StaticSite(Item, PrefixURLMixin):
     implements(ISessionlessSiteRootPlugin,     # implements both so that it
@@ -194,9 +194,9 @@ class WebSite(Item, Service, SiteRootMixin):
 
     debug = False
 
-    def install(self):
-        self.store.powerUp(self, IService)
-        self.store.powerUp(self, IResource)
+    def installOn(self, other):
+        other.powerUp(self, IService)
+        other.powerUp(self, IResource)
 
     def privilegedStartService(self):
         realm = IRealm(self.store, None)
