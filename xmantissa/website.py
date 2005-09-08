@@ -27,7 +27,7 @@ from nevow.static import File
 from nevow.url import URL
 
 from axiom.item import Item
-from axiom.attributes import integer, inmemory, text
+from axiom.attributes import integer, inmemory, text, reference
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin
 from xmantissa import websession
@@ -47,17 +47,15 @@ class SiteRootMixin(object):
 
     def locateChild(self, ctx, segments):
         self.hitCount += 1
-        s = self.store
+        s = self.installedOn
         P = self.powerupInterface
-        while s is not None:
-            for plg in s.powerupsFor(P):
-                childAndSegments = plg.resourceFactory(segments)
-                if childAndSegments is not None:
-                    child, segments = childAndSegments # sanity
-                                                       # check/documentation; feel
-                                                       # free to remove
-                    return child, segments
-            s = s.parent
+        for plg in s.powerupsFor(P):
+            childAndSegments = plg.resourceFactory(segments)
+            if childAndSegments is not None:
+                child, segments = childAndSegments # sanity
+                                                   # check/documentation; feel
+                                                   # free to remove
+                return child, segments
         return NotFound
 
 class LoginPage(Page):
@@ -70,7 +68,7 @@ class UnguardedWrapper(SiteRootMixin):
     hitCount = 0
 
     def __init__(self, store, guardedRoot):
-        self.store = store
+        self.installedOn = store
         self.guardedRoot = guardedRoot
 
     def locateChild(self, ctx, segments):
@@ -184,6 +182,7 @@ class WebSite(Item, Service, SiteRootMixin):
 
     portno = integer(default=0)
     hitCount = integer(default=0)
+    installedOn = reference()
 
     parent = inmemory()
     running = inmemory()
@@ -195,8 +194,10 @@ class WebSite(Item, Service, SiteRootMixin):
     debug = False
 
     def installOn(self, other):
+        assert self.installedOn is None, "You cannot install a WebSite on more than one thing"
         other.powerUp(self, IService)
         other.powerUp(self, IResource)
+        self.installedOn = other
 
     def privilegedStartService(self):
         realm = IRealm(self.store, None)

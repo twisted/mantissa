@@ -227,6 +227,8 @@ class PrivateApplication(Item, PrefixURLMixin):
     typeName = 'private_web_application'
     schemaVersion = 1
 
+    installedOn = reference()
+
     preferredTheme = text()
     hitCount = integer()
     privateKey = integer()
@@ -248,6 +250,8 @@ class PrivateApplication(Item, PrefixURLMixin):
         return webIDToStoreID(self.privateKey, webid)
 
     def installOn(self, other):
+        assert self.installedOn is None, "You cannot install a PrivateApplication on more than one Item"
+        self.installedOn = other
         other.powerUp(self, ISiteRootPlugin)
         other.store.findOrCreate(StaticRedirect,
                                  prefixURL=u'',
@@ -255,7 +259,7 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     def createResource(self):
         return PrivateRootPage(
-            self, getTabs(self.store.powerupsFor(INavigableElement)))
+            self, getTabs(self.installedOn.powerupsFor(INavigableElement)))
 
     def resourceFactory(self, segments):
         return super(PrivateApplication, self).resourceFactory(segments)

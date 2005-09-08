@@ -42,7 +42,8 @@ class TicketClaimer(Page):
             Ticket,
             AND(Ticket.booth == self.original,
                 Ticket.nonce == unicode(name, 'ascii'))):
-            res = IResource(T.claim())
+            something = T.claim()
+            res = IResource(something)
             lgo = getattr(res, 'logout', lambda : None)
             ISession(ctx).setDefaultResource(res, lgo)
             return URL.fromContext(ctx).click("/")
