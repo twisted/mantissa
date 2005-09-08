@@ -121,9 +121,10 @@ class TicketBooth(Item, PrefixURLMixin):
         if templateFileObj is None:
             templateFileObj = file(sibpath(__file__, 'signup.rfc2822'))
 
-        nonce = self.createTicket(issuer,
+        ticket = self.createTicket(issuer,
                                   unicode(email, 'ascii'),
-                                  benefactor).nonce
+                                  benefactor)
+        nonce = ticket.nonce
 
         if httpPort == 80:
             httpPort = ''
@@ -150,7 +151,8 @@ class TicketBooth(Item, PrefixURLMixin):
                                  msg)
 
         mxc = getMX()
-        return mxc.getMX(email.split('@', 1)[1]).addCallback(gotMX)
+        return ticket, mxc.getMX(email.split('@', 1)[1]).addCallback(gotMX)
+
 
 def _generateNonce():
     return unicode(os.urandom(16).encode('hex'), 'ascii')
@@ -194,13 +196,14 @@ class FreeSignerUpper(LivePage):
                 'signup-status',
                 flatten('That did not work: ' + err.getErrorMessage()))
 
-        return self.original.booth.issueViaEmail(
+        ticket, issueDeferred = self.original.booth.issueViaEmail(
             self.original,
             emailAddress,
             self.original.benefactor,
             domain,
-            port
-            ).addCallbacks(hooray, ono)
+            port)
+
+        return issueDeferred.addCallbacks(hooray, ono)
 
     def render_content(self, ctx, data):
         return getLoader('signup').load()
