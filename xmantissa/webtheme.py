@@ -41,4 +41,5 @@ class XHTMLDirectoryTheme(object):
             return loader
         return default
 
-
+    def head(self):
+        return None

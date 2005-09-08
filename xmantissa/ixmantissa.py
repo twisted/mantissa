@@ -5,6 +5,14 @@ class IWebTheme(Interface):
     """
     Represents a directory full of theme information.
     """
+    def head():
+        """
+        Provide some additional content to be included in the <head>
+        section of the page when themed fragments are being rendered
+
+        if not None, the returned value will appear in the head tag
+        before the return result of the fragment's head()
+        """
 
 
 class ISiteRootPlugin(Interface):
