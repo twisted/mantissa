@@ -37,6 +37,7 @@ class SiteRootTest(unittest.TestCase):
                      prefixURL=u"").installOn(s)
 
         ws = WebSite(store=s)
+        ws.installOn(s)
         res, segs = ws.locateChild(None, ('hello',))
         self.assertEquals(res.pfx, 'hello')
         self.assertEquals(segs, ())
