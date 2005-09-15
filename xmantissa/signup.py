@@ -206,6 +206,9 @@ class FreeSignerUpper(LivePage):
 
         return issueDeferred.addCallbacks(hooray, ono)
 
+    def render_topPanel(self, ctx, data):
+        return ''
+    
     def render_content(self, ctx, data):
         return getLoader('signup').load()
 

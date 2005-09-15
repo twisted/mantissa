@@ -67,6 +67,8 @@ class NavMixin(object):
     def __init__(self, webapp, navigation):
         self.webapp = webapp
         self.navigation = navigation
+        elems = webapp.installedOn.powerupsFor(INavigableElement)
+        self.navigableElements = list(elems)
 
     def getDocFactory(self, fragmentName, default=None):
         return self.webapp.getDocFactory(fragmentName, default)
@@ -85,6 +87,14 @@ class NavMixin(object):
     def render_head(self, ctx, data):
         return ctx.tag
 
+    def render_topPanel(self, ctx, data):
+        contents = []
+        for navigable in self.navigableElements:
+            content = navigable.topPanelContent()
+            if content is not None:
+                contents.append(content)
+        return ctx.tag[contents]
+            
 class FragmentWrapperMixin:
     def render_title(self, fragment):
         return getattr(self.fragment, 'title', self.fragment.__class__.__name__)

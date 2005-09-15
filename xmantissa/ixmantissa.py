@@ -65,6 +65,15 @@ class INavigableElement(Interface):
                     ])]
         """
 
+    def topPanelContent():
+        """
+        Provide content to render inside the shell template's topPanel,
+        regardless of whether this fragment is supplying the content of
+        the current page
+           
+        May return None if nothing needs to be added there.
+        """
+           
 class INavigableFragment(Interface):
     """
     Register an adapter to this interface in order to provide web UI content
