@@ -143,7 +143,6 @@ class TicketBooth(Item, PrefixURLMixin):
 
         msg = templateFileObj.read() % signupInfo
         templateFileObj.close()
-        msg = '\n'.join(msg.splitlines())
 
         def gotMX(mx):
             return smtp.sendmail(str(mx.name),
