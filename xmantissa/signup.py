@@ -143,7 +143,7 @@ class TicketBooth(Item, PrefixURLMixin):
 
         msg = templateFileObj.read() % signupInfo
         templateFileObj.close()
-        msg = '\r\n'.join(msg.splitlines())
+        msg = '\n'.join(msg.splitlines())
 
         def gotMX(mx):
             return smtp.sendmail(str(mx.name),
@@ -208,7 +208,7 @@ class FreeSignerUpper(LivePage):
 
     def render_topPanel(self, ctx, data):
         return ''
-    
+
     def render_content(self, ctx, data):
         return getLoader('signup').load()
 
