@@ -6,6 +6,7 @@ from xmantissa.webadmin import DeveloperSite, DeveloperApplication, DONTUSETHISB
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite
 from xmantissa.signup import FreeTicketSignup, TicketBooth
+from xmantissa.endpoint import UniversalEndpointService
 
 s = Store("autoapp.axiom")
 def _():
@@ -13,9 +14,14 @@ def _():
     ls = LoginSystem(store=s)
     ls.installOn(s)
     s.checkpoint()
+
+    # Install a Q2Q server.  Q2Q is basically the best thing ever.
+    UniversalEndpointService(store=s).installOn(s)
+
     # Install an HTTP server and root resource so we have some way to
     # access it through the web: point it at port 8080.
     WebSite(store=s, portno=8080).installOn(s)
+
     # Install static resources required for DeveloperApplication
     # below.  This is installed 'sessionlessly', meaning for everyone,
     # because although only developers will have access to the

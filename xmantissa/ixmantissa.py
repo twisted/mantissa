@@ -70,10 +70,10 @@ class INavigableElement(Interface):
         Provide content to render inside the shell template's topPanel,
         regardless of whether this fragment is supplying the content of
         the current page
-           
+
         May return None if nothing needs to be added there.
         """
-           
+
 class INavigableFragment(Interface):
     """
     Register an adapter to this interface in order to provide web UI content
@@ -119,4 +119,40 @@ class IBenefactor(Interface):
         This is only called when the user has confirmed the email address
         passed in by receiving a message and clicking on the link in the
         provided email.
+        """
+
+class IQ2QService(Interface):
+
+    q2qPortNumber = Attribute(
+        """
+        The TCP port number on which to listen for Q2Q connections.
+        """)
+
+    inboundTCPPortNumber = Attribute(
+        """
+        The TCP port number on which to listen for Q2Q data connections.
+        """)
+
+    publicIP = Attribute(
+        """
+        Dotted-quad format string representing the IP address via
+        which this service is exposed to the public internet.
+        """)
+
+    udpEnabled = Attribute(
+        """
+        A boolean indicating whether or not PTCP connections will be
+        allowed or attempted.
+        """)
+
+    def listenQ2Q(fromAddress, protocolsToFactories, serverDescription):
+        """
+        @see: L{vertex.q2q.Q2QService.connectQ2Q}
+        """
+
+    def connectQ2Q(fromAddress, toAddress, protocolName, protocolFactory,
+                   usePrivateCertificate=None, fakeFromDomain=None,
+                   chooser=None):
+        """
+        @see: L{vertex.q2q.Q2QService.connectQ2Q}
         """
