@@ -1,0 +1,42 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <h2>Change your password</h2>
+  <script language="javascript">
+    function submitNewPassword(form) {
+        if (form.newPassword.value != form.confirmPassword.value) {
+            alert('Passwords do not match.  Try again.');
+        } else {
+            if (form.currentPassword) {
+                var curPass = form.currentPassword.value;
+                form.currentPassword.value = '';
+            } else {
+                var curPass = null;
+            }
+
+            var newPass = form.newPassword.value;
+            form.newPassword.value = form.confirmPassword.value = '';
+
+            server.handle('changePassword', curPass, newPass);
+        }
+    }
+  </script>
+  <form onsubmit="submitNewPassword(this); return false;">
+    <table>
+
+      <tr nevow:pattern="current-password"><td>Current Password</td><td><input type="password" name="currentPassword" /></td></tr>
+      <tr nevow:pattern="no-current-password"><td>Current Password</td><td><input disabled="disabled" type="password" name="currentPassword" /></td></tr>
+
+      <nevow:invisible nevow:render="currentPasswordField" />
+      <tr><td>New Password</td><td><input type="password" name="newPassword" /></td></tr>
+      <tr><td>Confirm New Password</td><td><input type="password" name="confirmPassword" /></td></tr>
+      <tr><td><input type="submit" value="Change Password" /></td></tr>
+    </table>
+  </form>
+
+  <h2>Persistent Sessions</h2>
+  <ul nevow:render="sequence" nevow:data="persistentSessions">
+    <li nevow:pattern="item">
+      Last Used: <span nevow:data="lastUsed" />
+      <a href="#" nevow:render="cancel">Discontinue</a>
+    </li>
+  </ul>
+</div>

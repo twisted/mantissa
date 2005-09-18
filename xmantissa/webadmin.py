@@ -15,6 +15,7 @@ from axiom import userbase
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
+from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 
@@ -89,6 +90,9 @@ class AdminStatsApplication(Item, ParentCounterMixin):
                            [webnav.Tab('Stats', self.storeID, 0.1)],
                            authoritative=False)]
 
+    def topPanelContent(self):
+        return None
+
 
 class AdminStatsFragment(rend.Fragment):
     implements(INavigableFragment)
@@ -159,6 +163,9 @@ class DeveloperApplication(Item, ParentCounterMixin):
                            [webnav.Tab('REPL', self.storeID, 0.0)],
                            authoritative=False)]
 
+    def topPanelContent(self):
+        return None
+
 
 class REPL(rend.Fragment):
     """
@@ -221,5 +228,5 @@ class DONTUSETHISBenefactor(Item):
 
     def endow(self, ticket, avatar):
         self.didYouUseIt += 1 # OMFG can you *read*??
-        for X in WebSite, PrivateApplication, DeveloperApplication:
+        for X in WebSite, PrivateApplication, DeveloperApplication, AuthenticationApplication:
             X(store=avatar).installOn(avatar)
