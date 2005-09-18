@@ -19,7 +19,7 @@ from twisted.python.util import sibpath
 from twisted.protocols import policies
 from twisted.internet import reactor
 
-from nevow.rend import NotFound, Page
+from nevow.rend import NotFound, Page, Fragment
 from nevow.inevow import IResource
 from nevow.appserver import NevowSite, NevowRequest
 from nevow.loaders import xmlfile
@@ -174,6 +174,15 @@ class AxiomSite(NevowSite):
         NevowSite.__init__(self, *a, **kw)
         self.store = store
         self.requestFactory = lambda *a, **kw: AxiomRequest(self.store, *a, **kw)
+
+
+class AxiomPage(Page):
+    def renderHTTP(self, ctx):
+        return self.store.transact(Page.renderHTTP, self, ctx)
+
+class AxiomFragment(Fragment):
+    def rend(self, ctx, data):
+        return self.store.transact(Fragment.rend, self, ctx, data)
 
 
 class WebSite(Item, Service, SiteRootMixin):
