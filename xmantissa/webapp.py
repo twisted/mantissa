@@ -262,7 +262,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     def installOn(self, other):
         assert self.installedOn is None, "You cannot install a PrivateApplication on more than one Item"
         self.installedOn = other
-        other.powerUp(self, ISiteRootPlugin)
+        super(PrivateApplication, self).installOn(other)
         other.store.findOrCreate(StaticRedirect,
                                  prefixURL=u'',
                                  targetURL=u'/'+self.prefixURL).installOn(other, -1)
