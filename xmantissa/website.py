@@ -61,6 +61,10 @@ class SiteRootMixin(object):
 class LoginPage(Page):
     docFactory = xmlfile(sibpath(__file__, "login.html"))
 
+    def beforeRender(self, ctx):
+        ctx.fillSlots("login-action", "/__login__")
+
+
 class UnguardedWrapper(SiteRootMixin):
     implements(IResource)
 

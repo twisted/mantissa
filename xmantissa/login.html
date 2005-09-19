@@ -5,7 +5,9 @@
     <title>Not logged in</title>
   </head>
   <body>
-    <form action="__login__" method="post">
+    <form method="post">
+      <nevow:attr name="action"><nevow:slot name="login-action" /></nevow:attr>
+
       <table>
         <tr>
           <td>Username:</td>
@@ -22,20 +24,5 @@
       </table>
       <input type="submit" value="log in" />
     </form>
-    <!--
-    <form action="" method="post">
-      <table>
-        <tr>
-          <td>Username:</td>
-          <td><input type="text" name="username" /></td>
-        </tr>
-        <tr>
-          <td>Password:</td>
-          <td><input type="password" name="password" /></td>
-        </tr>
-      </table>
-      <input type="submit" value="register" />
-    </form>
-    -->
   </body>
 </html>
