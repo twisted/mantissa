@@ -22,7 +22,7 @@ from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
-    ISiteRootPlugin
+    ISiteRootPlugin, IWebTranslator
 
 def _reorderForPreference(themeList, preferredThemeName):
     """
@@ -199,6 +199,8 @@ class PrivateRootPage(Page, NavMixin):
             fragDocFactory = self.webapp.getDocFactory(fragment.fragmentName, None)
             if fragDocFactory is not None:
                 fragment.docFactory = fragDocFactory
+        if fragment.docFactory is None:
+            raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
         if fragment.live:
             return GenericNavigationLivePage(
                 self.webapp, self.navigation, fragment)
@@ -232,7 +234,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     'root' page, /private/.
     """
 
-    implements(ISiteRootPlugin)
+    implements(ISiteRootPlugin, IWebTranslator)
 
     typeName = 'private_web_application'
     schemaVersion = 1
@@ -252,17 +254,11 @@ class PrivateApplication(Item, PrefixURLMixin):
         gk = genkey()
         self.privateKey = gk
 
-    def linkTo(self, obj):
-        # currently obj must be a storeID, but other types might come eventually
-        return '/%s/%s' % (self.prefixURL, storeIDToWebID(self.privateKey, obj))
-
-    def linkFrom(self, webid):
-        return webIDToStoreID(self.privateKey, webid)
-
     def installOn(self, other):
         assert self.installedOn is None, "You cannot install a PrivateApplication on more than one Item"
         self.installedOn = other
         super(PrivateApplication, self).installOn(other)
+        other.powerUp(self, IWebTranslator)
         other.store.findOrCreate(StaticRedirect,
                                  prefixURL=u'',
                                  targetURL=u'/'+self.prefixURL).installOn(other, -1)
@@ -271,8 +267,18 @@ class PrivateApplication(Item, PrefixURLMixin):
         return PrivateRootPage(
             self, getTabs(self.installedOn.powerupsFor(INavigableElement)))
 
+    # ISiteRootPlugin
     def resourceFactory(self, segments):
         return super(PrivateApplication, self).resourceFactory(segments)
+
+
+    # IWebTranslator
+    def linkTo(self, obj):
+        # currently obj must be a storeID, but other types might come eventually
+        return '/%s/%s' % (self.prefixURL, storeIDToWebID(self.privateKey, obj))
+
+    def linkFrom(self, webid):
+        return webIDToStoreID(self.privateKey, webid)
 
     def getDocFactory(self, fragmentName, default=None):
         l = list(getAllThemes())

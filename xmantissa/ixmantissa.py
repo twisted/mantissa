@@ -37,6 +37,30 @@ class ISessionlessSiteRootPlugin(Interface):
     """
 
 
+class IWebTranslator(Interface):
+    """
+    Provide methods for naming objects on the web, and vice versa.
+    """
+
+    def linkTo(storeID):
+        """
+        @param storeID: The Store ID of an Axiom item.
+
+        @rtype: C{str}
+        @return: An URL which refers to the item with the given Store ID.
+        """
+
+    def linkFrom(webID):
+        """
+        The inverse of L{linkTO}
+        """
+
+    def getDocFactory(name):
+        """
+        Retrieve a Nevow document factory for the given name.
+        """
+
+
 class INavigableElement(Interface):
     """Tag interface used by the web navigation plugin system.
 
