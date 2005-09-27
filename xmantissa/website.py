@@ -206,6 +206,9 @@ class WebSite(Item, Service, SiteRootMixin):
 
     debug = False
 
+    def activate(self):
+        self.port = None
+
     def installOn(self, other):
         assert self.installedOn is None, "You cannot install a WebSite on more than one thing"
         other.powerUp(self, IService)
@@ -236,4 +239,5 @@ class WebSite(Item, Service, SiteRootMixin):
         self.port = reactor.listenTCP(self.portno, self.site)
 
     def stopService(self):
-        return self.port.stopListening()
+        if self.port is not None:
+            return self.port.stopListening()
