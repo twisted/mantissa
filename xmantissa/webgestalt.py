@@ -52,7 +52,7 @@ class AuthenticationApplication(item.Item):
 
 
     def getTabs(self):
-        return [webnav.Tab('Configuration', self.storeID, 0.0,
+        return [webnav.Tab('Preferences', self.storeID, 0.0,
                            [webnav.Tab('Authentication',
                                        self.storeID,
                                        0.0)],
