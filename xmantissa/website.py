@@ -10,6 +10,11 @@ command-line 'axiomatic' program using the 'web' subcommand.
 
 """
 
+try:
+    from OpenSSL import SSL
+except ImportError:
+    SSL = None
+
 from zope.interface import implements
 
 from twisted.application.service import IService, Service
@@ -17,7 +22,7 @@ from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
 from twisted.python.util import sibpath
 from twisted.protocols import policies
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 
 from nevow.rend import NotFound, Page, Fragment
 from nevow.inevow import IResource
@@ -26,8 +31,10 @@ from nevow.loaders import xmlfile
 from nevow.static import File
 from nevow.url import URL
 
+from vertex import sslverify
+
 from axiom.item import Item
-from axiom.attributes import integer, inmemory, text, reference
+from axiom.attributes import integer, inmemory, text, reference, path, bytes
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin
 from xmantissa import websession
@@ -193,29 +200,40 @@ class WebSite(Item, Service, SiteRootMixin):
     typeName = 'mantissa_web_powerup'
     schemaVersion = 1
 
-    portno = integer(default=0)
     hitCount = integer(default=0)
     installedOn = reference()
+
+    portNumber = integer(default=0)
+    securePortNumber = integer(default=0)
+    certificateFile = bytes(default=None)
 
     parent = inmemory()
     running = inmemory()
     name = inmemory()
 
     port = inmemory()
+    securePort = inmemory()
     site = inmemory()
 
     debug = False
 
     def activate(self):
+        self.site = None
         self.port = None
+        self.securePort = None
 
     def installOn(self, other):
         assert self.installedOn is None, "You cannot install a WebSite on more than one thing"
         other.powerUp(self, IService)
         other.powerUp(self, IResource)
         self.installedOn = other
+        self.setServiceParent(other)
 
     def privilegedStartService(self):
+        if SSL is None and self.securePort is not None:
+            raise WebConfigurationError(
+                "No SSL support: you need to install OpenSSL to serve HTTPS")
+
         realm = IRealm(self.store, None)
         if realm is None:
             raise WebConfigurationError(
@@ -236,8 +254,25 @@ class WebSite(Item, Service, SiteRootMixin):
         if self.debug:
             self.site = policies.TrafficLoggingFactory(self.site, 'http')
 
-        self.port = reactor.listenTCP(self.portno, self.site)
+        if self.portNumber is not None:
+            self.port = reactor.listenTCP(self.portNumber, self.site)
+
+        if self.securePortNumber is not None and self.certificateFile is not None:
+            cert = sslverify.PrivateCertificate.loadPEM(file(self.certificateFile).read())
+            certOpts = sslverify.OpenSSLCertificateOptions(
+                cert.privateKey.original,
+                cert.original,
+                requireCertificate=False,
+                method=SSL.SSLv23_METHOD)
+            self.securePort = reactor.listenSSL(self.securePortNumber, self.site, certOpts)
+
 
     def stopService(self):
+        dl = []
         if self.port is not None:
-            return self.port.stopListening()
+            dl.append(defer.maybeDeferred(self.port.stopListening))
+            self.port = None
+        if self.securePort is not None:
+            dl.append(defer.maybeDeferred(self.securePort.stopListening))
+            self.securePort = None
+        return defer.DeferredList(dl)

@@ -25,7 +25,9 @@ class WebConfiguration(usage.Options):
     description = 'Web.  Yay.'
 
     optParameters = [
-        ('port', 'p', None, 'TCP port number to bind'),
+        ('port', 'p', None, 'TCP port over which to serve HTTP'),
+        ('secure-port', 's', None, 'TCP port over which to serve HTTPS'),
+        ('pem-file', 'f', None, 'Filename containing PEM-format private key and certificate'),
         ]
 
     def __init__(self, *a, **k):
@@ -37,15 +39,37 @@ class WebConfiguration(usage.Options):
     def postOptions(self):
         s = self.parent.getStore()
         def _():
+
+            # Find the HTTP port, if there is one.
             if self['port'] is not None:
-                portno = int(self['port'])
+                portNumber = int(self['port'])
+            else:
+                portNumber = None
+
+            # Find the HTTPS information, if there is any.
+            if (self['secure-port'] is not None) != (self['pem-file'] is not None):
+                raise WebConfigurationError("Supply both or neither of secure-port and pem-file")
+            else:
+                if self['secure-port']:
+                    securePort = int(self['secure-port'])
+                    pemFile = self['pem-file']
+                else:
+                    securePort = pemFile = None
+
+            # If HTTP or HTTPS is being configured, make sure there's
+            # a WebSite with the right attribute values.
+            if portNumber is not None or securePort is not None:
                 for ws in s.query(WebSite):
-                    ws.portno = portno
+                    ws.portNumber = portNumber
+                    ws.securePortNumber = securePort
+                    ws.certificateFile = pemFile
                     break
                 else:
-                    ws = WebSite(store=s, portno=portno)
+                    ws = WebSite(store=s, portNumber=portNumber, securePortNumber=securePort, certificateFile=pemFile)
                     ws.installOn(s)
                 self.didSomething = 1
+
+            # Set up whatever static content was requested.
             for webPath, filePath in self.staticPaths:
                 for ss in s.query(StaticSite,
                                   StaticSite.prefixURL == webPath):
@@ -76,7 +100,10 @@ class WebConfiguration(usage.Options):
         self.didSomething = 1
         s = self.parent.getStore()
         for ws in s.query(WebSite):
-            print 'Configured to use port %d.' % (ws.portno,)
+            if ws.portNumber is not None:
+                print 'Configured to use HTTP port %d.' % (ws.portNumber,)
+            if ws.securePortNumber is not None:
+                print 'Configured to use HTTPS port %d with certificate %s' % (ws.securePortNumber, ws.certificateFile)
             break
         else:
             print 'No configured webservers.'
