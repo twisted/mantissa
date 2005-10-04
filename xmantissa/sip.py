@@ -16,7 +16,9 @@ from twisted.cred.error import UnauthorizedLogin
 from twisted.protocols import basic
 
 from zope.interface import  Interface, implements
+
 from axiom.userbase  import Preauthenticated
+from axiom.errors import NoSuchUser
 
 debuggingEnabled=0
 
@@ -1807,9 +1809,8 @@ class Proxy:
                                        ).addCallback(
                 lambda x: [i[0] for i in x])        
         def failedLookup(err):
-            from atop.credup import NoSuchDomain, NoSuchUser
-            e = err.trap(NoSuchUser, NoSuchDomain, UnauthorizedLogin)
-            if e == NoSuchDomain or e == UnauthorizedLogin:
+            e = err.trap(NoSuchUser, UnauthorizedLogin)
+            if e == UnauthorizedLogin:
                 return [addr]
             elif e == NoSuchUser:
                 raise SIPLookupError(604)

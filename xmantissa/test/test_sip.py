@@ -11,7 +11,13 @@ from twisted.internet import defer, reactor
 from twisted.test import proto_helpers
 
 from twisted import cred
-import axiom
+
+from twisted.cred.error import UnauthorizedLogin
+
+from axiom.errors import NoSuchUser
+from axiom.userbase import Preauthenticated
+
+from axiom import userbase
 
 sip.SIPTransport._resolveA = lambda self, uri: defer.succeed(testurls.get(uri, uri))
 
@@ -170,13 +176,12 @@ class TestRealm:
         self.users[name] = FakeAvatar(self, name)
 
     def requestAvatar(self, avatarId, mind, *interfaces):
-        from atop.credup import NoSuchUser, NoSuchDomain
         domain = avatarId.split('@')[-1]
         if domain == self.domain:
             if self.permissive and not self.users.has_key(avatarId):
                 self.addUser(avatarId)
         else:
-            raise NoSuchDomain
+            raise UnauthorizedLogin()
         try:
             return sip.IContact, self.users[avatarId], lambda: None
         except KeyError:
@@ -410,7 +415,7 @@ class PermissiveChecker:
 
     credentialInterfaces = (cred.credentials.IUsernamePassword,
                             cred.credentials.IUsernameHashedPassword,
-                            axiom.userbase.IPreauthCredentials)
+                            userbase.IPreauthCredentials)
 
     def requestAvatarId(self, credentials):
         return credentials.username
@@ -566,7 +571,7 @@ class RegistrationTestCase(FakeClockTestCase):
         self.realm.addUser('joe@proxy.com')
         self.portal = cred.portal.Portal(self.realm)
         c = cred.checkers.InMemoryUsernamePasswordDatabaseDontUse()
-        c.credentialInterfaces += (axiom.userbase.IPreauthCredentials,)
+        c.credentialInterfaces += (userbase.IPreauthCredentials,)
         c.addUser('joe@proxy.com', 'passXword')
         self.portal.registerChecker(c)
         self.proxy = sip.Proxy(self.portal)
@@ -643,7 +648,6 @@ class RegistrationTestCase(FakeClockTestCase):
         self.assertEquals(m.headers["contact"], ["sip:joe@client.com:1234"])
         self.failUnless(int(m.headers["expires"][0]) in (3600, 3601, 3599, 3598))
         self.assertEquals(self.countRegistrations(), 1)
-        from atop.credup import Preauthenticated
         ignoredIface, contact, ignoredLogout = unittest.deferredResult(
             self.proxy.portal.login(Preauthenticated('joe@proxy.com'),
                                     None, sip.IContact))
