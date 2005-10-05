@@ -15,7 +15,7 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
 
     @ivar application: An Item which implements L{ixmantissa.IPublicPage}.
     """
-    implements(ixmantissa.ISessionlessSiteRootPlugin)
+    implements(ixmantissa.ISiteRootPlugin)
 
     typeName = 'mantissa_public_web'
     schemaVersion = 1
