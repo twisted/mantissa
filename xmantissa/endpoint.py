@@ -30,11 +30,14 @@ class UniversalEndpointService(item.Item):
             self.certificatePath.makedirs()
 
 
+    def activate(self):
+        self._svcInst = None
+
     def _makeService(self):
         self._svcInst = q2qclient.ClientQ2QService(
             self.certificatePath.path,
             publicIP=self.publicIP,
-            inboundTCPPortNumber=self.inboundTCPPortNumber,
+            inboundTCPPortnum=self.inboundTCPPortNumber,
             udpEnabled=self.udpEnabled,
             )
 
@@ -52,8 +55,8 @@ class UniversalEndpointService(item.Item):
                                        serverDescription)
 
     def connectQ2Q(self, fromAddress, toAddress, protocolName,
-                   protocolFactory, usePrivateCertificate,
-                   fakeFromDomain, chooser=None):
+                   protocolFactory, usePrivateCertificate=None,
+                   fakeFromDomain=None, chooser=None):
         return self._getService().connectQ2Q(
             fromAddress, toAddress, protocolName, protocolFactory,
             usePrivateCertificate, fakeFromDomain, chooser)
