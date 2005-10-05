@@ -37,6 +37,15 @@ class ISessionlessSiteRootPlugin(Interface):
     """
 
 
+class IPublicPage(Interface):
+    """
+    Public-facing gobbledeegook.
+    """
+    def createResource():
+        """Return an IResource
+        """
+
+
 class IWebTranslator(Interface):
     """
     Provide methods for naming objects on the web, and vice versa.
