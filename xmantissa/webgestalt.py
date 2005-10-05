@@ -73,7 +73,7 @@ class AuthenticationApplication(item.Item):
     def _username(self):
         acc = self._account()
         # XXX Why is authenticatedAs bytes and not text?
-        return (acc.username + '@' + userbase.dflip(acc.domain)).encode('utf-8')
+        return (acc.username + '@' + acc.domain).encode('utf-8')
 
     def hasCurrentPassword(self):
         return defer.succeed(self._account().password is not None)
