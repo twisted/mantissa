@@ -212,7 +212,14 @@ class FreeSignerUpper(LivePage):
         return getLoader('signup').load()
 
     def render_head(self, ctx, data):
-        return ctx.tag[glue]
+        content = [glue]
+        for theme in getAllThemes():
+            extra = theme.head()
+            if extra is not None:
+                content.append(extra)
+                break
+
+        return ctx.tag[content]
 
     def render_navigation(self, ctx, data):
         return ''
