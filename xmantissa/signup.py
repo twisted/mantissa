@@ -212,7 +212,7 @@ class FreeSignerUpper(LivePage):
         return getLoader('signup').load()
 
     def render_head(self, ctx, data):
-        return glue
+        return ctx.tag[glue]
 
     def render_navigation(self, ctx, data):
         return ''
