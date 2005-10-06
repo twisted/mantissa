@@ -57,8 +57,9 @@ class TicketBooth(Item, PrefixURLMixin):
     schemaVersion = 1
 
     claimedTicketCount = integer(default=0)
-
     createdTicketCount = integer(default=0)
+
+    defaultTicketEmail = text(default=None)
 
     prefixURL = 'ticket'
 
@@ -120,7 +121,10 @@ class TicketBooth(Item, PrefixURLMixin):
         """
 
         if templateFileObj is None:
-            templateFileObj = file(sibpath(__file__, 'signup.rfc2822'))
+            if self.defaultTicketEmail is None:
+                templateFileObj = file(sibpath(__file__, 'signup.rfc2822'))
+            else:
+                templateFileObj = file(self.defaultTicketEmail)
 
         ticket = self.createTicket(issuer,
                                   unicode(email, 'ascii'),
