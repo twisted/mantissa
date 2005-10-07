@@ -13,16 +13,18 @@ from axiom.item import Item, transacted
 from axiom.attributes import integer, reference, text, AND
 from axiom.iaxiom import IBeneficiary
 
-from nevow.rend import Page, NotFound
+from nevow.rend import Page
 from nevow.url import URL
-from nevow.livepage import LivePage, glue, set
+from nevow.livepage import set
 from nevow.inevow import IResource, ISession
 from nevow.flat.ten import flatten
-from nevow import tags as t
 
 from xmantissa.ixmantissa import ISiteRootPlugin
 from xmantissa.website import PrefixURLMixin
-from xmantissa.webtheme import getAllThemes
+from xmantissa.publicresource import PublicLivePage, getLoader
+
+import re
+emailRegex = re.compile(r'[a-z0-9_.\-\+]+@[a-z0-9.-]+\.[a-z]{2,4}', re.I)
 
 _theMX = None
 def getMX():
@@ -161,18 +163,6 @@ class TicketBooth(Item, PrefixURLMixin):
 def _generateNonce():
     return unicode(os.urandom(16).encode('hex'), 'ascii')
 
-
-def getLoader(n):
-    # TODO: implement PublicApplication (?) in webapp.py, so we can make sure
-    # that these go in the right order.  Right now we've only got the one
-    # though.
-    for t in getAllThemes():
-        fact = t.getDocFactory(n, None)
-        if fact is not None:
-            return fact
-
-    raise RuntimeError("No loader for %r anywhere" % (n,))
-
 def domainAndPortFromContext(ctx):
     netloc = URL.fromContext(ctx).netloc.split(':', 1)
     if len(netloc) == 1:
@@ -181,9 +171,9 @@ def domainAndPortFromContext(ctx):
         domain, port = netloc[0], int(netloc[1])
     return domain, port
 
-class FreeSignerUpper(LivePage):
+class FreeSignerUpper(PublicLivePage):
     def __init__(self, original):
-        Page.__init__(self, original, docFactory = getLoader('shell'))
+        PublicLivePage.__init__(self, original, getLoader("signup"))
 
     def render_title(self, ctx, data):
         return "Sign Up"
@@ -208,26 +198,6 @@ class FreeSignerUpper(LivePage):
             port)
 
         return issueDeferred.addCallbacks(hooray, ono)
-
-    def render_topPanel(self, ctx, data):
-        return ''
-
-    def render_content(self, ctx, data):
-        return getLoader('signup').load()
-
-    def render_head(self, ctx, data):
-        content = [glue]
-        for theme in getAllThemes():
-            extra = theme.head()
-            if extra is not None:
-                content.append(extra)
-                break
-
-        return ctx.tag[content]
-
-    def render_navigation(self, ctx, data):
-        return ''
-
 
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)

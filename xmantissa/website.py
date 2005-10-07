@@ -20,24 +20,23 @@ from zope.interface import implements
 from twisted.application.service import IService, Service
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
-from twisted.python.util import sibpath
 from twisted.protocols import policies
 from twisted.internet import reactor, defer
 
 from nevow.rend import NotFound, Page, Fragment
 from nevow.inevow import IResource
 from nevow.appserver import NevowSite, NevowRequest
-from nevow.loaders import xmlfile
 from nevow.static import File
 from nevow.url import URL
 
 from vertex import sslverify
 
 from axiom.item import Item
-from axiom.attributes import integer, inmemory, text, reference, path, bytes
+from axiom.attributes import integer, inmemory, text, reference, bytes
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin
 from xmantissa import websession
+from xmantissa.publicresource import PublicPage, getLoader
 
 class WebConfigurationError(RuntimeError):
     """You specified some invalid configuration.
@@ -65,8 +64,9 @@ class SiteRootMixin(object):
                 return child, segments
         return NotFound
 
-class LoginPage(Page):
-    docFactory = xmlfile(sibpath(__file__, "login.html"))
+class LoginPage(PublicPage):
+    def __init__(self, original=None):
+        PublicPage.__init__(self, original, getLoader("login"))
 
     def beforeRender(self, ctx):
         ctx.fillSlots("login-action", "/__login__")

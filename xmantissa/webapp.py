@@ -118,7 +118,7 @@ class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
         extra = self.fragment.head()
         if extra is not None:
             extras.append(extra)
-            
+
         return ctx.tag[extras]
 
     def render_content(self, ctx, data):
@@ -150,7 +150,7 @@ class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
         extra = self.fragment.head()
         if extra is not None:
             extras.append(extra)
-            
+
         children = [t.invisible(render=t.directive("liveglue"))] + extras
         return ctx.tag[children]
 

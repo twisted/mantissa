@@ -1,0 +1,18 @@
+<form method="post" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <nevow:attr name="action"><nevow:slot name="login-action" /></nevow:attr>
+  <table>
+    <tr>
+      <td>Username:</td>
+      <td><input type="text" name="username" /></td>
+    </tr>
+    <tr>
+      <td>Password:</td>
+      <td><input type="password" name="password" /></td>
+    </tr>
+    <tr>
+      <td>Remember me</td>
+      <td><input type="checkbox" name="rememberMe" /></td>
+    </tr>
+  </table>
+  <input type="submit" value="log in" />
+</form>
