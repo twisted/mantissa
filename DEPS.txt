@@ -1,0 +1,6 @@
+Python 2.4
+Twisted 2.1.1
+Nevow 0.5
+Axiom 0.1
+Vertex 0.1
+PyTZ 2005m-1
