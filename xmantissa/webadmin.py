@@ -1,3 +1,4 @@
+# -*- test-case-name: xmantissa -*-
 
 import sys
 
@@ -5,10 +6,11 @@ from zope.interface import implements
 
 from twisted.python.components import registerAdapter
 from twisted.python.util import sibpath
-
+from twisted.python import log
+from twisted.application.service import Service
 from twisted.conch import manhole
 
-from axiom.attributes import integer
+from axiom.attributes import integer, boolean, timestamp
 from axiom.item import Item
 from axiom import userbase
 
@@ -220,6 +222,92 @@ class REPL(rend.Fragment):
 
 registerAdapter(REPL, DeveloperApplication, INavigableFragment)
 
+class Traceback(Item):
+    typeName = 'mantissa_traceback'
+    schemaVersion = 1
+
+    when = timestamp()
+    traceback = bytes()
+
+    def __init__(self, failure):
+        when = extime.Time()
+        traceback = failure.getTraceback()
+        super(Traceback, self).__init__(
+            traceback=traceback,
+            when=when)
+
+class TracebackCollector(Item):
+    implements(IService)
+
+    typeName = 'mantissa_traceback_collector'
+    schemaVersion = 1
+
+    tracebackCount = integer(default=0)
+
+    def installOn(self, other):
+        other.powerUp(self, IService)
+
+    def startService(self):
+        log.addObserver(self.emit)
+
+    def stopService(self):
+        log.removeObserver(self.emit)
+
+    def emit(self, event):
+        if event.get('isError') and event.get('failure') is not None:
+            f = event['failure']
+            def txn():
+                Traceback(store=self.store, collector=self, failure=f)
+            self.store.transact(txn)
+
+    def getTracebacks(self):
+        """
+        Return an iterable of Tracebacks that have been collected.
+        """
+        return self.store.query(Traceback,
+                                Traceback.collector == self)
+
+
+class TracebackViewer(Item):
+    implements(INavigableElement)
+
+    typeName = 'mantissa_tb_viewer'
+    schemaVersion = 1
+
+    allowDeletion = boolean(default=False)
+
+    def installOn(self, other):
+        other.powerUp(self, INavigableElement)
+
+    def getTabs(self):
+        return [webnav.Tab('Admin', self.storeID, 0.0,
+                           [webnav.Tab('Errors', self.storeID, 0.3)],
+                           authoritative=False)]
+
+    def _getCollector(self):
+        return self.store.parent.findOrCreate(TracebackCollector)
+
+    def topPanelContent(self):
+        # XXX There should really be a juice protocol for this.
+        return '%d errors logged' % (self._getCollector().tracebackCount,)
+
+
+class TracebackViewerFragment(rend.Fragment):
+    implements(INavigableFragment)
+
+    live = False
+    fragmentName = 'traceback-viewer'
+
+    def head(self):
+        return ()
+
+    def render_tracebacks(self, ctx, data):
+        for tb in self.original._getCollector().getTracebacks():
+            yield T.div[T.code[T.pre[tb.traceback]]]
+
+registerAdapter(TracebackViewerFragment, TracebackViewer, INavigableFragment)
+
+
 class DONTUSETHISBenefactor(Item):
     typeName = 'seriously_dont_use_it_is_just_an_example'
     schemaVersion = 1
@@ -228,5 +316,5 @@ class DONTUSETHISBenefactor(Item):
 
     def endow(self, ticket, avatar):
         self.didYouUseIt += 1 # OMFG can you *read*??
-        for X in WebSite, PrivateApplication, DeveloperApplication, AuthenticationApplication:
+        for X in WebSite, PrivateApplication, DeveloperApplication, AuthenticationApplication, TracebackViewer:
             X(store=avatar).installOn(avatar)
