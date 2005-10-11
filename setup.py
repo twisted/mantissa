@@ -9,11 +9,11 @@ distobj = setup(
     license="MIT",
     platforms=["any"],
     description="A multiprotocol application deployment platform",
-    classifiers=(
+    classifiers=[
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Development Status :: 2 - Pre-Alpha",
-        "Topic :: Internet"),
+        "Topic :: Internet"],
 
     packages=['xmantissa',
               'xmantissa.plugins',
