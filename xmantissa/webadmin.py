@@ -7,10 +7,12 @@ from zope.interface import implements
 from twisted.python.components import registerAdapter
 from twisted.python.util import sibpath
 from twisted.python import log
-from twisted.application.service import Service
+from twisted.application.service import IService, Service
 from twisted.conch import manhole
 
-from axiom.attributes import integer, boolean, timestamp
+from epsilon import extime
+
+from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory
 from axiom.item import Item
 from axiom import userbase
 
@@ -228,15 +230,18 @@ class Traceback(Item):
 
     when = timestamp()
     traceback = bytes()
+    collector = reference()
 
-    def __init__(self, failure):
+    def __init__(self, store, collector, failure):
         when = extime.Time()
         traceback = failure.getTraceback()
         super(Traceback, self).__init__(
+            store=store,
             traceback=traceback,
-            when=when)
+            when=when,
+            collector=collector)
 
-class TracebackCollector(Item):
+class TracebackCollector(Item, Service):
     implements(IService)
 
     typeName = 'mantissa_traceback_collector'
@@ -244,8 +249,13 @@ class TracebackCollector(Item):
 
     tracebackCount = integer(default=0)
 
+    parent = inmemory()
+    running = inmemory()
+    name = inmemory()
+
     def installOn(self, other):
         other.powerUp(self, IService)
+        self.setServiceParent(other)
 
     def startService(self):
         log.addObserver(self.emit)
@@ -257,6 +267,7 @@ class TracebackCollector(Item):
         if event.get('isError') and event.get('failure') is not None:
             f = event['failure']
             def txn():
+                self.tracebackCount += 1
                 Traceback(store=self.store, collector=self, failure=f)
             self.store.transact(txn)
 
@@ -285,7 +296,9 @@ class TracebackViewer(Item):
                            authoritative=False)]
 
     def _getCollector(self):
-        return self.store.parent.findOrCreate(TracebackCollector)
+        def ifCreate(coll):
+            coll.installOn(self.store.parent)
+        return self.store.parent.findOrCreate(TracebackCollector, ifCreate)
 
     def topPanelContent(self):
         # XXX There should really be a juice protocol for this.
