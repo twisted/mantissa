@@ -21,7 +21,7 @@ def _():
 
     # Install an HTTP server and root resource so we have some way to
     # access it through the web: point it at port 8080.
-    WebSite(store=s, portno=8080).installOn(s)
+    WebSite(store=s, portNumber=8080).installOn(s)
 
     # Install static resources required for DeveloperApplication
     # below.  This is installed 'sessionlessly', meaning for everyone,
