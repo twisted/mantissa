@@ -189,3 +189,34 @@ class IQ2QService(Interface):
         """
         @see: L{vertex.q2q.Q2QService.connectQ2Q}
         """
+
+class ITemporalEvent(Interface):
+    """
+    I am an event which happens at a particular time and has a specific duration.
+    """
+
+    startTime = Attribute("""
+    An extime.Time.  The start-point of this event.
+    """)
+
+    endTime = Attribute("""
+    An extime.Time.  The end-point fo this event.
+    """)
+
+class IDateBook(Interface):
+    """
+    A source of L{IAppointment}s which have times associated with them.
+    """
+
+    def eventsBetween(startTime, endTime):
+        """
+        Retrieve events which overlap a particular range.
+
+        @param startTime: an L{epsilon.extime.Time} that begins a range.
+        @param endTime: an L{epsilon.extime.Time} that ends a range.
+
+        @return: an iterable of L{ITemporalEvent} providers.
+        """
+
+
+
