@@ -18,6 +18,12 @@ class IWebTheme(Interface):
 class ISiteRootPlugin(Interface):
     """
     Plugin Interface for functionality provided at the root of the website.
+
+    This interface is queried for on the Store by website.WebSite when
+    processing an HTTP request.  Things which are installed on a Store using
+    s.powerUp(x, ISiteRootPlugin) will be visible to individual users when
+    installed on a user's store or visible to the general public when installed
+    on a top-level store.
     """
 
     def resourceFactory(segments):

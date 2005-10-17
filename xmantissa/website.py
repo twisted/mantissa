@@ -96,11 +96,19 @@ JUST_SLASH = ('',)
 class PrefixURLMixin:
     """
     Mixin for use by I[Sessionlesss]SiteRootPlugin implementors; provides a
-    resourceFactory method which looks for an 'prefixURL' string on self,
+    resourceFactory method which looks for an C{prefixURL} string on self,
     and calls and returns self.createResource().
+
+    C{prefixURL} is a '/'-separated unicode string; it must be set before
+    calling installOn.  To respond to the url C{http://example.com/foo/bar},
+    use the prefixURL attribute u'foo/bar'.
     """
 
     def resourceFactory(self, segments):
+        """Return a C{(resource, subsegments)} tuple or None, depending on whether I
+        wish to return an IResource provider for the given set of segments or
+        not.
+        """
         if not self.prefixURL:
             needle = ()
         else:
@@ -115,6 +123,9 @@ class PrefixURLMixin:
             return self.createResource(), subsegments
 
     def installOn(self, other, priorityModifier=0):
+        """Install me on something (probably a Store) that will be queried for
+        ISiteRootPlugin providers.
+        """
         # Only 256 segments are allowed in URL paths.  We want to make sure
         # that static powerups always lose priority ordering to dynamic
         # powerups, since dynamic powerups will have information
