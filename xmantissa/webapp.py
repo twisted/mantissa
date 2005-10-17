@@ -216,7 +216,8 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     To plug into it, install powerups of the type INavigableElement on the
     user's store.  Their tabs will be retrieved and items that are part of
-    those powerups will be linked to; provide adapters for said items to either INavigableFragment or IResource.
+    those powerups will be linked to; provide adapters for said items to either
+    INavigableFragment or IResource.
 
     Note: IResource adapters should be used sparingly, for example, for
     specialized web resources which are not 'nodes' within the application; for
@@ -252,6 +253,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     hitCount = integer()
     privateKey = integer()
 
+    #XXX Nothing ever uses this
     privateIndexPage = reference()
 
     prefixURL = 'private'
