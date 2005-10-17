@@ -216,8 +216,15 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     To plug into it, install powerups of the type INavigableElement on the
     user's store.  Their tabs will be retrieved and items that are part of
-    those powerups will be linked to; provide IResource adapters for said
-    items.
+    those powerups will be linked to; provide adapters for said items to either INavigableFragment or IResource.
+
+    Note: IResource adapters should be used sparingly, for example, for
+    specialized web resources which are not 'nodes' within the application; for
+    example, that need to set a custom content/type or that should not display
+    any navigation elements because they will be displayed only within IFRAME
+    nodes.  Do _NOT_ use IResource adapters to provide a customized
+    look-and-feel; instead use mantissa themes.  (XXX document webtheme.py more
+    thoroughly)
 
     @ivar preferredTheme: A C{unicode} string naming the preferred theme for
     this application.  Templates and suchlike will be looked up for this theme

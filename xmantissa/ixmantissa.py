@@ -77,7 +77,7 @@ class IWebTranslator(Interface):
 
 
 class INavigableElement(Interface):
-    """Tag interface used by the web navigation plugin system.
+    """Tab interface used by the web navigation plugin system.
 
     Plugins for this interface are retrieved when generating the navigation
     user-interface.  Each result has C{getTabs} invoked, after which the
@@ -89,7 +89,7 @@ class INavigableElement(Interface):
     def getTabs():
         """Retrieve data about this elements navigation.
 
-        This returns a list of C{quotient.appnav.Tab}s.
+        This returns a list of C{xmantissa.appnav.Tab}s.
 
         For example, a powerup which wanted to install navigation under the
         Divmod tab would return this list:::
@@ -121,12 +121,35 @@ class INavigableFragment(Interface):
     You will still need to produce some UI by implementing INavigableElement
     and registering a powerup for that as well, which allows users to navigate
     to this object.
+
+    The main thing that this interface requires is that the element passed in
+    be 'flattenable', meaning that it can be flattened as part of a Nevow stan
+    tree.  The easiest way to achieve this is to subclass
+    L{nevow.rend.Fragment}; hence the interface name.
     """
 
     live = Attribute("""
 
     A boolean, telling us whether or not this fragment requires a LivePage to
     function properly.
+
+    """)
+
+    fragmentName = Attribute("""
+
+    The name of this fragment; a string used to look up the template from the
+    current theme(s).
+
+    For quick-and-dirty development, this may be set to None and instead you
+    can set a docFactory.  While this will work, it's not generally
+    recommended, because then your application's visual style will be
+    inextricably welded to its front-end code.
+
+    """)
+
+    docFactory = Attribute("""
+
+    Nevow-style docFactory object.  Must be set if fragmentName is not.
 
     """)
 
@@ -147,7 +170,7 @@ class ITab(Interface):
 
 class IBenefactor(Interface):
     """
-    Make users and give them things to use.
+    Make accounts for users and give them things to use.
     """
 
     def endow(emailAddress):
