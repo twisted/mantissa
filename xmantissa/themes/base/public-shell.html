@@ -1,0 +1,27 @@
+<html xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <head nevow:render="head">
+    <title nevow:render="title"/>
+  </head>
+
+  <body>
+
+    <center class="public-header" nevow:render="header" />
+
+    <div class="shell-content">
+
+      <table>
+        <tr class="page-body">
+          <td class="nav-panel">
+            <span nevow:render="navigation" />
+          </td>
+          <td class="fragment-container">
+            <div class="fragment-content" nevow:render="content" />
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <div class="footer" nevow:render="footer" />
+  </body>
+</html>

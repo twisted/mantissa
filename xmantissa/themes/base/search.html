@@ -1,0 +1,28 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+
+  <ol nevow:pattern="results" nevow:render="sequence">
+    <li nevow:pattern="item" nevow:render="mapping">
+      <a>
+        <nevow:attr name="href"><nevow:slot name="url"/></nevow:attr>
+        <nevow:slot name="description"/>
+      </a>
+      - <nevow:slot name="timestamp"/>
+      <span class="search-score">score: <nevow:slot name="score"/></span><br/>
+      <div class="search-summary"><nevow:slot name="summary"/></div>
+    </li>
+    <li style="width: 100%; list-style-type: none" nevow:pattern="empty">
+      <span style="font-size: 1.3em; font-weight: bold">No Results</span>
+    </li>
+  </ol>
+
+  <div id="results-summary">
+    viewing
+    <span id="viewing-start"/> to
+    <span id="viewing-stop"/> out of
+    <span id="total-matches"/> matches
+    for "<span nevow:data="searchTerm" nevow:render="data"/>"
+  </div>
+
+  <div id="results"/>
+
+</div>

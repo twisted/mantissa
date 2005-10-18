@@ -7,6 +7,7 @@ from twisted.plugin import IPlugin
 from twisted.python.util import sibpath
 
 from nevow.loaders import xmlfile
+from nevow import tags
 
 from xmantissa.ixmantissa import IWebTheme
 
@@ -43,3 +44,8 @@ class XHTMLDirectoryTheme(object):
 
     def head(self):
         return None
+
+class MantissaTheme(XHTMLDirectoryTheme):
+    def head(self):
+        return tags.link(rel='stylesheet', type='text/css',
+                         href='/static/mantissa/mantissa.css')

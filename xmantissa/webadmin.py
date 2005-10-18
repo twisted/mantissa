@@ -94,10 +94,6 @@ class AdminStatsApplication(Item, ParentCounterMixin):
                            [webnav.Tab('Stats', self.storeID, 0.1)],
                            authoritative=False)]
 
-    def topPanelContent(self):
-        return None
-
-
 class AdminStatsFragment(rend.Fragment):
     implements(INavigableFragment)
 
@@ -166,10 +162,6 @@ class DeveloperApplication(Item, ParentCounterMixin):
         return [webnav.Tab('Admin', self.storeID, 0.0,
                            [webnav.Tab('REPL', self.storeID, 0.0)],
                            authoritative=False)]
-
-    def topPanelContent(self):
-        return None
-
 
 class REPL(rend.Fragment):
     """
@@ -300,9 +292,10 @@ class TracebackViewer(Item):
             coll.installOn(self.store.parent)
         return self.store.parent.findOrCreate(TracebackCollector, ifCreate)
 
-    def topPanelContent(self):
-        # XXX There should really be a juice protocol for this.
-        return '%d errors logged' % (self._getCollector().tracebackCount,)
+    # this needs to be moved somewhere else, topPanelContent is no more
+    #def topPanelContent(self):
+    #    # XXX There should really be a juice protocol for this.
+    #    return '%d errors logged' % (self._getCollector().tracebackCount,)
 
 
 class TracebackViewerFragment(rend.Fragment):

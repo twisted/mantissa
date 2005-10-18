@@ -17,6 +17,7 @@ except ImportError:
 
 from zope.interface import implements
 
+from twisted.python.util import sibpath
 from twisted.application.service import IService, Service
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
@@ -34,7 +35,7 @@ from vertex import sslverify
 from axiom.item import Item
 from axiom.attributes import integer, inmemory, text, reference, bytes
 
-from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin
+from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent
 from xmantissa import websession
 from xmantissa.publicresource import PublicPage, getLoader
 
@@ -65,8 +66,9 @@ class SiteRootMixin(object):
         return NotFound
 
 class LoginPage(PublicPage):
-    def __init__(self, original=None):
-        PublicPage.__init__(self, original, getLoader("login"))
+    def __init__(self, original):
+        PublicPage.__init__(self, original, getLoader("login"),
+                            IStaticShellContent(original.installedOn, None))
 
     def beforeRender(self, ctx):
         ctx.fillSlots("login-action", "/__login__")
@@ -84,7 +86,7 @@ class UnguardedWrapper(SiteRootMixin):
 
     def locateChild(self, ctx, segments):
         if segments[0] == 'login':
-            return LoginPage(), ()
+            return LoginPage(self), ()
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x
@@ -206,7 +208,6 @@ class AxiomFragment(Fragment):
     def rend(self, ctx, data):
         return self.store.transact(Fragment.rend, self, ctx, data)
 
-
 class WebSite(Item, Service, SiteRootMixin):
     typeName = 'mantissa_web_powerup'
     schemaVersion = 1
@@ -239,6 +240,9 @@ class WebSite(Item, Service, SiteRootMixin):
         other.powerUp(self, IResource)
         self.installedOn = other
         self.setServiceParent(other)
+
+        StaticSite(store=other, prefixURL = u'static/mantissa',
+                   staticContentPath=sibpath(__file__, u'static')).installOn(other)
 
     def privilegedStartService(self):
         if SSL is None and self.securePort is not None:
@@ -287,3 +291,4 @@ class WebSite(Item, Service, SiteRootMixin):
             dl.append(defer.maybeDeferred(self.securePort.stopListening))
             self.securePort = None
         return defer.DeferredList(dl)
+

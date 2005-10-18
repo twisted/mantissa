@@ -19,7 +19,7 @@ from nevow.livepage import set
 from nevow.inevow import IResource, ISession
 from nevow.flat.ten import flatten
 
-from xmantissa.ixmantissa import ISiteRootPlugin
+from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent
 from xmantissa.website import PrefixURLMixin
 from xmantissa.publicresource import PublicLivePage, getLoader
 
@@ -173,10 +173,8 @@ def domainAndPortFromContext(ctx):
 
 class FreeSignerUpper(PublicLivePage):
     def __init__(self, original):
-        PublicLivePage.__init__(self, original, getLoader("signup"))
-
-    def render_title(self, ctx, data):
-        return "Sign Up"
+        PublicLivePage.__init__(self, original, getLoader("signup"),
+                                IStaticShellContent(original.store, None))
 
     def handle_issueTicket(self, ctx, emailAddress):
         domain, port = domainAndPortFromContext(ctx)
@@ -211,7 +209,6 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
     def createResource(self):
         return FreeSignerUpper(self)
-
 
 class Ticket(Item):
     schemaVersion = 1

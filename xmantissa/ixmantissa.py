@@ -14,6 +14,128 @@ class IWebTheme(Interface):
         before the return result of the fragment's head()
         """
 
+class IPreference(Interface):
+    """
+    Represents the display logic of an individual preference
+    """
+
+    key = Attribute("Internal, unique (per-store) identifier for this preference")
+    value = Attribute("The current value of this preference")
+    name = Attribute("Short, displayable title, e.g. 'Preferred Widget'")
+    collection = Attribute("Reference to my IPreferenceCollection")
+    description = Attribute("Longer, helpful summary of the utility of this preference")
+
+    def choices():
+        """
+        If this is a multiple choice preference, returns all possible values.
+        otherwise returns None.
+        """
+
+    def valueToDisplay(value):
+        """
+        Returns a displayable version of the preferences value.  e.g.
+        True -> "Yes"
+        """
+
+    def displayToValue(display):
+        """
+        inverse of "valueToDisplay".  raises prefs.PreferenceValidationError
+        if the "display" argument is not a valid preference value
+        """
+
+class IPreferenceAggregator(Interface):
+    """
+    Allows convenient retrieval of individual preferences
+    """
+
+    def getPreference(key):
+        """
+        Return the preference associated with "key"
+        """
+
+    def getPreferenceValue(key):
+        """
+        Return the value of the preference associated with "key"
+        """
+
+class IPreferenceCollection(Interface):
+    """
+    Represents an Item that aggregates preferences associated with some
+    functionality - i.e. there might be a core mantissa Preference Collection,
+    and an AcmeWidgets Preference Collection that extends the set of available
+    preferences.
+    """
+
+    name = Attribute("The name of this collection, e.g. 'Mantissa Preferences'")
+
+    def getPreferences():
+        """
+        Returns a mapping of key->preference for all preferences
+        in this collection
+        """
+
+    def setPreferenceValue(pref, value):
+        """
+        Update and persist the value of the given preference
+        """
+
+class ISearchProvider(Interface):
+    """
+    Represents an Item capable of searching for things
+    """
+
+    def count(term):
+        """
+        Return the number of items currently associated with the given
+        (unprocessed) search string
+        """
+
+    def search(term, count, offset):
+        """
+        Return a sequence of search.SearchResult instances, representing
+        'count' results for unprocessed string 'term', starting from 'offset'.
+        The bounds of offset & count will be within the value last returned from
+        count() for this term
+        """
+
+class ISearchAggregator(Interface):
+    """
+    An Item responsible for interleaving and displaying search results
+    obtained from available ISearchProviders
+    """
+
+    def count(term):
+        """
+        same as ISearchProviders.count, but queries all search providers
+        """
+
+    def search(term, count, offset):
+        """
+        same as ISearchProvider.search, but queries all search providers
+        """
+
+    def providers():
+        """
+        returns the number of available search providers
+        """
+
+class IStaticShellContent(Interface):
+    """
+    Represents per-store header/footer content thats used to buttress
+    the shell template
+    """
+
+    def getHeader():
+        """
+        Returns stan to be added to the page header.  Can return None
+        if no header is desired.
+        """
+
+    def getFooter():
+        """
+        Returns stan to be added to the page footer.  Can return None
+        if no footer is desired.
+        """
 
 class ISiteRootPlugin(Interface):
     """
@@ -102,15 +224,6 @@ class INavigableElement(Interface):
                             'Mail Folders').getNamedElement('Inbox'),
                         0.8)
                     ])]
-        """
-
-    def topPanelContent():
-        """
-        Provide content to render inside the shell template's topPanel,
-        regardless of whether this fragment is supplying the content of
-        the current page
-
-        May return None if nothing needs to be added there.
         """
 
 class INavigableFragment(Interface):
@@ -219,6 +332,7 @@ class IQ2QService(Interface):
         @see: L{vertex.q2q.Q2QService.connectQ2Q}
         """
 
+
 class ITemporalEvent(Interface):
     """
     I am an event which happens at a particular time and has a specific duration.
@@ -231,6 +345,7 @@ class ITemporalEvent(Interface):
     endTime = Attribute("""
     An extime.Time.  The end-point fo this event.
     """)
+
 
 class IDateBook(Interface):
     """
@@ -246,6 +361,3 @@ class IDateBook(Interface):
 
         @return: an iterable of L{ITemporalEvent} providers.
         """
-
-
-

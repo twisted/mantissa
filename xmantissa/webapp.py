@@ -9,10 +9,11 @@ from zope.interface import implements
 
 from axiom.item import Item
 from axiom.attributes import text, integer, reference
+from axiom.userbase import getAccountNames
 
 from nevow.rend import Page, Fragment
 from nevow.livepage import LivePage
-from nevow.inevow import IResource
+from nevow.inevow import IResource, IQ
 from nevow import tags as t
 from nevow.url import URL
 
@@ -22,7 +23,7 @@ from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
-    ISiteRootPlugin, IWebTranslator
+    ISiteRootPlugin, IWebTranslator, ISearchAggregator, IStaticShellContent
 
 def _reorderForPreference(themeList, preferredThemeName):
     """
@@ -63,12 +64,14 @@ class NavFragment(Fragment):
 class NavMixin(object):
 
     fragmentName = 'main'
+    username = None
+    searchPattern = None
 
-    def __init__(self, webapp, navigation):
+    def __init__(self, webapp, navigation, searchable, staticContent):
         self.webapp = webapp
         self.navigation = navigation
-        elems = webapp.installedOn.powerupsFor(INavigableElement)
-        self.navigableElements = list(elems)
+        self.searchable = searchable
+        self.staticContent = staticContent
 
     def getDocFactory(self, fragmentName, default=None):
         return self.webapp.getDocFactory(fragmentName, default)
@@ -84,27 +87,59 @@ class NavMixin(object):
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
 
+    def render_search(self, ctx, data):
+        if self.searchable is None or not self.searchable.providers():
+            return ctx.tag
+
+        if self.searchPattern is None:
+            self.searchPattern = IQ(self.docFactory).patternGenerator("search")
+
+        action = self.webapp.linkTo(self.searchable.storeID)
+        return ctx.tag[self.searchPattern.fillSlots('form-action', action)]
+
+    def render_username(self, ctx, data):
+        if self.username is None:
+            for (user, domain) in getAccountNames(self.webapp.installedOn):
+                self.username = '%s@%s' % (user, domain)
+                break
+            else:
+                self.username = 'nobody@noplace'
+        return ctx.tag[self.username]
+
     def render_head(self, ctx, data):
         return ctx.tag
 
-    def render_topPanel(self, ctx, data):
-        contents = []
-        for navigable in self.navigableElements:
-            content = navigable.topPanelContent()
-            if content is not None:
-                contents.append(content)
-        return ctx.tag[contents]
-            
+    def render_header(self, ctx, data):
+        if self.staticContent is None:
+            return ctx.tag
+        header = self.staticContent.getHeader()
+        if header is not None:
+            return ctx.tag[header]
+        else:
+            return ctx.tag
+
+    def render_footer(self, ctx, data):
+        if self.staticContent is None:
+            return ctx.tag
+        footer = self.staticContent.getFooter()
+        if footer is not None:
+            return ctx.tag[footer]
+        else:
+            return ctx.tag
+
 class FragmentWrapperMixin:
-    def render_title(self, fragment):
-        return getattr(self.fragment, 'title', self.fragment.__class__.__name__)
+    def render_title(self, ctx, data):
+        return ctx.tag[getattr(self.fragment, 'title', self.fragment.__class__.__name__)]
 
 class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
-    def __init__(self, webapp, navigation, fragment):
+    def __init__(self, webapp, navigation, searchable, staticContent, fragment):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation)
+        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
         self.fragment = fragment
         fragment.page = self
+
+    def beforeRender(self, ctx):
+        return getattr(self.fragment, 'beforeRender', lambda x: None)(ctx)
 
     def render_head(self, ctx, data):
         l = list(getAllThemes())
@@ -114,7 +149,6 @@ class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
             extra = theme.head()
             if extra is not None:
                 extras.append(extra)
-                break
         extra = self.fragment.head()
         if extra is not None:
             extras.append(extra)
@@ -126,11 +160,14 @@ class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
 
 class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
     # XXX TODO: support live nav, live fragments somehow
-    def __init__(self, webapp, navigation, fragment):
+    def __init__(self, webapp, navigation, searchable, staticContent, fragment):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation)
+        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
         self.fragment = fragment
         fragment.page = self
+
+    def beforeRender(self, ctx):
+        return getattr(self.fragment, 'beforeRender', lambda x: None)(ctx)
 
     def goingLive(self, ctx, client):
         getattr(self.fragment, 'goingLive', lambda x, y: None)(ctx, client)
@@ -146,7 +183,6 @@ class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
             extra = theme.head()
             if extra is not None:
                 extras.append(extra)
-                break
         extra = self.fragment.head()
         if extra is not None:
             extras.append(extra)
@@ -160,10 +196,12 @@ class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
 class PrivateRootPage(Page, NavMixin):
     addSlash = True
 
-    def __init__(self, webapp, navigation):
+    def __init__(self, webapp, navigation, searchable, staticContent):
         self.webapp = webapp
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation)
+        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+        self.searchable = searchable
+        self.staticContent = staticContent
 
     def child_(self, ctx):
         if not self.navigation:
@@ -172,14 +210,14 @@ class PrivateRootPage(Page, NavMixin):
         click = self.webapp.linkTo(self.navigation[0].storeID)
         return URL.fromContext(ctx).click(click)
 
-    def render_title(self, ctx, data):
-        return 'Private Root Page (You Should Not See This)'
-
     def render_content(self, ctx, data):
         return """
         You have no default root page set, and no navigation plugins installed.  I
         don't know what to do.
         """
+
+    def render_title(self, ctx, data):
+        return ctx.tag['Private Root Page (You Should Not See This)']
 
     def childFactory(self, ctx, name):
         storeID = self.webapp.linkFrom(name)
@@ -203,11 +241,13 @@ class PrivateRootPage(Page, NavMixin):
             raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
         if fragment.live:
             return GenericNavigationLivePage(
-                self.webapp, self.navigation, fragment)
+                self.webapp, self.navigation, self.searchable, self.staticContent, fragment)
         else:
             return GenericNavigationPage(self.webapp,
-                                         self.navigation, fragment)
-
+                                         self.navigation,
+                                         self.searchable,
+                                         self.staticContent,
+                                         fragment)
 
 class PrivateApplication(Item, PrefixURLMixin):
     """
@@ -273,8 +313,10 @@ class PrivateApplication(Item, PrefixURLMixin):
                                  targetURL=u'/'+self.prefixURL).installOn(other, -1)
 
     def createResource(self):
-        return PrivateRootPage(
-            self, getTabs(self.installedOn.powerupsFor(INavigableElement)))
+        return PrivateRootPage(self,
+                getTabs(self.installedOn.powerupsFor(INavigableElement)),
+                ISearchAggregator(self.installedOn, None),
+                IStaticShellContent(self.installedOn, None))
 
     # ISiteRootPlugin
     def resourceFactory(self, segments):

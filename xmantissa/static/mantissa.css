@@ -1,0 +1,72 @@
+/* the preferences table! */
+table.prefsTable {
+    width: 60%;
+    border: solid 1px #CACACA;
+    border-right: none;
+    margin-bottom: 15px;
+}
+
+/* set the first row to have a grey background */
+table.prefsTable > thead {
+    background-color: #CACACA;
+}
+
+/* set the first row to be bold-face */
+table.prefsTable > thead > tr > td {
+    padding: 5px;
+    font-weight: bold;
+}
+
+/* put a grey border around all other rows */
+table.prefsTable > tbody > tr > td {
+    border-right: solid 1px #CACACA;
+    padding: 5px;
+}
+
+/* make the score of each result grey and italic,
+   because nobody really cares about it */
+.search-score {
+    color: #CACACA;
+    font-style: italic;
+}
+
+/* slightly indent the summary text that appears below
+ * each search item */
+.search-summary {
+    margin-left: 15px;
+}
+
+#results-summary {
+    background-color: #CACACA;
+    border: solid 1px #B0B0B0;
+    padding: 5px;
+    text-align: right;
+}
+
+/* shell template styles */
+.search-form {
+    display: inline;
+    padding-right: 35px;
+}
+
+.search-form-container {
+    vertical-align: middle;
+}
+
+.header {
+    width: 50%;
+    text-align: right; 
+}
+
+.control-panel { width: 100% }
+.shell-content { padding-top: 15px }
+
+.fragment-title {
+    font-size: 1.2em;
+    font-weight: bold
+}
+
+.fragment-container { width: 100% }
+.page-body { vertical-align: top }
+.username { font-weight: bold }
+.footer { text-align: center }
