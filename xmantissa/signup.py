@@ -20,7 +20,7 @@ from nevow.inevow import IResource, ISession
 from nevow.flat.ten import flatten
 
 from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent
-from xmantissa.website import PrefixURLMixin
+from xmantissa.website import PrefixURLMixin, domainAndPortFromContext
 from xmantissa.publicresource import PublicLivePage, getLoader
 
 import re
@@ -162,14 +162,6 @@ class TicketBooth(Item, PrefixURLMixin):
 
 def _generateNonce():
     return unicode(os.urandom(16).encode('hex'), 'ascii')
-
-def domainAndPortFromContext(ctx):
-    netloc = URL.fromContext(ctx).netloc.split(':', 1)
-    if len(netloc) == 1:
-        domain, port = netloc[0], 80
-    else:
-        domain, port = netloc[0], int(netloc[1])
-    return domain, port
 
 class FreeSignerUpper(PublicLivePage):
     def __init__(self, original):

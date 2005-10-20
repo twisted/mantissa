@@ -43,6 +43,14 @@ class WebConfigurationError(RuntimeError):
     """You specified some invalid configuration.
     """
 
+def domainAndPortFromContext(ctx):
+    netloc = URL.fromContext(ctx).netloc.split(':', 1)
+    if len(netloc) == 1:
+        domain, port = netloc[0], 80
+    else:
+        domain, port = netloc[0], int(netloc[1])
+    return domain, port
+
 class SiteRootMixin(object):
     implements(IResource)
 
@@ -71,7 +79,33 @@ class LoginPage(PublicPage):
                             IStaticShellContent(original.installedOn, None))
 
     def beforeRender(self, ctx):
-        ctx.fillSlots("login-action", "/__login__")
+        secure = ''
+        domain, port = domainAndPortFromContext(ctx)
+
+        if port == 80:
+            port = ''
+        else:
+            port = ':%d' % (port,)
+
+        # There should be a nicer way to discover this information
+        ws = self.original.installedOn.findFirst(
+            WebSite,
+            installedOn=self.original.installedOn)
+
+        if ws.securePort is not None:
+            secure = 's'
+            port = ws.securePort.getHost().port
+            if port == 443:
+                port = ''
+            else:
+                port = ':%d' % (port,)
+
+        baseURL = "http%(secure)s://%(domain)s%(port)s%(root)s" % {
+            'secure': secure,
+            'domain': domain,
+            'port': port,
+            'root': ''}
+        ctx.fillSlots("login-action", baseURL + "/__login__")
 
 
 class UnguardedWrapper(SiteRootMixin):
