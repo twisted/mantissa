@@ -279,7 +279,7 @@ class WebSite(Item, Service, SiteRootMixin):
                    staticContentPath=sibpath(__file__, u'static')).installOn(other)
 
     def privilegedStartService(self):
-        if SSL is None and self.securePort is not None:
+        if SSL is None and self.securePortNumber is not None:
             raise WebConfigurationError(
                 "No SSL support: you need to install OpenSSL to serve HTTPS")
 
