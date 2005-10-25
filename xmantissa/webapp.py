@@ -13,7 +13,7 @@ from axiom.userbase import getAccountNames
 from axiom import upgrade
 
 from nevow.rend import Page, Fragment
-from nevow.livepage import LivePage
+from nevow import livepage, athena
 from nevow.inevow import IResource, IQ
 from nevow import tags as t
 from nevow.url import URL
@@ -130,13 +130,7 @@ class NavMixin(object):
             return ctx.tag
 
 class FragmentWrapperMixin:
-    def render_title(self, ctx, data):
-        return ctx.tag[getattr(self.fragment, 'title', self.fragment.__class__.__name__)]
-
-class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
-    def __init__(self, webapp, navigation, searchable, staticContent, fragment):
-        Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+    def __init__(self, fragment):
         self.fragment = fragment
         fragment.page = self
 
@@ -154,22 +148,32 @@ class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
         extra = self.fragment.head()
         if extra is not None:
             extras.append(extra)
-
         return ctx.tag[extras]
+
+    def render_title(self, ctx, data):
+        return ctx.tag[getattr(self.fragment, 'title', self.fragment.__class__.__name__)]
 
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
-    # XXX TODO: support live nav, live fragments somehow
+
+class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
     def __init__(self, webapp, navigation, searchable, staticContent, fragment):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
-        self.fragment = fragment
-        fragment.page = self
+        FragmentWrapperMixin.__init__(self, fragment)
 
-    def beforeRender(self, ctx):
-        return getattr(self.fragment, 'beforeRender', lambda x: None)(ctx)
+
+class GenericNavigationLivePage(livepage.LivePage, FragmentWrapperMixin, NavMixin):
+    def __init__(self, webapp, navigation, searchable, staticContent, fragment):
+        livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
+        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+        FragmentWrapperMixin.__init__(self, fragment)
+
+    # XXX TODO: support live nav, live fragments somehow
+    def render_head(self, ctx, data):
+        ctx.tag[t.invisible(render=t.directive("liveglue"))]
+        return FragmentWrapperMixin.render_head(self, ctx, data)
 
     def goingLive(self, ctx, client):
         getattr(self.fragment, 'goingLive', lambda x, y: None)(ctx, client)
@@ -177,23 +181,28 @@ class GenericNavigationLivePage(LivePage, FragmentWrapperMixin, NavMixin):
     def locateHandler(self, ctx, path, name):
         return getattr(self.fragment, 'handle_' + name)
 
+
+class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
+    def __init__(self):
+        pass
+
+    initialized = False
+
+    def init(self, webapp, navigation, searchable, staticContent, fragment):
+        if not self.initialized:
+            self.initialized = True
+            athena.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
+            NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+            FragmentWrapperMixin.__init__(self, fragment)
+
     def render_head(self, ctx, data):
-        l = list(getAllThemes())
-        _reorderForPreference(l, self.webapp.preferredTheme)
-        extras = []
-        for theme in l:
-            extra = theme.head()
-            if extra is not None:
-                extras.append(extra)
-        extra = self.fragment.head()
-        if extra is not None:
-            extras.append(extra)
+        ctx.tag[t.invisible(render=t.directive("liveglue"))]
+        return FragmentWrapperMixin.render_head(self, ctx, data)
 
-        children = [t.invisible(render=t.directive("liveglue"))] + extras
-        return ctx.tag[children]
+    def locateMethod(self, ctx, methodName):
+        return self.fragment.locateMethod(methodName)
 
-    def render_content(self, ctx, data):
-        return ctx.tag[self.fragment]
+_athenaFactory = athena.LivePageFactory(GenericNavigationAthenaPage)
 
 class PrivateRootPage(Page, NavMixin):
     addSlash = True
@@ -241,15 +250,21 @@ class PrivateRootPage(Page, NavMixin):
                 fragment.docFactory = fragDocFactory
         if fragment.docFactory is None:
             raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
-        if fragment.live:
-            return GenericNavigationLivePage(
-                self.webapp, self.navigation, self.searchable, self.staticContent, fragment)
-        else:
-            return GenericNavigationPage(self.webapp,
-                                         self.navigation,
-                                         self.searchable,
-                                         self.staticContent,
-                                         fragment)
+
+        pageArgs = (self.webapp, self.navigation,
+                    self.searchable, self.staticContent,
+                    fragment)
+
+        def athenaFactory(*args):
+            page = _athenaFactory.clientFactory(ctx)
+            page.init(*args)
+            return page
+
+        pageClass = {False: GenericNavigationPage,
+         True: GenericNavigationLivePage,
+         'athena': athenaFactory}.get(fragment.live)
+        return pageClass(*pageArgs)
+
 
 class PrivateApplication(Item, PrefixURLMixin):
     """
