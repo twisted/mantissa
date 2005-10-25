@@ -1,0 +1,9 @@
+x.x.x (dd-mm-yyyy):
+  - General preference inspection and configuration page added
+  - Better support for anonymously viewed public pages
+  - Support for multi-application search and search results aggregation
+  - Skinned free-ticket-signup page
+  - Lots of new docstrings
+  - Administrative page for viewing unhandled exceptions which have occurred
+    added
+  - Experimental support for Nevow Athena-based fragments
