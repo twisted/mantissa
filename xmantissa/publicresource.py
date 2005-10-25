@@ -1,6 +1,8 @@
+from zope.interface import implements
+
 from nevow import rend, livepage
 from xmantissa.webtheme import getAllThemes
-from xmantissa.ixmantissa import IStaticShellContent
+from xmantissa.ixmantissa import IPublicPage
 
 def getLoader(n):
     # TODO: implement PublicApplication (?) in webapp.py, so we can make sure
@@ -16,6 +18,7 @@ def getLoader(n):
 class PublicPageMixin(object):
     fragment = None
     title = ''
+    username = ''
 
     def render_navigation(self, ctx, data):
         return ""
@@ -25,6 +28,11 @@ class PublicPageMixin(object):
 
     def render_title(self, ctx, data):
         return ctx.tag[self.title]
+
+    def render_username(self, ctx, data):
+        if self.username is not None:
+            return ctx.tag.fillSlots('username', self.username)
+        return ''
 
     def render_header(self, ctx, data):
         if self.staticContent is None:
@@ -59,17 +67,33 @@ class PublicPageMixin(object):
         return ctx.tag[content]
 
 class PublicPage(rend.Page, PublicPageMixin):
-    def __init__(self, original, fragment, staticContent):
+    def __init__(self, original, fragment, staticContent, forUser):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
+        self.username = forUser
 
 class PublicLivePage(livepage.LivePage, PublicPageMixin):
-    def __init__(self, original, fragment, staticContent):
+    def __init__(self, original, fragment, staticContent, forUser):
         super(PublicLivePage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
+        self.username = forUser
 
     def render_head(self, ctx, data):
         tag = super(PublicLivePage, self).render_head(ctx, data)
         return tag[livepage.glue]
+
+class GenericPublicPage(object):
+    implements(IPublicPage)
+
+    def __init__(self, publicPageClass, original, staticContent):
+        self.publicPageClass = publicPageClass
+        self.original = original
+        self.staticContent = staticContent
+
+    def anonymousResource(self):
+        raise NotImplementedError("Why are you using this class if all you want is an anonymous resource?")
+
+    def resourceForUser(self, username):
+        return self.publicPageClass(self.original, self.staticContent, username)

@@ -10,6 +10,7 @@ from zope.interface import implements
 from axiom.item import Item
 from axiom.attributes import text, integer, reference
 from axiom.userbase import getAccountNames
+from axiom import upgrade
 
 from nevow.rend import Page, Fragment
 from nevow.livepage import LivePage
@@ -17,6 +18,7 @@ from nevow.inevow import IResource, IQ
 from nevow import tags as t
 from nevow.url import URL
 
+from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, StaticRedirect
 from xmantissa.webtheme import getAllThemes
 from xmantissa.webnav import getTabs
@@ -285,7 +287,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     implements(ISiteRootPlugin, IWebTranslator)
 
     typeName = 'private_web_application'
-    schemaVersion = 1
+    schemaVersion = 2
 
     installedOn = reference()
 
@@ -309,8 +311,15 @@ class PrivateApplication(Item, PrefixURLMixin):
         super(PrivateApplication, self).installOn(other)
         other.powerUp(self, IWebTranslator)
         other.store.findOrCreate(StaticRedirect,
+                                 sessioned=True,
+                                 sessionless=False,
                                  prefixURL=u'',
                                  targetURL=u'/'+self.prefixURL).installOn(other, -1)
+
+        other.findOrCreate(
+            CustomizedPublicPage,
+            prefixURL=u'').installOn(other)
+
 
     def createResource(self):
         return PrivateRootPage(self,
@@ -339,3 +348,17 @@ class PrivateApplication(Item, PrefixURLMixin):
             if fact is not None:
                 return fact
         return default
+
+def upgradePrivateApplication1To2(oldApp):
+    newApp = oldApp.upgradeVersion(
+        'private_web_application', 1, 2,
+        installedOn=oldApp.installedOn,
+        preferredTheme=oldApp.preferredTheme,
+        hitCount=oldApp.hitCount,
+        privateKey=oldApp.privateKey,
+        privateIndexPage=oldApp.privateIndexPage)
+    newApp.installedOn.findOrCreate(
+        CustomizedPublicPage,
+        prefixURL=u'').installOn(newApp.installedOn)
+    return newApp
+upgrade.registerUpgrader(upgradePrivateApplication1To2, 'private_web_application', 1, 2)

@@ -66,6 +66,12 @@ table.prefsTable > tbody > tr > td {
     font-weight: bold
 }
 
+.logged-in-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
 .fragment-container { width: 100% }
 .page-body { vertical-align: top }
 .username { font-weight: bold }

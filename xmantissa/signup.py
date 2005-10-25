@@ -166,7 +166,8 @@ def _generateNonce():
 class FreeSignerUpper(PublicLivePage):
     def __init__(self, original):
         PublicLivePage.__init__(self, original, getLoader("signup"),
-                                IStaticShellContent(original.store, None))
+                                IStaticShellContent(original.store, None),
+                                None)
 
     def handle_issueTicket(self, ctx, emailAddress):
         domain, port = domainAndPortFromContext(ctx)

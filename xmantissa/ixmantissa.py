@@ -167,12 +167,34 @@ class ISessionlessSiteRootPlugin(Interface):
 
 class IPublicPage(Interface):
     """
-    Public-facing gobbledeegook.
+    Factory for creating public-facing resources, either to be viewed
+    anonymously or by a logged in user.
     """
-    def createResource():
+    def anonymousResource():
         """Return an IResource
         """
 
+    def resourceForUser(username):
+        """
+        Create and return an IResource object.
+
+        @type username: C{unicode}
+        @param username: The name of the user for whom to create the resource.
+
+        @rtype: C{IResource}
+        @return: A public-page resource, possibly customized for the
+        indicated user.
+        """
+
+class ICustomizablePublicPage(Interface):
+    """
+    Factory for creating IResource objects which can be customized for
+    a specific user.
+    """
+    def getPublicPageFactory():
+        """
+        Return an IPublicPage provider.
+        """
 
 class IWebTranslator(Interface):
     """

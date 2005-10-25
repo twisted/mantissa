@@ -5,7 +5,13 @@
 
   <body>
 
-    <center class="public-header" nevow:render="header" />
+    <div style="text-align: center">
+      <span class="header" nevow:render="header" />
+      <div class="logged-in-panel" nevow:render="username">
+        <span class="username"><nevow:slot name="username" /></span>
+        | <a class="logout-link" href="/__logout__">logout</a>
+      </div>
+    </div>
 
     <div class="shell-content">
 

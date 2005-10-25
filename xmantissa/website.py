@@ -10,6 +10,8 @@ command-line 'axiomatic' program using the 'web' subcommand.
 
 """
 
+import warnings
+
 try:
     from OpenSSL import SSL
 except ImportError:
@@ -32,8 +34,9 @@ from nevow.url import URL
 
 from vertex import sslverify
 
-from axiom.item import Item
-from axiom.attributes import integer, inmemory, text, reference, bytes
+from axiom import upgrade
+from axiom.item import Item, _PowerupConnector
+from axiom.attributes import AND, integer, inmemory, text, reference, bytes, boolean
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent
 from xmantissa import websession
@@ -76,7 +79,8 @@ class SiteRootMixin(object):
 class LoginPage(PublicPage):
     def __init__(self, original):
         PublicPage.__init__(self, original, getLoader("login"),
-                            IStaticShellContent(original.installedOn, None))
+                            IStaticShellContent(original.installedOn, None),
+                            None)
 
     def beforeRender(self, ctx):
         secure = ''
@@ -138,7 +142,31 @@ class PrefixURLMixin:
     C{prefixURL} is a '/'-separated unicode string; it must be set before
     calling installOn.  To respond to the url C{http://example.com/foo/bar},
     use the prefixURL attribute u'foo/bar'.
+
+    @ivar sessioned: Boolean indicating whether this object should
+    powerup for L{ISiteRootPlugin}.  Note: this is only tested when
+    L{installOn} is called.  If you change it later, it will have no
+    impact.
+
+    @ivar sessionless: Boolean indicating whether this object should
+    powerup for ISessionlessSiteRootPlugin.  This is tested at the
+    same time as L{sessioned}.
     """
+
+    sessioned = False
+    sessionless = False
+
+    def createResource(self):
+        """
+        Create and return an IResource.  This will only be invoked if
+        the request matches the prefixURL specified on this object.
+        May also return None to indicate that this object does not
+        actually want to handle this request.
+        """
+        raise NotImplementedError(
+            "PrefixURLMixin.createResource() should be "
+            "implemented by subclasses (%r didn't)" % (
+                self.__class__.__name__,))
 
     def resourceFactory(self, segments):
         """Return a C{(resource, subsegments)} tuple or None, depending on whether I
@@ -156,7 +184,13 @@ class PrefixURLMixin:
                 subsegments = segments
             else:
                 subsegments = segments[S:]
-            return self.createResource(), subsegments
+            res = self.createResource()
+            # Even though the URL matched up, sometimes we might still
+            # decide to not handle this request (eg, some prerequisite
+            # for our function is not met by the store).  Allow None
+            # to be returned by createResource to indicate this case.
+            if res is not None:
+                return res, subsegments
 
     def installOn(self, other, priorityModifier=0):
         """Install me on something (probably a Store) that will be queried for
@@ -178,9 +212,22 @@ class PrefixURLMixin:
             # Above, we special-case JUST_SLASH to make sure that the other
             # half of this special-casing holds true.
             priority -= 1
-        for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
-            if iface.providedBy(self):
-                other.powerUp(self, iface, priority)
+
+        if not self.sessioned and not self.sessionless:
+            warnings.warn(
+                "Set either sessioned or sessionless on %r!  Falling back to "
+                "deprecated providedBy() behavior" % (self.__class__.__name__,),
+                DeprecationWarning,
+                stacklevel=2)
+            for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
+                if iface.providedBy(self):
+                    other.powerUp(self, iface, priority)
+        else:
+            if self.sessioned:
+                other.powerUp(self, ISiteRootPlugin, priority)
+            if self.sessionless:
+                other.powerUp(self, ISessionlessSiteRootPlugin, priority)
+
 
 class StaticSite(Item, PrefixURLMixin):
     implements(ISessionlessSiteRootPlugin,     # implements both so that it
@@ -201,12 +248,15 @@ class StaticRedirect(Item, PrefixURLMixin):
                ISessionlessSiteRootPlugin,
                ISiteRootPlugin)
 
-    schemaVersion = 1
+    schemaVersion = 2
     typeName = 'web_static_redirect'
 
     targetURL = text(allowNone=False)
 
     prefixURL = text(allowNone=False)
+
+    sessioned = boolean(default=True)
+    sessionless = boolean(default=True)
 
     def locateChild(self, ctx, segments):
         return self, ()
@@ -217,6 +267,19 @@ class StaticRedirect(Item, PrefixURLMixin):
     def createResource(self):
         return self
 
+def upgradeStaticRedirect1To2(oldRedirect):
+    newRedirect = oldRedirect.upgradeVersion(
+        'web_static_redirect', 1, 2,
+        targetURL=oldRedirect.targetURL,
+        prefixURL=oldRedirect.prefixURL)
+    if newRedirect.prefixURL == u'':
+        newRedirect.sessionless = False
+        for pc in newRedirect.store.query(_PowerupConnector,
+                                          AND(_PowerupConnector.powerup == newRedirect,
+                                              _PowerupConnector.interface == u'xmantissa.ixmantissa.ISessionlessSiteRootPlugin')):
+            pc.item.powerDown(newRedirect, ISessionlessSiteRootPlugin)
+    return newRedirect
+upgrade.registerUpgrader(upgradeStaticRedirect1To2, 'web_static_redirect', 1, 2)
 
 class AxiomRequest(NevowRequest):
     def __init__(self, store, *a, **kw):
