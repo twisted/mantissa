@@ -66,14 +66,14 @@ class PublicPageMixin(object):
 
         return ctx.tag[content]
 
-class PublicPage(rend.Page, PublicPageMixin):
+class PublicPage(PublicPageMixin, rend.Page):
     def __init__(self, original, fragment, staticContent, forUser):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
         self.username = forUser
 
-class PublicLivePage(livepage.LivePage, PublicPageMixin):
+class PublicLivePage(PublicPageMixin, livepage.LivePage):
     def __init__(self, original, fragment, staticContent, forUser):
         super(PublicLivePage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
