@@ -15,7 +15,7 @@ from twisted.cred import checkers
 from twisted.python.components import registerAdapter
 from twisted.internet import defer
 
-from nevow import inevow, livepage, rend
+from nevow import inevow, livepage, rend, tags
 
 from epsilon import extime
 
@@ -34,7 +34,6 @@ class NoSuchSession(Exception):
 
 
 class AuthenticationApplication(item.Item):
-    implements(ixmantissa.INavigableElement)
 
     typeName = 'mantissa_web_authentication_application'
     schemaVersion = 1
@@ -45,23 +44,6 @@ class AuthenticationApplication(item.Item):
         if 'lastCredentialsChange' not in kw:
             kw['lastCredentialsChange'] = extime.Time()
         super(AuthenticationApplication, self).__init__(**kw)
-
-
-    def installOn(self, other):
-        other.powerUp(self, ixmantissa.INavigableElement)
-
-
-    def getTabs(self):
-        return [webnav.Tab('Preferences', self.storeID, 0.0,
-                           [webnav.Tab('Authentication',
-                                       self.storeID,
-                                       0.0)],
-                           authoritative=False)]
-
-
-    def topPanelContent(self):
-        return None
-
 
     def _account(self):
         substore = self.store.parent.getItemByID(self.store.idInParent)
@@ -105,26 +87,12 @@ class AuthenticationApplication(item.Item):
             raise NoSuchSession()
 
 
-
-# XXX Nevow is basically the worst possible piece of software
-class PersistentSessionContainer(object):
-    implements(inevow.IContainer)
-
-    def __init__(self, session, zone):
-        self.session = session
-        self.zone = zone
-
-
-    def child(self, ctx, name):
-        if name == 'lastUsed':
-            return ctx.tag[self.session.lastUsed.asHumanly(self.zone) + ' ' + self.zone.zone]
-
-
 class AuthenticationFragment(website.AxiomFragment):
     implements(ixmantissa.INavigableFragment)
 
     fragmentName = 'authentication-configuration'
     live = True
+    title = 'Change Password'
 
     def __init__(self, original):
         self.store = original.store
@@ -132,7 +100,8 @@ class AuthenticationFragment(website.AxiomFragment):
 
 
     def head(self):
-        return ()
+        return tags.script(type='text/javascript',
+                           src='/static/mantissa/authentication.js')
 
 
     def render_currentPasswordField(self, ctx, data):
@@ -151,7 +120,7 @@ class AuthenticationFragment(website.AxiomFragment):
     def render_cancel(self, ctx, data):
         # XXX See previous XXX
         return ctx.tag(onclick=[
-                livepage.js.server.handle('cancel', data.session.sessionKey),
+                livepage.js.server.handle('cancel', data['session'].sessionKey),
                 livepage.stop])
 
 
@@ -182,7 +151,9 @@ class AuthenticationFragment(website.AxiomFragment):
 
     def data_persistentSessions(self, ctx, data):
         zone = pytz.timezone('US/Eastern')
-        return (PersistentSessionContainer(sess, zone) for sess in self.original.persistentSessions())
+        for session in self.original.persistentSessions():
+            yield dict(lastUsed=session.lastUsed.asHumanly(zone) + ' ' + zone.zone,
+                       session=session)
 
 
 registerAdapter(AuthenticationFragment, AuthenticationApplication, ixmantissa.INavigableFragment)

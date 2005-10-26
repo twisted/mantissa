@@ -27,6 +27,11 @@ from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
     ISiteRootPlugin, IWebTranslator, ISearchAggregator, IStaticShellContent
 
+from xmantissa.myaccount import MyAccount
+from xmantissa.webgestalt import AuthenticationApplication
+from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
+from xmantissa.search import SearchAggregator
+
 def _reorderForPreference(themeList, preferredThemeName):
     """
     Re-order the input themeList according to the preferred theme.
@@ -69,11 +74,9 @@ class NavMixin(object):
     username = None
     searchPattern = None
 
-    def __init__(self, webapp, navigation, searchable, staticContent):
+    def __init__(self, webapp, pageComponents):
         self.webapp = webapp
-        self.navigation = navigation
-        self.searchable = searchable
-        self.staticContent = staticContent
+        self.pageComponents = pageComponents
 
     def getDocFactory(self, fragmentName, default=None):
         return self.webapp.getDocFactory(fragmentName, default)
@@ -83,20 +86,21 @@ class NavMixin(object):
 
     def render_navigation(self, ctx, data):
         return NavFragment(self.getDocFactory('navigation'),
-                           self.navigation,
+                           self.pageComponents.navigation,
                            self.webapp)
 
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
 
     def render_search(self, ctx, data):
-        if self.searchable is None or not self.searchable.providers():
+        searchAggregator = self.pageComponents.searchAggregator
+        if searchAggregator is None or not searchAggregator.providers():
             return ctx.tag
 
         if self.searchPattern is None:
             self.searchPattern = IQ(self.docFactory).patternGenerator("search")
 
-        action = self.webapp.linkTo(self.searchable.storeID)
+        action = self.webapp.linkTo(searchAggregator.storeID)
         return ctx.tag[self.searchPattern.fillSlots('form-action', action)]
 
     def render_username(self, ctx, data):
@@ -108,22 +112,27 @@ class NavMixin(object):
                 self.username = 'nobody@noplace'
         return ctx.tag[self.username]
 
+    def data_myAccountLink(self, ctx, data):
+        return self.webapp.linkTo(self.pageComponents.myAccount.storeID)
+
     def render_head(self, ctx, data):
         return ctx.tag
 
     def render_header(self, ctx, data):
-        if self.staticContent is None:
+        staticShellContent = self.pageComponents.staticShellContent
+        if staticShellContent is None:
             return ctx.tag
-        header = self.staticContent.getHeader()
+        header = staticShellContent.getHeader()
         if header is not None:
             return ctx.tag[header]
         else:
             return ctx.tag
 
     def render_footer(self, ctx, data):
-        if self.staticContent is None:
+        staticShellContent = self.pageComponents.staticShellContent
+        if staticShellContent is None:
             return ctx.tag
-        footer = self.staticContent.getFooter()
+        footer = staticShellContent.getFooter()
         if footer is not None:
             return ctx.tag[footer]
         else:
@@ -156,18 +165,17 @@ class FragmentWrapperMixin:
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-
-class GenericNavigationPage(Page, FragmentWrapperMixin, NavMixin):
-    def __init__(self, webapp, navigation, searchable, staticContent, fragment):
+class GenericNavigationPage(FragmentWrapperMixin, Page, NavMixin):
+    def __init__(self, webapp, fragment, pageComponents):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+        NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment)
 
 
-class GenericNavigationLivePage(livepage.LivePage, FragmentWrapperMixin, NavMixin):
-    def __init__(self, webapp, navigation, searchable, staticContent, fragment):
+class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixin):
+    def __init__(self, webapp, fragment, pageComponents):
         livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+        NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment)
 
     # XXX TODO: support live nav, live fragments somehow
@@ -179,8 +187,12 @@ class GenericNavigationLivePage(livepage.LivePage, FragmentWrapperMixin, NavMixi
         getattr(self.fragment, 'goingLive', lambda x, y: None)(ctx, client)
 
     def locateHandler(self, ctx, path, name):
-        return getattr(self.fragment, 'handle_' + name)
+        handler = getattr(self.fragment, 'locateHandler', None)
 
+        if handler is None:
+            return getattr(self.fragment, 'handle_' + name)
+        else:
+            return handler(ctx, path, name)
 
 class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
     def __init__(self):
@@ -188,11 +200,11 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
 
     initialized = False
 
-    def init(self, webapp, navigation, searchable, staticContent, fragment):
+    def init(self, webapp, fragment, pageComponents):
         if not self.initialized:
             self.initialized = True
             athena.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
-            NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
+            NavMixin.__init__(self, webapp, pageComponents)
             FragmentWrapperMixin.__init__(self, fragment)
 
     def render_head(self, ctx, data):
@@ -207,18 +219,17 @@ _athenaFactory = athena.LivePageFactory(GenericNavigationAthenaPage)
 class PrivateRootPage(Page, NavMixin):
     addSlash = True
 
-    def __init__(self, webapp, navigation, searchable, staticContent):
+    def __init__(self, webapp, pageComponents):
         self.webapp = webapp
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, navigation, searchable, staticContent)
-        self.searchable = searchable
-        self.staticContent = staticContent
+        NavMixin.__init__(self, webapp, pageComponents)
 
     def child_(self, ctx):
-        if not self.navigation:
+        navigation = self.pageComponents.navigation
+        if not navigation:
             return self
         # /private/XXXX ->
-        click = self.webapp.linkTo(self.navigation[0].storeID)
+        click = self.webapp.linkTo(navigation[0].storeID)
         return URL.fromContext(ctx).click(click)
 
     def render_content(self, ctx, data):
@@ -251,10 +262,6 @@ class PrivateRootPage(Page, NavMixin):
         if fragment.docFactory is None:
             raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
 
-        pageArgs = (self.webapp, self.navigation,
-                    self.searchable, self.staticContent,
-                    fragment)
-
         def athenaFactory(*args):
             page = _athenaFactory.clientFactory(ctx)
             page.init(*args)
@@ -263,8 +270,15 @@ class PrivateRootPage(Page, NavMixin):
         pageClass = {False: GenericNavigationPage,
          True: GenericNavigationLivePage,
          'athena': athenaFactory}.get(fragment.live)
-        return pageClass(*pageArgs)
+        return pageClass(self.webapp, fragment, self.pageComponents)
 
+
+class _PageComponents(object):
+    def __init__(self, navigation, searchAggregator, staticShellContent, myAccount):
+        self.navigation = navigation
+        self.searchAggregator = searchAggregator
+        self.staticShellContent = staticShellContent
+        self.myAccount = myAccount
 
 class PrivateApplication(Item, PrefixURLMixin):
     """
@@ -325,22 +339,39 @@ class PrivateApplication(Item, PrefixURLMixin):
         self.installedOn = other
         super(PrivateApplication, self).installOn(other)
         other.powerUp(self, IWebTranslator)
-        other.store.findOrCreate(StaticRedirect,
-                                 sessioned=True,
-                                 sessionless=False,
-                                 prefixURL=u'',
-                                 targetURL=u'/'+self.prefixURL).installOn(other, -1)
 
-        other.findOrCreate(
-            CustomizedPublicPage,
-            prefixURL=u'').installOn(other)
+        findOrCreate = lambda *a, **k: other.store.findOrCreate(*a, **k)
 
+        # all of these findOrCreate calls assume that installOn is 
+        # experientally idempotent, which it is not (look at the first 
+        # line of this method).  maybe we should think about changing 
+        # the idiom to "if self.installedOn is None: ..."
+
+        findOrCreate(StaticRedirect,
+                     sessioned=True,
+                     sessionless=False,
+                     prefixURL=u'',
+                     targetURL=u'/'+self.prefixURL).installOn(other, -1)
+
+        findOrCreate(CustomizedPublicPage, prefixURL=u'').installOn(other)
+
+        findOrCreate(AuthenticationApplication)
+        findOrCreate(PreferenceAggregator).installOn(other)
+        findOrCreate(DefaultPreferenceCollection).installOn(other)
+        findOrCreate(MyAccount).installOn(other)
+        findOrCreate(SearchAggregator).installOn(other)
 
     def createResource(self):
-        return PrivateRootPage(self,
-                getTabs(self.installedOn.powerupsFor(INavigableElement)),
-                ISearchAggregator(self.installedOn, None),
-                IStaticShellContent(self.installedOn, None))
+        navigation = getTabs(self.installedOn.powerupsFor(INavigableElement))
+        searchAggregator = ISearchAggregator(self.installedOn, None)
+        staticShellContent = IStaticShellContent(self.installedOn, None)
+
+        pageComponents = _PageComponents(navigation,
+                                         searchAggregator,
+                                         staticShellContent,
+                                         self.installedOn.findFirst(MyAccount))
+
+        return PrivateRootPage(self, pageComponents)
 
     # ISiteRootPlugin
     def resourceFactory(self, segments):

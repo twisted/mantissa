@@ -94,7 +94,7 @@ class DefaultPreferenceCollection(Item):
         self.store.transact(lambda: setattr(self, pref.key, value))
 
 class PreferenceAggregator(Item):
-    implements(INavigableElement, IPreferenceAggregator)
+    implements(IPreferenceAggregator)
 
     schemaVersion = 1
     typeName = 'preference_aggregator'
@@ -104,16 +104,11 @@ class PreferenceAggregator(Item):
 
     def installOn(self, other):
         assert self.installedOn is None, 'cannot install PreferenceEditor on more than one thing'
-        other.powerUp(self, INavigableElement)
         other.powerUp(self, IPreferenceAggregator)
         self.installedOn = other
 
     def activate(self):
         self._prefMap = None
-
-    # INavigableElement
-    def getTabs(self):
-        return [webnav.Tab('Preferences', self.storeID, 0.0)]
 
     # IPreferenceAggregator
     def getPreference(self, key):
@@ -135,7 +130,7 @@ class PreferenceEditor(rend.Fragment):
     implements(INavigableFragment)
 
     fragmentName = 'preference-editor'
-    title = ''
+    title = 'Preferences'
     live = True
 
     prefs = None

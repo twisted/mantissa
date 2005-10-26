@@ -37,8 +37,14 @@ function getContainers(row) {
     return [value_container, control_container];
 }
 
+function getText(e) {
+    var content = e.firstChild.nodeValue.replace(/^\s+/, "");
+    return content.replace(/\s+$/, "");
+}
+
 function edit(elem) {
     var containers = getContainers(elem.parentNode.parentNode);
+    selectOptionWithValue(firstElement(containers[1]), getText(containers[0]));
 
     setDisplay(containers[0], "none");
     setDisplay(containers[1], "inline");
@@ -69,14 +75,23 @@ function save(elem) {
     return false;
 }
 
+function selectOptionWithValue( elem, value ) {
+    for( var i = 0; i < elem.childNodes.length; i++ )
+        if( elem.childNodes[i].value == value ) {
+            elem.selectedIndex = i;
+            break;
+        }
+}
 function updatePrefValue(key, value) {
     var row = document.getElementById(key);
     var containers = getContainers(row);
     var vcont = containers[0];
+    var ccont = containers[1];
     vcont.firstChild.nodeValue = value;
 
-    setDisplay(containers[1], "none");
+    setDisplay(ccont, "none");
     setDisplay(vcont, "inline");
     setDisplay(firstWithClass(row, "a", "save"), "none");
     setDisplay(firstWithClass(row, "a", "edit"), "inline");
+    selectOptionWithValue(firstElement(ccont), value);
 }

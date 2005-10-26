@@ -1,24 +1,52 @@
-/* the preferences table! */
-table.prefsTable {
-    width: 60%;
-    border: solid 1px #CACACA;
-    border-right: none;
+.subsection-title {
+    font-size: 1.1em;
+    font-weight: bold;
+    padding-bottom: 5px;
+}
+
+/* in authentication-configuration.html */
+.authentication-panel {
+    padding: 15px;
+}
+
+/* in preference-editor.html */
+.preference-panel {
+    padding: 15px;
+    padding-bottom: 0px;
+}
+
+input.change-password {
+    margin-top: 5px;
     margin-bottom: 15px;
 }
 
-/* set the first row to have a grey background */
-table.prefsTable > thead {
-    background-color: #CACACA;
+.control-cell {
+    text-align: center;
+}
+
+/* the table of controls used by preferences & auth fragments */
+table.control-table {
+    width: 70%;
+    border: solid 1px #CACACA;
+    border-right: none;
+}
+
+/* set the first row to have a pretty bg image */
+table.control-table > thead {
+    background-color: #FFFFFF;
+    background-image: url(/static/mantissa/header_bg.png);
 }
 
 /* set the first row to be bold-face */
-table.prefsTable > thead > tr > td {
+table.control-table > thead > tr > td {
     padding: 5px;
     font-weight: bold;
+    border-right: solid 1px #CACACA;
+    border-bottom: solid 1px #CACACA;
 }
 
 /* put a grey border around all other rows */
-table.prefsTable > tbody > tr > td {
+table.control-table > tbody > tr > td {
     border-right: solid 1px #CACACA;
     padding: 5px;
 }
@@ -44,9 +72,45 @@ table.prefsTable > tbody > tr > td {
 }
 
 /* shell template styles */
-.search-form {
+
+/* the panel that contains username/logout/my-account */
+.logged-in-panel {
+    white-space: nowrap;
+}
+
+#search-form {
     display: inline;
-    padding-right: 35px;
+    white-space: nowrap;
+}
+
+select {
+    border: 1px solid #999999;
+    border-top-color: #CCCCCC;
+    border-left-color: #CCCCCC;
+    background-color: #FFFFFF;
+    color: #333333;
+    font-size: 75%;
+}
+
+input[type=submit] {
+    border: 3px double #999999;
+    border-top-color: #CCCCCC;
+    border-left-color: #CCCCCC;
+    background-color: #FFFFFF;
+    color: #333333;
+    font-size: 75%;
+    font-weight: bold;
+}
+
+input[type=password], input[type=text] {
+    border: 1px solid #999999;
+    border-top-color: #CCCCCC;
+    border-left-color: #CCCCCC;
+    padding: 0.25em;
+    background-color: #FFFFFF;
+    color: #333333;
+    font-size: 75%;
+    font-weight: bold;
 }
 
 .search-form-container {
@@ -66,13 +130,35 @@ table.prefsTable > tbody > tr > td {
     font-weight: bold
 }
 
+.fragment-container { 
+    width: 100% 
+}
+.page-body { 
+    vertical-align: top 
+}
+.username { 
+    font-weight: bold 
+}
+.footer { 
+    text-align: center 
+}
+
+/* navigation stuff */
+
+.tab { 
+    list-style-type: none;
+    white-space: nowrap;
+    padding-bottom: 5px;
+}
+
+.tabList {
+    padding: 0px;
+    margin: 0px;
+}
+
 .logged-in-panel {
     position: absolute;
     top: 0;
     right: 0;
 }
 
-.fragment-container { width: 100% }
-.page-body { vertical-align: top }
-.username { font-weight: bold }
-.footer { text-align: center }

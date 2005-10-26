@@ -1,13 +1,13 @@
 <html xmlns:nevow="http://nevow.com/ns/nevow/0.1">
 
-  <form class="search-form" nevow:pattern="search">
+  <form id="search-form" nevow:pattern="search">
     <nevow:attr name="action"><nevow:slot name="form-action" /></nevow:attr>
     <input name="term" class="search-text" type="text" />
     <input class="search-submit" type="submit" value="Search" />
   </form>
 
   <head nevow:render="head">
-    <title nevow:render="title"/>
+    <title nevow:render="title" />
   </head>
 
   <body>
@@ -18,7 +18,8 @@
         <td class="search-form-container" nevow:render="search" />
         <td class="logged-in-panel">
           <span class="username" nevow:render="username" />
-          | <a class="logout-link" href="/__logout__">logout</a>
+          | <a><nevow:attr name="href" nevow:data="myAccountLink" nevow:render="data" />My Account</a>
+          | <a class="logout-link" href="/__logout__">Sign Out</a>
         </td>
       </tr>
     </table>

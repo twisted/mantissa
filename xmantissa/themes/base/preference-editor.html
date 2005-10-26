@@ -1,10 +1,10 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+<div class="preference-panel" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
 
   <tr nevow:pattern="preference" nevow:render="mapping">
-    <nevow:attr name="id"><nevow:slot name="key"/></nevow:attr>
-    <td><nevow:slot name="name"/></td>
+    <nevow:attr name="id"><nevow:slot name="key" /></nevow:attr>
+    <td><nevow:slot name="name" /></td>
     <td align="center" class="control-cell">
-      <nevow:slot name="edit-widget"/>
+      <nevow:slot name="edit-widget" />
     </td>
     <td align="center">
       <a class="edit" href="#" onclick="return edit(this)">edit</a>
@@ -13,13 +13,13 @@
 
   <span nevow:pattern="multiple-choice-edit" nevow:render="mapping">
     <span class="value-container">
-      <nevow:slot name="value"/>
+      <nevow:slot name="value" />
     </span>
     <span class="control-container" style="display: none">
       <select class="control" nevow:render="sequence" nevow:data="choices">
         <option nevow:pattern="item" nevow:render="mapping">
-          <nevow:attr name="value"><nevow:slot name="choice" nevow:render="data"/></nevow:attr>
-          <nevow:slot name="choice"/>
+          <nevow:attr name="value"><nevow:slot name="choice" nevow:render="data" /></nevow:attr>
+          <nevow:slot name="choice" />
         </option>
       </select>
     </span>
@@ -27,27 +27,26 @@
 
   <span nevow:pattern="edit">
     <span class="value-container">
-      <nevow:slot name="value"/>
+      <nevow:slot name="value" />
     </span>
     <span class="control-container" style="display: none">
       <input type="text" class="control">
-        <nevow:attr name="value"><nevow:slot nevow:render="data" name="value"/></nevow:attr>
+        <nevow:attr name="value"><nevow:slot nevow:render="data" name="value" /></nevow:attr>
       </input>
     </span>
   </span>
 
-  <table cellspacing="0" class="prefsTable" 
-    nevow:pattern="preference-collection">
+  <table cellspacing="0" style="margin-bottom: 15px;" 
+    class="control-table" nevow:pattern="preference-collection">
     <thead>
       <tr>
-        <td colspan="3"><nevow:slot name="name"/></td>
+        <td colspan="3"><nevow:slot name="name" /></td>
       </tr>
     </thead>
     <tbody>
-      <nevow:slot name="preferences"/>
+      <nevow:slot name="preferences" />
     </tbody>
   </table>
 
-  <p/>
-  <center nevow:data="preferences" nevow:render="data"/>
+  <center nevow:data="preferences" nevow:render="data" />
 </div>
