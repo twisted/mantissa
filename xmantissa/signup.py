@@ -48,7 +48,7 @@ class TicketClaimer(Page):
             res = IResource(something)
             lgo = getattr(res, 'logout', lambda : None)
             ISession(ctx).setDefaultResource(res, lgo)
-            return URL.fromContext(ctx).click("/")
+            return URL.fromContext(ctx).click("/private")
         return None
 
 
