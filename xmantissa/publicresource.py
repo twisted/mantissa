@@ -32,7 +32,7 @@ class PublicPageMixin(object):
     def render_username(self, ctx, data):
         if self.username is not None:
             return ctx.tag.fillSlots('username', self.username)
-        return ctx.tag.clear()[tags.a(href='/login')['Login']]
+        return ctx.tag.clear()[tags.a(href='/login')['Sign in']]
 
     def render_header(self, ctx, data):
         if self.staticContent is None:
