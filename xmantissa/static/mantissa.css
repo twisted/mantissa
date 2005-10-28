@@ -79,8 +79,7 @@ table.control-table > tbody > tr > td {
 }
 
 #search-form {
-    display: inline;
-    white-space: nowrap;
+    padding: 6px;
 }
 
 select {
@@ -113,15 +112,6 @@ input[type=password], input[type=text] {
     font-weight: bold;
 }
 
-.search-form-container {
-    vertical-align: middle;
-}
-
-.header {
-    width: 50%;
-    text-align: right; 
-}
-
 .control-panel { width: 100% }
 .shell-content { padding-top: 15px }
 
@@ -145,20 +135,21 @@ input[type=password], input[type=text] {
 
 /* navigation stuff */
 
-.tab { 
-    list-style-type: none;
+ul.tabList {
+    margin: 0;
+    padding: 0;
     white-space: nowrap;
-    padding-bottom: 5px;
+    list-style-type: none;
 }
 
-.tabList {
-    padding: 0px;
-    margin: 0px;
+ul.tabList > li.tab {
+    background-image: url(/static/mantissa/header_bg.png);
+    margin: 6px;
+    padding: 4px;
+    border: solid 1px #999999;
 }
 
 .logged-in-panel {
-    position: absolute;
-    top: 0;
-    right: 0;
+    text-align: right;
 }
 

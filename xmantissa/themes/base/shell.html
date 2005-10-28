@@ -15,11 +15,12 @@
     <table cellspacing="0" cellpadding="0" class="control-panel">
       <tr valign="center">
         <td class="header" nevow:render="header" />
-        <td class="search-form-container" nevow:render="search" />
         <td class="logged-in-panel">
           <span class="username" nevow:render="username" />
           | <a><nevow:attr name="href" nevow:data="myAccountLink" nevow:render="data" />My Account</a>
           | <a class="logout-link" href="/__logout__">Sign Out</a>
+          <br/>
+          <span id="search-form-container" nevow:render="search" />
         </td>
       </tr>
     </table>
