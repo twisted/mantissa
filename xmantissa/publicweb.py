@@ -68,10 +68,8 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
         """
         Install this as an ISiteRootPlugin.
         """
-        assert self.installedOn is None, "Cannot install PublicWeb on more than one thing"
         super(PublicWeb, self).installOn(other)
         other.powerUp(self, ixmantissa.ICustomizablePublicPage)
-        self.installedOn = other
 
     def createResource(self):
         return ixmantissa.IPublicPage(self.application).anonymousResource()

@@ -35,12 +35,14 @@ from nevow.url import URL
 from vertex import sslverify
 
 from axiom import upgrade
-from axiom.item import Item, _PowerupConnector
+from axiom.item import Item, InstallableMixin, _PowerupConnector
 from axiom.attributes import AND, integer, inmemory, text, reference, bytes, boolean
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent
 from xmantissa import websession
 from xmantissa.publicresource import PublicPage, getLoader
+
+from axiom.slotmachine import hyper as super
 
 class WebConfigurationError(RuntimeError):
     """You specified some invalid configuration.
@@ -133,7 +135,7 @@ class UnguardedWrapper(SiteRootMixin):
 
 JUST_SLASH = ('',)
 
-class PrefixURLMixin:
+class PrefixURLMixin(InstallableMixin):
     """
     Mixin for use by I[Sessionlesss]SiteRootPlugin implementors; provides a
     resourceFactory method which looks for an C{prefixURL} string on self,
@@ -196,6 +198,7 @@ class PrefixURLMixin:
         """Install me on something (probably a Store) that will be queried for
         ISiteRootPlugin providers.
         """
+        super(PrefixURLMixin, self).installOn(other)
         # Only 256 segments are allowed in URL paths.  We want to make sure
         # that static powerups always lose priority ordering to dynamic
         # powerups, since dynamic powerups will have information
@@ -229,7 +232,7 @@ class PrefixURLMixin:
                 other.powerUp(self, ISessionlessSiteRootPlugin, priority)
 
 
-class StaticSite(Item, PrefixURLMixin):
+class StaticSite(PrefixURLMixin, Item):
     implements(ISessionlessSiteRootPlugin,     # implements both so that it
                ISiteRootPlugin)                # works in both super and sub
                                                # stores.
@@ -305,7 +308,7 @@ class AxiomFragment(Fragment):
     def rend(self, ctx, data):
         return self.store.transact(Fragment.rend, self, ctx, data)
 
-class WebSite(Item, Service, SiteRootMixin):
+class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     typeName = 'mantissa_web_powerup'
     schemaVersion = 1
 
@@ -332,10 +335,9 @@ class WebSite(Item, Service, SiteRootMixin):
         self.securePort = None
 
     def installOn(self, other):
-        assert self.installedOn is None, "You cannot install a WebSite on more than one thing"
+        super(WebSite, self).installOn(other)
         other.powerUp(self, IService)
         other.powerUp(self, IResource)
-        self.installedOn = other
         self.setServiceParent(other)
 
         StaticSite(store=other, prefixURL = u'static/mantissa',
