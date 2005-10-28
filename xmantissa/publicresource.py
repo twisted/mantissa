@@ -1,6 +1,6 @@
 from zope.interface import implements
 
-from nevow import rend, livepage
+from nevow import rend, livepage, tags
 from xmantissa.webtheme import getAllThemes
 from xmantissa.ixmantissa import IPublicPage
 
@@ -32,7 +32,7 @@ class PublicPageMixin(object):
     def render_username(self, ctx, data):
         if self.username is not None:
             return ctx.tag.fillSlots('username', self.username)
-        return ''
+        return ctx.tag.clear()[tags.a(href='/login')['Login']]
 
     def render_header(self, ctx, data):
         if self.staticContent is None:
