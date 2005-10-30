@@ -1,6 +1,9 @@
 from zope.interface import implements
 
 from nevow import rend, livepage, tags
+
+from axiom import userbase
+
 from xmantissa.webtheme import getAllThemes
 from xmantissa.ixmantissa import IPublicPage
 
@@ -18,7 +21,7 @@ def getLoader(n):
 class PublicPageMixin(object):
     fragment = None
     title = ''
-    username = ''
+    username = None
 
     def render_navigation(self, ctx, data):
         return ""
@@ -71,29 +74,21 @@ class PublicPage(PublicPageMixin, rend.Page):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
-        self.username = forUser
+        if forUser is not None:
+            for resource, domain in userbase.getAccountNames(forUser):
+                self.username = '%s@%s' % (resource, domain)
+                break
 
 class PublicLivePage(PublicPageMixin, livepage.LivePage):
     def __init__(self, original, fragment, staticContent, forUser):
         super(PublicLivePage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
-        self.username = forUser
+        if forUser is not None:
+            for resource, domain in userbase.getAccountNames(forUser):
+                self.username = '%s@%s' % (resource, domain)
+                break
 
     def render_head(self, ctx, data):
         tag = super(PublicLivePage, self).render_head(ctx, data)
         return tag[livepage.glue]
-
-class GenericPublicPage(object):
-    implements(IPublicPage)
-
-    def __init__(self, publicPageClass, original, staticContent):
-        self.publicPageClass = publicPageClass
-        self.original = original
-        self.staticContent = staticContent
-
-    def anonymousResource(self):
-        raise NotImplementedError("Why are you using this class if all you want is an anonymous resource?")
-
-    def resourceForUser(self, username):
-        return self.publicPageClass(self.original, self.staticContent, username)

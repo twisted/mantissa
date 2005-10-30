@@ -335,17 +335,11 @@ class PrivateApplication(Item, PrefixURLMixin):
         self.privateKey = gk
 
     def installOn(self, other):
-        assert self.installedOn is None, "You cannot install a PrivateApplication on more than one Item"
-        self.installedOn = other
         super(PrivateApplication, self).installOn(other)
         other.powerUp(self, IWebTranslator)
 
-        findOrCreate = lambda *a, **k: other.store.findOrCreate(*a, **k)
-
-        # all of these findOrCreate calls assume that installOn is 
-        # experientally idempotent, which it is not (look at the first 
-        # line of this method).  maybe we should think about changing 
-        # the idiom to "if self.installedOn is None: ..."
+        def findOrCreate(*a, **k):
+            return other.store.findOrCreate(*a, **k)
 
         findOrCreate(StaticRedirect,
                      sessioned=True,
@@ -353,7 +347,7 @@ class PrivateApplication(Item, PrefixURLMixin):
                      prefixURL=u'',
                      targetURL=u'/'+self.prefixURL).installOn(other, -1)
 
-        findOrCreate(CustomizedPublicPage, prefixURL=u'').installOn(other)
+        findOrCreate(CustomizedPublicPage).installOn(other)
 
         findOrCreate(AuthenticationApplication)
         findOrCreate(PreferenceAggregator).installOn(other)

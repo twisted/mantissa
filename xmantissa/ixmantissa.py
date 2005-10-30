@@ -165,36 +165,32 @@ class ISessionlessSiteRootPlugin(Interface):
     """
 
 
-class IPublicPage(Interface):
+class ICustomizable(Interface):
     """
-    Factory for creating public-facing resources, either to be viewed
-    anonymously or by a logged in user.
+    Factory for creating IResource objects which can be customized for
+    a specific user.
     """
-    def anonymousResource():
-        """Return an IResource
+    def customizeFor(avatar):
         """
+        Retrieve a IResource provider specialized for the given avatar.
 
-    def resourceForUser(username):
-        """
-        Create and return an IResource object.
-
-        @type username: C{unicode}
-        @param username: The name of the user for whom to create the resource.
+        @type avatar: C{Store}
+        @param avatar: The user for whom to return a specialized resource.
 
         @rtype: C{IResource}
         @return: A public-page resource, possibly customized for the
         indicated user.
         """
 
+class IPublicPage(Interface):
+    def getResource():
+        pass
+
 class ICustomizablePublicPage(Interface):
     """
-    Factory for creating IResource objects which can be customized for
-    a specific user.
+    Don't use this.  Delete it if you notice it still exists but
+    upgradePublicWeb2To3 has been removed.
     """
-    def getPublicPageFactory():
-        """
-        Return an IPublicPage provider.
-        """
 
 class IWebTranslator(Interface):
     """
