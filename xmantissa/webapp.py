@@ -321,7 +321,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     installedOn = reference()
 
     preferredTheme = text()
-    hitCount = integer()
+    hitCount = integer(default=0)
     privateKey = integer()
 
     #XXX Nothing ever uses this

@@ -130,8 +130,7 @@ class WebApplication(usage.Options):
         s = self.parent.getStore()
         webapp.PrivateApplication(
             store=s,
-            preferredTheme=decodeCommandLine(self['theme']),
-            hitCount=0).installOn(s)
+            preferredTheme=decodeCommandLine(self['theme'])).installOn(s)
 
 class WebAdministration(usage.Options):
     classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
