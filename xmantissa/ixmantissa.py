@@ -183,8 +183,16 @@ class ICustomizable(Interface):
         """
 
 class IPublicPage(Interface):
+    """
+    I am a marker interface designed to segregate the private view (designated
+    using the normal IResource) from the public view (returned from my
+    getResource) of a substore.
+    """
+
     def getResource():
-        pass
+        """ Retrieve an IResource provider meant to serve as the public-facing view.
+        The retrieved object will provide IResource.
+        """
 
 class ICustomizablePublicPage(Interface):
     """
