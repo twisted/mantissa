@@ -158,6 +158,9 @@ class PrefixURLMixin(InstallableMixin):
     sessioned = False
     sessionless = False
 
+    def __str__(self):
+        return '/%s => item(%s)' % (self.prefixURL, self.__class__.__name__)
+
     def createResource(self):
         """
         Create and return an IResource.  This will only be invoked if
@@ -242,6 +245,9 @@ class StaticSite(PrefixURLMixin, Item):
     prefixURL = text()
     staticContentPath = text()
 
+    def __str__(self):
+        return '/%s => file(%s)' % (self.prefixURL, self.staticContentPath)
+
     def createResource(self):
         return File(self.staticContentPath)
 
@@ -260,6 +266,9 @@ class StaticRedirect(Item, PrefixURLMixin):
 
     sessioned = boolean(default=True)
     sessionless = boolean(default=True)
+
+    def __str__(self):
+        return '/%s => url(%s)' % (self.prefixURL, self.targetURL)
 
     def locateChild(self, ctx, segments):
         return self, ()
