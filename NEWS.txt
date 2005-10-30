@@ -1,4 +1,6 @@
-x.x.x (dd-mm-yyyy):
+x.x.x (yyyy-mm-dd):
+  - Removed Mantissa/xmantissa/examples/autoapp.tac
+    (superceded by "axiomatic start")
   - General preference inspection and configuration page added
   - Better support for anonymously viewed public pages
   - Support for multi-application search and search results aggregation
