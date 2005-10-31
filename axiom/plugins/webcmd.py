@@ -4,13 +4,13 @@ import sys
 
 from zope.interface import classProvides
 
-from twisted.python import usage
+from twisted.python import usage, reflect
 from twisted import plugin
 
-from axiom import iaxiom
+from axiom import iaxiom, item, attributes
 
 from xmantissa.website import WebSite, StaticSite, WebConfigurationError
-from xmantissa import webapp, webadmin
+from xmantissa import ixmantissa, webapp, webadmin
 
 def decodeCommandLine(cmdline):
     """Turn a byte string from the command line into a unicode string.
@@ -108,8 +108,21 @@ class WebConfiguration(usage.Options):
         else:
             print 'No configured webservers.'
 
-        for ss in s.query(StaticSite):
-            print '/%s => %s' % (ss.prefixURL, ss.staticContentPath)
+
+        def powerupsWithPriorityFor(interface):
+            for cable in s.query(
+                item._PowerupConnector,
+                attributes.AND(item._PowerupConnector.interface == unicode(reflect.qual(interface)),
+                               item._PowerupConnector.item == s),
+                sort=item._PowerupConnector.priority.descending):
+                yield cable.powerup, cable.priority
+
+        print 'Sessionless plugins:'
+        for srp, prio in powerupsWithPriorityFor(ixmantissa.ISessionlessSiteRootPlugin):
+            print '  %s (prio. %d)' % (srp, prio)
+        print 'Sessioned plugins:'
+        for srp, prio in powerupsWithPriorityFor(ixmantissa.ISiteRootPlugin):
+            print '  %s (prio. %d)' % (srp, prio)
 
     opt_static.__doc__ = """
     Add an element to the mapping of web URLs to locations of static
