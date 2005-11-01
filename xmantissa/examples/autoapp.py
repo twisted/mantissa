@@ -42,7 +42,7 @@ def _():
     # XXX delete this eventually, broken dependency (required by the
     # next line, but should not be)
     LoginSystem(store=s2).installOn(s)
-    AuthenticationApplication(store=s2).installOn(s2)
+    AuthenticationApplication(store=s2)
 
     # Install a web site for the individual user as well.  This is
     # necessary because although we have a top-level website for
