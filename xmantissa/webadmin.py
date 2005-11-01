@@ -322,5 +322,6 @@ class DONTUSETHISBenefactor(Item):
 
     def endow(self, ticket, avatar):
         self.didYouUseIt += 1 # OMFG can you *read*??
-        for X in WebSite, PrivateApplication, DeveloperApplication, AuthenticationApplication, TracebackViewer:
+        for X in WebSite, PrivateApplication, DeveloperApplication, TracebackViewer:
             X(store=avatar).installOn(avatar)
+        AuthenticationApplication(store=avatar)
