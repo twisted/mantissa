@@ -258,7 +258,7 @@ class StaticSite(PrefixURLMixin, Item):
 def upgradeStaticSite1To2(oldSite):
     newSite = oldRedirect.upgradeVersion(
         'web_static_redirect', 1, 2,
-        targetURL=oldSite.targetURL,
+        staticContentPath=oldSite.staticContentPath,
         prefixURL=oldSite.prefixURL,
         sessionless=True)
     for pc in newSite.store.query(_PowerupConnector,
