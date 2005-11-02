@@ -256,15 +256,15 @@ class StaticSite(PrefixURLMixin, Item):
 
 
 def upgradeStaticSite1To2(oldSite):
-    newSite = oldRedirect.upgradeVersion(
+    newSite = oldSite.upgradeVersion(
         'static_web_site', 1, 2,
         staticContentPath=oldSite.staticContentPath,
         prefixURL=oldSite.prefixURL,
         sessionless=True)
     for pc in newSite.store.query(_PowerupConnector,
                                   AND(_PowerupConnector.powerup == newSite,
-                                      _PowerupConnector.interface == u'xmantissa.ixmantissa.ISessionlessSiteRootPlugin')):
-        pc.item.powerDown(newSite, ISessionlessSiteRootPlugin)
+                                      _PowerupConnector.interface == u'xmantissa.ixmantissa.ISiteRootPlugin')):
+        pc.item.powerDown(newSite, ISiteRootPlugin)
     return newSite
 upgrade.registerUpgrader(upgradeStaticSite1To2, 'static_web_site', 1, 2)
 

@@ -78,7 +78,8 @@ class WebConfiguration(usage.Options):
                 else:
                     ss = StaticSite(store=s,
                                     staticContentPath=filePath,
-                                    prefixURL=webPath)
+                                    prefixURL=webPath,
+                                    sessionless=True)
                     ss.installOn(s)
                 self.didSomething = 1
         try:

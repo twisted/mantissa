@@ -104,7 +104,9 @@ def upgradePublicWeb2To3(oldWeb):
         # wanted to be sessioned.
         sessioned=True)
     newWeb.installedOn.powerDown(newWeb, ixmantissa.ICustomizablePublicPage)
-    newWeb.installedOn.powerUp(newWeb, ixmantissa.ISiteRootPlugin)
+    other = newWeb.installedOn
+    newWeb.installedOn = None
+    newWeb.installOn(other)
     return newWeb
 upgrade.registerUpgrader(upgradePublicWeb2To3, 'mantissa_public_web', 2, 3)
 
