@@ -1,5 +1,6 @@
 include NAME.txt
 include DEPS.txt
 include NEWS.txt
-recursive-include xmantissa/static/ *.html
-recursive-include xmantissa/themes/ *.html
+graft xmantissa/static
+graft xmantissa/themes
+
