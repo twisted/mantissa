@@ -1,6 +1,10 @@
-x.x.x (yyyy-mm-dd):
+0.3.0 (2005-11-02):
+  - Improved output of 'axiomatic web --list'
+  - Render 'log in' link when user is not logged in, 'log out' link and link to
+    private page when they are.
   - Removed Mantissa/xmantissa/examples/autoapp.tac
     (superceded by "axiomatic start")
+  - Fully-functional standalone development application ("axiomatic mantissa")
   - General preference inspection and configuration page added
   - Better support for anonymously viewed public pages
   - Support for multi-application search and search results aggregation
