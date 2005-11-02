@@ -1,11 +1,8 @@
-from zope.interface import implements
-
 from nevow import rend, livepage, tags
 
 from axiom import userbase
 
 from xmantissa.webtheme import getAllThemes
-from xmantissa.ixmantissa import IPublicPage
 
 def getLoader(n):
     # TODO: implement PublicApplication (?) in webapp.py, so we can make sure

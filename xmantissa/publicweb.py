@@ -9,9 +9,9 @@ from twisted.internet import defer
 
 from nevow import inevow
 
-from axiom import item, attributes, userbase, upgrade
+from axiom import item, attributes, upgrade
 
-from xmantissa import ixmantissa, website
+from xmantissa import ixmantissa, website, publicresource
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
@@ -72,6 +72,11 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
 
     sessioned = attributes.boolean(default=False)
     sessionless = attributes.boolean(default=False)
+
+    def resourceFactory(self, segments):
+        if not segments[0].startswith('__'):
+            return super(PublicWeb, self).resourceFactory(segments)
+        return None
 
     def createResource(self):
         # XXX Don't like this - shouldn't need IPublicPage interface
@@ -165,3 +170,44 @@ def customizedPublicPage1To2(oldPage):
     newPage.installedOn.powerUp(newPage, ixmantissa.ISiteRootPlugin, -257)
     return newPage
 upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized', 1, 2)
+
+class PublicFrontPage(publicresource.PublicPage):
+    implements(ixmantissa.ICustomizable)
+
+    def __init__(self, original, staticContent, forUser=None):
+        fragment = publicresource.getLoader('front-page')
+        publicresource.PublicPage.__init__(
+            self, original, fragment, staticContent, forUser)
+
+    def child_(self, ctx):
+        return self
+
+    def customizeFor(self, forUser):
+        return PublicFrontPage(self.original, self.staticContent, forUser)
+
+    def renderHTTP(self, ctx):
+        if self.username:
+            self.original.publicViews += 1
+        else:
+            self.original.privateViews += 1
+        return publicresource.PublicPage.renderHTTP(self, ctx)
+
+class FrontPage(item.Item, website.PrefixURLMixin):
+    """
+    I am a factory for the dynamic resource L{PublicFrontPage}
+    """
+    implements(ixmantissa.ISiteRootPlugin)
+    typeName = 'mantissa_front_page'
+    schemaVersion = 1
+
+    sessioned = True
+
+    publicViews = attributes.integer(default=0)
+    privateViews = attributes.integer(default=0)
+
+    prefixURL = attributes.text(default=u'',
+                                allowNone=False)
+
+
+    def createResource(self):
+        return PublicFrontPage(self, None)

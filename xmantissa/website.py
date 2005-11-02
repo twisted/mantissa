@@ -239,17 +239,34 @@ class StaticSite(PrefixURLMixin, Item):
     implements(ISessionlessSiteRootPlugin,     # implements both so that it
                ISiteRootPlugin)                # works in both super and sub
                                                # stores.
-    schemaVersion = 1
     typeName = 'static_web_site'
+    schemaVersion = 2
 
     prefixURL = text()
     staticContentPath = text()
+
+    sessioned = boolean(default=False)
+    sessionless = boolean(default=True)
 
     def __str__(self):
         return '/%s => file(%s)' % (self.prefixURL, self.staticContentPath)
 
     def createResource(self):
         return File(self.staticContentPath)
+
+
+def upgradeStaticSite1To2(oldSite):
+    newSite = oldRedirect.upgradeVersion(
+        'web_static_redirect', 1, 2,
+        targetURL=oldSite.targetURL,
+        prefixURL=oldSite.prefixURL,
+        sessionless=True)
+    for pc in newSite.store.query(_PowerupConnector,
+                                  AND(_PowerupConnector.powerup == newSite,
+                                      _PowerupConnector.interface == u'xmantissa.ixmantissa.ISessionlessSiteRootPlugin')):
+        pc.item.powerDown(newSite, ISessionlessSiteRootPlugin)
+    return newSite
+upgrade.registerUpgrader(upgradeStaticSite1To2, 'static_web_site', 1, 2)
 
 
 class StaticRedirect(Item, PrefixURLMixin):
@@ -349,7 +366,8 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         other.powerUp(self, IResource)
         self.setServiceParent(other)
 
-        StaticSite(store=other, prefixURL = u'static/mantissa',
+        StaticSite(store=other,
+                   prefixURL=u'static/mantissa',
                    staticContentPath=sibpath(__file__, u'static')).installOn(other)
 
     def privilegedStartService(self):

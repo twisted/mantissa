@@ -190,7 +190,7 @@ class IPublicPage(Interface):
     """
 
     def getResource():
-        """ Retrieve an IResource provider meant to serve as the public-facing view.
+        """Retrieve an IResource provider meant to serve as the public-facing view.
         The retrieved object will provide IResource.
         """
 

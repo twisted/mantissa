@@ -95,7 +95,7 @@ class NavMixin(object):
     def render_search(self, ctx, data):
         searchAggregator = self.pageComponents.searchAggregator
         if searchAggregator is None or not searchAggregator.providers():
-            return ctx.tag
+            return ''
 
         if self.searchPattern is None:
             self.searchPattern = IQ(self.docFactory).patternGenerator("search")
@@ -328,6 +328,9 @@ class PrivateApplication(Item, PrefixURLMixin):
     privateIndexPage = reference()
 
     prefixURL = 'private'
+
+    sessioned = True
+    sessionless = False
 
     def __init__(self, **kw):
         super(PrivateApplication, self).__init__(**kw)
