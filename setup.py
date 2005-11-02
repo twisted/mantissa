@@ -21,9 +21,7 @@ distobj = setup(
               'xmantissa.plugins',
               'xmantissa.test',
 
-              'axiom.plugins'],
-
-    package_data={'xmantissa': ['static/*', 'themes/base/*']})
+              'axiom.plugins'])
 
 from epsilon.setuphelper import regeneratePluginCache
 regeneratePluginCache(distobj)
