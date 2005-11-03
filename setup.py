@@ -1,8 +1,8 @@
-from distutils.core import setup
+from epsilon import setuphelper
 
 from xmantissa import version
 
-distobj = setup(
+setuphelper.autosetup(
     name="Mantissa",
     version=version.short(),
     maintainer="Divmod, Inc.",
@@ -15,19 +15,4 @@ distobj = setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Development Status :: 2 - Pre-Alpha",
-        "Topic :: Internet"],
-
-    packages=['xmantissa',
-              'xmantissa.plugins',
-              'xmantissa.test',
-
-              'axiom.plugins'],
-
-    package_data={
-        'xmantissa': [
-            'static/*',
-            'themes/base/*.html',
-            ]})
-
-from epsilon.setuphelper import regeneratePluginCache
-regeneratePluginCache(distobj)
+        "Topic :: Internet"])
