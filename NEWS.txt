@@ -1,3 +1,5 @@
+x.x.x (yyyy-mm-dd):
+
 0.3.0 (2005-11-02):
   - Improved output of 'axiomatic web --list'
   - Render 'log in' link when user is not logged in, 'log out' link and link to
