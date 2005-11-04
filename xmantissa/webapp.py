@@ -401,7 +401,7 @@ def upgradePrivateApplication1To2(oldApp):
         privateKey=oldApp.privateKey,
         privateIndexPage=oldApp.privateIndexPage)
     newApp.installedOn.findOrCreate(
-        CustomizedPublicPage,
-        prefixURL=u'').installOn(newApp.installedOn)
+        CustomizedPublicPage).installOn(newApp.installedOn)
     return newApp
+
 upgrade.registerUpgrader(upgradePrivateApplication1To2, 'private_web_application', 1, 2)
