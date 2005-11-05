@@ -171,12 +171,6 @@ class REPL(rend.Fragment):
     live = True
     fragmentName = 'admin-python-repl'
 
-    docFactory = loaders.stan(T.div[
-            T.div['Statement count: ', T.span(id='count')],
-            T.div(id='output'),
-            T.form(onsubmit="return submitInput(source)")[
-                T.input(type='text', id='source')]])
-
     def __init__(self, *a, **kw):
         rend.Fragment.__init__(self, *a, **kw)
         self.namespace = {'s': self.original.store}
