@@ -1,6 +1,5 @@
 include NAME.txt
 include DEPS.txt
 include NEWS.txt
-graft xmantissa/static
-graft xmantissa/themes
-
+graft xmantissa
+graft axiom

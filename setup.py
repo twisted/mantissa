@@ -15,4 +15,5 @@ setuphelper.autosetup(
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Development Status :: 2 - Pre-Alpha",
-        "Topic :: Internet"])
+        "Topic :: Internet"],
+    )
