@@ -336,7 +336,7 @@ class AxiomFragment(Fragment):
 
 class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     typeName = 'mantissa_web_powerup'
-    schemaVersion = 1
+    schemaVersion = 2
 
     hitCount = integer(default=0)
     installedOn = reference()
@@ -344,6 +344,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     portNumber = integer(default=0)
     securePortNumber = integer(default=0)
     certificateFile = bytes(default=None)
+    httpLog = bytes(default=None)
 
     parent = inmemory()
     running = inmemory()
@@ -390,7 +391,10 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
             self.store,
             Portal(realm, [chkr, AllowAnonymousAccess()]))
 
-        self.site = AxiomSite(self.store, UnguardedWrapper(self.store, guardedRoot))
+        self.site = AxiomSite(
+            self.store,
+            UnguardedWrapper(self.store, guardedRoot),
+            logPath=self.httpLog)
 
         if self.debug:
             self.site = policies.TrafficLoggingFactory(self.site, 'http')
@@ -418,3 +422,14 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
             self.securePort = None
         return defer.DeferredList(dl)
 
+def upgradeWebSite1To2(oldSite):
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', 1, 2,
+        hitCount=oldSite.hitCount,
+        installedOn=oldSite.installedOn,
+        portNumber=oldSite.portNumber,
+        securePortNumber=oldSite.securePortNumber,
+        certificateFile=oldSite.certificateFile,
+        httpLog=None)
+    return newSite
+upgrade.registerUpgrader(upgradeWebSite1To2, 'mantissa_web_powerup', 1, 2)
