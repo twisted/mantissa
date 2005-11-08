@@ -5,7 +5,7 @@ from xmantissa.ixmantissa import (ISearchAggregator, ISearchProvider,
                                   INavigableElement, INavigableFragment,
                                   IPreferenceAggregator)
 from axiom import attributes
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from operator import attrgetter
 from nevow import rend, livepage, inevow, tags, flat
 from epsilon.extime import Time
@@ -25,7 +25,7 @@ class SearchResult(object):
         self.timestamp = timestamp
         self.score = score
 
-class SearchAggregator(Item):
+class SearchAggregator(Item, InstallableMixin):
     implements(ISearchAggregator, INavigableElement)
 
     schemaVersion = 1
@@ -37,10 +37,9 @@ class SearchAggregator(Item):
     _searchProviders = attributes.inmemory()
 
     def installOn(self, other):
-        assert self.installedOn is None, 'cannot install SearchAggregator on more than one thing'
+        super(SearchAggregator, self).installOn(other)
         other.powerUp(self, ISearchAggregator)
         other.powerUp(self, INavigableElement)
-        self.installedOn = other
 
     def activate(self):
         self._searchProviders = None

@@ -3,22 +3,19 @@ from twisted.python.components import registerAdapter
 from nevow import rend
 from nevow.taglibrary import tabbedPane
 
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom import attributes
 from xmantissa import ixmantissa
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webgestalt import AuthenticationApplication
 
-class MyAccount(Item):
+class MyAccount(Item, InstallableMixin):
 
     typeName = 'mantissa_myaccount'
     schemaVersion = 1
 
     installedOn = attributes.reference()
 
-    def installOn(self, other):
-        assert self.installedOn is None, 'cannot install MyAccount on more than one thing'
-        self.installedOn = other
 
 class FragmentCollector(rend.Fragment):
     implements(ixmantissa.INavigableFragment)

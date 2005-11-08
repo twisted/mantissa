@@ -2,7 +2,7 @@ from zope.interface import implements
 
 from twisted.python.components import registerAdapter
 from nevow import rend, tags, inevow, livepage
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom import attributes
 
 from xmantissa.ixmantissa import (IPreference, IPreferenceCollection,
@@ -63,7 +63,7 @@ class _ItemsPerPage(MultipleChoicePreference):
                                             collection, desc,
                                             dict((c, str(c)) for c in choices))
 
-class DefaultPreferenceCollection(Item):
+class DefaultPreferenceCollection(Item, InstallableMixin):
     implements(IPreferenceCollection)
 
     schemaVersion = 1
@@ -75,9 +75,8 @@ class DefaultPreferenceCollection(Item):
     _cachedPrefs = attributes.inmemory()
 
     def installOn(self, other):
-        assert self.installedOn is None, 'cannot install DefaultPreferenceCollection on more than one thing!'
+        super(DefaultPreferenceCollection, self).installOn(other)
         other.powerUp(self, IPreferenceCollection)
-        self.installedOn = other
 
     def activate(self):
         ipp = _ItemsPerPage(self.itemsPerPage, self, (10, 20, 30))
@@ -93,7 +92,7 @@ class DefaultPreferenceCollection(Item):
         setattr(pref, 'value', value)
         self.store.transact(lambda: setattr(self, pref.key, value))
 
-class PreferenceAggregator(Item):
+class PreferenceAggregator(Item, InstallableMixin):
     implements(IPreferenceAggregator)
 
     schemaVersion = 1
@@ -103,9 +102,8 @@ class PreferenceAggregator(Item):
     installedOn = attributes.reference()
 
     def installOn(self, other):
-        assert self.installedOn is None, 'cannot install PreferenceEditor on more than one thing'
+        super(PreferenceAggregator, self).installOn(other)
         other.powerUp(self, IPreferenceAggregator)
-        self.installedOn = other
 
     def activate(self):
         self._prefMap = None
