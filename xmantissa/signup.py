@@ -1,7 +1,7 @@
 
 import os, rfc822
 
-from zope.interface import implements
+from zope.interface import Interface, implements
 
 from twisted.cred.portal import IRealm
 
@@ -15,16 +15,13 @@ from axiom.iaxiom import IBeneficiary
 
 from nevow.rend import Page
 from nevow.url import URL
-from nevow.livepage import set
+from nevow import athena
 from nevow.inevow import IResource, ISession
 from nevow.flat.ten import flatten
 
 from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent
 from xmantissa.website import PrefixURLMixin, domainAndPortFromContext
-from xmantissa.publicresource import PublicLivePage, getLoader
-
-import re
-emailRegex = re.compile(r'[a-z0-9_.\-\+]+@[a-z0-9.-]+\.[a-z]{2,4}', re.I)
+from xmantissa.publicresource import PublicAthenaLivePage, getLoader
 
 _theMX = None
 def getMX():
@@ -83,6 +80,15 @@ class TicketBooth(Item, PrefixURLMixin):
     def ticketClaimed(self, ticket):
         self.claimedTicketCount += 1
 
+    def ticketLink(self, domainName, httpPort, nonce):
+        if httpPort == 80:
+            httpPort = ''
+        else:
+            httpPort = ':' + str(httpPort)
+
+        return 'http://%s%s/%s/%s' % (
+            domainName, httpPort, self.prefixURL, nonce)
+
     def issueViaEmail(self, issuer, email, benefactor,
                       domainName, httpPort=80, templateFileObj=None):
         """
@@ -129,23 +135,15 @@ class TicketBooth(Item, PrefixURLMixin):
                 templateFileObj = file(self.defaultTicketEmail)
 
         ticket = self.createTicket(issuer,
-                                  unicode(email, 'ascii'),
-                                  benefactor)
+                                   unicode(email, 'ascii'),
+                                   benefactor)
         nonce = ticket.nonce
-
-        if httpPort == 80:
-            httpPort = ''
-        else:
-            httpPort = ':'+str(httpPort)
-
-        ticketLink = 'http://%s%s/%s/%s' % (domainName, httpPort,
-                                            self.prefixURL, nonce)
 
         signupInfo = {'from': 'signup@'+domainName,
                       'to': email,
                       'date': rfc822.formatdate(),
                       'message-id': smtp.messageid(),
-                      'link': ticketLink}
+                      'link': self.ticketLink(domainName, httpPort, nonce)}
 
         msg = templateFileObj.read() % signupInfo
         templateFileObj.close()
@@ -163,32 +161,9 @@ class TicketBooth(Item, PrefixURLMixin):
 def _generateNonce():
     return unicode(os.urandom(16).encode('hex'), 'ascii')
 
-class FreeSignerUpper(PublicLivePage):
-    def __init__(self, original):
-        PublicLivePage.__init__(self, original, getLoader("signup"),
-                                IStaticShellContent(original.store, None),
-                                None)
-
-    def handle_issueTicket(self, ctx, emailAddress):
-        domain, port = domainAndPortFromContext(ctx)
-
-        def hooray(whatever):
-            return set('signup-status',
-                       flatten([
-                        'Check your email!']))
-        def ono(err):
-            return set(
-                'signup-status',
-                flatten('That did not work: ' + err.getErrorMessage()))
-
-        ticket, issueDeferred = self.original.booth.issueViaEmail(
-            self.original,
-            emailAddress,
-            self.original.benefactor,
-            domain,
-            port)
-
-        return issueDeferred.addCallbacks(hooray, ono)
+class ITicketIssuer(Interface):
+    def issueTicket(emailAddress):
+        pass
 
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
@@ -201,7 +176,31 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     benefactor = reference()
 
     def createResource(self):
-        return FreeSignerUpper(self)
+        return PublicAthenaLivePage(
+            ITicketIssuer, self,
+            getLoader("signup"),
+            IStaticShellContent(self.store, None),
+            None)
+
+    def issueTicket(self, url, emailAddress):
+        domain, port = url.get('hostname'), int(url.get('port') or 80)
+        if os.environ.get('CC_DEV'):
+            ticket = self.booth.createTicket(self, emailAddress, self.benefactor)
+            return '<a href="%s">Claim Your Account</a>' % (
+                    self.booth.ticketLink(domain, port, ticket.nonce),)
+        else:
+            ticket, issueDeferred = self.booth.issueViaEmail(
+                self,
+                emailAddress.encode('ascii'), # heh
+                self.benefactor,
+                domain,
+                port)
+
+            issueDeferred.addCallback(
+                lambda result: u'Please check your email for a ticket!')
+
+            return issueDeferred
+
 
 class Ticket(Item):
     schemaVersion = 1

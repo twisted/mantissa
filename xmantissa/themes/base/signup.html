@@ -1,13 +1,6 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <form onsubmit="
-                  document.getElementById('signup-status').innerHTML = 'THINKING';
-                  this.onsubmit=function(){
-                    alert('Signup in progress...');
-                    return false;
-                  };
-                  server.handle('issueTicket', input_email.value);
-                  return false;
-                  ">
+  <script type="text/javascript" src="/static/mantissa/signup.js" />
+  <form onsubmit="signup(this); return false;">
     Email: <input id="input_email" type="text" name="email" />
     <input type="submit" name="SIGN UP NOW!  I GOVERN YOUR THOUGHTS!!" />
   </form>

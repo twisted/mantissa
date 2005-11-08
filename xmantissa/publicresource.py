@@ -1,4 +1,4 @@
-from nevow import rend, livepage, tags
+from nevow import rend, livepage, athena, tags
 
 from axiom import userbase
 
@@ -89,3 +89,17 @@ class PublicLivePage(PublicPageMixin, livepage.LivePage):
     def render_head(self, ctx, data):
         tag = super(PublicLivePage, self).render_head(ctx, data)
         return tag[livepage.glue]
+
+class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
+    def __init__(self, iface, original, fragment, staticContent, forUser):
+        super(PublicAthenaLivePage, self).__init__(iface, original, docFactory=getLoader("public-shell"))
+        self.fragment = fragment
+        self.staticContent = staticContent
+        if forUser is not None:
+            for resource, domain in userbase.getAccountNames(forUser):
+                self.username = '%s@%s' % (resource, domain)
+                break
+
+    def render_head(self, ctx, data):
+        tag = PublicPageMixin.render_head(self, ctx, data)
+        return tag[athena.LivePage.render_liveglue(self, ctx)]
