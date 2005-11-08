@@ -9,6 +9,7 @@ from twisted.mail import smtp, relaymanager
 from twisted.python.util import sibpath
 from twisted.python import log
 
+from axiom import upgrade
 from axiom.item import Item, transacted
 from axiom.attributes import integer, reference, text, AND
 from axiom.iaxiom import IBeneficiary
@@ -19,7 +20,7 @@ from nevow import athena
 from nevow.inevow import IResource, ISession
 from nevow.flat.ten import flatten
 
-from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent
+from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, ISessionlessSiteRootPlugin
 from xmantissa.website import PrefixURLMixin, domainAndPortFromContext
 from xmantissa.publicresource import PublicAthenaLivePage, getLoader
 
@@ -54,6 +55,8 @@ class TicketBooth(Item, PrefixURLMixin):
 
     typeName = 'ticket_powerup'
     schemaVersion = 1
+
+    sessioned = True
 
     claimedTicketCount = integer(default=0)
     createdTicketCount = integer(default=0)
@@ -171,6 +174,8 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     typeName = 'free_signup'
     schemaVersion = 1
 
+    sessioned = True
+
     prefixURL = text()
     booth = reference()
     benefactor = reference()
@@ -200,7 +205,6 @@ class FreeTicketSignup(Item, PrefixURLMixin):
                 lambda result: u'Please check your email for a ticket!')
 
             return issueDeferred
-
 
 class Ticket(Item):
     schemaVersion = 1
