@@ -1,7 +1,5 @@
 # -*- test-case-name: xmantissa -*-
 
-import sys
-
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
@@ -23,7 +21,7 @@ from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 
-from nevow import rend, flat, json, livepage, loaders, static, tags as T
+from nevow import rend, flat, json, livepage, static, tags as T
 
 
 class DeveloperSite(Item, PrefixURLMixin):

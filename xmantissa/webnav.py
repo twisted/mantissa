@@ -4,7 +4,7 @@ from zope.interface import implements
 
 from axiom.slotmachine import _structlike
 
-from xmantissa.ixmantissa import ITab, INavigableElement
+from xmantissa.ixmantissa import ITab
 
 class TabMisconfiguration(Exception):
     def __init__(self, info, tab):

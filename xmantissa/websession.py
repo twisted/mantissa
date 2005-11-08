@@ -11,11 +11,6 @@ PersistentSessionWrapper constructor: sessionCleanFrequency, persistentSessionLi
 and transientSessionLifetime.
 """
 
-import time
-
-from zope.interface import Interface, Attribute
-
-from twisted.python import reflect
 from twisted.cred import credentials
 
 from epsilon import extime

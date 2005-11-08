@@ -9,19 +9,16 @@ from twisted.mail import smtp, relaymanager
 from twisted.python.util import sibpath
 from twisted.python import log
 
-from axiom import upgrade
 from axiom.item import Item, transacted
 from axiom.attributes import integer, reference, text, AND
 from axiom.iaxiom import IBeneficiary
 
 from nevow.rend import Page
 from nevow.url import URL
-from nevow import athena
 from nevow.inevow import IResource, ISession
-from nevow.flat.ten import flatten
 
-from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, ISessionlessSiteRootPlugin
-from xmantissa.website import PrefixURLMixin, domainAndPortFromContext
+from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent
+from xmantissa.website import PrefixURLMixin
 from xmantissa.publicresource import PublicAthenaLivePage, getLoader
 
 _theMX = None

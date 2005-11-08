@@ -3,7 +3,6 @@
 from twisted.trial import unittest
 
 from xmantissa import webnav
-from xmantissa.ixmantissa import INavigableElement
 
 class FakeNavigator1(object):
     def getTabs(self):

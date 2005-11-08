@@ -6,9 +6,8 @@ from axiom.item import Item, InstallableMixin
 from axiom import attributes
 
 from xmantissa.ixmantissa import (IPreference, IPreferenceCollection,
-                                  INavigableElement, INavigableFragment,
+                                  INavigableFragment,
                                   IPreferenceAggregator)
-from xmantissa import webnav
 
 class PreferenceValidationError(Exception):
     pass

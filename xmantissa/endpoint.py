@@ -1,7 +1,5 @@
 # -*- test-case-name: xmantissa.test.test_q2q -*-
 
-from twisted.application import service
-
 from axiom import item, attributes
 
 from vertex import q2qclient

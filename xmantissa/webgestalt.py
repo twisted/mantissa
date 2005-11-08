@@ -11,17 +11,16 @@ import pytz
 
 from zope.interface import implements
 
-from twisted.cred import checkers
 from twisted.python.components import registerAdapter
 from twisted.internet import defer
 
-from nevow import inevow, livepage, rend, tags
+from nevow import inevow, livepage, tags
 
 from epsilon import extime
 
 from axiom import item, attributes, userbase
 
-from xmantissa import ixmantissa, websession, website, webnav
+from xmantissa import ixmantissa, websession, website
 
 class InvalidPassword(Exception):
     pass

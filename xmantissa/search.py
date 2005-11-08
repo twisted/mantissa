@@ -7,7 +7,7 @@ from xmantissa.ixmantissa import (ISearchAggregator, ISearchProvider,
 from axiom import attributes
 from axiom.item import Item, InstallableMixin
 from operator import attrgetter
-from nevow import rend, livepage, inevow, tags, flat
+from nevow import rend, inevow, tags, flat
 from epsilon.extime import Time
 from nevow.url import URL
 from twisted.python.components import registerAdapter
