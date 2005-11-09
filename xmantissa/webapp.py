@@ -195,26 +195,14 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixi
             return handler(ctx, path, name)
 
 class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
-    def __init__(self):
-        pass
-
-    initialized = False
-
-    def init(self, webapp, fragment, pageComponents):
-        if not self.initialized:
-            self.initialized = True
-            athena.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
-            NavMixin.__init__(self, webapp, pageComponents)
-            FragmentWrapperMixin.__init__(self, fragment)
+    def __init__(self, webapp, fragment, pageComponents):
+        athena.LivePage.__init__(self, fragment.iface, fragment, docFactory=webapp.getDocFactory('shell'))
+        NavMixin.__init__(self, webapp, pageComponents)
+        FragmentWrapperMixin.__init__(self, fragment)
 
     def render_head(self, ctx, data):
-        ctx.tag[t.invisible(render=t.directive("liveglue"))]
+        ctx.tag[t.directive("liveglue")]
         return FragmentWrapperMixin.render_head(self, ctx, data)
-
-    def locateMethod(self, ctx, methodName):
-        return self.fragment.locateMethod(methodName)
-
-_athenaFactory = athena.LivePageFactory(GenericNavigationAthenaPage)
 
 class PrivateRootPage(Page, NavMixin):
     addSlash = True
@@ -262,14 +250,9 @@ class PrivateRootPage(Page, NavMixin):
         if fragment.docFactory is None:
             raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
 
-        def athenaFactory(*args):
-            page = _athenaFactory.clientFactory(ctx)
-            page.init(*args)
-            return page
-
         pageClass = {False: GenericNavigationPage,
          True: GenericNavigationLivePage,
-         'athena': athenaFactory}.get(fragment.live)
+         'athena': GenericNavigationAthenaPage}.get(fragment.live)
         return pageClass(self.webapp, fragment, self.pageComponents)
 
 
