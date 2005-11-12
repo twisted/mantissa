@@ -7,7 +7,7 @@ setuphelper.autosetup(
     version=version.short(),
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
-    url="http://divmod.org/trac/wiki/MantissaProject",
+    url="http://divmod.org/trac/wiki/DivmodMantissa",
     license="MIT",
     platforms=["any"],
     description="A multiprotocol application deployment platform",
