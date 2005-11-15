@@ -20,16 +20,6 @@ def getAllThemes():
     l.reverse()
     return l
 
-def getLoader(n):
-    # TODO: implement PublicApplication (?) in webapp.py, so we can make sure
-    # that these go in the right order.  Right now we've only got the one
-    # though.
-    for t in getAllThemes():
-        fact = t.getDocFactory(n, None)
-        if fact is not None:
-            return fact
-
-    raise RuntimeError("No loader for %r anywhere" % (n,))
 
 class XHTMLDirectoryTheme(object):
     implements(IWebTheme, IPlugin)

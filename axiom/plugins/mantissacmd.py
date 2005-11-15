@@ -79,8 +79,6 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
 
         accStore = acc.avatars.open()
 
-        from xmantissa import people
-
         for cls in (
 
             # Install a web site for the individual user as well.  This is
@@ -98,9 +96,6 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             # applications on.  (XXX Rename: PrivateApplication should probably
             # be called PrivateAppShell)
             webapp.PrivateApplication,
-
-            # asjh
-            people.Organizer,
 
             # These are plugins *for* the PrivateApplication; they publish
             # objects via the tab-based navigation: a statistics page and a
