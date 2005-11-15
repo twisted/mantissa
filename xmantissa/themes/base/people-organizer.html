@@ -1,0 +1,33 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <script language="javascript">
+      function displayPerson(person) {
+          var ele = document.getElementById('person-display-element');
+          var desc = document.createTextNode('Person: ' + person.name +
+                                             ' created: ' + person.created +
+                                             ' storeID: ' + person.storeID);
+          var link = document.createElement('a');
+          link.setAttribute('href', person['detail-href']);
+          link.appendChild(desc);
+          var cont = document.createElement('div');
+          cont.appendChild(link);
+          ele.appendChild(cont);
+      }
+
+      function cbPersonError(err) {
+          alert("Sorry something broke: " + new String(err));
+      }
+
+      function getPerson(node, name) {
+          var ref = Nevow.Athena.refByDOM(node);
+          var d = ref.callRemote('personByName', name);
+          d.addCallback(displayPerson).addErrback(cbPersonError);
+      }
+  </script>
+  <h3>
+  Create a person
+  </h3>
+  <form onsubmit="getPerson(this, this.name.value); this.name.value = ''; return false;">
+    <label>Name:</label><input type="text" name="name" />
+  </form>
+  <span id="person-display-element" />
+</div>

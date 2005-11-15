@@ -196,7 +196,7 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixi
 
 class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
     def __init__(self, webapp, fragment, pageComponents):
-        athena.LivePage.__init__(self, fragment.iface, fragment, docFactory=webapp.getDocFactory('shell'))
+        athena.LivePage.__init__(self, fragment, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment)
 

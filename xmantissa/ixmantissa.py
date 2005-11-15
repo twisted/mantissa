@@ -387,3 +387,32 @@ class IDateBook(Interface):
 
         @return: an iterable of L{ITemporalEvent} providers.
         """
+
+class IOrganizerPlugin(Interface):
+    """
+    Powerup which provides additional functionality to Mantissa
+    People.  Organizer plugins add support for new kinds of person
+    data (for example, one Organizer plugin might add support for
+    contact information: physical addresses, email addresses,
+    telephone numbers, etc.  Another plugin might retrieve and
+    aggregate blog posts, or provide an interface for configuring
+    sharing permissions).
+    """
+
+    def personalize(person):
+        """
+        Return some plugin-specific state for the given person.
+
+        @param person: A C{xmantissa.person.Person} instance.
+
+        The returned object should probably be adaptable to
+        IPersonFragment.
+        """
+
+class IPersonFragment(Interface):
+    """
+    A detailed view of a Mantissa Person.
+    """
+    docFactory = Attribute("""
+    Nevow-style docFactory object.
+    """)

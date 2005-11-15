@@ -2,18 +2,7 @@ from nevow import rend, livepage, athena, tags
 
 from axiom import userbase
 
-from xmantissa.webtheme import getAllThemes
-
-def getLoader(n):
-    # TODO: implement PublicApplication (?) in webapp.py, so we can make sure
-    # that these go in the right order.  Right now we've only got the one
-    # though.
-    for t in getAllThemes():
-        fact = t.getDocFactory(n, None)
-        if fact is not None:
-            return fact
-
-    raise RuntimeError("No loader for %r anywhere" % (n,))
+from xmantissa.webtheme import getLoader, getAllThemes
 
 class PublicPageMixin(object):
     fragment = None
