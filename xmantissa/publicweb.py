@@ -7,7 +7,7 @@ from zope.interface import implements
 
 from twisted.internet import defer
 
-from nevow import inevow
+from nevow import inevow, rend
 
 from axiom import item, attributes, upgrade
 
@@ -135,6 +135,8 @@ class CustomizingResource(object):
 
     def renderHTTP(self, ctx):
         # We never got customized.
+        if self.currentResource is None:
+            return rend.FourOhFour()
         return self.currentResource.renderHTTP(ctx)
 
 
