@@ -81,13 +81,16 @@ class TicketBooth(Item, PrefixURLMixin):
         self.claimedTicketCount += 1
 
     def ticketLink(self, domainName, httpPort, nonce):
-        if httpPort == 80:
-            httpPort = ''
-        else:
+        httpPort = ''
+        httpScheme = 'http'
+
+        if httpPort == 443:
+            httpScheme = 'https'
+        elif httpPort != 80:
             httpPort = ':' + str(httpPort)
 
-        return 'http://%s%s/%s/%s' % (
-            domainName, httpPort, self.prefixURL, nonce)
+        return '%s://%s%s/%s/%s' % (
+            httpScheme, domainName, httpPort, self.prefixURL, nonce)
 
     def issueViaEmail(self, issuer, email, benefactor,
                       domainName, httpPort=80, templateFileObj=None):
