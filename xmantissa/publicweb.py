@@ -129,7 +129,9 @@ class CustomizingResource(object):
             if custom is not None:
                 return (custom.customizeFor(self.forWho), nextPath)
             self.currentResource = nextRes
-            return (self, nextPath)
+            if nextRes is None:
+                return (nextRes, nextPath)
+            return (CustomizingResource(nextRes, self.forWho), nextPath)
 
         return D.addCallback(finishLocating)
 
