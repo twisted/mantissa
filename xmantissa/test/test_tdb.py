@@ -29,7 +29,7 @@ def breakdown(x):
         yield digits[int(c)]
 
 class ModelTest(unittest.TestCase):
-    
+
     def setUp(self):
         self.store = Store()
         def _():
@@ -78,9 +78,9 @@ class ModelTest(unittest.TestCase):
                     X.textNumber,
                     X.phoneticDigits],
                 itemsPerPage=15)
-        
+
         _assertNumbersAre = lambda seq: self.assertNumbersAre(tdm, seq)
-        
+
         _assertNumbersAre(range(15))
         tdm.nextPage()
         _assertNumbersAre(range(15, 30))
@@ -156,6 +156,23 @@ class ModelTest(unittest.TestCase):
         assertFirstPage()
         tdm.firstPage()
         assertFirstPage()
+
+    def testTwoPageNextLastEquality(self):
+        tdm = tdb.TabularDataModel(self.store,
+                                   X, [X.number],
+                                   itemsPerPage=100)
+
+        assertFirstPage = lambda: self.assertNumbersAre(tdm, range(100))
+        assertSecondPage = lambda: self.assertNumbersAre(tdm, range(100, 107))
+
+        assertFirstPage()
+        tdm.nextPage()
+        assertSecondPage()
+        tdm.firstPage()
+        assertFirstPage()
+        tdm.lastPage()
+        assertSecondPage()
+    testTwoPageNextLastEquality.todo = 'is this a bug?  it seems like one to me'
 
     def testPagination(self):
         tdm = tdb.TabularDataModel(self.store,
@@ -359,7 +376,7 @@ class ModelTest(unittest.TestCase):
                     UnsortableColumn(X.textNumber),
                     UnsortableColumn(X.phoneticDigits)],
                 itemsPerPage=15)
-    
+
         self.assertNumbersAre(tdm, range(15))
         self.assertRaises(tdb.Unsortable, lambda: tdm.resort('textNumber'))
         self.assertRaises(tdb.Unsortable, lambda: tdm.resort('phoneticDigits'))
