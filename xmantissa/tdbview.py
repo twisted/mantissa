@@ -167,17 +167,47 @@ class TabularDataView(Fragment):
     def render_table(self, ctx, data):
         return ctx.tag[self.constructTable()]
 
+    def constructPaginator(self):
+        return self.patterns['paginator'](
+                    data=xrange(1, self.original.totalPages+1))
+
+    def render_paginator(self, ctx, data):
+        return ctx.tag[self.constructPaginator()]
+
     def render_actions(self, ctx, data):
         return '(Actions not yet implemented)'
 
+    def _pageState(self):
+        tdm = self.original
+        return (tdm.hasPrevPage(), tdm.hasNextPage(),
+                tdm.pageNumber, tdm.itemsPerPage, tdm.totalItems)
+
     def goingLive(self, ctx, client):
-        client.call('setPageState', self.original.hasPrevPage(),
-                    self.original.hasNextPage())
+        client.call('setPageState', *self._pageState())
 
     def replaceTable(self):
         yield (livepage.set('tdb', self.constructTable()), livepage.eol)
-        yield livepage.js.setPageState(self.original.hasPrevPage(),
-                                       self.original.hasNextPage())
+        yield (livepage.set('paginator', self.constructPaginator()), livepage.eol)
+        yield livepage.js.setPageState(*self._pageState())
+
+    def handle_gotoPage(self, ctx, pageNumber):
+        print pageNumber, self.original.pageNumber
+        # a bit crazy, replace me with the relevant functionality in the model
+        pageNumber = int(pageNumber)
+
+        if pageNumber == self.original.pageNumber:
+            return
+
+        if pageNumber < self.original.pageNumber:
+            pageChanger = self.original.nextPage
+        else:
+            pageChanger = self.original.prevPage
+
+        print abs(pageNumber-self.original.pageNumber)
+        for i in xrange(abs(pageNumber-self.original.pageNumber)):
+            pageChanger()
+
+        return self.replaceTable()
 
     def handle_nextPage(self, ctx):
         self.original.nextPage()

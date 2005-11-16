@@ -46,7 +46,30 @@ function alternateBgColors(elements, classes) {
         }
 }
 
-function setPageState(hasPrevPage, hasNextPage) {
+function gotoPage(select) {
+    var index = select.selectedIndex;
+    server.handle('gotoPage', select.childNodes[index].firstChild.nodeValue);
+}
+
+function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
+    function setValue(eid, value) {
+        var e = document.getElementById(eid);
+        if(e.childNodes.length == 0) {
+            e.appendChild(document.createTextNode(value));
+        } else {
+            e.firstChild.nodeValue = value;
+        }
+    }
+    var offset = null;
+    if(items < curPage * itemsPerPage) {
+        offset = items - itemsPerPage;
+    } else {
+        offset = (curPage - 1) * itemsPerPage;
+    }
+    setValue("tdb-item-start", offset+1);
+    setValue("tdb-item-end", offset+itemsPerPage);
+    setValue("tdb-total-items", items);
+
     function enable(things) {
         for(var i = 0; i < things.length; i++) {
             var thing = things[i];

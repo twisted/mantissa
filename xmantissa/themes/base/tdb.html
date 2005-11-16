@@ -1,7 +1,7 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
   <table class="tdb-navigation-panel">
     <tr valign="bottom">
-      <td style="width: 100%">
+      <td>
         <!-- set display: none on half of the navigation buttons so that they dont appear and then dissappear
         if the javascript takes a while to load -->
         <a style="display: none;" id="first-page" href="#" onclick="return getTDBController(this).firstPage()">
@@ -25,70 +25,84 @@
         <img id="last-page-disabled" src="/static/mantissa/images/last_disabled.png" border="0" />
       </td>
       <td id="tdb-action-result" />
-      </tr>
-    </table>
-
-    <div nevow:render="table" id="tdb"/>
-
-    <td nevow:pattern="cell">
-      <nevow:attr name="class"
-        ><nevow:slot name="typeHint" /></nevow:attr>
-      <nevow:slot name="value" />
-    </td>
-
-    <th nevow:pattern="column-header">
-      <nevow:attr name="width"
-        ><nevow:slot name="width" /></nevow:attr>
-      <nevow:slot name="name" />
-    </th>
-
-    <th nevow:pattern="sortable-column-header"
-      class="tdb-clickable-header">
-      <nevow:attr name="onclick"
-        ><nevow:slot name="onclick" /></nevow:attr>
-      <nevow:attr name="width"
-        ><nevow:slot name="width" /></nevow:attr>
-      <nevow:slot name="name" />
-    </th>
-
-    <th nevow:pattern="sorted-column-header-ascending"
-      class="tdb-clickable-header">
-      <nevow:attr name="onclick"
-        ><nevow:slot name="onclick" /></nevow:attr>
-      <nevow:attr name="width"
-        ><nevow:slot name="width" /></nevow:attr>
-      <nevow:slot name="name" />
-      <span class="tdb-sort-arrow">&#8657;</span>
-    </th>
-
-    <th nevow:pattern="sorted-column-header-descending"
-      class="tdb-clickable-header">
-      <nevow:attr name="onclick"
-        ><nevow:slot name="onclick" /></nevow:attr>
-      <nevow:attr name="width"
-        ><nevow:slot name="width" /></nevow:attr>
-      <nevow:slot name="name" />
-      <span class="tdb-sort-arrow">&#8659;</span>
-    </th>
-
-    <tr nevow:pattern="row">
-      <nevow:slot name="cells" />
+      <td align="right" id="tdb-control-panel">
+        viewing items <span id="tdb-item-start" /> to
+        <span id="tdb-item-end" /> out of <span id="tdb-total-items" />
+      </td>
     </tr>
+  </table>
 
-    <div id="tdb-no-rows-dialog"  nevow:pattern="no-rows">
-        No Items To Display
-    </div>
+  <div nevow:render="table" id="tdb"/>
 
-    <table class="mantissa-tdb" nevow:pattern="table">
-      <thead>
-        <tr>
-          <nevow:slot name="column-headers" />
-        </tr>
-      </thead>
+  <select onchange="gotoPage(this)"
+    nevow:pattern="paginator" nevow:render="sequence"
+    ><option nevow:pattern="item" nevow:render="data"
+  /></select>
 
-      <tbody>
-        <nevow:slot name="rows" />
-      </tbody>
+  <td nevow:pattern="cell">
+    <nevow:attr name="class"
+      ><nevow:slot name="typeHint" /></nevow:attr>
+    <nevow:slot name="value" />
+  </td>
 
-    </table>
+  <th nevow:pattern="column-header">
+    <nevow:attr name="width"
+      ><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+  </th>
+
+  <th nevow:pattern="sortable-column-header"
+    class="tdb-clickable-header">
+    <nevow:attr name="onclick"
+      ><nevow:slot name="onclick" /></nevow:attr>
+    <nevow:attr name="width"
+      ><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+  </th>
+
+  <th nevow:pattern="sorted-column-header-ascending"
+    class="tdb-clickable-header">
+    <nevow:attr name="onclick"
+      ><nevow:slot name="onclick" /></nevow:attr>
+    <nevow:attr name="width"
+      ><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+    <span class="tdb-sort-arrow">&#8657;</span>
+  </th>
+
+  <th nevow:pattern="sorted-column-header-descending"
+    class="tdb-clickable-header">
+    <nevow:attr name="onclick"
+      ><nevow:slot name="onclick" /></nevow:attr>
+    <nevow:attr name="width"
+      ><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+    <span class="tdb-sort-arrow">&#8659;</span>
+  </th>
+
+  <tr nevow:pattern="row">
+    <nevow:slot name="cells" />
+  </tr>
+
+  <div id="tdb-no-rows-dialog"  nevow:pattern="no-rows">
+    No Items To Display
   </div>
+
+  <table class="mantissa-tdb" nevow:pattern="table">
+    <thead>
+      <tr>
+        <nevow:slot name="column-headers" />
+      </tr>
+    </thead>
+
+    <tbody>
+      <nevow:slot name="rows" />
+    </tbody>
+  </table>
+
+  <div id="paginator-container">
+    go to page
+    <span nevow:render="paginator" id="paginator" />
+  </div>
+
+</div>
