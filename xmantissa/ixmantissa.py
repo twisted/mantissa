@@ -14,6 +14,25 @@ class IWebTheme(Interface):
         before the return result of the fragment's head()
         """
 
+class IColumn(Interface):
+    """
+    Represents a column, and provides hints & metadata about the column
+    """
+
+    def sortAttribute():
+        """
+        return a sortable axiom.attribute, or None if this column
+        cannot be sorted
+        """
+
+    def extractValue(model, item):
+        """
+        @type model: L{xmantissa.tdb.TabularDataModel}
+        @param item: the L{axiom.item.Item} from which to extract column value
+
+        returns the underlying value for this column
+        """
+
 class IPreference(Interface):
     """
     Represents the display logic of an individual preference

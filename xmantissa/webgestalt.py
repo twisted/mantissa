@@ -100,7 +100,7 @@ class AuthenticationFragment(website.AxiomFragment):
 
     def head(self):
         return tags.script(type='text/javascript',
-                           src='/static/mantissa/authentication.js')
+                           src='/static/mantissa/js/authentication.js')
 
 
     def render_currentPasswordField(self, ctx, data):

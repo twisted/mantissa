@@ -24,6 +24,104 @@ input.change-password {
     text-align: center;
 }
 
+/* styles for the tdb - kind of similar but pretty different to the
+ * control-table used in "my account" because the tdb cells we want to
+ * accentuate are in the first row, rather than the first column */
+
+.tdb-navigation-panel {
+    margin-left: 5%;
+    margin-right: 5%;
+    width: 90%;
+    padding: 0;
+    border-spacing: 0;
+}
+
+#tdb-action-result {
+    white-space: nowrap;
+    color: #04a700;
+    font-weight: bold;
+}
+
+.tdb-clickable-header {
+    cursor: pointer;
+}
+
+#tdb-no-rows-dialog {
+    margin-left: 5%;
+    font-size: 2.2em;
+    color: #CCCCCC;
+    font-style: italic;
+}
+
+th.tdb-clickable-header:hover {
+    background-image: url(/static/mantissa/images/header_bg_hover.png);
+}
+
+.tdb-action {
+    border: 0px;
+    padding: 2px;
+}
+
+table.mantissa-tdb {
+    margin-left: 5%;
+    margin-right: 5%;
+    width: 90%;
+    padding: 0;
+    border-spacing: 0;
+    border: solid 1px #B0B0B0;
+    border-right: none;
+}
+
+table.mantissa-tdb > thead {
+    background-color: #FFFFFF;
+    background-image: url(/static/mantissa/images/header_bg.png);
+    background-repeat: repeat-x;
+    background-position: bottom left 
+}
+
+table.mantissa-tdb > thead > tr > th {
+    border: solid 1px #B0B0B0;
+    border-left: none;
+    border-top: none;
+    padding: 4px 4px 4px 4px;
+    font-weight: bold;
+    color: #9B9B9B;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+}
+
+table.mantissa-tdb > tbody > tr > td {
+    border-right: solid 1px #B0B0B0;
+    padding: 4px;
+    white-space: nowrap;
+}
+
+.tdb-row-alt {
+    background-color: #F1F1F1;
+}
+
+.tdb-sort-arrow {
+    color: #000000;
+    font-weight: bold;
+    vertical-align: middle;
+}
+
+table.mantissa-tdb > tbody > tr > td.datetime {
+    text-align: center;
+}
+
+table.mantissa-tdb > tbody > tr > td.text {
+    overflow: hidden;
+}
+
+table.mantissa-tdb > tbody > tr > td.actions {
+    text-align: center;
+}
+
+table.mantissa-tdb > tbody > tr > td.numeric {
+    text-align: center;
+}
+
 /* the table of controls used by preferences & auth fragments */
 table.control-table {
     width: 70%;
@@ -34,7 +132,9 @@ table.control-table {
 /* set the first row to have a pretty bg image */
 table.control-table > thead {
     background-color: #FFFFFF;
-    background-image: url(/static/mantissa/header_bg.png);
+    background-image: url(/static/mantissa/images/header_bg.png);
+    background-repeat: repeat-x;
+    background-position: bottom left 
 }
 
 /* set the first row to be bold-face */
@@ -115,6 +215,10 @@ input[type=password], input[type=text] {
 .control-panel { width: 100% }
 .shell-content { padding-top: 15px }
 
+.page-body {
+    vertical-align: top;
+}
+
 .fragment-title {
     font-size: 1.2em;
     font-weight: bold
@@ -123,9 +227,7 @@ input[type=password], input[type=text] {
 .fragment-container { 
     width: 100% 
 }
-.page-body { 
-    vertical-align: top 
-}
+
 .username { 
     font-weight: bold 
 }
@@ -135,17 +237,18 @@ input[type=password], input[type=text] {
 
 /* navigation stuff */
 
-ul.tabList {
+ul.tab-list {
     margin: 0;
     padding: 0;
     white-space: nowrap;
     list-style-type: none;
 }
 
-ul.tabList > li.tab {
-    background-image: url(/static/mantissa/header_bg.png);
+ul.tab-list > li.tab {
+    background-image: url(/static/mantissa/images/header_bg.png);
     margin: 6px;
     padding: 4px;
+    margin-top: 0px;
     border: solid 1px #999999;
 }
 

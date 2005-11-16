@@ -178,7 +178,7 @@ class REPL(rend.Fragment):
     def head(self):
         return T.script(
             language='javascript',
-            src='/static/webadmin/repl.js')
+            src='/static/webadmin/js/repl.js')
 
     def goingLive(self, ctx, client):
         self.client = client
