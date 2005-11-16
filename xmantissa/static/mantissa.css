@@ -41,12 +41,6 @@ input.change-password {
     text-align: right;
 }
 
-#paginator-container {
-    margin-top: 5px;
-    text-align: right;
-    margin-right: 5%;
-}
-
 #tdb-action-result {
     white-space: nowrap;
     color: #04a700;

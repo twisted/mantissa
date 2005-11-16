@@ -34,11 +34,6 @@
 
   <div nevow:render="table" id="tdb"/>
 
-  <select onchange="gotoPage(this)"
-    nevow:pattern="paginator" nevow:render="sequence"
-    ><option nevow:pattern="item" nevow:render="data"
-  /></select>
-
   <td nevow:pattern="cell">
     <nevow:attr name="class"
       ><nevow:slot name="typeHint" /></nevow:attr>
@@ -99,10 +94,5 @@
       <nevow:slot name="rows" />
     </tbody>
   </table>
-
-  <div id="paginator-container">
-    go to page
-    <span nevow:render="paginator" id="paginator" />
-  </div>
 
 </div>

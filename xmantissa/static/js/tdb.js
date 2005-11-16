@@ -46,11 +46,6 @@ function alternateBgColors(elements, classes) {
         }
 }
 
-function gotoPage(select) {
-    var index = select.selectedIndex;
-    server.handle('gotoPage', select.childNodes[index].firstChild.nodeValue);
-}
-
 function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
     function setValue(eid, value) {
         var e = document.getElementById(eid);
@@ -60,14 +55,13 @@ function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
             e.firstChild.nodeValue = value;
         }
     }
-    var offset = null;
-    if(items < curPage * itemsPerPage) {
-        offset = items - itemsPerPage;
-    } else {
-        offset = (curPage - 1) * itemsPerPage;
-    }
-    setValue("tdb-item-start", offset+1);
-    setValue("tdb-item-end", offset+itemsPerPage);
+
+    var offset = (curPage - 1) * itemsPerPage + 1;
+    var end = offset + itemsPerPage - 1;
+    if(items < end)
+        end = items;
+    setValue("tdb-item-start", offset);
+    setValue("tdb-item-end", end);
     setValue("tdb-total-items", items);
 
     function enable(things) {
