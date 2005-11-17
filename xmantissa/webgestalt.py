@@ -52,9 +52,8 @@ class AuthenticationApplication(item.Item):
         raise NonExistentAccount()
 
     def _username(self):
-        acc = self._account()
-        # XXX Why is authenticatedAs bytes and not text?
-        return (acc.username + '@' + acc.domain).encode('utf-8')
+        for (localpart, domain) in userbase.getAccountNames(self.store):
+            return (localpart + '@' + domain).encode('utf-8')
 
     def hasCurrentPassword(self):
         return defer.succeed(self._account().password is not None)
