@@ -29,9 +29,8 @@ input.change-password {
  * accentuate are in the first row, rather than the first column */
 
 .tdb-navigation-panel {
-    margin-left: 5%;
-    margin-right: 5%;
-    width: 90%;
+    margin-left: 1%;
+    width: 100%;
     padding: 0;
     border-spacing: 0;
 }
@@ -52,7 +51,7 @@ input.change-password {
 }
 
 #tdb-no-rows-dialog {
-    margin-left: 5%;
+    margin-left: 1%;
     font-size: 2.2em;
     color: #CCCCCC;
     font-style: italic;
@@ -68,9 +67,8 @@ th.tdb-clickable-header:hover {
 }
 
 table.mantissa-tdb {
-    margin-left: 5%;
-    margin-right: 5%;
-    width: 90%;
+    margin-left: 1%;
+    width: 100%;
     padding: 0;
     border-spacing: 0;
     border: solid 1px #B0B0B0;

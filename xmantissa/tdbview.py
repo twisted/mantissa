@@ -214,6 +214,7 @@ class TabularDataView(Fragment):
             self.original.resort(attributeID, not self.original.isAscending)
         else:
             self.original.resort(attributeID)
+        self.original.firstPage()
         yield self.replaceTable()
 
     def head(self):
