@@ -43,6 +43,18 @@ class ModelTest(unittest.TestCase):
     def assertNumbersAre(self, tdm, seq):
         self.assertEquals(list(x.get('number') for x in tdm.currentPage()), seq)
 
+    def testUniformValues(self):
+        for x in self.store.query(X):
+            x.number = 1
+
+        tdm = tdb.TabularDataModel(self.store,
+                X, [X.number],
+                itemsPerPage=15)
+
+        self.failUnless(tdm.hasNextPage(), 'expected there to be a next page')
+
+    testUniformValues.todo = ''
+
     def testDeleteEverything(self):
         tdm = tdb.TabularDataModel(self.store,
                 X, [X.number,
