@@ -47,6 +47,12 @@ function alternateBgColors(elements, classes) {
 }
 
 function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
+    var cp = document.getElementById("tdb-control-panel");
+    if(items == 0)
+        cp.style.display = "none";
+    else
+        cp.style.display = "table-cell";
+
     function setValue(eid, value) {
         var e = document.getElementById(eid);
         if(e.childNodes.length == 0) {
