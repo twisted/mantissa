@@ -96,7 +96,7 @@ class LoginPage(PublicPage):
         # There should be a nicer way to discover this information
         ws = self.original.installedOn.findFirst(
             WebSite,
-            installedOn=self.original.installedOn)
+            WebSite.installedOn == self.original.installedOn)
 
         if ws.securePort is not None:
             secure = 's'
