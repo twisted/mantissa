@@ -63,9 +63,13 @@ class ActionsColumnView(ColumnViewBase):
             stan = tags.img(src=iconURL, **{'class' : 'tdb-action'})
 
             if actionable:
-                handler = 'server.handle("performAction", %r, %r); return false'
-                handler %= (action.actionID, idx)
-                stan = tags.a(href='#', onclick=handler)[stan]
+                linkstan = action.toLinkStan(idx, item)
+                if linkstan is None:
+                    handler = 'server.handle("performAction", %r, %r); return false'
+                    handler %= (action.actionID, idx)
+                    stan = tags.a(href='#', onclick=handler)[stan]
+                else:
+                    stan = linkstan[stan]
 
             tag[stan]
 
@@ -91,6 +95,9 @@ class Action:
            perform this action on the given item"""
         raise NotImplementedError()
 
+    def toLinkStan(self, idx, item):
+        return None
+
 class TabularDataView(Fragment):
     implements(ixmantissa.INavigableFragment)
 
@@ -108,7 +115,7 @@ class TabularDataView(Fragment):
         self.actions = {}
         for action in actions:
             self.actions[action.actionID] = action
-        self.patterns = PatternDictionary(self.docFactory)
+        self.patterns = PatternDictionary(getLoader('tdb-patterns'))
 
     def constructTable(self):
         modelData = self.original.currentPage()
@@ -167,6 +174,9 @@ class TabularDataView(Fragment):
     def render_table(self, ctx, data):
         return ctx.tag[self.constructTable()]
 
+    def render_navigation(self, ctx, data):
+        return ctx.tag[self.patterns['navigation']()]
+
     def render_actions(self, ctx, data):
         return '(Actions not yet implemented)'
 
@@ -198,9 +208,12 @@ class TabularDataView(Fragment):
         self.original.lastPage()
         return self.replaceTable()
 
-    def handle_performAction(self, ctx, actionID, targetID):
+    def itemFromTargetID(self, targetID):
         modelData = list(self.original.currentPage())
-        target = modelData[int(targetID)]['__item__']
+        return modelData[targetID]['__item__']
+
+    def handle_performAction(self, ctx, actionID, targetID):
+        target = self.itemFromTargetID(int(targetID))
         action = self.actions[actionID]
         result = action.performOn(target)
         if result is None:
