@@ -190,7 +190,7 @@ class TabularDataView(Fragment):
 
     def replaceTable(self):
         yield (livepage.set('tdb', self.constructTable()), livepage.eol)
-        yield livepage.js.setPageState(*self._pageState())
+        yield (livepage.js.setPageState(*self._pageState()), livepage.eol)
 
     def handle_nextPage(self, ctx):
         self.original.nextPage()
