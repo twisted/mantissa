@@ -166,7 +166,11 @@ class TabularDataView(Fragment):
                                 'value', cellContents) .fillSlots(
                                         'typeHint', cview.typeHint)
                 cells.append(cellStan)
-            rows.append(rowPattern.fillSlots('cells', cells))
+            # FIXME mix something else into the row id's when there
+            # is support for having multiple tdbs on a page.
+            rows.append(rowPattern.fillSlots(
+                        'cells', cells
+                            ).fillSlots('id', 'tdb-item-%d' % (idx,)))
 
         return tablePattern.fillSlots('rows', rows)
 
