@@ -11,8 +11,9 @@ from twisted.conch import manhole
 from epsilon import extime
 
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom import userbase
+from axiom.substore import SubStore
 
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
@@ -317,3 +318,25 @@ class DONTUSETHISBenefactor(Item):
         for X in WebSite, PrivateApplication, DeveloperApplication, TracebackViewer:
             X(store=avatar).installOn(avatar)
         AuthenticationApplication(store=avatar)
+
+# This is a lot like the above benefactor.  We should probably delete the above
+# benefactor now.
+class AdministrativeBenefactor(Item):
+    typeName = 'mantissa_administrative_benefactor'
+    schemaVersion = 1
+
+    endowed = integer(default=0)
+
+    def endow(self, ticket, avatar):
+        self.endowed += 1
+        for powerUp in [WebSite, PrivateApplication,
+                        AdminStatsApplication, DeveloperApplication,
+                        TracebackViewer]:
+            avatar.findOrCreate(powerUp).installOn(avatar)
+        AuthenticationApplication(store=avatar)
+
+    def deprive(self, ticket, avatar):
+        # Only delete the really administratory things.
+        avatar.findUnique(AdminStatsApplication).deleteFromStore()
+        avatar.findUnique(DeveloperApplication).deleteFromStore()
+        avatar.findUnique(TracebackViewer).deleteFromStore()

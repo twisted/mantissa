@@ -365,11 +365,12 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         super(WebSite, self).installOn(other)
         other.powerUp(self, IService)
         other.powerUp(self, IResource)
-        self.setServiceParent(other)
-
-        StaticSite(store=other,
-                   prefixURL=u'static/mantissa',
-                   staticContentPath=sibpath(__file__, u'static')).installOn(other)
+        other.store.findOrCreate(
+            StaticSite,
+            prefixURL=u'static/mantissa',
+            staticContentPath=sibpath(__file__, u'static')).installOn(other)
+        if self.parent is None:
+            self.setServiceParent(other)
 
     def privilegedStartService(self):
         if SSL is None and self.securePortNumber is not None:

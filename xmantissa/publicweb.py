@@ -6,12 +6,13 @@ Support for the public-facing portion of web applications.
 from zope.interface import implements
 
 from twisted.internet import defer
+from twisted import plugin
 
 from nevow import inevow, rend
 
-from axiom import item, attributes, upgrade
+from axiom import item, attributes, upgrade, userbase
 
-from xmantissa import ixmantissa, website, publicresource
+from xmantissa import ixmantissa, website, publicresource, offering, plugins
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
@@ -165,7 +166,12 @@ class CustomizedPublicPage(item.Item, item.InstallableMixin):
     def resourceFactory(self, segments):
         topResource = inevow.IResource(self.installedOn.store.parent, None)
         if topResource is not None:
-            return (CustomizingResource(topResource, self.installedOn), segments)
+            for resource, domain in userbase.getAccountNames(self.installedOn):
+                username = '%s@%s' % (resource, domain)
+                break
+            else:
+                username = None
+            return (CustomizingResource(topResource, username), segments)
         return None
 
 def customizedPublicPage1To2(oldPage):
@@ -177,16 +183,39 @@ def customizedPublicPage1To2(oldPage):
     return newPage
 upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized', 1, 2)
 
+class OfferingsFragment(rend.Fragment):
+    def __init__(self, original):
+        super(OfferingsFragment, self).__init__(original, docFactory=publicresource.getLoader('front-page'))
+
+    def data_offerings(self, ctx, data):
+        for io in self.original.store.query(offering.InstalledOffering):
+            if ixmantissa.IPublicPage(io.application, None) is not None:
+                yield {
+                    'name': io.offeringName,
+                    }
+
 class PublicFrontPage(publicresource.PublicPage):
     implements(ixmantissa.ICustomizable)
 
     def __init__(self, original, staticContent, forUser=None):
-        fragment = publicresource.getLoader('front-page')
         publicresource.PublicPage.__init__(
-            self, original, fragment, staticContent, forUser)
+            self, original, OfferingsFragment(original), staticContent, forUser)
 
     def child_(self, ctx):
         return self
+
+    def childFactory(self, ctx, name):
+        offer = self.original.store.findFirst(
+            offering.InstalledOffering,
+            offering.InstalledOffering.offeringName == unicode(name, 'ascii'))
+        if offer is not None:
+            pp = ixmantissa.IPublicPage(offer.application, None)
+            if pp is not None:
+                res = pp.getResource()
+                if self.username is not None:
+                    return res.customizeFor(self.username)
+                return res
+        return None
 
     def customizeFor(self, forUser):
         return PublicFrontPage(self.original, self.staticContent, forUser)

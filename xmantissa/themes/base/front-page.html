@@ -2,6 +2,17 @@
      style="text-align: center">
 
   <img src="/static/mantissa/images/divorg-large.png" /><br />
+
+  <div nevow:render="sequence" nevow:data="offerings">
+    <nevow:invisible nevow:pattern="divider">|</nevow:invisible>
+    <span nevow:pattern="item" nevow:render="mapping">
+      <a>
+        <nevow:attr name="href"><nevow:slot name="name" /></nevow:attr>
+        <nevow:slot name="name" />
+      </a>
+    </span>
+  </div>
+
   Welcome to Divmod&#8482; Mantissa&#8482;.
 
 </div>

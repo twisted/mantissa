@@ -1,7 +1,5 @@
 from nevow import rend, livepage, athena, tags
 
-from axiom import userbase
-
 from xmantissa.webtheme import getLoader, getAllThemes
 
 class PublicPageMixin(object):
@@ -60,20 +58,14 @@ class PublicPage(PublicPageMixin, rend.Page):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
-        if forUser is not None:
-            for resource, domain in userbase.getAccountNames(forUser):
-                self.username = '%s@%s' % (resource, domain)
-                break
+        self.username = forUser
 
 class PublicLivePage(PublicPageMixin, livepage.LivePage):
     def __init__(self, original, fragment, staticContent, forUser):
         super(PublicLivePage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
-        if forUser is not None:
-            for resource, domain in userbase.getAccountNames(forUser):
-                self.username = '%s@%s' % (resource, domain)
-                break
+        self.username = forUser
 
     def render_head(self, ctx, data):
         tag = super(PublicLivePage, self).render_head(ctx, data)
@@ -84,10 +76,7 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
         super(PublicAthenaLivePage, self).__init__(iface, original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
-        if forUser is not None:
-            for resource, domain in userbase.getAccountNames(forUser):
-                self.username = '%s@%s' % (resource, domain)
-                break
+        self.username = forUser
 
     def render_head(self, ctx, data):
         tag = PublicPageMixin.render_head(self, ctx, data)

@@ -1,0 +1,22 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <form onsubmit="return installSignup(this);" nevow:render="sequence" nevow:data="benefactorFactories">
+    <div nevow:pattern="item" nevow:render="mapping">
+      <input type="checkbox">
+        <nevow:attr name="name"><nevow:slot name="offering" />.<nevow:slot name="name" /></nevow:attr>
+        <nevow:slot name="offering" />:<nevow:slot name="name" />
+        <nevow:slot name="description" />
+      </input>
+    </div>
+    <nevow:invisible nevow:pattern="footer">
+      <div>
+        <label>URL</label><input type="text" name="url" value="signup" />
+      </div>
+      <div>
+        <input type="radio" name="kind" value="free-ticket" checked="on">
+          Free Ticket
+        </input>
+      </div>
+      <input type="submit" value="Create New Signup Page" />
+    </nevow:invisible>
+  </form>
+</div>

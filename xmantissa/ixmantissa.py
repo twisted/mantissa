@@ -331,7 +331,7 @@ class IBenefactor(Interface):
     Make accounts for users and give them things to use.
     """
 
-    def endow(emailAddress):
+    def endow(ticket, avatar):
         """
         Make a user and return it.  Give the newly created user new powerups or
         other functionality.
@@ -340,6 +340,34 @@ class IBenefactor(Interface):
         passed in by receiving a message and clicking on the link in the
         provided email.
         """
+
+    def deprive(ticket, avatar):
+        """
+        Remove the increment of functionality or privilege that we have previously
+        bestowed upon the indicated avatar.
+        """
+
+class IBenefactorFactory(Interface):
+    """A factory which describes and creates IBenefactor providers.
+    """
+
+    def dependencies():
+        """
+        Return an iterable of other IBenefactorFactory providers that this one
+        depends upon, and must be installed before this one is invoked.
+        """
+
+    def parameters():
+        """
+        Return a description of keyword parameters to be passed to instantiate.
+        (XXX TODO: this method currently unused)
+        """
+
+    def instantiate(**kw):
+        """
+        Create an IBenefactor provider and return it.
+        """
+
 
 class IQ2QService(Interface):
 
@@ -434,4 +462,37 @@ class IPersonFragment(Interface):
     """
     docFactory = Attribute("""
     Nevow-style docFactory object.
+    """)
+
+
+class IOffering(Interface):
+    """
+    Describes a product, service, application, or other unit of functionality
+    which can be added to a Mantissa server.
+    """
+
+    description = Attribute("""
+    What it is.
+    """)
+
+    name = Attribute("""
+    What it is called.
+    """)
+
+    siteRequirements = Attribute("""
+    A list of 2-tuples of (interface, powerupClass) of Axiom Powerups which
+    will be installed on the Site store when this offering is installed if the
+    store cannot be adapted to the given interface.
+    """)
+
+    appPowerups = Attribute("""
+    A list of Axiom Powerups which will be installed on the App store when this
+    offering is installed.  May be None if no App store is required (in this
+    case, none will be created).
+    """)
+
+    benefactorFactories = Attribute("""
+
+    A list of IBenefactorFactory providers
+
     """)

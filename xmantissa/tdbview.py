@@ -101,13 +101,12 @@ class Action:
 class TabularDataView(Fragment):
     implements(ixmantissa.INavigableFragment)
 
-    docFactory = getLoader('tdb')
+    fragmentName = None
     live = True
     title = ''
-    fragmentName = ''
 
     def __init__(self, model, columnViews, actions=()):
-        Fragment.__init__(self, model)
+        Fragment.__init__(self, model, docFactory=getLoader('tdb'))
 
         self.columnViews = list(columnViews)
         if actions:

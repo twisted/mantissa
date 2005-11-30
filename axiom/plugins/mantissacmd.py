@@ -1,4 +1,6 @@
 
+import sys
+
 from zope.interface import classProvides
 
 from twisted.python import usage, util
@@ -8,7 +10,21 @@ from twisted import plugin
 from axiom import iaxiom, errors as eaxiom, userbase
 from axiom.scripts import axiomatic
 
-from xmantissa import website, webapp, webadmin, publicweb
+from xmantissa import website, webapp, signup, webadmin, offering, publicweb
+
+
+def gtpswd(prompt, confirmPassword):
+    """
+    Temporary wrapper for Twisted's getPassword until a version that supports
+    customizing the 'confirm' prompt is released.
+    """
+    try:
+        return util.getPassword(prompt=prompt,
+                                confirmPrompt=confirmPassword,
+                                confirm=True)
+    except TypeError:
+        return util.getPassword(prompt=prompt,
+                                confirm=True)
 
 class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     """
@@ -37,10 +53,12 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
          'URL at which to publish the public front page.')]
 
     def postOptions(self):
-        if self['admin-password'] is None:
-            self['admin-password'] = util.getPassword(confirm=True)
-
         s = self.parent.getStore()
+        if self['admin-password'] is None:
+            pws = u'Divmod\u2122 Mantissa\u2122 password for %r: ' % (self['admin-user'],)
+            self['admin-password'] = gtpswd((u'Enter ' + pws).encode(sys.stdout.encoding, 'ignore'),
+                                            (u'Confirm ' + pws).encode(sys.stdout.encoding, 'ignore'))
+
         self.installSite(s, self.decodeCommandLine(self['public-url']))
         self.installAdmin(
             s,
@@ -101,6 +119,15 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             # objects via the tab-based navigation: a statistics page and a
             # Python interactive interpreter, respectively.
             webadmin.AdminStatsApplication,
-            webadmin.DeveloperApplication):
+            webadmin.DeveloperApplication,
+
+            # This is another PrivateApplication plugin.  It allows the
+            # administrator to configure the services offered here.
+            offering.OfferingConfiguration,
+
+            # And another one: SignupConfiguration allows the
+            # administrator to add signup forms which grant various
+            # kinds of account.
+            signup.SignupConfiguration):
 
             accStore.findOrCreate(cls).installOn(accStore)

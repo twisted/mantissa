@@ -259,3 +259,18 @@ ul.tab-list > li.tab {
     text-align: right;
 }
 
+
+/* These two li styles are for the admin site offering page.  They give
+ * installed offerings a different look from uninstalled offerings, including a
+ * visual hint that uninstalled offerings are clickable.
+ */
+li.installed {
+    border: solid 1px green;
+    margin-top: 1px;
+}
+
+li.uninstalled {
+    border: solid 1px red;
+    margin-top: 1px;
+    cursor: crosshair;
+}
