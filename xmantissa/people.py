@@ -83,10 +83,10 @@ class OrganizerFragment(athena.LiveFragment):
     def _simplify(self, person):
         wt = webapp.IWebTranslator(person.store)
         return {
-            'name': person.name,
-            'created': unicode(person.created.asISO8601TimeAndDate(), 'ascii'),
-            'storeID': person.storeID,
-            'detail-href': unicode(wt.linkTo(person.storeID), 'ascii')}
+            u'name': person.name,
+            u'created': unicode(person.created.asISO8601TimeAndDate(), 'ascii'),
+            u'storeID': person.storeID,
+            u'detail-href': unicode(wt.linkTo(person.storeID), 'ascii')}
 
     def getPeople(self):
         return (self._simplify(p) for p in self.original.people())
