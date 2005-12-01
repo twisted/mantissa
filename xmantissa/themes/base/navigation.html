@@ -1,11 +1,11 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <ul class="tab-list" nevow:render="sequence" nevow:data="tabs">
-    <li class="tab" nevow:pattern="item" nevow:render="tab">
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="sequence" nevow:data="tabs">
+  <div nevow:pattern="item" nevow:render="tab">
+    <div class="mantissa-tab">
       <a class="tab-link">
         <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
         <nevow:slot name="name" />
       </a>
-      <nevow:slot name="subtabs" />
-    </li>
-  </ul>
+    </div>
+    <div style="margin-left: 12px;"><nevow:slot name="subtabs" /></div>
+  </div>
 </div>

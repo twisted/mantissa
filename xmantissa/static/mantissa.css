@@ -240,14 +240,7 @@ input[type=password], input[type=text] {
 
 /* navigation stuff */
 
-ul.tab-list {
-    margin: 0;
-    padding: 0;
-    white-space: nowrap;
-    list-style-type: none;
-}
-
-ul.tab-list > li.tab {
+.mantissa-tab {
     background-image: url(/static/mantissa/images/header_bg.png);
     margin: 6px;
     padding: 4px;
