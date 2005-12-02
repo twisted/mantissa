@@ -1,0 +1,84 @@
+###file:_Project_/README.txt
+
+Document your project here!
+
+###file:_Project_/NEWS.txt
+
+0.0.1 (_date_):
+  - Initial Release
+
+###file:_Project_/_project_/__init__.py
+# Don't put code here.
+from epsilon.versions import Version
+version = Version('_project_', 0, 0, 1)
+
+###file:_Project_/_project_/_project__model.py
+from axiom.item import Item
+from axiom.attributes import text, bytes, integer, reference
+
+class _Project_Start(Item):
+    schemaVersion = 1                  # First version of this object.
+    typeName = '_Project__start'       # Database table name.
+
+    name = text()               # We must have at least one attribute - model
+                                # objects must store data.
+    def explode(self):
+        raise Exception('these should fail until you write some tests!')
+
+###file:_Project_/_project_/test/__init__.py
+# Don't put code here.
+
+###file:_Project_/_project_/test/test__project_.py
+from axiom.store import Store
+
+from twisted.trial import unittest
+from _project_ import _project__model
+
+class BasicTest(unittest.TestCase):
+    def setUp(self):
+        self.store = Store()
+
+    def testUserWroteTests(self):
+        o = _project__model._Project_Start(
+            store=self.store,
+            name=u'Test Object')
+        self.assertEquals(1, 0)
+        o.explode()
+
+    def tearDown(self):
+        self.store.close()
+
+###file:_Project_/axiom/plugins/_project_cmd.py
+from zope.interface import classProvides
+from twisted import plugin
+from axiom import iaxiom
+from axiom.scripts import axiomatic
+from twisted.python import usage
+
+class _Project_Command(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
+
+    name = '_project_'
+
+###file:_Project_/_project_/static/_project_.css
+
+###file:_Project_/_project_/static/_project_.js
+
+###file:_Project_/_project_/_project_theme.py
+from xmantissa import webtheme
+from nevow import tags
+
+class _Project_Theme(webtheme.XHTMLDirectoryTheme):
+    def head(self):
+        yield tags.link(href='/static/_project_/_project_.css',
+                        rel='stylesheet', type='text/css')
+        yield tags.script(src='/static/_project_/_project_.js',
+                          type='text/javascript')
+
+###file:_Project_/xmantissa/plugins/_project_theme.py
+from _project_._project_theme import _Project_Theme
+_project__theme = _Project_Theme('base', 0)
+
+###file:_Project_/_project_/themes/base/README.txt
+
+pass

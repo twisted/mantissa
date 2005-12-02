@@ -12,6 +12,8 @@ from axiom.scripts import axiomatic
 
 from xmantissa import website, webapp, signup, webadmin, offering, publicweb
 
+from epsilon.asplode import splode
+
 
 def gtpswd(prompt, confirmPassword):
     """
@@ -131,3 +133,26 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             signup.SignupConfiguration):
 
             accStore.findOrCreate(cls).installOn(accStore)
+
+
+class Generate(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
+
+    name = "project"
+
+    # This will show up next to the name in --help output
+    description = "Generate most basic skeleton of a Mantissa app"
+
+    optParameters = [
+        ('name', 'n', None, 'The name of the app to deploy'),
+        ]
+
+    def postOptions(self):
+        proj = self.decodeCommandLine(self['name'])
+        proj = proj.lower()
+        capproj = proj.capitalize()
+        print "Creating", capproj, "in", capproj
+
+        fObj = file(util.sibpath(__file__, 'template.txt'))
+
+        splode(fObj.readlines(), proj, capproj)
