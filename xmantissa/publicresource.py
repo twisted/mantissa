@@ -80,4 +80,4 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
 
     def render_head(self, ctx, data):
         tag = PublicPageMixin.render_head(self, ctx, data)
-        return tag[athena.LivePage.render_liveglue(self, ctx)]
+        return tag[tags.directive('liveglue')]
