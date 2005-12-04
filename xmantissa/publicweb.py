@@ -140,7 +140,8 @@ class CustomizingResource(object):
         # We never got customized.
         if self.currentResource is None:
             return rend.FourOhFour()
-        return self.currentResource.renderHTTP(ctx)
+        return self.currentResource # nevow will automatically adapt to
+                                    # IResource and call rendering methods.
 
 
 class CustomizedPublicPage(item.Item, item.InstallableMixin):
