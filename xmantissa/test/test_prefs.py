@@ -12,12 +12,9 @@ class PreferredWidget(object):
     name = 'Preferred Widget'
     description = 'Widgets!'
 
-    def __init__(self, value=None, collection=None, choices=None):
+    def __init__(self, value=None, collection=None):
         self.value = value
         self.collection = collection
-
-    def choices(self):
-        return choices
 
     def displayToValue(self, display):
         return display
@@ -58,7 +55,7 @@ def makePrefCollection(prefMap):
 
 class PreferencesTestCase(TestCase):
     def testAggregation(self):
-        pref = PreferredWidget(value=u'Blob', choices=(u'Blob', u'Slob', u'Frob'))
+        pref = PreferredWidget(value=u'Blob')
 
         store = Store()
         def txn():
