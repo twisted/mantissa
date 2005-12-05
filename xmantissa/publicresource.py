@@ -58,6 +58,8 @@ class PublicPage(PublicPageMixin, rend.Page):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
+        if forUser is not None:
+            assert isinstance(forUser, unicode), forUser
         self.username = forUser
 
 class PublicLivePage(PublicPageMixin, livepage.LivePage):
@@ -65,6 +67,8 @@ class PublicLivePage(PublicPageMixin, livepage.LivePage):
         super(PublicLivePage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
+        if forUser is not None:
+            assert isinstance(forUser, unicode), forUser
         self.username = forUser
 
     def render_head(self, ctx, data):
@@ -76,6 +80,8 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
         super(PublicAthenaLivePage, self).__init__(iface, original, docFactory=getLoader("public-shell"))
         self.fragment = fragment
         self.staticContent = staticContent
+        if forUser is not None:
+            assert isinstance(forUser, unicode), forUser
         self.username = forUser
 
     def render_head(self, ctx, data):

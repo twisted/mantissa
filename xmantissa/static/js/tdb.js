@@ -1,60 +1,54 @@
-function TabularDataBrowserController() {}
 
-TabularDataBrowserController.prototype = {
-    prevPage : function() {
-        server.handle('prevPage');
-        return false;
-    },
+tdbError = alert;
 
-    nextPage : function() {
-        server.handle('nextPage');
-        return false;
-    },
-
-    firstPage : function() {
-        server.handle('firstPage');
-        return false;
-    },
-
-    lastPage : function() {
-        server.handle('lastPage');
-        return false;
-    }
+if (typeof(Mantissa) == 'undefined') {
+    Mantissa = {};
 }
 
-/*
- Right now, we'll use a global, but in the near future we should associate a
- TDBController object with each TDB on the page; this means somehow
- associating it with the containing node.
- */
-
-var gTDBController = new TabularDataBrowserController();
-
-function getTDBController(element) {
-    return gTDBController;
+if (typeof(Mantissa.TDB) == 'undefined') {
+    Mantissa.TDB = {};
 }
 
-function alternateBgColors(elements, classes) {
-    const ELEMENT_NODE = 1;
-    var elementNodes = 0;
+Mantissa.TDB.Controller = Nevow.Athena.Widget.subclass();
 
-    for(var i = 0; i < elements.length; i++)
-        /* we want to ignore whitespace */
-        if(elements[i].nodeType == ELEMENT_NODE) {
-            elements[i].className = classes[elementNodes % classes.length];
-            elementNodes += 1;
-        }
-}
+Mantissa.TDB.Controller.prototype.loaded = function () {
+    return this._differentPage('replaceTable');
+};
 
-function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
-    var cp = document.getElementById("tdb-control-panel");
-    if(items == 0)
+Mantissa.TDB.Controller.prototype._setTableContent = function (tableContent) {
+    /* alert("STC: "+tableContent); */
+    this._getHandyNode("tdb-table").innerHTML = tableContent;
+};
+
+Mantissa.TDB.Controller.prototype._getHandyNode = function(classValue) {
+    return Nevow.Athena.NodeByAttribute(this.node, 'class', classValue);
+};
+
+Mantissa.TDB.Controller.prototype._differentPage = function(/*...*/) {
+    var outThis = this;
+    var d = this.callRemote.apply(this, arguments);
+    d.addCallback(function(result) {
+                      var tdbTable = result[0];
+                      var tdbState = result[1];
+                      outThis._setTableContent(tdbTable);
+                      outThis._setPageState.apply(outThis, tdbState);
+                  });
+    d.addErrback(function(err) {
+                     tdbError(err);
+                 });
+    return false;
+};
+
+Mantissa.TDB.Controller.prototype._setPageState = function (hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
+    var cp = this._getHandyNode("tdb-control-panel");
+    var self = this;
+    if(items == 0) {
         cp.style.display = "none";
-    else
+    } else {
         cp.style.display = "table-cell";
-
+    }
     function setValue(eid, value) {
-        var e = document.getElementById(eid);
+        var e = self._getHandyNode(eid);
         if(e.childNodes.length == 0) {
             e.appendChild(document.createTextNode(value));
         } else {
@@ -64,8 +58,9 @@ function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
 
     var offset = (curPage - 1) * itemsPerPage + 1;
     var end = offset + itemsPerPage - 1;
-    if(items < end)
+    if(items < end) {
         end = items;
+    }
     setValue("tdb-item-start", offset);
     setValue("tdb-item-end", end);
     setValue("tdb-total-items", items);
@@ -73,16 +68,16 @@ function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
     function enable(things) {
         for(var i = 0; i < things.length; i++) {
             var thing = things[i];
-            document.getElementById(thing).style.display = "inline";
-            document.getElementById(thing + "-disabled").style.display = "none";
+            self._getHandyNode(thing).style.display = "inline";
+            self._getHandyNode(thing + "-disabled").style.display = "none";
         }
     }
 
     function disable(things) {
         for(var i = 0; i < things.length; i++) {
             var thing = things[i];
-            document.getElementById(thing + "-disabled").style.display = "inline";
-            document.getElementById(thing).style.display = "none";
+            self._getHandyNode(thing + "-disabled").style.display = "inline";
+            self._getHandyNode(thing).style.display = "none";
         }
     }
 
@@ -100,13 +95,49 @@ function setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
         disable(nexts);
     }
 
-    var tdb = document.getElementById("tdb").firstChild;
-    alternateBgColors(tdb.getElementsByTagName("tbody")[0].childNodes,
-                      ["tdb-row", "tdb-row-alt"]);
+    this.alternateBgColors();
+};
+
+Mantissa.TDB.Controller.prototype.prevPage = function() {
+    return this._differentPage('prevPage');
+};
+
+Mantissa.TDB.Controller.prototype.nextPage = function() {
+    return this._differentPage('nextPage');
+};
+
+Mantissa.TDB.Controller.prototype.firstPage = function() {
+    return this._differentPage('firstPage');
+};
+
+Mantissa.TDB.Controller.prototype.lastPage = function() {
+    return this._differentPage('lastPage');
+};
+
+Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
+    return this._differentPage('performAction', actionID, targetID);
+};
+
+Mantissa.TDB.Controller.prototype.clickSort = function(attributeID) {
+    return this._differentPage('clickSort', attributeID);
+}
+
+Mantissa.TDB.Controller.prototype.alternateBgColors = function() {
+    const ELEMENT_NODE = 1;
+    var elementNodes = 0;
+    var elements = this._getHandyNode('tdbtbody').childNodes;
+    var classes = ["tdb-row", "tdb-row-alt"];
+
+    for(var i = 0; i < elements.length; i++)
+        /* we want to ignore whitespace */
+        if(elements[i].nodeType == ELEMENT_NODE) {
+            elements[i].className = classes[elementNodes % classes.length];
+            elementNodes += 1;
+        }
 }
 
 function actionResult(message) {
-    var resultContainer = document.getElementById('tdb-action-result');
+    var resultContainer = this._getHandyNode('tdb-action-result');
 
     if(resultContainer.childNodes.length)
         resultContainer.removeChild(resultContainer.firstChild);

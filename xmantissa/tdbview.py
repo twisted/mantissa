@@ -1,7 +1,6 @@
 from zope.interface import implements
 
-from nevow import tags, livepage
-from nevow.rend import Fragment
+from nevow import tags, athena, flat
 
 from formless.annotate import nameToLabel
 
@@ -65,7 +64,7 @@ class ActionsColumnView(ColumnViewBase):
             if actionable:
                 linkstan = action.toLinkStan(idx, item)
                 if linkstan is None:
-                    handler = 'server.handle("performAction", %r, %r); return false'
+                    handler = 'Mantissa.TDB.Controller.get(this).performAction(%r, %r); return false'
                     handler %= (action.actionID, idx)
                     stan = tags.a(href='#', onclick=handler)[stan]
                 else:
@@ -98,32 +97,32 @@ class Action:
     def toLinkStan(self, idx, item):
         return None
 
-class TabularDataView(Fragment):
+class TabularDataView(athena.LiveFragment):
     implements(ixmantissa.INavigableFragment)
 
-    fragmentName = None
-    live = True
+    fragmentName = 'tdb'
+    live = 'athena'
     title = ''
 
     def __init__(self, model, columnViews, actions=()):
-        Fragment.__init__(self, model, docFactory=getLoader('tdb'))
-
+        super(TabularDataView, self).__init__(model)
         self.columnViews = list(columnViews)
         if actions:
             self.columnViews.append(ActionsColumnView(actions))
         self.actions = {}
         for action in actions:
             self.actions[action.actionID] = action
-        self.patterns = PatternDictionary(getLoader('tdb-patterns'))
 
     def constructTable(self):
+        patterns = PatternDictionary(self.docFactory)
+
         modelData = self.original.currentPage()
         if len(modelData) == 0:
-            return self.patterns['no-rows']()
+            return patterns['no-rows']()
 
-        tablePattern = self.patterns['table']
-        rowPattern = self.patterns['row']
-        cellPattern = self.patterns['cell']
+        tablePattern = patterns['table']
+        rowPattern = patterns['row']
+        cellPattern = patterns['cell']
 
         headers = []
         for cview in self.columnViews:
@@ -142,13 +141,13 @@ class TabularDataView(Fragment):
                 headerPatternName = ['column-header',
                                      'sortable-column-header'][sortable]
 
-            header = self.patterns[headerPatternName].fillSlots(
+            header = patterns[headerPatternName].fillSlots(
                         'name', cview.displayName).fillSlots(
                                 'width', cview.getWidth())
 
             if sortable:
                 header = header.fillSlots('onclick',
-                            'server.handle("clickSort", "%s")'%
+                            'Mantissa.TDB.Controller.get(this).clickSort("%s")'%
                             (cview.attributeID,))
 
             headers.append(header)
@@ -178,36 +177,43 @@ class TabularDataView(Fragment):
         return ctx.tag[self.constructTable()]
 
     def render_navigation(self, ctx, data):
-        return ctx.tag[self.patterns['navigation']()]
+        patterns = PatternDictionary(self.docFactory)
+        return ctx.tag[patterns['navigation']()]
 
     def render_actions(self, ctx, data):
         return '(Actions not yet implemented)'
 
-    def _pageState(self):
+    iface = allowedMethods = {'getPageState': True,
+                              'nextPage': True,
+                              'prevPage': True,
+                              'firstPage': True,
+                              'lastPage': True,
+                              'performAction': True,
+                              'clickSort': True,
+                              'replaceTable': True}
+    def replaceTable(self):
+        # XXX TODO: the flatten here is encoding/decoding like 4 times; this
+        # could be a lot faster.
+        return unicode(flat.flatten(self.constructTable()), 'utf-8'), self.getPageState()
+
+    def getPageState(self):
         tdm = self.original
         return (tdm.hasPrevPage(), tdm.hasNextPage(),
                 tdm.pageNumber, tdm.itemsPerPage, tdm.totalItems)
 
-    def goingLive(self, ctx, client):
-        client.call('setPageState', *self._pageState())
-
-    def replaceTable(self):
-        yield (livepage.set('tdb', self.constructTable()), livepage.eol)
-        yield (livepage.js.setPageState(*self._pageState()), livepage.eol)
-
-    def handle_nextPage(self, ctx):
+    def nextPage(self):
         self.original.nextPage()
         return self.replaceTable()
 
-    def handle_prevPage(self, ctx):
+    def prevPage(self):
         self.original.prevPage()
         return self.replaceTable()
 
-    def handle_firstPage(self, ctx):
+    def firstPage(self):
         self.original.firstPage()
         return self.replaceTable()
 
-    def handle_lastPage(self, ctx):
+    def lastPage(self):
         self.original.lastPage()
         return self.replaceTable()
 
@@ -215,23 +221,19 @@ class TabularDataView(Fragment):
         modelData = list(self.original.currentPage())
         return modelData[targetID]['__item__']
 
-    def handle_performAction(self, ctx, actionID, targetID):
+    def performAction(self, actionID, targetID):
         target = self.itemFromTargetID(int(targetID))
         action = self.actions[actionID]
         result = action.performOn(target)
-        if result is None:
-            result = ''
+        return result, self.replaceTable()
 
-        yield (livepage.js.actionResult(result), livepage.eol)
-        yield self.replaceTable()
-
-    def handle_clickSort(self, ctx, attributeID):
+    def clickSort(self, attributeID):
         if attributeID == self.original.currentSortColumn.attributeID:
             self.original.resort(attributeID, not self.original.isAscending)
         else:
             self.original.resort(attributeID)
         self.original.firstPage()
-        yield self.replaceTable()
+        return self.replaceTable()
 
     def head(self):
         yield tags.script(type='text/javascript',

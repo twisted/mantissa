@@ -1,4 +1,99 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+     xmlns:athena="http://divmod.org/ns/athena/0.7"
+     nevow:render="athenaID"
+     athena:class="Mantissa.TDB.Controller">
   <div nevow:render="navigation" />
-  <div nevow:render="table" id="tdb" />
+  <div class="tdb-table">
+    <div style="text-align: center; font-size: 48px; font-weight: bold; font-family: monospace; font-style: italic; color: #ccc">
+      ... LOADING ...
+    </div>
+  </div>
+
+  <table nevow:pattern="navigation" class="tdb-navigation-panel">
+    <tr valign="bottom">
+      <td>
+        <!-- set display: none on half of the navigation buttons so that they dont appear and then dissappear
+             if the javascript takes a while to load -->
+        <a style="display: none;" class="first-page" href="#" onclick="return Mantissa.TDB.Controller.get(this).firstPage();">
+          <img src="/static/mantissa/images/first.png" border="0" />
+        </a>
+        <img class="first-page-disabled" src="/static/mantissa/images/first_disabled.png" border="0" />
+
+        <a style="display: none;" class="prev-page" href="#" onclick="return Mantissa.TDB.Controller.get(this).prevPage();">
+          <img src="/static/mantissa/images/prev.png" border="0" />
+        </a>
+        <img class="prev-page-disabled" src="/static/mantissa/images/prev_disabled.png" border="0" />
+
+        <a style="display: none;" class="next-page" href="#" onclick="return Mantissa.TDB.Controller.get(this).nextPage();">
+          <img src="/static/mantissa/images/next.png" border="0" />
+        </a>
+        <img class="next-page-disabled" src="/static/mantissa/images/next_disabled.png" border="0" />
+
+        <a style="display: none;" class="last-page" href="#" onclick="return Mantissa.TDB.Controller.get(this).lastPage()">
+          <img src="/static/mantissa/images/last.png" border="0" />
+        </a>
+        <img class="last-page-disabled" src="/static/mantissa/images/last_disabled.png" border="0" />
+      </td>
+      <td class="tdb-action-result" />
+      <td align="right" class="tdb-control-panel" style="display: none">
+        viewing items <span class="tdb-item-start" /> to
+        <span class="tdb-item-end" /> out of <span class="tdb-total-items" />
+      </td>
+    </tr>
+  </table>
+
+  <td nevow:pattern="cell">
+    <nevow:attr name="class"><nevow:slot name="typeHint" /></nevow:attr>
+    <nevow:slot name="value" />
+  </td>
+
+  <th nevow:pattern="column-header">
+    <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+  </th>
+
+  <th nevow:pattern="sortable-column-header"
+      class="tdb-clickable-header">
+    <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
+    <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+  </th>
+
+  <th nevow:pattern="sorted-column-header-ascending"
+      class="tdb-clickable-header">
+    <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
+    <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+    <span class="tdb-sort-arrow">&#8593;</span>
+  </th>
+
+  <th nevow:pattern="sorted-column-header-descending"
+      class="tdb-clickable-header">
+    <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
+    <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
+    <nevow:slot name="name" />
+    <span class="tdb-sort-arrow">&#8595;</span>
+  </th>
+
+  <tr nevow:pattern="row">
+    <nevow:attr name="id"><nevow:slot name="id" /></nevow:attr>
+    <nevow:slot name="cells" />
+  </tr>
+
+  <div class="tdb-no-rows-dialog"  nevow:pattern="no-rows">
+    No Items To Display
+    <span class="tdbtbody" />
+  </div>
+
+  <table class="mantissa-tdb" nevow:pattern="table">
+    <thead>
+      <tr>
+        <nevow:slot name="column-headers" />
+      </tr>
+    </thead>
+
+    <tbody class="tdbtbody">
+      <nevow:slot name="rows" />
+    </tbody>
+  </table>
 </div>

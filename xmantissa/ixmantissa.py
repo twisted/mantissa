@@ -189,12 +189,12 @@ class ICustomizable(Interface):
     Factory for creating IResource objects which can be customized for
     a specific user.
     """
-    def customizeFor(avatar):
+    def customizeFor(avatarName):
         """
         Retrieve a IResource provider specialized for the given avatar.
 
-        @type avatar: C{Store}
-        @param avatar: The user for whom to return a specialized resource.
+        @type avatarName: C{unicode}
+        @param avatarName: The user for whom to return a specialized resource.
 
         @rtype: C{IResource}
         @return: A public-page resource, possibly customized for the
