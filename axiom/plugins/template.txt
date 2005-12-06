@@ -19,7 +19,11 @@ from axiom.attributes import text, bytes, integer, reference, timestamp
 
 from xmantissa import ixmantissa, website, webapp, webnav
 
+from twisted.python.components import registerAdapter
+
 from epsilon.extime import Time
+
+from _project_._project__view import _Project_View
 
 class _Project_Benefactor(Item):
     '''i am responsible for granting priveleges to avatars,
@@ -75,15 +79,17 @@ class _Project_Start(Item, InstallableMixin):
     def explode(self):
         raise Exception('these should fail until you write some tests!')
 
+# Notify the system that this Fragment class will be responsible of
+# rendering the model. The 'self.original' attribute of the _Project_View
+# instance is actually an instance of the _Project_Start class.
+registerAdapter(_Project_View, _Project_Start, ixmantissa.INavigableFragment)
+
 ###file:_Project_/_project_/_project__view.py
 from zope.interface import implements
-from twisted.python.components import registerAdapter
 
 from nevow.rend import Fragment
 
 from xmantissa import ixmantissa
-
-from _project_._project__model import _Project_Start
 
 class _Project_View(Fragment):
     # This is a Fragment of a Page
@@ -98,11 +104,6 @@ class _Project_View(Fragment):
     def head(self):
         # Add tags in the page <head>
         pass
-
-# Notify the system that this Fragment class will be responsible of
-# rendering the model. The 'self.original' attribute of the _Project_View
-# instance is actually an instance of the _Project_Start class.
-registerAdapter(_Project_View, _Project_Start, ixmantissa.INavigableFragment)
 
 ###file:_Project_/_project_/test/__init__.py
 # Don't put code here.
