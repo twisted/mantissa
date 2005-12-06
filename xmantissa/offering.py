@@ -72,7 +72,7 @@ class OfferingConfiguration(item.Item, item.InstallableMixin):
                 s.findOrCreate(requiredPowerup).installOn(s)
 
             ls = s.findOrCreate(userbase.LoginSystem)
-            substoreItem = substore.SubStore(s, ('app', offering.name + '.axiom'))
+            substoreItem = substore.SubStore.createNew(s, ('app', offering.name + '.axiom'))
             ls.addAccount(offering.name, None, None, internal=True,
                           avatars=substoreItem)
             ss = substoreItem.open()
