@@ -53,7 +53,6 @@ class ModelTest(unittest.TestCase):
 
         self.failUnless(tdm.hasNextPage(), 'expected there to be a next page')
 
-    testUniformValues.todo = ''
 
     def testDeleteEverything(self):
         tdm = tdb.TabularDataModel(self.store,

@@ -8,6 +8,7 @@ from twisted.python.components import registerAdapter
 from xmantissa.ixmantissa import IColumn
 
 from axiom.attributes import AND, SQLAttribute
+from axiom.queryutil import AttributeTuple
 
 class Unsortable(Exception):
     pass
@@ -151,10 +152,12 @@ class TabularDataModel:
         switch = (self.isAscending ^ backwards)
         # if we were sorting ascendingly, or are moving backward in the result
         # set, but not both, then sort this query ascendingly
+        # use storeID as a tiebreaker, as in _sortAttributeValue
+        tiebreaker = sortAttribute.type.storeID
         if switch:
-            sortOrder = sortAttribute.ascending
+            sortOrder = sortAttribute.ascending, tiebreaker.ascending
         else: # otherwise not
-            sortOrder = sortAttribute.descending
+            sortOrder = sortAttribute.descending, tiebreaker.descending
 
         # if we were passed a value to use as a marker indicating our position
         # in the result set (typically it would be either the first or last
@@ -171,7 +174,7 @@ class TabularDataModel:
             # produce an axiom comparison object by comparing the sort
             # attribute and the marker value using the appropriate operator
             offsetComparison = ltgt[switch](
-                sortAttribute, primaryColumnStart)
+                AttributeTuple(sortAttribute, tiebreaker), primaryColumnStart)
             # if we were instantiated with an additional comparison, then add
             # that to the comparison object also
             if self.baseComparison is not None:
@@ -209,8 +212,10 @@ class TabularDataModel:
         'offset' in the results of the last query, otherwise None.
         """
         if self._currentResults:
-            pageStart = self._currentResults[offset][
-                self.currentSortColumn.attributeID]
+            pageStart = (self._currentResults[offset][
+                self.currentSortColumn.attributeID],
+                         self._currentResults[offset][
+                    '__item__'].storeID)
         else:
             pageStart = None
         return pageStart
