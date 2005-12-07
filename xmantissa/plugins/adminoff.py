@@ -4,7 +4,7 @@ from xmantissa import webadmin, offering, provisioning
 adminOffering = offering.Offering(
     name = u'mantissa',
     description = u'Powerups for administrative control of a Mantissa server.',
-    siteRequirements = [webadmin.DeveloperSite],
+    siteRequirements = [(None, webadmin.DeveloperSite)],
     appPowerups = [],
     benefactorFactories = [
         provisioning.BenefactorFactory(
