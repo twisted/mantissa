@@ -15,7 +15,7 @@ from axiom.item import Item, InstallableMixin
 from axiom import userbase
 from axiom.substore import SubStore
 
-from xmantissa import webnav
+from xmantissa import webnav, tdb, tdbview, offering, signup
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.webgestalt import AuthenticationApplication
@@ -92,6 +92,47 @@ class AdminStatsApplication(Item, ParentCounterMixin):
         return [webnav.Tab('Admin', self.storeID, 0.0,
                            [webnav.Tab('Stats', self.storeID, 0.1)],
                            authoritative=False)]
+
+
+
+class LocalUserBrowser(Item):
+    implements(INavigableElement)
+
+    typeName = 'local_user_browser'
+    schemaVersion = 1
+
+    garbage = integer(default=12345678653)
+
+    def installOn(self, other):
+        other.powerUp(self, INavigableElement)
+
+    def getTabs(self):
+        return [webnav.Tab('Admin', self.storeID, 0.0,
+                           [webnav.Tab('Local Users', self.storeID, 0.1)],
+                           authoritative=False)]
+
+
+
+class LocalUserBrowserFragment(tdbview.TabularDataView):
+    def __init__(self, userBrowser):
+        tdm = tdb.TabularDataModel(
+            userBrowser.store.parent,
+            userbase.LoginMethod,
+            [userbase.LoginMethod.localpart,
+             userbase.LoginMethod.domain,
+             userbase.LoginMethod.verified],
+            baseComparison=(userbase.LoginMethod.domain != None),
+            defaultSortColumn='domain', # XXX TODO (domain, localpart) sorting
+            defaultSortAscending=True)
+        views = [
+            tdbview.ColumnViewBase('localpart', typeHint='text'),
+            tdbview.ColumnViewBase('domain', typeHint='text'),
+            tdbview.ColumnViewBase('verified', typeHint='boolean')]
+        super(LocalUserBrowserFragment, self).__init__(tdm, views)
+
+registerAdapter(LocalUserBrowserFragment, LocalUserBrowser, INavigableFragment)
+
+
 
 class AdminStatsFragment(rend.Fragment):
     implements(INavigableFragment)
@@ -319,8 +360,8 @@ class DONTUSETHISBenefactor(Item):
             X(store=avatar).installOn(avatar)
         AuthenticationApplication(store=avatar)
 
-# This is a lot like the above benefactor.  We should probably delete the above
-# benefactor now.
+# This is a lot like the above benefactor.  We should probably delete
+# the above benefactor now.
 class AdministrativeBenefactor(Item):
     typeName = 'mantissa_administrative_benefactor'
     schemaVersion = 1
@@ -329,14 +370,57 @@ class AdministrativeBenefactor(Item):
 
     def endow(self, ticket, avatar):
         self.endowed += 1
-        for powerUp in [WebSite, PrivateApplication,
-                        AdminStatsApplication, DeveloperApplication,
-                        TracebackViewer]:
+        for powerUp in [
+
+            # Install a web site for the individual user as well.
+            # This is necessary because although we have a top-level
+            # website for everybody, not all users should be allowed
+            # to log in through the web (like UNIX's "system users",
+            # "nobody", "database", etc.)  Note, however, that there
+            # is no port number, because the WebSite's job in this
+            # case is to be a web *resource*, not a web *server*.
+            WebSite,
+
+            # Now we install the 'private application' plugin for
+            # 'admin', on admin's private store, This provides the URL
+            # "/private", but only when 'admin' is logged in.  It is a
+            # hook to hang other applications on.  (XXX Rename:
+            # PrivateApplication should probably be called
+            # PrivateAppShell)
+            PrivateApplication,
+
+            # These are plugins *for* the PrivateApplication; they
+            # publish objects via the tab-based navigation: a
+            # statistics page and a Python interactive interpreter,
+            # respectively.
+            AdminStatsApplication,
+            DeveloperApplication,
+
+            # This is another PrivateApplication plugin.  It allows
+            # the administrator to configure the services offered
+            # here.
+            offering.OfferingConfiguration,
+
+            # And another one: SignupConfiguration allows the
+            # administrator to add signup forms which grant various
+            # kinds of account.
+            signup.SignupConfiguration,
+
+            # This one lets the administrator view unhandled
+            # exceptions which occur in the server.
+            TracebackViewer,
+
+            # And this one gives the administrator a page listing all
+            # users which exist in this site's credentials database.
+            LocalUserBrowser]:
+
+
             avatar.findOrCreate(powerUp).installOn(avatar)
         AuthenticationApplication(store=avatar)
 
     def deprive(self, ticket, avatar):
         # Only delete the really administratory things.
-        avatar.findUnique(AdminStatsApplication).deleteFromStore()
-        avatar.findUnique(DeveloperApplication).deleteFromStore()
-        avatar.findUnique(TracebackViewer).deleteFromStore()
+        for powerUp in [
+            AdminStatsApplication, DeveloperApplication,
+            TracebackViewer, LocalUserBrowser]:
+            avatar.findUnique(powerUp).deleteFromStore()
