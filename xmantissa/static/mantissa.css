@@ -242,6 +242,9 @@ input[type=password], input[type=text] {
 
 .mantissa-tab {
     background-image: url(/static/mantissa/images/header_bg.png);
+    background-position: bottom left;
+    background-repeat: repeat-x;
+    white-space: nowrap;
     margin: 6px;
     padding: 4px;
     margin-top: 0px;
