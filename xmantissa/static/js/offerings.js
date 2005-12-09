@@ -59,8 +59,14 @@ function installSignup(form) {
     if (!provisionableFactoryNames.length) {
         offeringFeedback("You didn't select any provisionable factories.");
     } else {
+        var kind = null;
+        for(var i = 0; i < form.kind.length; i++) {
+            if(form.kind[i].checked) {
+                kind = form.kind[i].value;
+            }
+        }
         var d = server.callRemote('createSignup',
-                                  form.kind.value,
+                                  kind,
                                   form.url.value,
                                   provisionableFactoryNames);
         d.addBoth(function (result) {

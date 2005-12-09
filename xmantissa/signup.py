@@ -16,16 +16,18 @@ from epsilon import extime
 from axiom.item import Item, InstallableMixin, transacted
 from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
+from axiom import userbase
 
 from nevow.rend import Page, Fragment
 from nevow.url import URL
 from nevow.inevow import IResource, ISession
-from nevow import tags
+from nevow import tags, inevow
 
 from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, INavigableElement, INavigableFragment, IOffering
-from xmantissa.website import PrefixURLMixin
-from xmantissa.publicresource import PublicAthenaLivePage, getLoader
+from xmantissa.website import PrefixURLMixin, WebSite
+from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
 from xmantissa.webnav import Tab
+from xmantissa.webapp import PrivateApplication
 from xmantissa.offering import InstalledOffering
 from xmantissa import plugins
 
@@ -220,6 +222,93 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
             return issueDeferred
 
+class InitializerBenefactor(Item, InstallableMixin):
+    typeName = 'initializer_benefactor'
+    schemaVersion = 1
+
+    realBenefactor = reference()
+
+    def endow(self, ticket, beneficiary):
+        beneficiary.findOrCreate(WebSite).installOn(beneficiary)
+        beneficiary.findOrCreate(PrivateApplication).installOn(beneficiary)
+        beneficiary.findOrCreate(Initializer).installOn(beneficiary)
+
+    def resumeSignup(self, ticket, avatar):
+        self.realBenefactor.endow(ticket, avatar)
+
+def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None, benefactor=None):
+    ibene = store.findOrCreate(InitializerBenefactor, realBenefactor=benefactor)
+    return FreeTicketSignup(store=store,
+                            benefactor=ibene,
+                            booth=booth,
+                            prefixURL=prefixURL)
+
+class Initializer(Item, InstallableMixin):
+    implements(INavigableElement)
+
+    typeName = 'password_initializer'
+    schemaVersion = 1
+
+    installedOn = reference()
+
+    def installOn(self, other):
+        super(Initializer, self).installOn(other)
+        other.powerUp(self, INavigableElement)
+
+    def getTabs(self):
+        # This won't ever actually show up
+        return [Tab('Preferences', self.storeID, 1.0)]
+
+    def setPassword(self, password):
+        substore = self.store.parent.getItemByID(self.store.idInParent)
+        for acc in self.store.parent.query(userbase.LoginAccount,
+                                           userbase.LoginAccount.avatars == substore):
+            acc.password = password
+            self._delegateToBenefactor(acc)
+            return
+
+    def _delegateToBenefactor(self, loginAccount):
+        site = self.store.parent
+        ticket = site.findUnique(Ticket, Ticket.avatar == loginAccount)
+        benefactor = ticket.benefactor
+        benefactor.resumeSignup(ticket, self.store)
+
+        self.store.powerDown(self, INavigableElement)
+        self.deleteFromStore()
+
+class InitializerPage(PublicPage):
+
+    def __init__(self, original):
+        for resource, domain in userbase.getAccountNames(original.installedOn):
+            username = '%s@%s' % (resource, domain)
+            break
+        else:
+            username = None
+        PublicPage.__init__(self, original, getLoader('initialize'),
+                            IStaticShellContent(original.installedOn, None),
+                            username)
+
+    def render_head(self, ctx, data):
+        tag = PublicPage.render_head(self, ctx, data)
+        return tag[tags.script(src='/static/mantissa/js/initialize.js')]
+
+    def renderHTTP(self, ctx):
+        req = inevow.IRequest(ctx)
+        password = req.args.get('password', [None])[0]
+
+        if password is None:
+            return Page.renderHTTP(self, ctx)
+
+        self.original.store.transact(self.original.setPassword,
+                                     unicode(password)) # XXX TODO: select
+                                                        # proper decoding
+                                                        # strategy.
+        return URL.fromString('/')
+
+registerAdapter(InitializerPage,
+                Initializer,
+                inevow.IResource)
+
 class Ticket(Item):
     schemaVersion = 1
     typeName = 'ticket'
@@ -318,7 +407,9 @@ class SignupConfiguration(Item, InstallableMixin):
                 installed[p.name] = p
         return installed
 
-    signupSystems = {"free-ticket": FreeTicketSignup}
+    signupSystems = {"free-ticket": FreeTicketSignup,
+                     "free-ticket-password": freeTicketPasswordSignup}
+
     def createSignup(self, kind, location, benefactorFactoryNames):
         siteStore = self.store.parent
 
@@ -327,6 +418,7 @@ class SignupConfiguration(Item, InstallableMixin):
         installed = self.installedOfferings()
 
         benefactor = Multifactor(store=siteStore, created=extime.Time())
+
         facs = set()
 
         for bfn in benefactorFactoryNames:
