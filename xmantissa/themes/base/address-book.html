@@ -6,7 +6,7 @@
     </li>
   </ul>
   <div>Add Name</div>
-  <form action="#" onsubmit="Nevow.Athena.refByDOM(this).callRemote('addName', this.name.value); return false;">
+  <form action="#" onsubmit="Nevow.Athena.Widget.get(this).callRemote('addName', this.name.value); return false;">
     <label>Name</label><input type="text" name="name" />
   </form>
 </div>
