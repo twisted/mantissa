@@ -1,0 +1,15 @@
+div.test-unrun {
+    background-color: lightgrey;
+}
+
+div.test-running {
+    background-color: yellow;
+}
+
+div.test-success {
+    background-color: green;
+}
+
+div.test-failure {
+    background-color: red;
+}
