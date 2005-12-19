@@ -1,4 +1,7 @@
-Divmod.load('Mantissa');
+
+// import Nevow.Athena
+// import Mantissa
+// import Mantissa.Forms
 
 if (Mantissa.Test == undefined) {
     Mantissa.Test = {};
@@ -6,6 +9,7 @@ if (Mantissa.Test == undefined) {
 
 Mantissa.Test.TestCase = Nevow.Athena.Widget.subclass();
 Mantissa.Test.TestCase.prototype._run = function(reporter) {
+
     var self = this;
 
     self.node.setAttribute('class', 'test-running');
@@ -69,4 +73,10 @@ Mantissa.Test.TestSuite.prototype.reportFailure = function(err) {
     this._failureCount += 1;
     this._failureNode.innerHTML = this._failureCount;
     Divmod.log('test-result', err.message);
+};
+
+Mantissa.Test.Forms = Mantissa.Test.TestCase.subclass();
+Mantissa.Test.Forms.prototype.run = function() {
+    var formValues = Mantissa.Forms.accumulateInputs(this.node);
+    return this.callRemoteKw('submit', formValues);
 };

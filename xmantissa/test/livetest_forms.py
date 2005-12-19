@@ -10,8 +10,10 @@ from xmantissa import webform
 DOCTYPE_XHTML = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">'
 
 class TestSuite(athena.LiveFragment):
+    jsClass = u'Mantissa.Test.TestSuite'
+
     docFactory = loaders.stan(
-        tags.div(**athena.liveFragmentID)[
+        tags.div(render=tags.directive('liveFragment'))[
             tags.form(action='#', onsubmit='Mantissa.Test.TestSuite.get(this).run(); return false;')[
                 tags.input(type='submit', value='Run Tests')],
             tags.div['Tests Passed: ', tags.span(_class='test-success-count')[0]],
@@ -37,7 +39,6 @@ class TestFramework(athena.LivePage):
         tags.xml(DOCTYPE_XHTML),
         tags.html[
             tags.head[tags.directive('liveglue'),
-                      tags.directive('classDefinitions'),
                       tags.link(rel='stylesheet', href='static/livetest.css')],
             tags.body[tags.directive('testSuite'), tags.div(id='nevow-log')]]])
 
@@ -45,14 +46,18 @@ class TestFramework(athena.LivePage):
         super(TestFramework, self).__init__(None, None)
         self.testFragments = testFragments
 
+        here = filepath.FilePath(__file__).parent()
+        m = here.parent().child('static').child('js')
+        n = filepath.FilePath(athena.__file__).parent().child('athena.js')
+        self.jsModules.mapping.update({
+            'Mantissa': m.child('mantissa.js').path,
+            'Mantissa.Forms': m.child('forms.js').path,
+            'Mantissa.Test': here.child('livetest.js').path,
+            })
+
 
     def render_testSuite(self, ctx, data):
         return TestSuite(self, self.testFragments)
-
-
-    def render_classDefinitions(self, ctx, data):
-        for n, f in enumerate(self.testFragments):
-            yield tags.script(type='text/javascript', src=n)
 
 
     def childFactory(self, ctx, name):
@@ -70,17 +75,6 @@ class TestFramework(athena.LivePage):
         return super(TestFramework, self).childFactory(ctx, name)
 
 
-    def child_jsmodule(self, ctx):
-        here = filepath.FilePath(__file__).parent()
-        m = here.parent().child('static').child('js')
-        n = filepath.FilePath(athena.__file__).parent().child('athena.js')
-        return athena.JSModules({
-            'Mantissa': m.child('mantissa.js'),
-            'Mantissa.Forms': m.child('forms.js'),
-            'Mantissa.Test': here.child('livetest.js'),
-            })
-
-
     def child_static(self, ctx):
         return static.File(filepath.FilePath(__file__).parent().child('livetest-static').path)
 
@@ -94,23 +88,12 @@ class TestFrameworkRoot(rend.Page):
 
 
 class Forms(athena.LiveFragment, unittest.TestCase):
-    script = """
-    Divmod.load('Mantissa.Forms');
-    Divmod.load('Mantissa.Test');
-
-    Mantissa.Test.Forms = Mantissa.Test.TestCase.subclass();
-    Mantissa.Test.Forms.prototype.run = function() {
-        var formValues = Mantissa.Forms.accumulateInputs(this.node);
-        return this.callRemoteKw('submit', formValues);
-    };
-    """
+    jsClass = u'Mantissa.Test.Forms'
 
     docFactory = loaders.stan(
-        tags.div(_class='test-unrun',
-                 **athena.liveFragmentID)[
+        tags.div(_class='test-unrun', render=tags.directive('liveFragment'))[
             tags.form(action='#',
-                      onsubmit='Mantissa.Test.Forms.get(this).run(); return false;',
-                      **{'athena:class': 'Mantissa.Test.Forms'})[
+                      onsubmit='Mantissa.Test.Forms.get(this).run(); return false;')[
                 webform.Form([
                     ('argument',
                      webform.TEXT_INPUT,

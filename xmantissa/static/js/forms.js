@@ -1,5 +1,5 @@
 
-Divmod.load('Mantissa');
+// import Mantissa
 
 if (Mantissa.Forms == undefined) {
     Mantissa.Forms = {};
@@ -23,4 +23,3 @@ Mantissa.Forms.accumulateInputs = function(rootNode, /* optional */ inputPredica
     }
     return inputs;
 };
-

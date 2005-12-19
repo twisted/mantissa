@@ -100,6 +100,8 @@ class Action:
 class TabularDataView(athena.LiveFragment):
     implements(ixmantissa.INavigableFragment)
 
+    jsClass = u'Mantissa.TDB.Controller'
+
     fragmentName = 'tdb'
     live = 'athena'
     title = ''
@@ -236,7 +238,5 @@ class TabularDataView(athena.LiveFragment):
         return self.replaceTable()
 
     def head(self):
-        yield tags.script(type='text/javascript',
-                          src='/static/mantissa/js/tdb.js')
         yield tags.script(type='text/javascript',
                           src='/static/mantissa/js/fadomatic.js')
