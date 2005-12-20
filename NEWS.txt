@@ -1,5 +1,20 @@
 x.x.x (yyyy-mm-dd):
   - Added --http-log parameter to Axiomatic "web" subcommand
+  - Added InstallableMixin which implements necessary logic to simplify
+    making installOn idempotent.
+  - Various uses of deprecated APIs fixed, along with other code-cleanliness
+    fixes.
+  - Invalid public URLs now 404 instead of 500.
+  - Added a generalized "Tabular Data Browser" (TDB) Fragment which can be
+    used to display any Axiom query on a web page.
+  - Added a very simple, extensible abstraction for tracking various data
+    that is person-oriented.
+  - An "Offering" system has been added, greatly simplifying the process of
+    writing a new application which plugs into a Mantissa server.
+  - A new axiomatic plugin has been added, "project", which emits a skeleton
+    Offering plugin, suitable for use as a starting point for developing a
+    Mantissa application.
+  - The administrative account can now browse user accounts.
 
 0.3.1 (2005-11-05):
   - Fix packaging bug - include axiom plugins
