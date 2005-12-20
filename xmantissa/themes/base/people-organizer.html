@@ -27,7 +27,7 @@
   Create a person
   </h3>
   <form onsubmit="getPerson(this, this.name.value); this.name.value = ''; return false;">
-    <nevow:attr name="nevow:athena_id"><nevow:slot name="nevow:athena_id" /></nevow:attr>
+    <nevow:attr name="athena:id"><nevow:slot name="athena:id" /></nevow:attr>
     <label>Name:</label><input type="text" name="name" />
   </form>
   <span id="person-display-element" />
