@@ -1,3 +1,5 @@
+x.x.x (YYYY-MM-DD):
+
 0.4.1 (2005-12-20):
   - Include accidentally omitted nevow plugins in release tarball.
 
