@@ -44,14 +44,13 @@ class PublicPageMixin(object):
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-    def render_head(self, ctx, data):
-        content = []
-        for theme in getAllThemes():
-            extra = theme.head()
-            if extra is not None:
-                content.append(extra)
+    def head(self):
+        return None
 
-        return ctx.tag[content]
+    def render_head(self, ctx, data):
+        content = list(t.head() for t in getAllThemes())
+        content.append(self.head())
+        return ctx.tag[filter(None, content)]
 
 class PublicPage(PublicPageMixin, rend.Page):
     def __init__(self, original, fragment, staticContent, forUser):
