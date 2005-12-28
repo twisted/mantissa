@@ -1,8 +1,6 @@
 
 // import Nevow.Athena
 
-tdbError = alert;
-
 if (typeof(Mantissa) == 'undefined') {
     Mantissa = {};
 }
@@ -35,9 +33,6 @@ Mantissa.TDB.Controller.prototype._differentPage = function(/*...*/) {
                       outThis._setTableContent(tdbTable);
                       outThis._setPageState.apply(outThis, tdbState);
                   });
-    d.addErrback(function(err) {
-                     tdbError(err);
-                 });
     return false;
 };
 
