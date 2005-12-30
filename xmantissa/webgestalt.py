@@ -124,7 +124,7 @@ class AuthenticationFragment(website.AxiomFragment):
 
     def handle_changePassword(self, ctx, currentPassword, newPassword):
         try:
-            self.original.changePassword(currentPassword, newPassword)
+            self.original.changePassword(unicode(currentPassword), unicode(newPassword))
         except NonExistentAccount:
             return livepage.alert('You do not seem to exist.  Password unchanged.')
         except InvalidPassword:
