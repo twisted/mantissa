@@ -61,11 +61,13 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             self['admin-password'] = gtpswd((u'Enter ' + pws).encode(sys.stdout.encoding, 'ignore'),
                                             (u'Confirm ' + pws).encode(sys.stdout.encoding, 'ignore'))
 
-        self.installSite(s, self.decodeCommandLine(self['public-url']))
-        self.installAdmin(
-            s,
-            self.decodeCommandLine(self['admin-user']),
-            self['admin-password'])
+
+        publicURL = self.decodeCommandLine(self['public-url'])
+        adminUser = self.decodeCommandLine(self['admin-user'])
+        adminPassword = self['admin-password']
+
+        s.transact(self.installSite, s, publicURL)
+        s.transact(self.installAdmin, s, adminUser, adminPassword)
 
     def installSite(self, s, publicURL):
         # Install a user database so that people can log in.
