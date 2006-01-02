@@ -112,7 +112,16 @@ Mantissa.TDB.Controller.prototype.lastPage = function() {
 };
 
 Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
-    return this._differentPage('performAction', actionID, targetID);
+    var outThis = this;
+    var d = this.callRemote('performAction', actionID, targetID);
+    d.addCallback(function(result) {
+                      var tdbTable = result[1][0];
+                      var tdbState = result[1][1];
+                      outThis._setTableContent(tdbTable);
+                      outThis._setPageState.apply(outThis, tdbState);
+                      outThis._actionResult(result[0]);
+                  });
+    return false;
 };
 
 Mantissa.TDB.Controller.prototype.clickSort = function(attributeID) {
@@ -133,7 +142,7 @@ Mantissa.TDB.Controller.prototype.alternateBgColors = function() {
         }
 }
 
-function actionResult(message) {
+Mantissa.TDB.Controller.prototype._actionResult = function(message) {
     var resultContainer = this._getHandyNode('tdb-action-result');
 
     if(resultContainer.childNodes.length)

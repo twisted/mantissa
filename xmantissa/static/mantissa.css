@@ -103,6 +103,12 @@ table.mantissa-tdb > tbody > tr > td {
     background-color: #F1F1F1;
 }
 
+.tdb-action-result {
+    color: #04a700;
+    font-weight: bold;
+    text-align: center;
+}
+
 .tdb-sort-arrow {
     color: #000000;
     font-weight: bold;
