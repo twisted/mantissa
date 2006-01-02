@@ -15,6 +15,11 @@ class PatternDictionary(object):
             self.patterns[i] = self.docFactory.patternGenerator(i)
         return self.patterns[i]
 
+def dictFillSlots(tag, slotmap):
+    for (k, v) in slotmap.iteritems():
+        tag = tag.fillSlots(k, v)
+    return tag
+
 class FragmentCollector(rend.Fragment):
     implements(ixmantissa.INavigableFragment)
 
