@@ -198,10 +198,11 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
     def createResource(self):
         return PublicAthenaLivePage(
-            ITicketIssuer, self,
             getLoader("signup"),
             IStaticShellContent(self.store, None),
-            None)
+            None,
+            iface = ITicketIssuer,
+            rootObject = self)
 
     def issueTicket(self, url, emailAddress):
         domain, port = url.get('hostname'), int(url.get('port') or 80)
