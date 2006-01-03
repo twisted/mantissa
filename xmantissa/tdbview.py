@@ -97,6 +97,21 @@ class Action:
     def toLinkStan(self, idx, item):
         return None
 
+class ToggleAction(Action):
+
+    def actionable(self, item):
+        return True
+
+    def isOn(self, idx, item):
+        raise NotImplementedError()
+
+    def toLinkStan(self, idx, item):
+        handler = 'Mantissa.TDB.Controller.get(this).performAction(%r, %r); return false'
+        handler %= (self.actionID, idx)
+        iconURL = (self.disabledIconURL, self.iconURL)[self.isOn()]
+        img = tags.img(src=iconURL, **{'class': 'tdb-action'})
+        return tags.a(href='#', onclick=handler)[img]
+
 class TabularDataView(athena.LiveFragment):
     implements(ixmantissa.INavigableFragment)
 
