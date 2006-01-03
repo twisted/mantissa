@@ -15,6 +15,16 @@ Mantissa.TDB.Controller.prototype.loaded = function () {
     return this._differentPage('replaceTable');
 };
 
+Mantissa.TDB.Controller.prototype._toggleThrobberVisibility = function() {
+    var t = this._getHandyNode('throbber');
+
+    if(t.style.visibility == 'hidden') {
+        t.style.visibility = 'visible';
+    } else {
+        t.style.visibility = 'hidden';
+    }
+}
+
 Mantissa.TDB.Controller.prototype._setTableContent = function (tableContent) {
     /* alert("STC: "+tableContent); */
     this._getHandyNode("tdb-table").innerHTML = tableContent;
@@ -25,6 +35,8 @@ Mantissa.TDB.Controller.prototype._getHandyNode = function(classValue) {
 };
 
 Mantissa.TDB.Controller.prototype._differentPage = function(/*...*/) {
+    this._toggleThrobberVisibility();
+
     var outThis = this;
     var d = this.callRemote.apply(this, arguments);
     d.addCallback(function(result) {
@@ -33,6 +45,7 @@ Mantissa.TDB.Controller.prototype._differentPage = function(/*...*/) {
                       outThis._setTableContent(tdbTable);
                       outThis._setPageState.apply(outThis, tdbState);
                   });
+    d.addBoth(function(ign) { outThis._toggleThrobberVisibility() });
     return false;
 };
 
@@ -112,6 +125,8 @@ Mantissa.TDB.Controller.prototype.lastPage = function() {
 };
 
 Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
+    this._toggleThrobberVisibility();
+
     var outThis = this;
     var d = this.callRemote('performAction', actionID, targetID);
     d.addCallback(function(result) {
@@ -121,6 +136,7 @@ Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
                       outThis._setPageState.apply(outThis, tdbState);
                       outThis._actionResult(result[0]);
                   });
+    d.addBoth(function(ign) { outThis._toggleThrobberVisibility() });
     return false;
 };
 
