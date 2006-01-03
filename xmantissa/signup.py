@@ -21,15 +21,15 @@ from axiom import userbase
 from nevow.rend import Page, Fragment
 from nevow.url import URL
 from nevow.inevow import IResource, ISession
-from nevow import tags, inevow
+from nevow import inevow, tags, athena
 
-from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, INavigableElement, INavigableFragment, IOffering
+from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, INavigableElement, INavigableFragment, IOffering, ISignupMechanism
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
 from xmantissa.webnav import Tab
 from xmantissa.webapp import PrivateApplication
-from xmantissa.offering import InstalledOffering
-from xmantissa import plugins
+from xmantissa.offering import getInstalledOfferings, InstalledOffering
+from xmantissa import plugins, liveform, webform
 
 class NoSuchFactory(Exception):
     """
@@ -184,6 +184,21 @@ class ITicketIssuer(Interface):
     def issueTicket(emailAddress):
         pass
 
+class SignupMechanism(object):
+    implements(ISignupMechanism, plugin.IPlugin)
+    def __init__(self, name, description, itemClass, configuration):
+        self.name = name
+        self.description = description
+        self.itemClass = itemClass
+        self.configuration = configuration
+
+freeTicketSignupConfiguration = [
+    liveform.Parameter('prefixURL',
+                       liveform.TEXT_INPUT,
+                       unicode,
+                       u'The web location at which users will be able to request tickets.',
+                       u'signup')]
+
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
@@ -192,7 +207,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
     sessioned = True
 
-    prefixURL = text()
+    prefixURL = text(allowNone=False)
     booth = reference()
     benefactor = reference()
 
@@ -242,6 +257,7 @@ def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None, benefactor=
                             benefactor=ibene,
                             booth=booth,
                             prefixURL=prefixURL)
+
 
 class Initializer(Item, InstallableMixin):
     implements(INavigableElement)
@@ -363,7 +379,6 @@ class Multifactor(Item):
     typeName = 'mantissa_multi_benefactor'
     schemaVersion = 1
 
-    created = timestamp()
     order = integer(default=0)
 
     def benefactors(self):
@@ -379,6 +394,16 @@ class Multifactor(Item):
     def endow(self, ticket, beneficiary):
         for benefactor in self.benefactors():
             benefactor.endow(ticket, beneficiary)
+
+class _SignupTracker(Item):
+    """
+    Signup-system private Item used to track which signup mechanisms
+    have been created.
+    """
+    signupItem = reference()
+    createdOn = timestamp()
+    createdBy = text()
+
 
 class SignupConfiguration(Item, InstallableMixin):
     """
@@ -399,29 +424,22 @@ class SignupConfiguration(Item, InstallableMixin):
                     [Tab('Signup', self.storeID, 0.7)],
                     authoritative=False)]
 
-    def installedOfferings(self):
-        installed = {}
-        names = dict.fromkeys(self.store.parent.query(InstalledOffering).getColumn("offeringName"))
-        for p in plugin.getPlugins(IOffering, plugins):
-            if p.name in names:
-                installed[p.name] = p
-        return installed
+    def getSignupSystems(self):
+        return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
 
-    signupSystems = {"free-ticket": FreeTicketSignup,
-                     "free-ticket-password": freeTicketPasswordSignup}
-
-    def createSignup(self, kind, location, benefactorFactoryNames):
+    def createSignup(self, creator, signupKind, signupConf, benefactorFactoryNamesAndConf):
         siteStore = self.store.parent
 
-        signupClass = self.signupSystems[kind]
+        signupPlugin = self.getSignupSystems()[signupKind]
+        signupClass = signupPlugin.itemClass
+        signupConfiguration = signupPlugin.configuration
 
-        installed = self.installedOfferings()
+        installed = getInstalledOfferings(siteStore)
 
-        benefactor = Multifactor(store=siteStore, created=extime.Time())
+        benefactor = Multifactor(store=siteStore)
 
-        facs = set()
-
-        for bfn in benefactorFactoryNames:
+        facs = {}
+        for bfn, bcfg in benefactorFactoryNamesAndConf:
             offeringName, benefactorName = bfn.split('.')
             try:
                 offering = installed[offeringName]
@@ -432,18 +450,25 @@ class SignupConfiguration(Item, InstallableMixin):
                     break
             else:
                 raise NoSuchFactory(bfn)
-            facs.add(factory)
+            facs[factory] = bcfg
 
         for factory in dependencyOrdered(facs):
-            benefactor.add(factory.instantiate(store=siteStore))
+            benefactor.add(factory.instantiate(store=siteStore,
+                                               **webform.coerced(factory.parameters(),
+                                                                 facs[factory])))
 
         booth = siteStore.findOrCreate(TicketBooth)
         booth.installOn(siteStore)
-        signupClass(
+        signupItem = signupClass(
             store=siteStore,
-            prefixURL=location,
             booth=booth,
-            benefactor=benefactor).installOn(siteStore)
+            benefactor=benefactor,
+            **webform.coerced(signupConfiguration, signupConf))
+        signupItem.installOn(siteStore)
+        _SignupTracker(store=siteStore,
+                       signupItem=signupItem,
+                       createdOn=extime.Time(),
+                       createdBy=creator)
 
 
 def _insertDep(dependent, ordered):
@@ -458,30 +483,49 @@ def dependencyOrdered(coll):
         _insertDep(dependent, ordered)
     return ordered
 
-class SignupFragment(Fragment):
+class SignupFragment(athena.LiveFragment):
     fragmentName = 'signup-configuration'
     live = 'athena'
 
+    jsClass = u'Mantissa.Offering.SignupConfiguration'
+
     def head(self):
-        return tags.script(type='text/javascript', src='/static/mantissa/js/offerings.js')
+        return None
+
 
     def data_benefactorFactories(self, ctx, data):
-        for p in self.original.installedOfferings().itervalues():
+        for p in getInstalledOfferings(self.original.store.parent).itervalues():
             for provFac in p.benefactorFactories:
                 yield {
                     'offering': p.name,
                     'name': provFac.name,
                     'description': provFac.description,
+                    'configuration': webform.Form(provFac.parameters()),
                     }
 
 
-    iface = {'createSignup': True}
-    def createSignup(self, kind, location, benefactorFactoryNames):
+    def data_signupChoices(self, ctx, data):
+        for (name, plg) in self.original.getSignupSystems().iteritems():
+            yield {
+                'name': name,
+                'description': plg.description,
+                'configuration': webform.Form(plg.configuration)}
+
+
+    def data_configuredSignupMechanisms(self, ctx, data):
+        for _signupTracker in self.original.store.parent.query(_SignupTracker):
+            yield {
+                'typeName': _signupTracker.signupItem.__class__.__name__,
+                'createdBy': _signupTracker.createdBy,
+                'createdOn': _signupTracker.createdOn.asHumanly()}
+
+    allowedMethods = iface = {'createSignup': True}
+    def createSignup(self, signupKind, signupConf, benefactorFactoryNamesAndConf):
+        t = self.original.store.transact
         try:
-            self.original.createSignup(kind, location, benefactorFactoryNames)
+            t(self.original.createSignup, self.page.username, signupKind, signupConf, benefactorFactoryNamesAndConf)
         except NoSuchFactory:
-            return (u'There is no benefactor factory %r offered by %r.'
-                    % (benefactorName, offeringName))
+            return (u'One or more invalid benefactor names: %r' % (benefactorFactoryNamesAndConf,))
         else:
             return u'Great job.'
 

@@ -77,6 +77,8 @@ Mantissa.Test.TestSuite.prototype.reportFailure = function(err) {
 
 Mantissa.Test.Forms = Mantissa.Test.TestCase.subclass();
 Mantissa.Test.Forms.prototype.run = function() {
-    var formValues = Mantissa.Forms.accumulateInputs(this.node);
-    return this.callRemoteKw('submit', formValues);
+    var formNode = this.nodeByAttribute('athena:class', 'Mantissa.LiveForm.FormWidget');
+    // sigh
+    // formNode.submit();
+    return Nevow.Athena.Widget.get(formNode).submit();
 };

@@ -1,25 +1,41 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <form onsubmit="return installSignup(this);" nevow:render="sequence" nevow:data="benefactorFactories">
-    <div nevow:pattern="item" nevow:render="mapping">
-      <input type="checkbox">
-        <nevow:attr name="name"><nevow:slot name="offering" />.<nevow:slot name="name" /></nevow:attr>
-        <nevow:slot name="offering" />:<nevow:slot name="name" />
-        <nevow:slot name="description" />
-      </input>
-    </div>
-    <nevow:invisible nevow:pattern="footer">
-      <div>
-        <label>URL</label><input type="text" name="url" value="signup" />
-      </div>
-      <div>
-        <input type="radio" name="kind" value="free-ticket-password" checked="true">
-          Free Ticket (with mandatory password setting)
-        </input><br />
-        <input type="radio" name="kind" value="free-ticket">
-          Free Ticket
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+     xmlns:athena="http://divmod.org/ns/athena/0.7">
+  <form nevow:render="liveFragment"
+        onsubmit="Mantissa.Offering.SignupConfiguration.get(this).install(); return false;">
+    <!-- Nevow does not like nested data directives, so instead of
+    putting the render and data declarations on the form, put them
+    here, so we can close the tag they are on while still being inside
+    the form, so the data directive below does not end up being
+    nested. -->
+    <fieldset nevow:render="sequence" nevow:data="benefactorFactories">
+      <div nevow:pattern="item" nevow:render="mapping">
+        <input type="checkbox">
+          <nevow:attr name="name"><nevow:slot name="offering" />.<nevow:slot name="name" /></nevow:attr>
+          <nevow:slot name="offering" />:<nevow:slot name="name" />
+          <nevow:slot name="description" />
         </input>
+        <nevow:slot name="configuration" />
       </div>
-      <input type="submit" value="Create New Signup Page" />
-    </nevow:invisible>
+      <span nevow:pattern="empty">There are no benefactor factories!</span>
+    </fieldset>
+    <fieldset nevow:render="sequence" nevow:data="signupChoices">
+      <div nevow:pattern="item" nevow:render="mapping">
+        <input type="radio" name="kind">
+          <nevow:attr name="value"><nevow:slot name="name" /></nevow:attr>
+        </input>
+        <nevow:slot name="name" />: <nevow:slot name="description" />
+        <nevow:slot name="configuration" />
+      </div>
+      <span nevow:pattern="empty">There are no signup mechanisms!</span>
+    </fieldset>
+    <input type="submit" value="Create New Signup Page" />
+    <input type="reset" value="Clear Signup Options" />
   </form>
+  <div nevow:render="sequence" nevow:data="configuredSignupMechanisms">
+    <div nevow:pattern="item" nevow:render="mapping">
+      <span><nevow:slot name="typeName" /></span>
+      <span><nevow:slot name="createdBy" /></span>
+      <span><nevow:slot name="createdOn" /></span>
+    </div>
+  </div>
 </div>
