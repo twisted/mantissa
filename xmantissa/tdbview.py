@@ -1,3 +1,4 @@
+from itertools import cycle
 from zope.interface import implements
 
 from nevow import tags, athena, flat
@@ -5,7 +6,7 @@ from nevow import tags, athena, flat
 from formless.annotate import nameToLabel
 
 from xmantissa.publicresource import getLoader
-from xmantissa.fragmentutils import PatternDictionary
+from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 from xmantissa import ixmantissa
 
 # review the need to pass around instances of columns,
@@ -172,21 +173,23 @@ class TabularDataView(athena.LiveFragment):
         tablePattern = tablePattern.fillSlots('column-headers', headers)
 
         rows = []
+        rowClasses = cycle(('tdb-row', 'tdb-row-alt'))
         for idx, row in enumerate(modelData):
             cells = []
             for cview in self.columnViews:
                 value = row.get(cview.attributeID)
                 cellContents = cview.stanFromValue(
                         idx, row['__item__'], value)
-                cellStan = cellPattern.fillSlots(
-                                'value', cellContents) .fillSlots(
-                                        'typeHint', cview.typeHint)
+                cellStan = dictFillSlots(cellPattern,
+                                         {'value': cellContents,
+                                          'typeHint': cview.typeHint})
+
                 cells.append(cellStan)
             # FIXME mix something else into the row id's when there
             # is support for having multiple tdbs on a page.
-            rows.append(rowPattern.fillSlots(
-                        'cells', cells
-                            ).fillSlots('id', 'tdb-item-%d' % (idx,)))
+            rows.append(dictFillSlots(rowPattern,
+                                      {'cells': cells,
+                                       'class': rowClasses.next()}))
 
         return tablePattern.fillSlots('rows', rows)
 

@@ -111,7 +111,6 @@ Mantissa.TDB.Controller.prototype._setPageState = function (hasPrevPage, hasNext
         disable(nexts);
     }
 
-    this.alternateBgColors();
 };
 
 Mantissa.TDB.Controller.prototype.prevPage = function() {
@@ -148,20 +147,6 @@ Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
 
 Mantissa.TDB.Controller.prototype.clickSort = function(attributeID) {
     return this._differentPage('clickSort', attributeID);
-}
-
-Mantissa.TDB.Controller.prototype.alternateBgColors = function() {
-    const ELEMENT_NODE = 1;
-    var elementNodes = 0;
-    var elements = this._getHandyNode('tdbtbody').childNodes;
-    var classes = ["tdb-row", "tdb-row-alt"];
-
-    for(var i = 0; i < elements.length; i++)
-        /* we want to ignore whitespace */
-        if(elements[i].nodeType == ELEMENT_NODE) {
-            elements[i].className = classes[elementNodes % classes.length];
-            elementNodes += 1;
-        }
 }
 
 Mantissa.TDB.Controller.prototype._actionResult = function(message) {
