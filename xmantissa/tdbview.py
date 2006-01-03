@@ -108,7 +108,7 @@ class ToggleAction(Action):
     def toLinkStan(self, idx, item):
         handler = 'Mantissa.TDB.Controller.get(this).performAction(%r, %r); return false'
         handler %= (self.actionID, idx)
-        iconURL = (self.disabledIconURL, self.iconURL)[self.isOn()]
+        iconURL = (self.disabledIconURL, self.iconURL)[self.isOn(idx, item)]
         img = tags.img(src=iconURL, **{'class': 'tdb-action'})
         return tags.a(href='#', onclick=handler)[img]
 
