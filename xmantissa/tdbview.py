@@ -68,7 +68,7 @@ class ActionsColumnView(ColumnViewBase):
                     handler %= (action.actionID, idx)
                     stan = tags.a(href='#', onclick=handler)[stan]
                 else:
-                    stan = linkstan[stan]
+                    stan = linkstan
 
             tag[stan]
 
