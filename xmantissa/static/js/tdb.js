@@ -16,6 +16,12 @@ Mantissa.TDB.Controller.prototype.loaded = function () {
 };
 
 Mantissa.TDB.Controller.prototype._toggleThrobberVisibility = function() {
+    if(!this.node.style.opacity || this.node.style.opacity == '1') {
+        this.node.style.opacity = '.3';
+    } else {
+        this.node.style.opacity = '1';
+    }
+
     var t = this._getHandyNode('throbber');
 
     if(t.style.visibility == 'hidden') {
