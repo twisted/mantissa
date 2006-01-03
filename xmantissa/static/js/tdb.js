@@ -12,6 +12,7 @@ if (typeof(Mantissa.TDB) == 'undefined') {
 Mantissa.TDB.Controller = Nevow.Athena.Widget.subclass();
 
 Mantissa.TDB.Controller.prototype.loaded = function () {
+    this.tdbElements = {};
     return this._differentPage('replaceTable');
 };
 
@@ -37,7 +38,10 @@ Mantissa.TDB.Controller.prototype._setTableContent = function (tableContent) {
 };
 
 Mantissa.TDB.Controller.prototype._getHandyNode = function(classValue) {
-    return Nevow.Athena.NodeByAttribute(this.node, 'class', classValue);
+    if(!(classValue in this.tdbElements)) {
+        this.tdbElements[classValue] = this.nodeByAttribute('class', classValue);
+    }
+    return this.tdbElements[classValue];
 };
 
 Mantissa.TDB.Controller.prototype._differentPage = function(/*...*/) {
