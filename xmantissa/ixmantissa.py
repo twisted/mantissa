@@ -360,14 +360,7 @@ class IBenefactorFactory(Interface):
     def parameters():
         """
         Return a description of keyword parameters to be passed to instantiate.
-
-        @rtype: A list of 4-tuples.  The first element of each tuple
-        is a keyword argument to L{instantiate}.  The second describes
-        the type of prompt to present for this field.  The third is a
-        one-argument callable will should be invoked with a string the
-        user supplies and should return the value for this keyword
-        argument.  The fourth is a description of the purpose of this
-        keyword argument.
+        (XXX TODO: this method currently unused)
         """
 
     def instantiate(**kw):
@@ -472,19 +465,18 @@ class IPersonFragment(Interface):
     """)
 
 
-
 class IOffering(Interface):
     """
     Describes a product, service, application, or other unit of functionality
     which can be added to a Mantissa server.
     """
 
-    name = Attribute("""
-    What it is called.
-    """)
-
     description = Attribute("""
     What it is.
+    """)
+
+    name = Attribute("""
+    What it is called.
     """)
 
     siteRequirements = Attribute("""
@@ -500,34 +492,7 @@ class IOffering(Interface):
     """)
 
     benefactorFactories = Attribute("""
+
     A list of IBenefactorFactory providers
-    """)
 
-
-
-
-class ISignupMechanism(Interface):
-    """
-    Describe an Item which can be instantiated to add a means of
-    signing up to a Mantissa server.
-    """
-
-    name = Attribute("""
-    What it is called.
-    """)
-
-    description = Attribute("""
-    What it does.
-    """)
-
-    itemClass = Attribute("""
-    An Axiom Item subclass which will be instantiated and added to the
-    site store when this signup mechanism is selected.  The class
-    should implement L{ISessionlessSiteRootPlugin} or
-    L{ISiteRootPlugin}.
-    """)
-
-    configuration = Attribute("""
-    A Fragment suitable for presentation to the administrator in order
-    to supply the initial configuration for C{itemClass}.
     """)

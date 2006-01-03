@@ -22,7 +22,7 @@ from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 
-from nevow import rend, athena, flat, json, livepage, static, tags as T
+from nevow import rend, flat, json, livepage, static, tags as T
 
 
 class DeveloperSite(Item, PrefixURLMixin):
@@ -92,6 +92,7 @@ class AdminStatsApplication(Item, ParentCounterMixin):
         return [webnav.Tab('Admin', self.storeID, 0.0,
                            [webnav.Tab('Stats', self.storeID, 0.1)],
                            authoritative=False)]
+
 
 
 class LocalUserBrowser(Item):
@@ -399,10 +400,6 @@ class AdministrativeBenefactor(Item):
             # the administrator to configure the services offered
             # here.
             offering.OfferingConfiguration,
-
-            # This lets the administrator install particular services
-            # on already existing users.
-            offering.EndowmentApplication,
 
             # And another one: SignupConfiguration allows the
             # administrator to add signup forms which grant various
