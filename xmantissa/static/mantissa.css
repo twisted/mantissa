@@ -44,21 +44,8 @@ input.change-password {
     text-align: right;
 }
 
-#tdb-action-result {
-    white-space: nowrap;
-    color: #04a700;
-    font-weight: bold;
-}
-
 .tdb-clickable-header {
     cursor: pointer;
-}
-
-#tdb-no-rows-dialog {
-    margin-left: 1%;
-    font-size: 2.2em;
-    color: #CCCCCC;
-    font-style: italic;
 }
 
 th.tdb-clickable-header:hover {
@@ -72,6 +59,8 @@ th.tdb-clickable-header:hover {
 
 table.mantissa-tdb {
     margin-left: 1%;
+    table-layout: fixed;
+    overflow: hidden;
     width: 100%;
     padding: 0;
     border-spacing: 0;
