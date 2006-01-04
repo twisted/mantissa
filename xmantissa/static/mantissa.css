@@ -59,8 +59,6 @@ th.tdb-clickable-header:hover {
 
 table.mantissa-tdb {
     margin-left: 1%;
-    table-layout: fixed;
-    overflow: hidden;
     width: 100%;
     padding: 0;
     border-spacing: 0;
