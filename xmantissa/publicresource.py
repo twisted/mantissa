@@ -84,6 +84,5 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
         self.username = forUser
 
     def render_head(self, ctx, data):
-        tag = PublicPageMixin.render_head(self, ctx, data)
-        tag.children.insert(0, tags.directive('liveglue'))
-        return tag
+        ctx.tag[tags.invisible(render=tags.directive('liveglue'))]
+        return PublicPageMixin.render_head(self, ctx, data)

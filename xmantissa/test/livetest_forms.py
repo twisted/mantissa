@@ -38,9 +38,10 @@ class TestFramework(athena.LivePage):
     docFactory = loaders.stan([
         tags.xml(DOCTYPE_XHTML),
         tags.html[
-            tags.head[tags.directive('liveglue'),
-                      tags.link(rel='stylesheet', href='static/livetest.css')],
-            tags.body[tags.directive('testSuite'), tags.div(id='nevow-log')]]])
+            tags.head(render=tags.directive('liveglue'))[
+                tags.link(rel='stylesheet', href='static/livetest.css')],
+            tags.body(render=tags.directive('testSuite'))[
+                tags.div(id='nevow-log')]]])
 
     def __init__(self, testFragments):
         super(TestFramework, self).__init__(None, None)
