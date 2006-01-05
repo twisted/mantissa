@@ -204,7 +204,7 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
         FragmentWrapperMixin.__init__(self, fragment)
 
     def render_head(self, ctx, data):
-        ctx.tag[t.directive("liveglue")]
+        ctx.tag[t.invisible(render=t.directive("liveglue"))]
         return FragmentWrapperMixin.render_head(self, ctx, data)
 
 class PrivateRootPage(Page, NavMixin):
