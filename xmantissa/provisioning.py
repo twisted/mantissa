@@ -8,17 +8,20 @@ from xmantissa import ixmantissa
 class BenefactorFactory(object):
     implements(plugin.IPlugin, ixmantissa.IBenefactorFactory)
 
-    def __init__(self, name, description, benefactorClass, dependencies=()):
+    def __init__(self, name, description, benefactorClass, dependencies=(), parameters=None):
+        if parameters is None:
+            parameters = []
         self.name = name
         self.description = description
         self.benefactorClass = benefactorClass
         self.deps = dependencies
+        self.params = parameters
 
     def dependencies(self):
         return iter(self.deps)
 
     def parameters(self):
-        return self.benefactorClass.getSchema()
+        return self.params
 
     def instantiate(self, **kw):
         return self.benefactorClass(**kw)

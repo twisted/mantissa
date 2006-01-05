@@ -18,18 +18,18 @@ from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase
 
-from nevow.rend import Page, Fragment
+from nevow.rend import Page
 from nevow.url import URL
 from nevow.inevow import IResource, ISession
-from nevow import tags, inevow
+from nevow import inevow, tags, athena
 
-from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, INavigableElement, INavigableFragment, IOffering
+from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, INavigableElement, INavigableFragment, ISignupMechanism
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
 from xmantissa.webnav import Tab
 from xmantissa.webapp import PrivateApplication
-from xmantissa.offering import InstalledOffering
-from xmantissa import plugins
+from xmantissa.offering import getInstalledOfferings
+from xmantissa import plugins, liveform
 
 class NoSuchFactory(Exception):
     """
@@ -184,6 +184,21 @@ class ITicketIssuer(Interface):
     def issueTicket(emailAddress):
         pass
 
+class SignupMechanism(object):
+    implements(ISignupMechanism, plugin.IPlugin)
+    def __init__(self, name, description, itemClass, configuration):
+        self.name = name
+        self.description = description
+        self.itemClass = itemClass
+        self.configuration = configuration
+
+freeTicketSignupConfiguration = [
+    liveform.Parameter('prefixURL',
+                       liveform.TEXT_INPUT,
+                       unicode,
+                       u'The web location at which users will be able to request tickets.',
+                       u'signup')]
+
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
@@ -192,7 +207,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
     sessioned = True
 
-    prefixURL = text()
+    prefixURL = text(allowNone=False)
     booth = reference()
     benefactor = reference()
 
@@ -242,6 +257,7 @@ def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None, benefactor=
                             benefactor=ibene,
                             booth=booth,
                             prefixURL=prefixURL)
+
 
 class Initializer(Item, InstallableMixin):
     implements(INavigableElement)
@@ -363,7 +379,6 @@ class Multifactor(Item):
     typeName = 'mantissa_multi_benefactor'
     schemaVersion = 1
 
-    created = timestamp()
     order = integer(default=0)
 
     def benefactors(self):
@@ -380,6 +395,16 @@ class Multifactor(Item):
         for benefactor in self.benefactors():
             benefactor.endow(ticket, beneficiary)
 
+class _SignupTracker(Item):
+    """
+    Signup-system private Item used to track which signup mechanisms
+    have been created.
+    """
+    signupItem = reference()
+    createdOn = timestamp()
+    createdBy = text()
+
+
 class SignupConfiguration(Item, InstallableMixin):
     """
     Provide administrative configuration tools for the signup options
@@ -394,56 +419,39 @@ class SignupConfiguration(Item, InstallableMixin):
         super(SignupConfiguration, self).installOn(other)
         other.powerUp(self, INavigableElement)
 
+
     def getTabs(self):
         return [Tab('Admin', self.storeID, 0.5,
                     [Tab('Signup', self.storeID, 0.7)],
                     authoritative=False)]
 
-    def installedOfferings(self):
-        installed = {}
-        names = dict.fromkeys(self.store.parent.query(InstalledOffering).getColumn("offeringName"))
-        for p in plugin.getPlugins(IOffering, plugins):
-            if p.name in names:
-                installed[p.name] = p
-        return installed
 
-    signupSystems = {"free-ticket": FreeTicketSignup,
-                     "free-ticket-password": freeTicketPasswordSignup}
+    def getSignupSystems(self):
+        return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
 
-    def createSignup(self, kind, location, benefactorFactoryNames):
+
+    def createSignup(self, creator, signupClass, signupConf, benefactorFactoryConfigurations):
         siteStore = self.store.parent
 
-        signupClass = self.signupSystems[kind]
+        multifactor = Multifactor(store=siteStore)
 
-        installed = self.installedOfferings()
-
-        benefactor = Multifactor(store=siteStore, created=extime.Time())
-
-        facs = set()
-
-        for bfn in benefactorFactoryNames:
-            offeringName, benefactorName = bfn.split('.')
-            try:
-                offering = installed[offeringName]
-            except KeyError:
-                raise NoSuchFactory(bfn)
-            for factory in offering.benefactorFactories:
-                if factory.name == benefactorName:
-                    break
-            else:
-                raise NoSuchFactory(bfn)
-            facs.add(factory)
-
-        for factory in dependencyOrdered(facs):
-            benefactor.add(factory.instantiate(store=siteStore))
+        for factory in dependencyOrdered(benefactorFactoryConfigurations):
+            benefactor = factory.instantiate(store=siteStore,
+                                             **benefactorFactoryConfigurations[factory])
+            multifactor.add(benefactor)
 
         booth = siteStore.findOrCreate(TicketBooth)
         booth.installOn(siteStore)
-        signupClass(
+        signupItem = signupClass(
             store=siteStore,
-            prefixURL=location,
             booth=booth,
-            benefactor=benefactor).installOn(siteStore)
+            benefactor=multifactor,
+            **signupConf)
+        signupItem.installOn(siteStore)
+        _SignupTracker(store=siteStore,
+                       signupItem=signupItem,
+                       createdOn=extime.Time(),
+                       createdBy=creator)
 
 
 def _insertDep(dependent, ordered):
@@ -458,31 +466,129 @@ def dependencyOrdered(coll):
         _insertDep(dependent, ordered)
     return ordered
 
-class SignupFragment(Fragment):
+
+
+class SignupFragment(athena.LiveFragment):
     fragmentName = 'signup-configuration'
     live = 'athena'
 
     def head(self):
-        return tags.script(type='text/javascript', src='/static/mantissa/js/offerings.js')
-
-    def data_benefactorFactories(self, ctx, data):
-        for p in self.original.installedOfferings().itervalues():
-            for provFac in p.benefactorFactories:
-                yield {
-                    'offering': p.name,
-                    'name': provFac.name,
-                    'description': provFac.description,
-                    }
+        return None
 
 
-    iface = {'createSignup': True}
-    def createSignup(self, kind, location, benefactorFactoryNames):
-        try:
-            self.original.createSignup(kind, location, benefactorFactoryNames)
-        except NoSuchFactory:
-            return (u'There is no benefactor factory %r offered by %r.'
-                    % (benefactorName, offeringName))
-        else:
-            return u'Great job.'
+    def render_signupConfigurationForm(self, ctx, data):
+        def makeBenefactorCoercer(benefactorFactory):
+            """
+            Return a function that converts a selected flag and a set of
+            keyword arguments into either None (if not selected) or a 2-tuple
+            of (IBenefactorFactory provider, kwargs)
+            """
+            def benefactorCoercer(selectedBenefactor, **benefactorFactoryConfiguration):
+                """
+                Receive coerced values from the form post, massage them as
+                described above.
+                """
+                if selectedBenefactor:
+                    return benefactorFactory, benefactorFactoryConfiguration
+                return None
+            return benefactorCoercer
+
+        def makeBenefactorSelector(description):
+            return liveform.Parameter('selectedBenefactor',
+                                      liveform.CHECKBOX_INPUT,
+                                      bool,
+                                      description)
+
+        def coerceBenefactor(**kw):
+            return dict(filter(None, kw.values()))
+
+        benefactorFactoryConfigurations = liveform.LiveForm(
+            coerceBenefactor,
+            [liveform.Parameter(provFac.name,
+                                liveform.FORM_INPUT,
+                                liveform.LiveForm(makeBenefactorCoercer(provFac),
+                                                  [makeBenefactorSelector(provFac.description)
+                                                   ] + provFac.parameters(),
+                                                  provFac.name))
+             for installedOffering
+             in getInstalledOfferings(self.original.store.parent).itervalues()
+             for provFac
+             in installedOffering.benefactorFactories],
+            u"Benefactors for Signup")
+
+        def makeSignupCoercer(signupPlugin):
+            """
+            Return a function that converts a selected flag and a set of
+            keyword arguments into either None (if not selected) or a 2-tuple
+            of (signupClass, kwargs).  signupClass is a callable which takes
+            the kwargs as keyword arguments and returns an Item (a signup
+            mechanism plugin gizmo).
+            """
+            def signupCoercer(selectedSignup, **signupConf):
+                """
+                Receive coerced values from the form post, massage them as
+                described above.
+                """
+                if selectedSignup:
+                    return signupPlugin.itemClass, signupConf
+                return None
+            return signupCoercer
+
+        def coerceSignup(**kw):
+            return filter(None, kw.values())[0]
+
+        signupMechanismConfigurations = liveform.LiveForm(
+            # makeSignupCoercer sets it up, we knock it down. (Nones returned
+            # are ignored, there will be exactly one selected).
+            coerceSignup,
+            [liveform.Parameter(
+                signupMechanism.name,
+                liveform.FORM_INPUT,
+                liveform.LiveForm(
+                    makeSignupCoercer(signupMechanism),
+                    [liveform.Parameter(
+                        'selectedSignup',
+                        liveform.RADIO_INPUT,
+                        bool,
+                        signupMechanism.description)] + signupMechanism.configuration,
+                    signupMechanism.name))
+             for signupMechanism
+             in self.original.getSignupSystems().itervalues()],
+            u"Signup Type")
+
+
+        signupForm = liveform.LiveForm(
+            self.createSignup,
+            [liveform.Parameter('benefactorFactoryConfigurations',
+                                liveform.FORM_INPUT,
+                                benefactorFactoryConfigurations,
+                                u'Pick some dude'),
+             liveform.Parameter('signupTuple',
+                                liveform.FORM_INPUT,
+                                signupMechanismConfigurations,
+                                u'Pick just one dude')])
+        signupForm.setFragmentParent(self)
+        return signupForm
+
+
+    def data_configuredSignupMechanisms(self, ctx, data):
+        for _signupTracker in self.original.store.parent.query(_SignupTracker):
+            yield {
+                'typeName': _signupTracker.signupItem.__class__.__name__,
+                'createdBy': _signupTracker.createdBy,
+                'createdOn': _signupTracker.createdOn.asHumanly()}
+
+
+    allowedMethods = iface = {'createSignup': True}
+    def createSignup(self,
+                     signupTuple,
+                     benefactorFactoryConfigurations):
+        (signupMechanism, signupConfig) = signupTuple
+        t = self.original.store.transact
+        t(self.original.createSignup,
+          self.page.username,
+          signupMechanism, signupConfig,
+          benefactorFactoryConfigurations)
+        return u'Great job.'
 
 registerAdapter(SignupFragment, SignupConfiguration, INavigableFragment)

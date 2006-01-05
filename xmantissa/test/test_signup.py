@@ -6,7 +6,8 @@ from twisted.trial import unittest
 from axiom import store, userbase, item, attributes
 
 from xmantissa import signup, offering
-from xmantissa.plugins import adminoff
+from xmantissa.plugins import adminoff, free_signup
+
 
 class TestDependent(object):
     def __init__(self, name, dependencies):
@@ -81,31 +82,18 @@ class SignupCreationTestCase(unittest.TestCase):
             offeringName=u"mantissa",
             application=None)
 
-    def testInstalledOfferings(self):
-        self.assertEquals(self.sc.installedOfferings(), {})
-
-        # Now install one and make sure it is there
-        self._installTestOffering()
-
-        self.assertEquals(
-            self.sc.installedOfferings(),
-            {u'mantissa': adminoff.adminOffering})
 
     def testCreateSignup(self):
-        badNames = (u"a.b", u"mantissa.b")
-        for provFacName in badNames:
-            self.assertRaises(
-                signup.NoSuchFactory,
-                self.sc.createSignup, u"free-ticket", u"signup", [provFacName])
-
         self._installTestOffering()
 
-        for provFacName in badNames:
-            self.assertRaises(
-                signup.NoSuchFactory,
-                self.sc.createSignup, u"free-ticket", u"signup", [provFacName])
+        self.sc.createSignup(
+            u'testuser@localhost',
+            free_signup.freeTicket.itemClass,
+            {'prefixURL': u'signup'},
+            {adminoff.adminOffering.benefactorFactories[0]: {}})
 
         self.sc.createSignup(
-            u"free-ticket",
-            u"signup",
-            [u"mantissa.admin"])
+            u'testuser@localhost',
+            free_signup.freeTicketPassword.itemClass,
+            {'prefixURL': u'signup-password'},
+            {adminoff.adminOffering.benefactorFactories[0]: {}})

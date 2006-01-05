@@ -69,3 +69,13 @@ class OfferingTest(unittest.TestCase):
         # App store requirements should be on the app store
         tap = appStore.avatars.open().findUnique(TestAppPowerup)
         self.failUnless(tap.installed)
+
+
+    def testGetInstalledOfferingNames(self):
+        self.assertEquals(offering.getInstalledOfferingNames(self.store), [])
+
+        self.testInstallation()
+
+        self.assertEquals(
+            offering.getInstalledOfferingNames(self.store),
+            [u"test_offering"])

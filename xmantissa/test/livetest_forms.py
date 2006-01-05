@@ -5,7 +5,7 @@ from twisted.application import internet, service
 
 from nevow import appserver, loaders, tags, url, rend, static, athena
 
-from xmantissa import webform
+from xmantissa import liveform
 
 DOCTYPE_XHTML = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">'
 
@@ -44,15 +44,13 @@ class TestFramework(athena.LivePage):
                 tags.div(id='nevow-log')]]])
 
     def __init__(self, testFragments):
-        super(TestFramework, self).__init__(None, None)
+        super(TestFramework, self).__init__(None, None, jsModuleRoot=url.here.child('jsmodule'))
         self.testFragments = testFragments
 
         here = filepath.FilePath(__file__).parent()
         m = here.parent().child('static').child('js')
         n = filepath.FilePath(athena.__file__).parent().child('athena.js')
         self.jsModules.mapping.update({
-            'Mantissa': m.child('mantissa.js').path,
-            'Mantissa.Forms': m.child('forms.js').path,
             'Mantissa.Test': here.child('livetest.js').path,
             })
 
@@ -92,23 +90,69 @@ class Forms(athena.LiveFragment, unittest.TestCase):
     jsClass = u'Mantissa.Test.Forms'
 
     docFactory = loaders.stan(
-        tags.div(_class='test-unrun', render=tags.directive('liveFragment'))[
-            tags.form(action='#',
-                      onsubmit='Mantissa.Test.Forms.get(this).run(); return false;')[
-                webform.Form([
-                    ('argument',
-                     webform.TEXT_INPUT,
-                     unicode,
-                     'A text input field: ',
-                     u'hello world')])]])
+        tags.div(_class='test-unrun',
+                 render=tags.directive('liveFragment'))[
+            tags.invisible(render=tags.directive('hello_form'))])
 
-    allowedMethods = {'submit': True}
     def submit(self, argument):
-        self.assertEquals(argument, [u'hello world'])
+        self.assertEquals(argument, u'hello world')
+
+    def render_hello_form(self, ctx, data):
+        f = liveform.LiveForm(
+            self.submit,
+            [liveform.Parameter('argument',
+                                liveform.TEXT_INPUT,
+                                unicode,
+                                'A text input field: ',
+                                u'hello world')])
+        f.page = self.page
+        return ctx.tag[f]
+
+SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
+                   # accident.
+
+class Traverse(athena.LiveFragment, unittest.TestCase):
+    jsClass = u'Mantissa.Test.Traverse'
+
+    docFactory = loaders.stan(
+        tags.div(_class='test-unrun',
+                 render=tags.directive('liveFragment'))[
+            tags.invisible(render=tags.directive('hello_form'))])
+
+    def submit(self, argument, group):
+        self.assertEquals(argument, u'hello world')
+        self.assertEquals(group, SPECIAL)
+
+    def paramfilter(self, param1):
+        self.assertEquals(param1, u'goodbye world')
+        return SPECIAL
+
+    def render_hello_form(self, ctx, data):
+        f = liveform.LiveForm(
+            self.submit,
+            [liveform.Parameter('argument',
+                                liveform.TEXT_INPUT,
+                                unicode,
+                                'A text input field: ',
+                                u'hello world'),
+             liveform.Parameter('group',
+                                liveform.FORM_INPUT,
+                                liveform.LiveForm(self.paramfilter,
+                                                  [liveform.Parameter
+                                                   ('param1',
+                                                    liveform.TEXT_INPUT,
+                                                    unicode,
+                                                    'Another input field: ',
+                                                    u'goodbye world')]),
+                                'A form input group: ',
+                                )])
+        f.page = self.page
+        return ctx.tag[f]
 
 
 def makeService():
-    site = appserver.NevowSite(TestFrameworkRoot([Forms()]))
+    site = appserver.NevowSite(TestFrameworkRoot([Forms(),
+                                                  Traverse()]))
     return internet.TCPServer(8080, site)
 
 application = service.Application('Forms LiveTest')
