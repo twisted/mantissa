@@ -16,7 +16,7 @@ from epsilon import extime
 from axiom.item import Item, InstallableMixin, transacted
 from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
-from axiom import userbase
+from axiom import userbase, upgrade
 
 from nevow.rend import Page
 from nevow.url import URL
@@ -205,7 +205,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
     typeName = 'free_signup'
-    schemaVersion = 1
+    schemaVersion = 2
 
     sessioned = True
 
@@ -238,6 +238,15 @@ class FreeTicketSignup(Item, PrefixURLMixin):
                 lambda result: u'Please check your email for a ticket!')
 
             return issueDeferred
+
+def freeTicketSignup1To2(old):
+    return old.upgradeVersion('free_signup', 1, 2,
+                              prefixURL=old.prefixURL,
+                              booth=old.booth,
+                              benefactor=old.benefactor)
+
+upgrade.registerUpgrader(freeTicketSignup1To2, 'free_signup', 1, 2)
+
 
 class InitializerBenefactor(Item, InstallableMixin):
     typeName = 'initializer_benefactor'
