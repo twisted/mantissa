@@ -208,9 +208,16 @@ class IPublicPage(Interface):
     getResource) of a substore.
     """
 
+    index = Attribute("""
+    A boolean indicating whether a link to this page will show up on
+    the front index page.
+    """)
+
     def getResource():
-        """Retrieve an IResource provider meant to serve as the public-facing view.
-        The retrieved object will provide IResource.
+        """
+        Retrieve an IResource provider meant to serve as the
+        public-facing view.  The retrieved object will provide
+        IResource.
         """
 
 class ICustomizablePublicPage(Interface):

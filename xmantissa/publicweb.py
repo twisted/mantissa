@@ -184,16 +184,21 @@ def customizedPublicPage1To2(oldPage):
     return newPage
 upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized', 1, 2)
 
+
+
 class OfferingsFragment(rend.Fragment):
     def __init__(self, original):
         super(OfferingsFragment, self).__init__(original, docFactory=publicresource.getLoader('front-page'))
 
     def data_offerings(self, ctx, data):
         for io in self.original.store.query(offering.InstalledOffering):
-            if ixmantissa.IPublicPage(io.application, None) is not None:
+            pp = ixmantissa.IPublicPage(io.application, None)
+            if pp is not None and getattr(pp, 'index', True):
                 yield {
                     'name': io.offeringName,
                     }
+
+
 
 class PublicFrontPage(publicresource.PublicPage):
     implements(ixmantissa.ICustomizable)

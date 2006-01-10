@@ -19,6 +19,7 @@ Mantissa.LiveForm.FormWidget.method(
             }).addErrback(
                 function(err) {
                     Divmod.log('liveform', 'Error submitting form: ' + err);
+                    return err;
                 });
     });
 
@@ -98,25 +99,38 @@ Mantissa.LiveForm.FormWidget.method(
                     // not look at any of its nodes.
                     return Mantissa.LiveForm.FormWidget.DOM_CONTINUE;
                 } else {
-                    if ((aNode.tagName // It's an element
-                          // It's an input
-                         && (aNode.tagName.toLowerCase() == 'input')))
-                    {
-                        // If it's a checkbox or radio, we care about its
-                        // checked-ness.
-                        var aValue = null;
-                        if (aNode.type.toLowerCase() == 'checkbox') {
-                            aValue = aNode.checked;
-                        } else if (aNode.type.toLowerCase() == 'radio') {
-                            aValue = aNode.checked;
+                    if (aNode.tagName) {
+                        // It's an element
+                        if (aNode.tagName.toLowerCase() == 'input') {
+                            // It's an input
+
+                            // If it's a checkbox or radio, we care about its
+                            // checked-ness.
+                            var aValue = null;
+                            if (aNode.type.toLowerCase() == 'checkbox') {
+                                aValue = aNode.checked;
+                            } else if (aNode.type.toLowerCase() == 'radio') {
+                                aValue = aNode.checked;
+                            } else {
+                                aValue = aNode.value;
+                            }
+                            pushOneValue(aNode.name, aValue);
+                        } else if (aNode.tagName.toLowerCase() == 'textarea') {
+                            // It's also an input, just not an input
+                            // input.
+                            var aValue = aNode.value;
+                            pushOneValue(aNode.name, aValue);
                         } else {
-                            aValue = aNode.value;
+                            // Examine the children, since it is some
+                            // other kind of element.
+                            return Mantissa.LiveForm.FormWidget.DOM_DESCEND;
                         }
-                        pushOneValue(aNode.name, aValue);
-                        // Inputs should not have sub-inputs; hooray a free
-                        // optimization.
+                        // Inputs should not have sub-inputs; hooray a
+                        // free optimization.
                         return Mantissa.LiveForm.FormWidget.DOM_CONTINUE;
                     }
+                    // It's a text node... do we really need to
+                    // descend?
                     return Mantissa.LiveForm.FormWidget.DOM_DESCEND;
                 }
             });

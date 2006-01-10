@@ -14,6 +14,7 @@ class Parameter(record('name type coercer description default',
     pass
 
 TEXT_INPUT = 'text'
+TEXTAREA_INPUT = 'textarea'
 FORM_INPUT = 'form'
 RADIO_INPUT = 'radio'
 CHECKBOX_INPUT = 'checkbox'
@@ -80,16 +81,23 @@ class LiveForm(record('callable parameters description',
                 subForm.setFragmentParent(self)
                 yield subForm
             else:
-                i = tags.input(name=parameter.name,
-                               type=parameter.type)
-                if parameter.default is not None:
-                    i = i(value=parameter.default)
+                if parameter.type == TEXTAREA_INPUT:
+                    i = tags.textarea(name=parameter.name)
+                    if parameter.default is not None:
+                        i = i[parameter.default]
+                else:
+                    i = tags.input(name=parameter.name,
+                                   type=parameter.type)
+                    if parameter.default is not None:
+                        i = i(value=parameter.default)
+
                 if parameter.type in [CHECKBOX_INPUT,
                                       RADIO_INPUT]:
                     t = tags.div[i, parameter.description]
                 else:
                     t = tags.div[parameter.description, i]
                 yield t
+
         yield tags.legend[self._getDescription()]
 
 

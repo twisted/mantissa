@@ -75,17 +75,12 @@ Mantissa.Test.TestSuite.prototype.reportFailure = function(err) {
 };
 
 Mantissa.Test.Forms = Mantissa.Test.TestCase.subclass();
-Mantissa.Test.Forms.prototype.run = function() {
-    var formNode = this.nodeByAttribute('athena:class',
-                                        'Mantissa.LiveForm.FormWidget');
-    // sigh
-    // formNode.submit();
-    return Nevow.Athena.Widget.get(formNode).submit();
-};
+Mantissa.Test.Forms.method(
+    'run',
+    function(self) {
+        return self.childWidgets[0].submit();
+    });
+
+Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass();
 
 Mantissa.Test.Traverse = Mantissa.Test.Forms.subclass();
-Mantissa.Test.Traverse.method(
-     'run',
-     function(self) {
-         return self.childWidgets[0].submit();
-     });

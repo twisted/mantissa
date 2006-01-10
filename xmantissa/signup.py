@@ -199,6 +199,8 @@ freeTicketSignupConfiguration = [
                        u'The web location at which users will be able to request tickets.',
                        u'signup')]
 
+
+
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
@@ -246,7 +248,17 @@ class InitializerBenefactor(Item, InstallableMixin):
     def endow(self, ticket, beneficiary):
         beneficiary.findOrCreate(WebSite).installOn(beneficiary)
         beneficiary.findOrCreate(PrivateApplication).installOn(beneficiary)
-        beneficiary.findOrCreate(Initializer).installOn(beneficiary)
+
+        # They may have signed up in the past - if so, they already
+        # have a password, and we should skip the initializer phase.
+        substore = beneficiary.store.parent.getItemByID(beneficiary.store.idInParent)
+        for acc in self.store.query(userbase.LoginAccount,
+                                    userbase.LoginAccount.avatars == substore):
+            if acc.password:
+                self.realBenefactor.endow(ticket, beneficiary)
+            else:
+                beneficiary.findOrCreate(Initializer).installOn(beneficiary)
+            break
 
     def resumeSignup(self, ticket, avatar):
         self.realBenefactor.endow(ticket, avatar)
@@ -467,8 +479,58 @@ def dependencyOrdered(coll):
     return ordered
 
 
+class BenefactorFactoryConfigMixin:
+    def makeBenefactorCoercer(self, benefactorFactory):
+        """
+        Return a function that converts a selected flag and a set of
+        keyword arguments into either None (if not selected) or a 2-tuple
+        of (IBenefactorFactory provider, kwargs)
+        """
+        def benefactorCoercer(selectedBenefactor, **benefactorFactoryConfiguration):
+            """
+            Receive coerced values from the form post, massage them as
+            described above.
+            """
+            if selectedBenefactor:
+                return benefactorFactory, benefactorFactoryConfiguration
+            return None
+        return benefactorCoercer
 
-class SignupFragment(athena.LiveFragment):
+
+    def makeBenefactorSelector(self, description):
+        return liveform.Parameter('selectedBenefactor',
+                                  liveform.CHECKBOX_INPUT,
+                                  bool,
+                                  description)
+
+
+    def coerceBenefactor(self, **kw):
+        return dict(filter(None, kw.values()))
+
+
+    def getBenefactorFactories(self):
+        for installedOffering in getInstalledOfferings(self.original.store.parent).itervalues():
+            for beneFac in installedOffering.benefactorFactories:
+                yield beneFac
+
+
+    def benefactorFactoryConfigurationParameter(self, beneFac):
+        return liveform.Parameter(
+            beneFac.name,
+            liveform.FORM_INPUT,
+            liveform.LiveForm(self.makeBenefactorCoercer(beneFac),
+                              [self.makeBenefactorSelector(beneFac.description)] + beneFac.parameters(),
+                              beneFac.name))
+
+    def makeBenefactorFactoryConfigurationForm(self):
+        return liveform.LiveForm(
+            self.coerceBenefactor,
+            [self.benefactorFactoryConfigurationParameter(beneFac)
+             for beneFac in self.getBenefactorFactories()],
+            u"Benefactors for Signup")
+
+
+class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
     fragmentName = 'signup-configuration'
     live = 'athena'
 
@@ -477,44 +539,7 @@ class SignupFragment(athena.LiveFragment):
 
 
     def render_signupConfigurationForm(self, ctx, data):
-        def makeBenefactorCoercer(benefactorFactory):
-            """
-            Return a function that converts a selected flag and a set of
-            keyword arguments into either None (if not selected) or a 2-tuple
-            of (IBenefactorFactory provider, kwargs)
-            """
-            def benefactorCoercer(selectedBenefactor, **benefactorFactoryConfiguration):
-                """
-                Receive coerced values from the form post, massage them as
-                described above.
-                """
-                if selectedBenefactor:
-                    return benefactorFactory, benefactorFactoryConfiguration
-                return None
-            return benefactorCoercer
-
-        def makeBenefactorSelector(description):
-            return liveform.Parameter('selectedBenefactor',
-                                      liveform.CHECKBOX_INPUT,
-                                      bool,
-                                      description)
-
-        def coerceBenefactor(**kw):
-            return dict(filter(None, kw.values()))
-
-        benefactorFactoryConfigurations = liveform.LiveForm(
-            coerceBenefactor,
-            [liveform.Parameter(provFac.name,
-                                liveform.FORM_INPUT,
-                                liveform.LiveForm(makeBenefactorCoercer(provFac),
-                                                  [makeBenefactorSelector(provFac.description)
-                                                   ] + provFac.parameters(),
-                                                  provFac.name))
-             for installedOffering
-             in getInstalledOfferings(self.original.store.parent).itervalues()
-             for provFac
-             in installedOffering.benefactorFactories],
-            u"Benefactors for Signup")
+        benefactorFactoryConfigurations = self.makeBenefactorFactoryConfigurationForm()
 
         def makeSignupCoercer(signupPlugin):
             """

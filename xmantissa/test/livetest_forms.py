@@ -1,4 +1,6 @@
 
+import textwrap
+
 from twisted.python import filepath
 from twisted.trial import unittest
 from twisted.application import internet, service
@@ -86,7 +88,7 @@ class TestFrameworkRoot(rend.Page):
 
 
 
-class Forms(athena.LiveFragment, unittest.TestCase):
+class TextInput(athena.LiveFragment, unittest.TestCase):
     jsClass = u'Mantissa.Test.Forms'
 
     docFactory = loaders.stan(
@@ -105,8 +107,46 @@ class Forms(athena.LiveFragment, unittest.TestCase):
                                 unicode,
                                 'A text input field: ',
                                 u'hello world')])
-        f.page = self.page
+        f.setFragmentParent(self)
         return ctx.tag[f]
+
+
+
+class TextArea(athena.LiveFragment, unittest.TestCase):
+    jsClass = u'Mantissa.Test.TextArea'
+
+    docFactory = loaders.stan(
+        tags.div(_class='test-unrun',
+                 render=tags.directive('liveFragment'))[
+            tags.invisible(render=tags.directive('textarea_form'))])
+
+
+    defaultText = textwrap.dedent(u"""
+    Come hither, sir.
+    Though it be honest, it is never good
+    To bring bad news. Give to a gracious message
+    An host of tongues; but let ill tidings tell
+    Themselves when they be felt.
+    """).strip()
+
+    def submit(self, argument):
+        self.assertEquals(
+            argument,
+            self.defaultText)
+
+
+    def render_textarea_form(self, ctx, data):
+        f = liveform.LiveForm(
+            self.submit,
+            [liveform.Parameter('argument',
+                                liveform.TEXTAREA_INPUT,
+                                unicode,
+                                'A text area: ',
+                                self.defaultText)])
+        f.setFragmentParent(self)
+        return ctx.tag[f]
+
+
 
 SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
                    # accident.
@@ -151,7 +191,8 @@ class Traverse(athena.LiveFragment, unittest.TestCase):
 
 
 def makeService():
-    site = appserver.NevowSite(TestFrameworkRoot([Forms(),
+    site = appserver.NevowSite(TestFrameworkRoot([TextInput(),
+                                                  TextArea(),
                                                   Traverse()]))
     return internet.TCPServer(8080, site)
 

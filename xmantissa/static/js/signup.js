@@ -3,8 +3,7 @@ function signup(node) {
 
     /* Do some very rudamentary input checking */
     var splatIndex = inputEmail.indexOf('@');
-    var dotIndex = inputEmail.lastIndexOf('.');
-    if (splatIndex == -1 || dotIndex == -1 || dotIndex < splatIndex || inputEmail.length < 5) {
+    if (splatIndex == -1 || inputEmail.length < 3) {
         alert('Please enter an email address.');
         return;
     }
