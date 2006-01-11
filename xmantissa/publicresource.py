@@ -75,9 +75,19 @@ class PublicLivePage(PublicPageMixin, livepage.LivePage):
         return tag[livepage.glue]
 
 class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
-    def __init__(self, iface, original, fragment, staticContent, forUser):
-        super(PublicAthenaLivePage, self).__init__(iface, original, docFactory=getLoader("public-shell"))
-        self.fragment = fragment
+    fragment = None
+    def __init__(self, fragment, staticContent=None, forUser=None, *a, **k):
+        super(PublicAthenaLivePage, self).__init__(
+            docFactory=getLoader("public-shell"),
+            *a, **k)
+        if fragment is not None:
+            self.fragment = fragment
+            # everybody who calls this has a different idea of what 'fragment'
+            # means - let's just be super-lenient for now
+            if getattr(fragment, 'setFragmentParent', False):
+                fragment.setFragmentParent(self)
+            else:
+                fragment.page = self
         self.staticContent = staticContent
         if forUser is not None:
             assert isinstance(forUser, unicode), forUser

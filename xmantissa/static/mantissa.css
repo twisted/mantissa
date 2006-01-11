@@ -49,7 +49,7 @@ input.change-password {
 }
 
 th.tdb-clickable-header:hover {
-    background-image: url(/static/mantissa/images/header_bg_hover.png);
+    background-image: url(/Mantissa/images/header_bg_hover.png);
 }
 
 .tdb-action {
@@ -68,7 +68,7 @@ table.mantissa-tdb {
 
 table.mantissa-tdb > thead {
     background-color: #FFFFFF;
-    background-image: url(/static/mantissa/images/header_bg.png);
+    background-image: url(/Mantissa/images/header_bg.png);
     background-repeat: repeat-x;
     background-position: bottom left 
 }
@@ -132,7 +132,7 @@ table.control-table {
 /* set the first row to have a pretty bg image */
 table.control-table > thead {
     background-color: #FFFFFF;
-    background-image: url(/static/mantissa/images/header_bg.png);
+    background-image: url(/Mantissa/images/header_bg.png);
     background-repeat: repeat-x;
     background-position: bottom left 
 }
@@ -238,7 +238,7 @@ input[type=password], input[type=text] {
 /* navigation stuff */
 
 .mantissa-tab {
-    background-image: url(/static/mantissa/images/header_bg.png);
+    background-image: url(/Mantissa/images/header_bg.png);
     background-position: bottom left;
     background-repeat: repeat-x;
     white-space: nowrap;

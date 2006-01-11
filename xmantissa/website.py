@@ -67,6 +67,12 @@ class SiteRootMixin(object):
 
     def locateChild(self, ctx, segments):
         self.hitCount += 1
+        shortcut = getattr(self, 'child_'+segments[0], None)
+        if shortcut:
+            # what is it, like the 80th implementation of this?
+            res = shortcut(ctx)
+            if res is not None:
+                return res, segments[1:]
         s = self.installedOn
         P = self.powerupInterface
         for plg in s.powerupsFor(P):
@@ -336,7 +342,7 @@ class AxiomFragment(Fragment):
 
 class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     typeName = 'mantissa_web_powerup'
-    schemaVersion = 2
+    schemaVersion = 3
 
     hitCount = integer(default=0)
     installedOn = reference()
@@ -365,12 +371,18 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         super(WebSite, self).installOn(other)
         other.powerUp(self, IService)
         other.powerUp(self, IResource)
-        other.store.findOrCreate(
-            StaticSite,
-            prefixURL=u'static/mantissa',
-            staticContentPath=sibpath(__file__, u'static')).installOn(other)
         if self.parent is None:
             self.setServiceParent(other)
+
+    def child_by(self, ctx):
+        from xmantissa.websharing import UserIndexPage
+        from axiom.userbase import LoginSystem
+        ls = self.installedOn.findUnique(LoginSystem, default=None)
+        if ls is None:
+            return None
+        return UserIndexPage(ls)
+
+    child_users = child_by
 
     def privilegedStartService(self):
         if SSL is None and self.securePortNumber is not None:
@@ -434,3 +446,21 @@ def upgradeWebSite1To2(oldSite):
         httpLog=None)
     return newSite
 upgrade.registerUpgrader(upgradeWebSite1To2, 'mantissa_web_powerup', 1, 2)
+
+
+def upgradeWebSite2to3(oldSite):
+    # This is dumb and we should have a way to run procedural upgraders.
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', 2, 3,
+        hitCount=oldSite.hitCount,
+        installedOn=oldSite.installedOn,
+        portNumber=oldSite.portNumber,
+        securePortNumber=oldSite.securePortNumber,
+        certificateFile=oldSite.certificateFile,
+        httpLog=oldSite.httpLog)
+    staticMistake = newSite.store.findUnique(StaticSite, StaticSite.prefixURL == u'static/mantissa')
+    # Ugh, need cascading deletes
+    staticMistake.store.powerDown(staticMistake, ISessionlessSiteRootPlugin)
+    staticMistake.deleteFromStore()
+    return newSite
+upgrade.registerUpgrader(upgradeWebSite2to3, 'mantissa_web_powerup', 2, 3)

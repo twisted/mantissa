@@ -215,10 +215,11 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
     def createResource(self):
         return PublicAthenaLivePage(
-            ITicketIssuer, self,
             getLoader("signup"),
             IStaticShellContent(self.store, None),
-            None)
+            None,
+            iface = ITicketIssuer,
+            rootObject = self)
 
     def issueTicket(self, url, emailAddress):
         domain, port = url.get('hostname'), int(url.get('port') or 80)
@@ -327,7 +328,7 @@ class InitializerPage(PublicPage):
 
     def render_head(self, ctx, data):
         tag = PublicPage.render_head(self, ctx, data)
-        return tag[tags.script(src='/static/mantissa/js/initialize.js')]
+        return tag[tags.script(src='/Mantissa/js/initialize.js')]
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)

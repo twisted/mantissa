@@ -7,12 +7,13 @@ from zope.interface import implements
 
 from twisted.internet import defer
 from twisted import plugin
+from twisted.python import util
 
-from nevow import inevow, rend
+from nevow import inevow, rend, static
 
 from axiom import item, attributes, upgrade, userbase
 
-from xmantissa import ixmantissa, website, publicresource, offering, plugins
+from xmantissa import ixmantissa, website, publicresource, websharing, offering, plugins
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
@@ -207,8 +208,27 @@ class PublicFrontPage(publicresource.PublicPage):
         publicresource.PublicPage.__init__(
             self, original, OfferingsFragment(original), staticContent, forUser)
 
+    def locateChild(self, ctx, segments):
+        result = super(PublicFrontPage, self).locateChild(ctx, segments)
+        if result is not rend.NotFound:
+            child, segments = result
+            if self.username is not None:
+                cust = ixmantissa.ICustomizable(child, None)
+                if cust is not None:
+                    return cust.customizeFor(self.username), segments
+            return child, segments
+        return rend.NotFound
+
     def child_(self, ctx):
         return self
+
+    def child_by(self, ctx):
+        return websharing.UserIndexPage(self.original.store.findUnique(userbase.LoginSystem))
+
+    def child_Mantissa(self, ctx):
+        # Cheating!  It *looks* like there's an app store, but there isn't
+        # really, because this is the One Store To Bind Them All.
+        return static.File(util.sibpath(__file__, "static"))
 
     def childFactory(self, ctx, name):
         offer = self.original.store.findFirst(
@@ -217,10 +237,7 @@ class PublicFrontPage(publicresource.PublicPage):
         if offer is not None:
             pp = ixmantissa.IPublicPage(offer.application, None)
             if pp is not None:
-                res = pp.getResource()
-                if self.username is not None:
-                    return res.customizeFor(self.username)
-                return res
+                return pp.getResource()
         return None
 
     def customizeFor(self, forUser):

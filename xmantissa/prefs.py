@@ -135,7 +135,7 @@ class PreferenceEditor(rend.Fragment):
 
     def head(self):
         return tags.script(type='text/javascript',
-                           src='/static/mantissa/js/preferences.js')
+                           src='/Mantissa/js/preferences.js')
 
     def serializePref(self, pref):
         value = pref.valueToDisplay(pref.value)

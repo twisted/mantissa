@@ -58,4 +58,4 @@ class XHTMLDirectoryTheme(object):
 class MantissaTheme(XHTMLDirectoryTheme):
     def head(self):
         return tags.link(rel='stylesheet', type='text/css',
-                         href='/static/mantissa/mantissa.css')
+                         href='/Mantissa/mantissa.css')

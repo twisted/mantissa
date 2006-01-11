@@ -257,4 +257,4 @@ class TabularDataView(athena.LiveFragment):
 
     def head(self):
         yield tags.script(type='text/javascript',
-                          src='/static/mantissa/js/fadomatic.js')
+                          src='/Mantissa/js/fadomatic.js')

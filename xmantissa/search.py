@@ -101,7 +101,7 @@ class SearchAggregatorFragment(rend.Fragment):
 
     def head(self):
         return tags.script(type='text/javascript',
-                           src='/static/mantissa/js/search.js')
+                           src='/Mantissa/js/search.js')
 
     def setSearchTerm(self, ctx):
         qargs = dict(URL.fromContext(ctx).queryList())
