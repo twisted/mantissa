@@ -8,6 +8,9 @@ from epsilon.structlike import record
 
 from nevow import tags, athena, loaders
 
+from xmantissa import webtheme
+from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
+
 class Parameter(record('name type coercer description default',
                        description=None,
                        default=None)):
@@ -40,22 +43,14 @@ class LiveForm(record('callable parameters description',
     allowedMethods = dict(invoke = True)
     jsClass = u'Mantissa.LiveForm.FormWidget'
 
-    docFactory = loaders.stan(
-        tags.form(render=tags.directive('liveFragment'),
-                  action="#",
-                  onsubmit='Nevow.Athena.Widget.get(this).submit(); return false;')[
-            tags.fieldset[tags.directive("form"),
-                          tags.directive("submitbutton")]])
-
-    subFormDocFactory = loaders.stan(
-        tags.fieldset(render=tags.directive('liveFragment'))[
-        tags.directive('form')])
-
     subFormName = None
+
+    def __init__(self, *a, **k):
+        super(LiveForm, self).__init__(*a, **k)
+        self.docFactory = webtheme.getLoader('liveform')
 
     def asSubForm(self, name):
         self.subFormName = name
-        self.docFactory = self.subFormDocFactory
         return self
 
     def _getDescription(self):
@@ -63,7 +58,6 @@ class LiveForm(record('callable parameters description',
         if descr is None:
             descr = self.callable.__name__
         return descr
-
 
     def render_submitbutton(self, ctx, data):
         return tags.input(type='submit', name='__submit__', value=self._getDescription())
@@ -74,32 +68,41 @@ class LiveForm(record('callable parameters description',
         return super(LiveForm, self).render_liveFragment(ctx, data)
 
     def render_form(self, ctx, data):
+        patterns = PatternDictionary(self.docFactory)
+        inputs = list()
+
         for parameter in self.parameters:
+            p = patterns[parameter.type + '-input-container']
+
             if parameter.type == FORM_INPUT:
                 # SUPER SPECIAL CASE
                 subForm = parameter.coercer.asSubForm(parameter.name)
                 subForm.setFragmentParent(self)
-                yield subForm
+                p = p.fillSlots('input', subForm)
+            elif parameter.type == TEXTAREA_INPUT:
+                p = dictFillSlots(p, dict(description=parameter.description,
+                                          name=parameter.name,
+                                          value=value))
             else:
-                if parameter.type == TEXTAREA_INPUT:
-                    i = tags.textarea(name=parameter.name)
-                    if parameter.default is not None:
-                        i = i[parameter.default]
+                if parameter.default is not None:
+                    value = parameter.default
                 else:
-                    i = tags.input(name=parameter.name,
-                                   type=parameter.type)
-                    if parameter.default is not None:
-                        i = i(value=parameter.default)
+                    value = ''
 
-                if parameter.type in [CHECKBOX_INPUT,
-                                      RADIO_INPUT]:
-                    t = tags.div[i, parameter.description]
-                else:
-                    t = tags.div[parameter.description, i]
-                yield t
+                p = dictFillSlots(p, dict(description=parameter.description,
+                                          input=dictFillSlots(patterns['input'],
+                                                          dict(name=parameter.name,
+                                                               type=parameter.type,
+                                                               value=value))))
+            inputs.append(p)
 
-        yield tags.legend[self._getDescription()]
-
+        if self.subFormName is None:
+            pname = 'liveform'
+        else:
+            pname = 'subform'
+        return dictFillSlots(ctx.tag,
+                             dict(form=patterns[pname].fillSlots('inputs', inputs),
+                                  description=self._getDescription()))
 
     def invoke(self, formPostEmulator):
         """

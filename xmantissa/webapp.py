@@ -55,7 +55,12 @@ class NavFragment(Fragment):
         name = data.name
         subtabs = data.children
         self.subtabs = subtabs
-        ctx.fillSlots('href', self.webapp.linkTo(data.storeID))
+        if data.linkURL is None:
+            href = self.webapp.linkTo(data.storeID)
+        else:
+            href = data.linkURL
+
+        ctx.fillSlots('href', href)
         ctx.fillSlots('name', name)
         if subtabs:
             st = NavFragment(self.docFactory, subtabs, self.webapp)

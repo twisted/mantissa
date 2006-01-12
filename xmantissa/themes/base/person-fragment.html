@@ -1,0 +1,26 @@
+<span xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+  nevow:render="liveFragment">
+
+  <nevow:invisible nevow:render="person">
+    <img onmouseover="Mantissa.People.InlinePerson.get(this).showActions(event)" 
+      onmouseout="Mantissa.People.InlinePerson.get(this).hideActions(false)"
+      src="/static/mantissa/images/person.png" />
+    <a>
+      <nevow:attr name="href"><nevow:slot name="detail-url" /></nevow:attr>
+      <nevow:slot name="name" />
+    </a> <nevow:slot name="contact-method" />
+    <nevow:slot name="actions" />
+  </nevow:invisible>
+
+  <nevow:invisible nevow:pattern="contact-method">
+    (<nevow:slot name="name" />)
+  </nevow:invisible>
+
+  <div class="person-actions" nevow:pattern="actions" style="display: none;"
+    onmouseover="Mantissa.People.InlinePerson.get(this).engagedPopup()"
+    onmouseout="Mantissa.People.InlinePerson.get(this).disengagedPopup(event)">
+    <div><nevow:slot name="name" /> (<nevow:slot name="email" />)</div>
+    <nevow:slot name="actions" />
+  </div>
+
+</span>

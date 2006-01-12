@@ -1,6 +1,7 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
      xmlns:athena="http://divmod.org/ns/athena/0.7"
      nevow:render="liveFragment">
+
   <div nevow:render="navigation" />
   <div class="tdb-table">
     <div style="text-align: center; font-size: 48px; font-weight: bold; font-family: monospace; font-style: italic; color: #ccc">
@@ -8,8 +9,8 @@
     </div>
   </div>
 
-  <table nevow:pattern="navigation" class="tdb-navigation-panel">
-    <tr valign="bottom">
+  <table style="border-spacing: 0px" nevow:pattern="navigation" class="tdb-navigation-panel">
+    <tr valign="center">
       <td>
         <!-- set display: none on half of the navigation buttons so that they dont appear and then dissappear
              if the javascript takes a while to load -->
@@ -34,8 +35,8 @@
         <img class="last-page-disabled" src="/Mantissa/images/last_disabled.png" border="0" />
         <img style="visibility: hidden;" class="throbber" src="/static/mantissa/images/circle-throbber.gif" />
       </td>
-      <td class="tdb-action-result" />
-      <td align="right" class="tdb-control-panel" style="display: none">
+      <td class="tdb-action-result"></td>
+      <td class="tdb-control-panel" style="display: none">
         viewing items <span class="tdb-item-start" /> to
         <span class="tdb-item-end" /> out of <span class="tdb-total-items" />
       </td>
@@ -43,7 +44,8 @@
   </table>
 
   <td nevow:pattern="cell">
-    <nevow:attr name="class"><nevow:slot name="typeHint" /></nevow:attr>
+    <nevow:attr name="class"><nevow:slot name="class" /></nevow:attr>
+    <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
     <nevow:slot name="value" />
   </td>
 
@@ -85,12 +87,11 @@
     <span class="tdbtbody" />
   </div>
 
-  <table class="mantissa-tdb" nevow:pattern="table">
-    <thead>
+  <table class="tdb" nevow:pattern="table">
+    <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
       <tr>
         <nevow:slot name="column-headers" />
       </tr>
-    </thead>
 
     <tbody class="tdbtbody">
       <nevow:slot name="rows" />

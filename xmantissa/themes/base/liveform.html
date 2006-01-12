@@ -1,0 +1,57 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <nevow:invisible nevow:render="form">
+    <nevow:slot name="form" />
+  </nevow:invisible>
+
+  <form action="#" nevow:render="liveFragment"
+    onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
+    nevow:pattern="liveform">
+
+    <fieldset>
+      <legend><nevow:slot name="description" /></legend>
+      <nevow:slot name="inputs" />
+    </fieldset>
+    <nevow:invisible nevow:render="submitbutton" />
+  </form>
+
+  <div nevow:pattern="subform" nevow:render="liveFragment">
+    <fieldset>
+      <legend><nevow:slot name="description" /></legend>
+      <nevow:slot name="inputs" />
+    </fieldset>
+  </div>
+
+  <div nevow:pattern="text-input-container">
+    <nevow:slot name="description" />
+    <nevow:slot name="input" />
+  </div>
+
+  <div nevow:pattern="textarea-input-container">
+    <nevow:slot name="description" />
+    <textarea>
+      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+      <nevow:slot name="value" />
+    </textarea>
+  </div>
+
+  <div nevow:pattern="radio-input-container">
+    <nevow:slot name="input" />
+    <nevow:slot name="description" />
+  </div>
+
+  <div nevow:pattern="form-input-container">
+    <nevow:slot name="input" />
+  </div>
+
+  <div nevow:pattern="checkbox-input-container">
+    <nevow:slot name="input" />
+    <nevow:slot name="description" />
+  </div>
+
+  <input nevow:pattern="input">
+    <nevow:attr name="value"><nevow:slot name="value" /></nevow:attr>
+    <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+    <nevow:attr name="type"><nevow:slot name="type" /></nevow:attr>
+  </input>
+
+</div>

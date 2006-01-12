@@ -19,7 +19,8 @@ class TabInfo(_structlike):
         'number',
         'storeID',
         'children',
-        'authoritative']
+        'authoritative',
+        'linkURL']
 
 class Tab(object):
     """Represent part or all of the layout of a single navigation tab.
@@ -44,12 +45,13 @@ class Tab(object):
     _item = None
     implements(ITab)
 
-    def __init__(self, name, storeID, priority, children=(), authoritative=True):
+    def __init__(self, name, storeID, priority, children=(), authoritative=True, linkURL=None):
         self.name = name
         self.storeID = storeID
         self.priority = priority
         self.children = tuple(children)
         self.authoritative = authoritative
+        self.linkURL = linkURL
 
     def __repr__(self):
         return '<%s%s %r/%0.3f %r [%r]>' % (self.authoritative and '*' or '',
@@ -90,7 +92,6 @@ class Tab(object):
                 return [self]
         return []
 
-
 def getTabs(navElements):
     # XXX TODO: multiple levels of nesting, this is hard-coded to 2.
     # Map primary tab names to a TabInfo
@@ -104,7 +105,8 @@ def getTabs(navElements):
                     priority=tab.priority,
                     number=1,
                     storeID=tab.storeID,
-                    children=list(tab.children))
+                    children=list(tab.children),
+                    linkURL=tab.linkURL)
             else:
                 info = primary[tab.name]
 

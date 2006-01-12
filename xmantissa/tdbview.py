@@ -1,4 +1,3 @@
-from itertools import cycle
 from zope.interface import implements
 
 from nevow import tags, athena, flat
@@ -33,6 +32,9 @@ class ColumnViewBase:
             return ''
         else:
             return self.width
+
+    def onclick(self, idx, item, value):
+        return None
 
 class DateColumnView(ColumnViewBase):
     def __init__(self, attributeID, displayName=None, width=None,
@@ -122,7 +124,7 @@ class TabularDataView(athena.LiveFragment):
     live = 'athena'
     title = ''
 
-    def __init__(self, model, columnViews, actions=()):
+    def __init__(self, model, columnViews, actions=(), width=''):
         super(TabularDataView, self).__init__(model)
         self.columnViews = list(columnViews)
         if actions:
@@ -130,6 +132,7 @@ class TabularDataView(athena.LiveFragment):
         self.actions = {}
         for action in actions:
             self.actions[action.actionID] = action
+        self.width = width
 
     def constructTable(self):
         patterns = PatternDictionary(self.docFactory)
@@ -173,25 +176,27 @@ class TabularDataView(athena.LiveFragment):
         tablePattern = tablePattern.fillSlots('column-headers', headers)
 
         rows = []
-        rowClasses = cycle(('tdb-row', 'tdb-row-alt'))
         for idx, row in enumerate(modelData):
             cells = []
             for cview in self.columnViews:
                 value = row.get(cview.attributeID)
                 cellContents = cview.stanFromValue(
                         idx, row['__item__'], value)
+                handler = cview.onclick(idx, row['__item__'], value)
                 cellStan = dictFillSlots(cellPattern,
                                          {'value': cellContents,
-                                          'typeHint': cview.typeHint})
+                                          'onclick': handler,
+                                          'class': cview.typeHint})
 
                 cells.append(cellStan)
             # FIXME mix something else into the row id's when there
             # is support for having multiple tdbs on a page.
             rows.append(dictFillSlots(rowPattern,
                                       {'cells': cells,
-                                       'class': rowClasses.next()}))
+                                       'class': 'tdb-row-%s' % (idx,)}))
 
-        return tablePattern.fillSlots('rows', rows)
+        return tablePattern.fillSlots(
+                'rows', rows).fillSlots('width', self.width)
 
     def render_table(self, ctx, data):
         return ctx.tag[self.constructTable()]
@@ -256,5 +261,4 @@ class TabularDataView(athena.LiveFragment):
         return self.replaceTable()
 
     def head(self):
-        yield tags.script(type='text/javascript',
-                          src='/Mantissa/js/fadomatic.js')
+        return None

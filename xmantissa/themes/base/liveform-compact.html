@@ -1,0 +1,60 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <nevow:invisible nevow:render="form">
+    <nevow:slot name="form" />
+  </nevow:invisible>
+
+  <form nevow:pattern="liveform"
+    action="#" nevow:render="liveFragment"
+    onsubmit="Mantissa.LiveForm.FormWidget.get(this).submit(); return false;">
+
+    <table>
+      <nevow:slot name="inputs" />
+      <tr>
+        <td colspan="2" align="right">
+          <nevow:invisible nevow:render="submitbutton" />
+        </td>
+      </tr>
+    </table>
+  </form>
+
+  <table nevow:pattern="subform" nevow:render="liveFragment">
+    <nevow:slot name="inputs" />
+  </table>
+
+  <tr nevow:pattern="textarea-input-container">
+    <td><nevow:slot name="description" /></td>
+    <td>
+      <textarea>
+        <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+        <nevow:slot name="value" />
+      </textarea>
+    </td>
+  </tr>
+
+  <tr nevow:pattern="text-input-container">
+    <td><nevow:slot name="description" /></td>
+    <td><nevow:slot name="input" /></td>
+  </tr>
+
+  <tr nevow:pattern="radio-input-container">
+    <td><nevow:slot name="input" /></td>
+    <td><nevow:slot name="description" /></td>
+  </tr>
+
+  <tr nevow:pattern="form-input-container">
+    <td colspan="2"><nevow:slot name="input" /></td>
+  </tr>
+
+  <tr nevow:pattern="checkbox-input-container">
+    <td><nevow:slot name="input" /></td>
+    <td><nevow:slot name="description" /></td>
+  </tr>
+
+
+  <input nevow:pattern="input">
+  <nevow:attr name="value"><nevow:slot name="value" /></nevow:attr>
+  <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+  <nevow:attr name="type"><nevow:slot name="type" /></nevow:attr>
+  </input>
+
+</div>

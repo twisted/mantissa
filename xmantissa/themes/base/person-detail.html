@@ -1,4 +1,4 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <div nevow:render="personName" />
-  <div nevow:render="organizerPlugins" />
+  <div style="border-bottom: solid 1px #000000; font-size: 1.6em; margin-bottom: 12px;" nevow:render="personName" />
+  <nevow:invisible nevow:data="organizerPlugins" nevow:render="data"/>
 </div>
