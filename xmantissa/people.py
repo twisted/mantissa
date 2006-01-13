@@ -278,7 +278,8 @@ class AddPerson(item.Item, item.InstallableMixin):
 
     def getTabs(self):
         return [webnav.Tab('People', self.storeID, 0.0, children=[
-                    webnav.Tab('Add Person', self.storeID, 0.2)])]
+                    webnav.Tab('Add Person', self.storeID, 0.2)],
+                           authoritative=False)]
 
 class AddPersonFragment(athena.LiveFragment):
     fragmentName = 'add-person'
