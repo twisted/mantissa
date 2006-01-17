@@ -318,6 +318,12 @@ class AddPersonFragment(athena.LiveFragment):
     def head(self):
         return None
 
+    def makePerson(self, nickname):
+        return Person(store=self.original.store,
+                      created=extime.Time(),
+                      organizer=self.original.store.findUnique(Organizer),
+                      name=nickname)
+
     def addPerson(self, nickname, firstname, lastname, email, phone):
         if not (nickname or firstname or lastname):
             raise ValueError('pleast supply nickname or first/last name')
@@ -328,10 +334,8 @@ class AddPersonFragment(athena.LiveFragment):
                 and 1 == store.count(Person, Person.name==nickname, limit=1)):
             raise ValueError('nickname already taken')
 
-        person = Person(store=store,
-                        created=extime.Time(),
-                        organizer=store.findUnique(Organizer),
-                        name=nickname)
+        person = self.makePerson(nickname)
+
         if email:
             EmailAddress(store=store,
                          address=email,
@@ -424,7 +428,7 @@ class PersonFragment(athena.LiveFragment):
         else:
             cm = self.patterns['contact-method'].fillSlots('name', self.contactMethod)
 
-        if 0 < len(self.actions):
+        if self.actions:
             actions = dictFillSlots(self.patterns['actions'],
                                     {'actions': list(a.toLinkStan() for a in self.actions),
                                      'name': self.person.name,
