@@ -1,6 +1,6 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
-     xmlns:athena="http://divmod.org/ns/athena/0.7"
-     nevow:render="liveFragment">
+  xmlns:athena="http://divmod.org/ns/athena/0.7"
+  nevow:render="liveFragment">
 
   <div nevow:render="navigation" />
   <div class="tdb-table">
@@ -13,7 +13,7 @@
     <tr valign="center">
       <td>
         <!-- set display: none on half of the navigation buttons so that they dont appear and then dissappear
-             if the javascript takes a while to load -->
+        if the javascript takes a while to load -->
         <a style="display: none;" class="first-page" href="#" onclick="return Mantissa.TDB.Controller.get(this).firstPage();">
           <img src="/Mantissa/images/first.png" border="0" />
         </a>
@@ -55,14 +55,14 @@
   </th>
 
   <th nevow:pattern="sortable-column-header"
-      class="tdb-clickable-header">
+    class="tdb-clickable-header">
     <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
     <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
     <nevow:slot name="name" />
   </th>
 
   <th nevow:pattern="sorted-column-header-ascending"
-      class="tdb-clickable-header">
+    class="tdb-clickable-header">
     <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
     <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
     <nevow:slot name="name" />
@@ -70,7 +70,7 @@
   </th>
 
   <th nevow:pattern="sorted-column-header-descending"
-      class="tdb-clickable-header">
+    class="tdb-clickable-header">
     <nevow:attr name="onclick"><nevow:slot name="onclick" /></nevow:attr>
     <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
     <nevow:slot name="name" />
@@ -89,9 +89,11 @@
 
   <table class="tdb" nevow:pattern="table">
     <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
+    <thead>
       <tr>
         <nevow:slot name="column-headers" />
       </tr>
+    </thead>
 
     <tbody class="tdbtbody">
       <nevow:slot name="rows" />
