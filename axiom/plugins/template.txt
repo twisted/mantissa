@@ -23,7 +23,7 @@ from twisted.python.components import registerAdapter
 
 from epsilon.extime import Time
 
-from _project_._project__view import _Project_View
+from _project_._project__view import _Project_View, _Project_PublicView
 
 class _Project_Benefactor(Item):
     '''i am responsible for granting priveleges to avatars,
@@ -84,14 +84,33 @@ class _Project_Start(Item, InstallableMixin):
 # instance is actually an instance of the _Project_Start class.
 registerAdapter(_Project_View, _Project_Start, ixmantissa.INavigableFragment)
 
+class _Project_PublicPage(Item, InstallableMixin):
+    # This object can be browsed from the web by anyone, including
+    # unauthenticated users
+    implements(ixmantissa.IPublicPage)
+
+    schemaVersion = 1
+    typeName = '_project__public_page'
+
+    installedOn = reference()
+
+    def installOn(self, other):
+        super(_Project_PublicPage, self).installOn(other)
+        other.powerUp(self, ixmantissa.IPublicPage)
+
+    def getResource(self):
+        return _Project_PublicView(original=self, staticContent=ixmantissa.IStaticShellContent(self.installedOn, None))
+
 ###file:_Project_/_project_/_project__view.py
 from zope.interface import implements
 
-from nevow.rend import Fragment
+from twisted.python import util
 
-from xmantissa import ixmantissa
+from nevow import static, loaders, rend
 
-class _Project_View(Fragment):
+from xmantissa import ixmantissa, publicresource
+
+class _Project_View(rend.Fragment):
     # This is a Fragment of a Page
     implements(ixmantissa.INavigableFragment)
 
@@ -104,6 +123,19 @@ class _Project_View(Fragment):
     def head(self):
         # Add tags in the page <head>
         pass
+
+class _Project_PublicView(publicresource.PublicPage):
+    def __init__(self, original, staticContent, **kwargs):
+        templateContent = loaders.xmlfile(util.sibpath(__file__, "static/html/index.html"))
+        super(_Project_PublicView, self).__init__(
+            original=original,
+            staticContent=staticContent,
+            fragment=templateContent,
+            forUser=None,
+            **kwargs)
+
+    def child_static(self, ctx):
+        return static.File(util.sibpath(__file__, 'static'))
 
 ###file:_Project_/_project_/test/__init__.py
 # Don't put code here.
@@ -161,9 +193,9 @@ from nevow import tags
 
 class _Project_Theme(webtheme.XHTMLDirectoryTheme):
     def head(self):
-        yield tags.link(href='/static/_project_/_project_.css',
+        yield tags.link(href='/_Project_/static/_project_.css',
                         rel='stylesheet', type='text/css')
-        yield tags.script(src='/static/_project_/_project_.js',
+        yield tags.script(src='/_Project_/static/_project_.js',
                           type='text/javascript')
 
 ###file:_Project_/xmantissa/plugins/_project__theme.py
@@ -197,6 +229,7 @@ plugin = offering.Offering(
 
     appPowerups = (
         _project__model._Project_Start,
+        _project__model._Project_PublicPage,
     ),
 
     benefactorFactories = (_project_er,)
@@ -206,4 +239,9 @@ plugin = offering.Offering(
 <div xmlns="http://www.w3.org/1999/xhtml"
      xmlns:nevow="http://nevow.com/ns/nevow/0.1">
     Welcome to the _Project_ Application
+</div>
+
+###file:_Project_/_project_/static/html/index.html
+<div xmlns="http://www.w3.org/1999/xhtml" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+    Welcome to the _Project_ Application public page
 </div>
