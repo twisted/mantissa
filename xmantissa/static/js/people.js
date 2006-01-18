@@ -70,7 +70,7 @@ Mantissa.People.InlinePerson.method('engagedLink',
 
 Mantissa.People.InlinePerson.method('hideActions',
     function(self, force) {
-        var reallyHideActions = function(self) {
+        var reallyHideActions = function() {
             MochiKit.DOM.hideElement(
                 self.nodeByAttribute('class', 'person-actions'));
         }
