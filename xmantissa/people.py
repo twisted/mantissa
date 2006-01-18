@@ -130,7 +130,7 @@ class PersonFragmentColumnView(tdbview.ColumnViewBase):
 
     def stanFromValue(self, idx, item, value):
         pf = PersonFragment(item)
-        pf.page = self.page
+        pf.setFragmentParent(self.page)
         return pf
 
 class OrganizerFragment(athena.LiveFragment):
