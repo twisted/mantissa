@@ -1,6 +1,6 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
-  xmlns:athena="http://divmod.org/ns/athena/0.7"
-  nevow:render="liveFragment">
+<div xmlns="http://www.w3.org/1999/xhtml"
+     xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+     nevow:render="liveFragment">
 
   <div nevow:render="navigation" />
   <div class="tdb-table">
@@ -87,7 +87,7 @@
     <span class="tdbtbody" />
   </div>
 
-  <table class="tdb" nevow:pattern="table">
+  <table xmlns="http://www.w3.org/1999/xhtml" class="tdb" nevow:pattern="table">
     <nevow:attr name="width"><nevow:slot name="width" /></nevow:attr>
     <thead>
       <tr>

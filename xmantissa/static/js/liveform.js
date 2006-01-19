@@ -1,5 +1,7 @@
 
 // import Divmod
+// import Divmod.Runtime
+
 // import Mantissa
 // import Nevow.Athena
 
@@ -23,32 +25,13 @@ Mantissa.LiveForm.FormWidget.method(
                 });
     });
 
-Mantissa.LiveForm.FormWidget.DOM_DESCEND = 'Mantissa.LiveForm.FormWidget.DOM_DESCEND';
-Mantissa.LiveForm.FormWidget.DOM_CONTINUE = 'Mantissa.LiveForm.FormWidget.DOM_CONTINUE';
+Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.theRuntime.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.theRuntime.DOM_DESCEND;
 
 Mantissa.LiveForm.FormWidget.method(
     'traverse',
     function(self, visitor) {
-        var deque = [self.node];
-        while (deque.length != 0) {
-            var curnode = deque.shift();
-            var visitorResult = visitor(curnode);
-            switch (visitorResult) {
-            case Mantissa.LiveForm.FormWidget.DOM_DESCEND:
-                for (var i = 0; i < curnode.childNodes.length; i++) {
-                    // "maybe you could make me care about how many stop
-                    // bits my terminal has!  that would be so retro!"
-                    deque.push(curnode.childNodes[i]);
-                }
-                break;
-            case Mantissa.LiveForm.FormWidget.DOM_CONTINUE:
-                break;
-            default :
-                throw new Error(
-                    "traverse() visitor returned illegal value: " + visitorResult);
-                break;
-            }
-        }
+        return Divmod.Runtime.theRuntime.traverse(self.node, visitor);
     });
 
 

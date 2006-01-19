@@ -10,7 +10,7 @@ from xmantissa import ixmantissa
 # review the need to pass around instances of columns,
 # rather than classes, same for actions also
 
-class ColumnViewBase:
+class ColumnViewBase(object):
     def __init__(self, attributeID, displayName=None,
                  width=None, typeHint=None):
         """@param typeHint: text|datetime|action or None"""
@@ -78,7 +78,7 @@ class ActionsColumnView(ColumnViewBase):
         # or something
         return tag
 
-class Action:
+class Action(object):
     def __init__(self, actionID, iconURL, description, disabledIconURL=None):
         self.actionID = actionID
         self.iconURL = iconURL

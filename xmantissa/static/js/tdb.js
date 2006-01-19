@@ -1,4 +1,6 @@
 
+// import Divmod.Runtime
+
 // import Nevow.Athena
 // import Fadomatic
 
@@ -34,8 +36,7 @@ Mantissa.TDB.Controller.prototype._toggleThrobberVisibility = function() {
 }
 
 Mantissa.TDB.Controller.prototype._setTableContent = function (tableContent) {
-    /* alert("STC: "+tableContent); */
-    this._getHandyNode("tdb-table").innerHTML = tableContent;
+    Divmod.Runtime.theRuntime.setNodeContent(this._getHandyNode("tdb-table"), tableContent);
 };
 
 Mantissa.TDB.Controller.prototype._getHandyNode = function(classValue) {
@@ -152,7 +153,7 @@ Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
 
 Mantissa.TDB.Controller.prototype.clickSort = function(attributeID) {
     return this._differentPage('clickSort', attributeID);
-}
+};
 
 Mantissa.TDB.Controller.prototype._actionResult = function(message) {
     var resultContainer = this._getHandyNode('tdb-action-result');
@@ -165,4 +166,4 @@ Mantissa.TDB.Controller.prototype._actionResult = function(message) {
     resultContainer.appendChild(span);
 
     new Fadomatic(span, 2).fadeOut();
-}
+};

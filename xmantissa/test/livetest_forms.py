@@ -30,8 +30,11 @@ class TestSuite(athena.LiveFragment):
 
     def render_testFragments(self, ctx, data):
         for f in self.testFragments:
-            f.page = self.page
+            f.setFragmentParent(self)
             yield f
+        f = athena.IntrospectionFragment()
+        f.setFragmentParent(self)
+        yield f
 
 
 

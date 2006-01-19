@@ -17,6 +17,7 @@ class Parameter(record('name type coercer description default',
     pass
 
 TEXT_INPUT = 'text'
+PASSWORD_INPUT = 'password'
 TEXTAREA_INPUT = 'textarea'
 FORM_INPUT = 'form'
 RADIO_INPUT = 'radio'
@@ -86,7 +87,7 @@ class LiveForm(record('callable parameters description',
             elif parameter.type == TEXTAREA_INPUT:
                 p = dictFillSlots(p, dict(description=parameter.description,
                                           name=parameter.name,
-                                          value=value))
+                                          value=parameter.default or ''))
             else:
                 if parameter.default is not None:
                     value = parameter.default
