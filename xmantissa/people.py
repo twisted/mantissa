@@ -403,7 +403,7 @@ class PersonDetailFragment(athena.LiveFragment):
         # instead of the first one we find in the store
 
         phone = self.original.store.findFirst(PhoneNumber,
-                                              PhoneNumber.person == self.original)
+                                              PhoneNumber.person == self.original).number
 
         return dictFillSlots(ctx.tag,
                              dict(email=self.email or 'None',
