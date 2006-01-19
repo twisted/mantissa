@@ -102,8 +102,8 @@ Mantissa.TDB.Controller.prototype._setPageState = function (hasPrevPage, hasNext
         }
     }
 
-    const prevs = ["prev-page", "first-page"];
-    const nexts = ["next-page", "last-page"];
+    var prevs = ["prev-page", "first-page"];
+    var nexts = ["next-page", "last-page"];
 
     if (hasPrevPage) {
         enable(prevs);
