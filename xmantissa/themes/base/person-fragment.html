@@ -1,7 +1,8 @@
-<span xmlns:nevow="http://nevow.com/ns/nevow/0.1"
-  nevow:render="liveFragment">
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+  nevow:render="liveFragment"
+  onclick="return false">
 
-  <nevow:invisible nevow:render="person">
+  <div nevow:render="person">
     <img onclick="Mantissa.People.InlinePerson.get(this).showActions(event); return false" 
       src="/Mantissa/images/person.png" />
     <a>
@@ -9,7 +10,7 @@
       <nevow:slot name="name" />
     </a> <nevow:slot name="contact-method" />
     <nevow:slot name="actions" />
-  </nevow:invisible>
+  </div>
 
   <nevow:invisible nevow:pattern="contact-method">
     (<nevow:slot name="name" />)
@@ -20,4 +21,4 @@
     <nevow:slot name="actions" />
   </div>
 
-</span>
+</div>
