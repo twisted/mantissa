@@ -37,7 +37,6 @@ Mantissa.People.InlinePerson = Nevow.Athena.Widget.subclass();
 
 Mantissa.People.InlinePerson.method('showActions',
     function(self, event) {
-
         self.personActions = self.nodeByAttribute('class', 'person-actions');
         self.personActions.style.top = event.pageY;
         self.personActions.style.left = event.pageX;

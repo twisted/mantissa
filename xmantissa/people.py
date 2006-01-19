@@ -1,7 +1,6 @@
 # -*- test-case-name: xmantissa.test.test_people -*-
 
 import re
-from operator import attrgetter
 from itertools import islice
 from string import uppercase
 
@@ -9,7 +8,7 @@ from zope.interface import implements
 
 from twisted.python import components
 
-from nevow import rend, athena, tags, inevow
+from nevow import rend, athena, inevow
 from nevow.taglibrary import tabbedPane
 
 from epsilon import extime
@@ -305,11 +304,10 @@ class AddPersonFragment(athena.LiveFragment):
 
         addPersonForm = liveform.LiveForm(
             self.addPerson,
-            (makeParam('nickname', 'Nickname'),
-             makeParam('firstname', 'First Name'),
+            (makeParam('firstname', 'First Name'),
              makeParam('lastname', 'Last Name'),
              makeParam('email', 'Email Address'),
-             makeParam('phone', 'Phone Number', kindOfAPhoneNumber)),
+             makeParam('nickname', 'Nickname')),
              description='Add Person')
         addPersonForm.docFactory = webtheme.getLoader('liveform-compact')
         addPersonForm.setFragmentParent(self)
@@ -385,9 +383,9 @@ class PersonDetailFragment(athena.LiveFragment):
         self.person = person
         self.organizer = person.organizer
         self.title = person.getDisplayName()
-        email = person.getEmailAddress()
-        if email is not None:
-            self.title += ' (%s)' % (email,)
+        self.email = person.getEmailAddress()
+        if self.email is not None:
+            self.title += ' (%s)' % (self.email,)
 
         self.personFragments = list(ixmantissa.IPersonFragment(p)
                                         for p in self.organizer.peoplePlugins(person))
@@ -397,6 +395,20 @@ class PersonDetailFragment(athena.LiveFragment):
 
     def render_personName(self, ctx, data):
         return ctx.tag[self.person.getDisplayName()]
+
+    def render_contactInformationSummary(self, ctx, data):
+        # FIXME like getEmailAddress() and getDisplayName(),
+        # we need to allow the user to set defaults, so we
+        # can show the default phone number for person X, 
+        # instead of the first one we find in the store
+
+        phone = self.original.store.findFirst(PhoneNumber,
+                                              PhoneNumber.person == self.original)
+
+        return dictFillSlots(ctx.tag,
+                             dict(email=self.email or 'None',
+                                  phone=phone or 'None'))
+
 
     def data_organizerPlugins(self, ctx, data):
         tabs = list()
