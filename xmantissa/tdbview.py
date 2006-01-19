@@ -4,7 +4,6 @@ from nevow import tags, athena, flat
 
 from formless.annotate import nameToLabel
 
-from xmantissa.publicresource import getLoader
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 from xmantissa import ixmantissa
 
@@ -123,6 +122,7 @@ class TabularDataView(athena.LiveFragment):
     fragmentName = 'tdb'
     live = 'athena'
     title = ''
+    patterns = None
 
     def __init__(self, model, columnViews, actions=(), width=''):
         super(TabularDataView, self).__init__(model)
@@ -135,17 +135,25 @@ class TabularDataView(athena.LiveFragment):
         self.width = width
 
     def constructTable(self):
-        patterns = PatternDictionary(self.docFactory)
+        if self.patterns is None:
+            self.patterns = PatternDictionary(self.docFactory)
 
         modelData = self.original.currentPage()
         if len(modelData) == 0:
-            return patterns['no-rows']()
+            return self.patterns['no-rows']()
 
-        tablePattern = patterns['table']
-        rowPattern = patterns['row']
-        cellPattern = patterns['cell']
+        tablePattern = self.patterns['table']
 
-        headers = []
+
+        headers = self.constructColumnHeaders()
+        rows = self.constructRows(modelData)
+
+        tablePattern = tablePattern.fillSlots('column-headers', list(headers))
+        
+        return tablePattern.fillSlots(
+                'rows', list(rows)).fillSlots('width', self.width)
+
+    def constructColumnHeaders(self):
         for cview in self.columnViews:
             model = self.original
             column = model.columns.get(cview.attributeID)
@@ -162,7 +170,7 @@ class TabularDataView(athena.LiveFragment):
                 headerPatternName = ['column-header',
                                      'sortable-column-header'][sortable]
 
-            header = patterns[headerPatternName].fillSlots(
+            header = self.patterns[headerPatternName].fillSlots(
                         'name', cview.displayName).fillSlots(
                                 'width', cview.getWidth())
 
@@ -171,11 +179,12 @@ class TabularDataView(athena.LiveFragment):
                             'Mantissa.TDB.Controller.get(this).clickSort("%s")'%
                             (cview.attributeID,))
 
-            headers.append(header)
+            yield header
 
-        tablePattern = tablePattern.fillSlots('column-headers', headers)
+    def constructRows(self, modelData):
+        rowPattern = self.patterns['row']
+        cellPattern = self.patterns['cell']
 
-        rows = []
         for idx, row in enumerate(modelData):
             cells = []
             for cview in self.columnViews:
@@ -189,14 +198,10 @@ class TabularDataView(athena.LiveFragment):
                                           'class': cview.typeHint})
 
                 cells.append(cellStan)
-            # FIXME mix something else into the row id's when there
-            # is support for having multiple tdbs on a page.
-            rows.append(dictFillSlots(rowPattern,
-                                      {'cells': cells,
-                                       'class': 'tdb-row-%s' % (idx,)}))
 
-        return tablePattern.fillSlots(
-                'rows', rows).fillSlots('width', self.width)
+            yield dictFillSlots(rowPattern,
+                                {'cells': cells,
+                                 'class': 'tdb-row-%s' % (idx,)})
 
     def render_table(self, ctx, data):
         return ctx.tag[self.constructTable()]
