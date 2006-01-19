@@ -2,8 +2,7 @@
   nevow:render="liveFragment">
 
   <nevow:invisible nevow:render="person">
-    <img onmouseover="Mantissa.People.InlinePerson.get(this).showActions(event)" 
-      onmouseout="Mantissa.People.InlinePerson.get(this).hideActions(false)"
+    <img onclick="Mantissa.People.InlinePerson.get(this).showActions(event); return false" 
       src="/Mantissa/images/person.png" />
     <a>
       <nevow:attr name="href"><nevow:slot name="detail-url" /></nevow:attr>
@@ -17,9 +16,7 @@
   </nevow:invisible>
 
   <div class="person-actions" nevow:pattern="actions" style="display: none;"
-    onmouseover="Mantissa.People.InlinePerson.get(this).engagedPopup()"
-    onmouseout="Mantissa.People.InlinePerson.get(this).disengagedPopup(event)">
-    <div><nevow:slot name="name" /> (<nevow:slot name="email" />)</div>
+    ><div><nevow:slot name="name" /> (<nevow:slot name="email" />)</div>
     <nevow:slot name="actions" />
   </div>
 

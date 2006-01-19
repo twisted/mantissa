@@ -37,47 +37,19 @@ Mantissa.People.InlinePerson = Nevow.Athena.Widget.subclass();
 
 Mantissa.People.InlinePerson.method('showActions',
     function(self, event) {
-        if(typeof(self.popdownTimeout) == "undefined") {
-            self.popdownTimeout = null;
-        }
-        var personActions = self.nodeByAttribute('class', 'person-actions');
+        self.eventTarget = event.target;
+        self.eventTarget.onclick = function() { self.hideActions(); return false };
 
-        personActions.style.top = event.pageY;
-        personActions.style.left = event.pageX;
+        self.personActions = self.nodeByAttribute('class', 'person-actions');
+        self.personActions.style.top = event.pageY;
+        self.personActions.style.left = event.pageX;
 
-        MochiKit.DOM.showElement(personActions);
-        var links = personActions.getElementsByTagName("A");
-        for(var i = 0; i < links.length; i++) {
-            links[i].addEventListener("mouseover", self.engagedLink, false);
-        }
-    });
-
-Mantissa.People.InlinePerson.method('engagedPopup',
-    function(self) {
-        clearTimeout(self.popdownTimeout);
-        self.popup = self.nodeByAttribute('class', 'person-actions');
-    });
-
-Mantissa.People.InlinePerson.method('disengagedPopup',
-    function(self, event) {
-        self.hideActions(false);
-    });
-
-Mantissa.People.InlinePerson.method('engagedLink',
-    function(self, event) {
-        clearTimeout(self.popdownTimeout);
+        MochiKit.DOM.showElement(self.personActions);
     });
 
 Mantissa.People.InlinePerson.method('hideActions',
-    function(self, force) {
-        var reallyHideActions = function() {
-            MochiKit.DOM.hideElement(
-                self.nodeByAttribute('class', 'person-actions'));
-        }
-
-        if(force) {
-            reallyHideActions();
-        } else {
-            self.popdownTimeout = setTimeout(reallyHideActions, 120);
-        }
+    function(self) {
+        self.eventTarget.onclick = function(event) { self.showActions(event); return false };
+        MochiKit.DOM.hideElement(self.personActions);
     });
+
