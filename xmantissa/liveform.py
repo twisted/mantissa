@@ -28,6 +28,10 @@ class ConfigurationError(Exception):
     or incomplete.
     """
 
+class InvalidInput(Exception):
+    """
+    Data entered did not meet the requirements of the coercer.
+    """
 
 class LiveForm(record('callable parameters description',
                       description=None), athena.LiveFragment):

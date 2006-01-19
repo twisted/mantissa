@@ -11,6 +11,14 @@
       <a style="display: none;" class="save" href="#" onclick="return save(this)">save</a></td>
   </tr>
 
+  <tr nevow:pattern="unsettable-preference" nevow:render="mapping">
+    <nevow:attr name="id"><nevow:slot name="key" /></nevow:attr>
+    <td><nevow:slot name="name" /></td>
+    <td colspan="2" align="center" class="control-cell">
+      <nevow:slot name="value" />
+    </td>
+  </tr>
+
   <span nevow:pattern="multiple-choice-edit" nevow:render="mapping">
     <span class="value-container">
       <nevow:slot name="value" />

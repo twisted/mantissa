@@ -5,6 +5,7 @@ from nevow import rend, tags, inevow, livepage
 from axiom.item import Item, InstallableMixin
 from axiom import attributes
 
+from xmantissa.fragmentutils import PatternDictionary
 from xmantissa.ixmantissa import (IPreference, IPreferenceCollection,
                                   INavigableFragment,
                                   IPreferenceAggregator)
@@ -30,6 +31,9 @@ class Preference(object):
 
     def valueToDisplay(self, value):
         raise NotImplementedError
+
+    def settable(self):
+        return True
 
 class MultipleChoicePreference(Preference):
     """base class for multiple choice preferences that have simple mappings
@@ -123,6 +127,8 @@ class PreferenceAggregator(Item, InstallableMixin):
     def getPreferenceValue(self, key):
         return self.getPreference(key).value
 
+# FIXME this thing *really* needs to use liveform
+
 class PreferenceEditor(rend.Fragment):
     implements(INavigableFragment)
 
@@ -142,7 +148,12 @@ class PreferenceEditor(rend.Fragment):
 
         prefmap = dict(name=str(pref.name), key=str(pref.key), value=value)
 
-        itemPattern = self.patterns['preference'](data=prefmap)
+        if pref.settable():
+            pname = 'preference'
+        else:
+            pname = 'unsettable-preference'
+
+        itemPattern = self.patterns[pname](data=prefmap)
 
         choices = pref.choices()
 
@@ -150,7 +161,7 @@ class PreferenceEditor(rend.Fragment):
             choices = list(dict(choice=pref.valueToDisplay(c))
                                 for c in choices)
 
-            subPattern = self.patterns['multipleChoiceEdit']
+            subPattern = self.patterns['multiple-choice-edit']
             subPattern = subPattern(data=dict(value=value, choices=choices))
         else:
             subPattern = self.patterns['edit']
@@ -160,12 +171,18 @@ class PreferenceEditor(rend.Fragment):
 
     def serializePrefs(self):
         for (collectionName, prefs) in self.prefs.iteritems():
-            pattern = self.patterns['preferenceCollection']
+            pattern = self.patterns['preference-collection']
             container = pattern.fillSlots('name', collectionName)
 
             content = map(self.serializePref, prefs)
 
             yield container.fillSlots('preferences', content)
+
+    def serializePrefCollection(self, name):
+        prefs = self.prefs[name]
+        pattern = self.patterns['preference-collection']
+        container = pattern.fillSlots('name', name)
+        return container.fillSlots('preferences', map(self.serializePref, prefs))
 
     def handle_savePref(self, ctx, key, value):
         pref = self.aggregator.getPreference(key)
@@ -176,13 +193,11 @@ class PreferenceEditor(rend.Fragment):
             return (livepage.js.alert('Error Saving Preferences: %s' % err), livepage.eol)
 
         pref.collection.setPreferenceValue(pref, value)
-        return (livepage.js.updatePrefValue(key, pref.valueToDisplay(value)), livepage.eol)
+
+        return (livepage.js.updatedPreference(), livepage.eol)
 
     def data_preferences(self, ctx, data):
-        pgen = inevow.IQ(self.docFactory).patternGenerator
-        self.patterns = dict(multipleChoiceEdit=pgen('multiple-choice-edit'),
-                             edit=pgen('edit'), preference=pgen('preference'),
-                             preferenceCollection=pgen('preference-collection'))
+        self.patterns = PatternDictionary(self.docFactory)
 
         installedOn = self.original.installedOn
         self.aggregator = IPreferenceAggregator(installedOn)

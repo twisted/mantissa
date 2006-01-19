@@ -54,7 +54,7 @@ function edit(elem) {
 }
 
 function getElementValue(elem) {
-    if(elem.tagName == "input" && elem.type == "text")
+    if(elem.tagName == "INPUT" && elem.type == "text")
         return elem.value;
     if(elem.tagName == "SELECT")
         return selectedValue(elem);
@@ -82,16 +82,7 @@ function selectOptionWithValue( elem, value ) {
             break;
         }
 }
-function updatePrefValue(key, value) {
-    var row = document.getElementById(key);
-    var containers = getContainers(row);
-    var vcont = containers[0];
-    var ccont = containers[1];
-    vcont.firstChild.nodeValue = value;
 
-    setDisplay(ccont, "none");
-    setDisplay(vcont, "inline");
-    setDisplay(firstWithClass(row, "a", "save"), "none");
-    setDisplay(firstWithClass(row, "a", "edit"), "inline");
-    selectOptionWithValue(firstElement(ccont), value);
+function updatedPreference() {
+    document.location.reload();
 }
