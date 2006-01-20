@@ -49,7 +49,12 @@ Mantissa.TDB.Controller.methods(
     function _differentPage(self /*, ...*/) {
         self._toggleThrobberVisibility();
 
-        var d = self.callRemote.apply(self, arguments);
+        var args = [];
+        for (var i = 1; i < arguments.length; ++i) {
+            args.push(arguments[i]);
+        }
+
+        var d = self.callRemote.apply(self, args);
         d.addCallback(function(result) {
                           var tdbTable = result[0];
                           var tdbState = result[1];
