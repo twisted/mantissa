@@ -31,12 +31,11 @@
     <nevow:slot name="input" />
   </div>
 
+  <!-- Note that any whitespace in the textarea tag will appear in the
+       output, and so none should be included, if at all possible. -->
   <div nevow:pattern="textarea-input-container">
     <nevow:slot name="description" />
-    <textarea>
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="value" />
-    </textarea>
+    <textarea><nevow:attr name="name"><nevow:slot name="name" /></nevow:attr><nevow:slot name="value" /></textarea>
   </div>
 
   <div nevow:pattern="radio-input-container">

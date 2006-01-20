@@ -21,13 +21,12 @@
     <nevow:slot name="inputs" />
   </table>
 
+  <!-- Note that any whitespace in the textarea tag will appear in the
+       output, and so none should be included, if at all possible. -->
   <tr nevow:pattern="textarea-input-container">
     <td><nevow:slot name="description" /></td>
     <td>
-      <textarea>
-        <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-        <nevow:slot name="value" />
-      </textarea>
+      <textarea><nevow:attr name="name"><nevow:slot name="name" /></nevow:attr><nevow:slot name="value" /></textarea>
     </td>
   </tr>
 
