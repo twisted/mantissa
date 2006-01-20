@@ -1,5 +1,7 @@
 # -*- test-case-name: xmantissa -*-
 
+import textwrap
+
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
@@ -202,50 +204,38 @@ class DeveloperApplication(Item, ParentCounterMixin):
                            [webnav.Tab('REPL', self.storeID, 0.0)],
                            authoritative=False)]
 
-class REPL(rend.Fragment):
+class REPL(athena.LiveFragment):
     """
+    Provides an interactive Read-Eval-Print loop. On a web page (duh).
     """
     implements(INavigableFragment)
 
-    live = True
+    jsClass = u'Mantissa.InterpreterWidget'
+
     fragmentName = 'admin-python-repl'
+    live = 'athena'
 
     def __init__(self, *a, **kw):
         rend.Fragment.__init__(self, *a, **kw)
         self.namespace = {'s': self.original.store}
-        self.interpreter = manhole.ManholeInterpreter(self,
-                                                      self.namespace)
+        self.interpreter = manhole.ManholeInterpreter(
+            self,
+            self.namespace)
+
 
     def head(self):
-        return T.script(
-            language='javascript',
-            src='/static/webadmin/js/repl.js')
+        return ()
 
-    def goingLive(self, ctx, client):
-        self.client = client
-        self.client.send(livepage.set('count', self.original.statementCount))
 
     def addOutput(self, output, async=False):
-        # Manhole callback
-        try:
-            output = unicode(output)
-        except UnicodeDecodeError, e:
-            output = u'UnicodeDecodeError: ' + str(e)
+        self.callRemote('addOutputLine', unicode(output, 'ascii'))
 
-        lines = livepage.js(json.serialize(output.splitlines()))
-        cmd = livepage.js.appendManholeOutput(lines)
-        cmd = flat.flatten(cmd)
-        self.client.send(cmd)
 
-    def handle_input(self, ctx, source):
-        # IClientHandle(ctx)
-        more = self.interpreter.push(source)
-        if more:
-            o = self.addOutput('... ')
-        else:
-            o = self.addOutput('>>> ')
-            self.original.statementCount += 1
-        return [o, livepage.eol, livepage.set('count', self.original.statementCount)]
+    allowedMethods = {'evaluateInputLine': True}
+    def evaluateInputLine(self, inputLine):
+        return self.interpreter.push(inputLine)
+
+
 
 registerAdapter(REPL, DeveloperApplication, INavigableFragment)
 

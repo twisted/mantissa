@@ -5,6 +5,8 @@ integration of the extensible hierarchical navigation system defined in
 xmantissa.webnav
 """
 
+import os
+
 from zope.interface import implements
 
 from axiom.item import Item
@@ -143,6 +145,8 @@ class NavMixin(object):
         else:
             return ctx.tag
 
+INSPECTROFY = os.environ.get('MANTISSA_DEV')
+
 class FragmentWrapperMixin:
     def __init__(self, fragment):
         self.fragment = fragment
@@ -150,6 +154,13 @@ class FragmentWrapperMixin:
 
     def beforeRender(self, ctx):
         return getattr(self.fragment, 'beforeRender', lambda x: None)(ctx)
+
+    def render_introspectionWidget(self, ctx, data):
+        "Until we have eliminated everything but GenericAthenaLivePage"
+        if INSPECTROFY:
+            return ctx.tag['No debugging on crap-ass bad pages']
+        else:
+            return ''
 
     def render_head(self, ctx, data):
         l = list(getAllThemes())
@@ -209,6 +220,14 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
     def render_head(self, ctx, data):
         ctx.tag[t.invisible(render=t.directive("liveglue"))]
         return FragmentWrapperMixin.render_head(self, ctx, data)
+
+    def render_introspectionWidget(self, ctx, data):
+        if INSPECTROFY:
+            f = athena.IntrospectionFragment()
+            f.setFragmentParent(self)
+            return ctx.tag[f]
+        else:
+            return ''
 
 class PrivateRootPage(Page, NavMixin):
     addSlash = True
