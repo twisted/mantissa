@@ -6,37 +6,36 @@ if (typeof(Mantissa.People) == 'undefined') {
     Mantissa.People = {};
 }
 
-Mantissa.People.Organizer = Nevow.Athena.Widget.subclass();
+Mantissa.People.Organizer = Nevow.Athena.Widget.subclass('Mantissa.People.Organizer');
+Mantissa.People.Organizer.methods(
+    function cbPersonError(self, err) {
+        alert("Sorry something broke: " + new String(err));
+    },
 
-Mantissa.People.Organizer.prototype.cbPersonError = function(err) {
-    alert("Sorry something broke: " + new String(err));
-}
+    function replaceTDB(self, data) {
+        // this is so bad
+        var tdbc = Mantissa.TDB.Controller.get(
+            self.nodeByAttribute(
+                "athena:class", "Mantissa.TDB.Controller"));
+        if(tdbc) {
+            tdbc._setTableContent(data[0]);
+        }
+    },
 
-Mantissa.People.Organizer.prototype.replaceTDB = function(data) {
-    // this is so bad
-    var tdbc = Mantissa.TDB.Controller.get(
-        this.nodeByAttribute(
-            "athena:class", "Mantissa.TDB.Controller"));
-    if(tdbc) {
-        tdbc._setTableContent(data[0]);
-    }
-}
+    function addPerson(self, form) {
+        var d = self.callRemote('addPerson', form.firstname.value,
+                                             form.lastname.value,
+                                             form.email.value);
+        form.firstname.value = "";
+        form.lastname.value = "";
+        form.email.value = "";
 
-Mantissa.People.Organizer.prototype.addPerson = function(form) {
-    var d = this.callRemote('addPerson', form.firstname.value,
-                                         form.lastname.value,
-                                         form.email.value);
-    form.firstname.value = "";
-    form.lastname.value = "";
-    form.email.value = "";
+        d.addCallback(self.replaceTDB).addErrback(self.cbPersonError);
+    });
 
-    d.addCallback(this.replaceTDB).addErrback(this.cbPersonError);
-}
-
-Mantissa.People.InlinePerson = Nevow.Athena.Widget.subclass();
-
-Mantissa.People.InlinePerson.method('showActions',
-    function(self, event) {
+Mantissa.People.InlinePerson = Nevow.Athena.Widget.subclass('Mantissa.People.InlinePerson');
+Mantissa.People.InlinePerson.methods(
+    function showActions(self, event) {
         self.personActions = self.nodeByAttribute('class', 'person-actions');
         self.personActions.style.top = event.pageY;
         self.personActions.style.left = event.pageX;
@@ -65,10 +64,9 @@ Mantissa.People.InlinePerson.method('showActions',
             body.onclick = null;
             return false;
         }
-    });
+    },
 
-Mantissa.People.InlinePerson.method('hideActions',
-    function(self) {
+    function hideActions(self) {
         self.eventTarget.onclick = function(event) {
             self.showActions(event);
             return false;
@@ -76,4 +74,3 @@ Mantissa.People.InlinePerson.method('hideActions',
             
         MochiKit.DOM.hideElement(self.personActions);
     });
-

@@ -12,158 +12,155 @@ if (typeof(Mantissa.TDB) == 'undefined') {
     Mantissa.TDB = {};
 }
 
-Mantissa.TDB.Controller = Nevow.Athena.Widget.subclass();
+Mantissa.TDB.Controller = Nevow.Athena.Widget.subclass('Mantissa.TDB.Controller');
+Mantissa.TDB.Controller.methods(
+    function loaded(self) {
+        self.tdbElements = {};
+        return self._differentPage('replaceTable');
+    },
 
-Mantissa.TDB.Controller.prototype.loaded = function () {
-    this.tdbElements = {};
-    return this._differentPage('replaceTable');
-};
-
-Mantissa.TDB.Controller.prototype._toggleThrobberVisibility = function() {
-    if(!this.node.style.opacity || this.node.style.opacity == '1') {
-        this.node.style.opacity = '.3';
-    } else {
-        this.node.style.opacity = '1';
-    }
-
-    var t = this._getHandyNode('throbber');
-
-    if(t.style.visibility == 'hidden') {
-        t.style.visibility = 'visible';
-    } else {
-        t.style.visibility = 'hidden';
-    }
-}
-
-Mantissa.TDB.Controller.prototype._setTableContent = function (tableContent) {
-    Divmod.Runtime.theRuntime.setNodeContent(this._getHandyNode("tdb-table"), tableContent);
-};
-
-Mantissa.TDB.Controller.prototype._getHandyNode = function(classValue) {
-    if(!(classValue in this.tdbElements)) {
-        this.tdbElements[classValue] = this.nodeByAttribute('class', classValue);
-    }
-    return this.tdbElements[classValue];
-};
-
-Mantissa.TDB.Controller.prototype._differentPage = function(/*...*/) {
-    this._toggleThrobberVisibility();
-
-    var outThis = this;
-    var d = this.callRemote.apply(this, arguments);
-    d.addCallback(function(result) {
-                      var tdbTable = result[0];
-                      var tdbState = result[1];
-                      outThis._setTableContent(tdbTable);
-                      outThis._setPageState.apply(outThis, tdbState);
-                  });
-    d.addBoth(function(ign) { outThis._toggleThrobberVisibility() });
-    return false;
-};
-
-Mantissa.TDB.Controller.prototype._setPageState = function (hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
-    var cp = this._getHandyNode("tdb-control-panel");
-    var self = this;
-    if(items == 0) {
-        cp.style.display = "none";
-    } else {
-        cp.style.display = "table-cell";
-    }
-    function setValue(eid, value) {
-        var e = self._getHandyNode(eid);
-        if(e.childNodes.length == 0) {
-            e.appendChild(document.createTextNode(value));
+    function _toggleThrobberVisibility() {
+        if(!self.node.style.opacity || self.node.style.opacity == '1') {
+            self.node.style.opacity = '.3';
         } else {
-            e.firstChild.nodeValue = value;
+            self.node.style.opacity = '1';
         }
-    }
 
-    var offset = (curPage - 1) * itemsPerPage + 1;
-    var end = offset + itemsPerPage - 1;
-    if(items < end) {
-        end = items;
-    }
-    setValue("tdb-item-start", offset);
-    setValue("tdb-item-end", end);
-    setValue("tdb-total-items", items);
+        var t = self._getHandyNode('throbber');
 
-    function enable(things) {
-        for(var i = 0; i < things.length; i++) {
-            var thing = things[i];
-            self._getHandyNode(thing).style.display = "inline";
-            self._getHandyNode(thing + "-disabled").style.display = "none";
+        if(t.style.visibility == 'hidden') {
+            t.style.visibility = 'visible';
+        } else {
+            t.style.visibility = 'hidden';
         }
-    }
+    },
 
-    function disable(things) {
-        for(var i = 0; i < things.length; i++) {
-            var thing = things[i];
-            self._getHandyNode(thing + "-disabled").style.display = "inline";
-            self._getHandyNode(thing).style.display = "none";
+    function _setTableContent(tableContent) {
+        Divmod.Runtime.theRuntime.setNodeContent(self._getHandyNode("tdb-table"), tableContent);
+    },
+
+    function _getHandyNode(classValue) {
+        if(!(classValue in self.tdbElements)) {
+            self.tdbElements[classValue] = self.nodeByAttribute('class', classValue);
         }
-    }
+        return self.tdbElements[classValue];
+    },
 
-    var prevs = ["prev-page", "first-page"];
-    var nexts = ["next-page", "last-page"];
+    function _differentPage(self /*, ...*/) {
+        self._toggleThrobberVisibility();
 
-    if (hasPrevPage) {
-        enable(prevs);
-    } else {
-        disable(prevs);
-    }
-    if (hasNextPage) {
-        enable(nexts);
-    } else {
-        disable(nexts);
-    }
+        var d = self.callRemote.apply(self, arguments);
+        d.addCallback(function(result) {
+                          var tdbTable = result[0];
+                          var tdbState = result[1];
+                          self._setTableContent(tdbTable);
+                          self._setPageState.apply(self, tdbState);
+                      });
+        d.addBoth(function(ign) { self._toggleThrobberVisibility() });
+        return false;
+    },
 
-};
+    function _setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
+        var cp = self._getHandyNode("tdb-control-panel");
+        if(items == 0) {
+            cp.style.display = "none";
+        } else {
+            cp.style.display = "table-cell";
+        }
+        function setValue(eid, value) {
+            var e = self._getHandyNode(eid);
+            if(e.childNodes.length == 0) {
+                e.appendChild(document.createTextNode(value));
+            } else {
+                e.firstChild.nodeValue = value;
+            }
+        }
 
-Mantissa.TDB.Controller.prototype.prevPage = function() {
-    return this._differentPage('prevPage');
-};
+        var offset = (curPage - 1) * itemsPerPage + 1;
+        var end = offset + itemsPerPage - 1;
+        if(items < end) {
+            end = items;
+        }
+        setValue("tdb-item-start", offset);
+        setValue("tdb-item-end", end);
+        setValue("tdb-total-items", items);
 
-Mantissa.TDB.Controller.prototype.nextPage = function() {
-    return this._differentPage('nextPage');
-};
+        function enable(things) {
+            for(var i = 0; i < things.length; i++) {
+                var thing = things[i];
+                self._getHandyNode(thing).style.display = "inline";
+                self._getHandyNode(thing + "-disabled").style.display = "none";
+            }
+        }
 
-Mantissa.TDB.Controller.prototype.firstPage = function() {
-    return this._differentPage('firstPage');
-};
+        function disable(things) {
+            for(var i = 0; i < things.length; i++) {
+                var thing = things[i];
+                self._getHandyNode(thing + "-disabled").style.display = "inline";
+                self._getHandyNode(thing).style.display = "none";
+            }
+        }
 
-Mantissa.TDB.Controller.prototype.lastPage = function() {
-    return this._differentPage('lastPage');
-};
+        var prevs = ["prev-page", "first-page"];
+        var nexts = ["next-page", "last-page"];
 
-Mantissa.TDB.Controller.prototype.performAction = function(actionID, targetID) {
-    this._toggleThrobberVisibility();
+        if (hasPrevPage) {
+            enable(prevs);
+        } else {
+            disable(prevs);
+        }
+        if (hasNextPage) {
+            enable(nexts);
+        } else {
+            disable(nexts);
+        }
 
-    var outThis = this;
-    var d = this.callRemote('performAction', actionID, targetID);
-    d.addCallback(function(result) {
-                      var tdbTable = result[1][0];
-                      var tdbState = result[1][1];
-                      outThis._setTableContent(tdbTable);
-                      outThis._setPageState.apply(outThis, tdbState);
-                      outThis._actionResult(result[0]);
-                  });
-    d.addBoth(function(ign) { outThis._toggleThrobberVisibility() });
-    return false;
-};
+    },
 
-Mantissa.TDB.Controller.prototype.clickSort = function(attributeID) {
-    return this._differentPage('clickSort', attributeID);
-};
+    function prevPage(self) {
+        return self._differentPage('prevPage');
+    },
 
-Mantissa.TDB.Controller.prototype._actionResult = function(message) {
-    var resultContainer = this._getHandyNode('tdb-action-result');
+    function nextPage(self) {
+        return self._differentPage('nextPage');
+    },
 
-    if(resultContainer.childNodes.length)
-        resultContainer.removeChild(resultContainer.firstChild);
+    function firstPage(self) {
+        return self._differentPage('firstPage');
+    },
 
-    var span = document.createElement("span");
-    span.appendChild(document.createTextNode(message));
-    resultContainer.appendChild(span);
+    function lastPage(self) {
+        return self._differentPage('lastPage');
+    },
 
-    new Fadomatic(span, 2).fadeOut();
-};
+    function performAction(self, actionID, targetID) {
+        self._toggleThrobberVisibility();
+
+        var d = self.callRemote('performAction', actionID, targetID);
+        d.addCallback(function(result) {
+                          var tdbTable = result[1][0];
+                          var tdbState = result[1][1];
+                          self._setTableContent(tdbTable);
+                          self._setPageState.apply(self, tdbState);
+                          self._actionResult(result[0]);
+                      });
+        d.addBoth(function(ign) { self._toggleThrobberVisibility() });
+        return false;
+    },
+
+    function clickSort(self, attributeID) {
+        return self._differentPage('clickSort', attributeID);
+    },
+
+    function _actionResult(self, message) {
+        var resultContainer = self._getHandyNode('tdb-action-result');
+
+        if(resultContainer.childNodes.length)
+            resultContainer.removeChild(resultContainer.firstChild);
+
+        var span = document.createElement("span");
+        span.appendChild(document.createTextNode(message));
+        resultContainer.appendChild(span);
+
+        new Fadomatic(span, 2).fadeOut();
+    });

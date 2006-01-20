@@ -9,11 +9,11 @@ if (Mantissa.LiveForm == undefined) {
     Mantissa.LiveForm = {};
 }
 
-Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass();
-
-Mantissa.LiveForm.FormWidget.method(
-    'submit',
-    function (self) {
+Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.FormWidget');
+Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.theRuntime.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.theRuntime.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.methods(
+    function submit(self) {
         return self.callRemote('invoke', self.gatherInputs()).addCallback(
             function(result) {
                 self.node.reset();
@@ -23,35 +23,25 @@ Mantissa.LiveForm.FormWidget.method(
                     Divmod.log('liveform', 'Error submitting form: ' + err);
                     return err;
                 });
-    });
+    },
 
-Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.theRuntime.DOM_DESCEND;
-Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.theRuntime.DOM_DESCEND;
-
-Mantissa.LiveForm.FormWidget.method(
-    'traverse',
-    function(self, visitor) {
+    function traverse(self, visitor) {
         return Divmod.Runtime.theRuntime.traverse(self.node, visitor);
-    });
+    },
 
-
-Mantissa.LiveForm.FormWidget.method(
-    'getFormName',
-    function (self) {
+    function getFormName(self) {
         // XXX TODO: the real way to do this would be to have a JSON object
         // sent from the server as part of the initialization process.  I'm
         // not sure where to squirrel that away right now, and I only need
         // this one string.  Feel free to fix.
         return Nevow.Athena.getAttribute(
             self.node, Nevow.Athena.XMLNS_URI, 'athena', 'formname');
-    });
+    },
 
-Mantissa.LiveForm.FormWidget.method(
-    'gatherInputs',
     /**
      * Returns a list of text nodes.
      */
-    function (self) {
+    function gatherInputs(self) {
         var inputs = {};
 
         var pushOneValue = function(name, value) {

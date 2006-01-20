@@ -6,10 +6,9 @@ if (Mantissa.Test == undefined) {
     Mantissa.Test = {};
 }
 
-Mantissa.Test.TestCase = Nevow.Athena.Widget.subclass();
-Mantissa.Test.TestCase.method(
-    '_run',
-    function(self, reporter) {
+Mantissa.Test.TestCase = Nevow.Athena.Widget.subclass('Mantissa.Test.TestCase');
+Mantissa.Test.TestCase.methods(
+    function _run(self, reporter) {
 
         self.node.setAttribute('class', 'test-running');
         try {
@@ -25,30 +24,29 @@ Mantissa.Test.TestCase.method(
         } else {
             self._success(reporter);
         }
+    },
+
+    function _failure(self, err, reporter) {
+        self.node.setAttribute('class', 'test-failure');
+        reporter.reportFailure(err);
+    },
+
+    function _success(self, reporter) {
+        self.node.setAttribute('class', 'test-success');
+        reporter.reportSuccess();
     });
 
-Mantissa.Test.TestCase.prototype._failure = function(err, reporter) {
-    this.node.setAttribute('class', 'test-failure');
-    reporter.reportFailure(err);
-};
+Mantissa.Test.TestSuite = Nevow.Athena.Widget.subclass('Mantissa.Test.TestSuite');
+Mantissa.Test.TestSuite.methods(
+    function __init__(self, node) {
+        Mantissa.Test.TestSuite.upcall(self, '__init__', node);
+        self._successNode = self.nodeByAttribute('class', 'test-success-count');
+        self._failureNode = self.nodeByAttribute('class', 'test-failure-count');
+        self._successCount = 0;
+        self._failureCount = 0;
+    },
 
-Mantissa.Test.TestCase.prototype._success = function(reporter) {
-    this.node.setAttribute('class', 'test-success');
-    reporter.reportSuccess();
-};
-
-Mantissa.Test.TestSuite = Nevow.Athena.Widget.subclass();
-Mantissa.Test.TestSuite.prototype.__init__ = function(node) {
-    Mantissa.Test.TestSuite.upcall(this, '__init__', node);
-    this._successNode = this.nodeByAttribute('class', 'test-success-count');
-    this._failureNode = this.nodeByAttribute('class', 'test-failure-count');
-    this._successCount = 0;
-    this._failureCount = 0;
-};
-
-Mantissa.Test.TestSuite.method(
-    'run',
-    function(self) {
+    function run(self) {
         /* For each child invoke the _run method
          */
         var visitTestCase = function(node) {
@@ -61,26 +59,25 @@ Mantissa.Test.TestSuite.method(
             }
         };
         this.visitNodes(visitTestCase);
+    },
+
+    function reportSuccess(self) {
+        self._successCount += 1;
+        self._successNode.innerHTML = self._successCount;
+    },
+
+    function reportFailure(self, err) {
+        self._failureCount += 1;
+        self._failureNode.innerHTML = self._failureCount;
+        Divmod.log('test-result', err.message);
     });
 
-Mantissa.Test.TestSuite.prototype.reportSuccess = function() {
-    this._successCount += 1;
-    this._successNode.innerHTML = this._successCount;
-};
-
-Mantissa.Test.TestSuite.prototype.reportFailure = function(err) {
-    this._failureCount += 1;
-    this._failureNode.innerHTML = this._failureCount;
-    Divmod.log('test-result', err.message);
-};
-
-Mantissa.Test.Forms = Mantissa.Test.TestCase.subclass();
-Mantissa.Test.Forms.method(
-    'run',
-    function(self) {
+Mantissa.Test.Forms = Mantissa.Test.TestCase.subclass('Mantissa.Test.Forms');
+Mantissa.Test.Forms.methods(
+    function run(self) {
         return self.childWidgets[0].submit();
     });
 
-Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass();
+Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass('Mantissa.Test.TextArea');
 
-Mantissa.Test.Traverse = Mantissa.Test.Forms.subclass();
+Mantissa.Test.Traverse = Mantissa.Test.Forms.subclass('Mantissa.Test.Traverse');
