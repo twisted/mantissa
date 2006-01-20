@@ -6,7 +6,7 @@ XXX HYPER TURBO SUPER UNSTABLE DO NOT USE XXX
 
 from epsilon.structlike import record
 
-from nevow import tags, athena, loaders
+from nevow import tags, athena
 
 from xmantissa import webtheme
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
@@ -15,6 +15,14 @@ class Parameter(record('name type coercer description default',
                        description=None,
                        default=None)):
     pass
+
+MULTI_TEXT_INPUT = 'multi-text'
+
+class ListParameter(record('name coercer count description defaults',
+                    description=None,
+                    defaults=None)):
+
+    type = MULTI_TEXT_INPUT
 
 TEXT_INPUT = 'text'
 PASSWORD_INPUT = 'password'
@@ -88,6 +96,17 @@ class LiveForm(record('callable parameters description',
                 p = dictFillSlots(p, dict(description=parameter.description,
                                           name=parameter.name,
                                           value=parameter.default or ''))
+            elif parameter.type == MULTI_TEXT_INPUT:
+                subInputs = list()
+
+                for i in xrange(parameter.count):
+                    subInputs.append(dictFillSlots(patterns['input'],
+                                        dict(name=parameter.name + '_' + str(i),
+                                             type=parameter.type,
+                                             value=parameter.defaults[i])))
+
+                p = dictFillSlots(p, dict(description=parameter.description,
+                                          inputs=subInputs))
             else:
                 if parameter.default is not None:
                     value = parameter.default
@@ -133,17 +152,29 @@ class LiveForm(record('callable parameters description',
         """
         result = {}
         for parameter in self.parameters:
-            try:
-                inputValue = received[parameter.name][0]
-            except KeyError:
-                raise ConfigurationError("Missing value for input: " +
-                                         parameter.name)
+            if parameter.type == MULTI_TEXT_INPUT:
+                values = list()
+                for i in xrange(parameter.count):
+                    name = parameter.name + '_' + str(i)
+                    try:
+                        inputValue = received[name][0]
+                    except KeyError:
+                        raise ConfigurationError("Missing value for field " +
+                                                 str(i) + " of " + parameter.name)
+                    values.append(parameter.coercer(inputValue))
+                result[parameter.name.encode('ascii')] = values
             else:
-                # I want to be super-explicit about this for now, since it's
-                # doing stuff no other case is doing.
-                if parameter.type == FORM_INPUT:
-                    coerced = parameter.coercer.invoke(inputValue)
+                try:
+                    inputValue = received[parameter.name][0]
+                except KeyError:
+                    raise ConfigurationError("Missing value for input: " +
+                                            parameter.name)
                 else:
-                    coerced = parameter.coercer(inputValue)
-                result[parameter.name.encode('ascii')] = coerced
+                    # I want to be super-explicit about this for now, since it's
+                    # doing stuff no other case is doing.
+                    if parameter.type == FORM_INPUT:
+                        coerced = parameter.coercer.invoke(inputValue)
+                    else:
+                        coerced = parameter.coercer(inputValue)
+                    result[parameter.name.encode('ascii')] = coerced
         return result

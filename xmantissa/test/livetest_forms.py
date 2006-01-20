@@ -114,6 +114,27 @@ class TextInput(athena.LiveFragment, unittest.TestCase):
         return ctx.tag[f]
 
 
+class MultiTextInput(athena.LiveFragment, unittest.TestCase):
+    jsClass = u'Mantissa.Test.Forms'
+
+    docFactory = loaders.stan(
+            tags.div(_class='test-unrun',
+                     render=tags.directive('liveFragment'))[
+                tags.invisible(render=tags.directive('multiForm'))])
+
+    def submit(self, sequence):
+        self.assertEquals(sequence, [1, 2, 3, 4])
+
+    def render_multiForm(self, ctx, data):
+        f = liveform.LiveForm(
+                self.submit,
+                (liveform.ListParameter('sequence',
+                                        int,
+                                        4,
+                                        'A bunch of text inputs: ',
+                                        (1, 2, 3, 4)),))
+        f.setFragmentParent(self)
+        return ctx.tag[f]
 
 class TextArea(athena.LiveFragment, unittest.TestCase):
     jsClass = u'Mantissa.Test.TextArea'
@@ -196,7 +217,8 @@ class Traverse(athena.LiveFragment, unittest.TestCase):
 def makeService():
     site = appserver.NevowSite(TestFrameworkRoot([TextInput(),
                                                   TextArea(),
-                                                  Traverse()]))
+                                                  Traverse(),
+                                                  MultiTextInput()]))
     return internet.TCPServer(8080, site)
 
 application = service.Application('Forms LiveTest')
