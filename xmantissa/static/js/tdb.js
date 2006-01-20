@@ -19,7 +19,7 @@ Mantissa.TDB.Controller.methods(
         return self._differentPage('replaceTable');
     },
 
-    function _toggleThrobberVisibility() {
+    function _toggleThrobberVisibility(self) {
         if(!self.node.style.opacity || self.node.style.opacity == '1') {
             self.node.style.opacity = '.3';
         } else {
@@ -35,11 +35,11 @@ Mantissa.TDB.Controller.methods(
         }
     },
 
-    function _setTableContent(tableContent) {
+    function _setTableContent(self, tableContent) {
         Divmod.Runtime.theRuntime.setNodeContent(self._getHandyNode("tdb-table"), tableContent);
     },
 
-    function _getHandyNode(classValue) {
+    function _getHandyNode(self, classValue) {
         if(!(classValue in self.tdbElements)) {
             self.tdbElements[classValue] = self.nodeByAttribute('class', classValue);
         }
@@ -60,7 +60,7 @@ Mantissa.TDB.Controller.methods(
         return false;
     },
 
-    function _setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
+    function _setPageState(self, hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
         var cp = self._getHandyNode("tdb-control-panel");
         if(items == 0) {
             cp.style.display = "none";
