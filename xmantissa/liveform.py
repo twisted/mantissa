@@ -102,7 +102,7 @@ class LiveForm(record('callable parameters description',
                 for i in xrange(parameter.count):
                     subInputs.append(dictFillSlots(patterns['input'],
                                         dict(name=parameter.name + '_' + str(i),
-                                             type=parameter.type,
+                                             type='text',
                                              value=parameter.defaults[i])))
 
                 p = dictFillSlots(p, dict(description=parameter.description,
