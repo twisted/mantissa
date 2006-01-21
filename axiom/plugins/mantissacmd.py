@@ -108,7 +108,7 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             acc = r.accountByAddress(username, domain)
 
         accStore = acc.avatars.open()
-        self.administrativeBenefactor.endow(None, accStore)
+        accStore.transact(self.administrativeBenefactor.endow, None, accStore)
 
 
 class Generate(usage.Options, axiomatic.AxiomaticSubCommandMixin):
