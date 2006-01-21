@@ -44,3 +44,25 @@ class PeopleTests(unittest.TestCase):
         name = u'testuser'
         firstPerson = o.personByName(name)
         self.assertIdentical(firstPerson, o.personByName(name))
+
+    def testPersonCreation2(self):
+        s = store.Store()
+        o = people.Organizer(store=s)
+
+        class original:
+            store = s
+
+        addPersonFrag = people.AddPersonFragment(original)
+        addPersonFrag.addPerson(u'Captain P.', u'Jean-Luc', u'Picard', u'jlp@starship.enterprise')
+
+        person = s.findUnique(people.Person)
+        self.assertEquals(person.name, 'Captain P.')
+
+        email = s.findUnique(people.EmailAddress, people.EmailAddress.person == person)
+
+        self.assertEquals(email.address, 'jlp@starship.enterprise')
+        self.failUnless(email.default, 'expected only email address to be the default')
+
+        rn = s.findUnique(people.RealName, people.RealName.person == person)
+
+        self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
