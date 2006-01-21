@@ -2,6 +2,10 @@
     padding-bottom: 8px;
 }
 
+td.multi-text-input-list > input {
+    display: block;
+    margin-bottom: 4px;
+}
 .person-actions {
     position: absolute;
     background-color: #FFFFFF;
