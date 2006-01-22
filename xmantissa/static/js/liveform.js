@@ -14,15 +14,20 @@ Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.theRuntime.DOM_DESCEND
 Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.theRuntime.DOM_DESCEND;
 Mantissa.LiveForm.FormWidget.methods(
     function submit(self) {
-        return self.callRemote('invoke', self.gatherInputs()).addCallback(
-            function(result) {
-                self.node.reset();
-                Divmod.log('liveform', 'Form submitted: ' + result);
-            }).addErrback(
-                function(err) {
-                    Divmod.log('liveform', 'Error submitting form: ' + err);
-                    return err;
-                });
+        var d = self.callRemote('invoke', self.gatherInputs());
+        d.addCallback(function(result) { return self.submitSuccess(result); });
+        d.addErrback(function(err) { return self.submitFailure(err); });
+        return d;
+    },
+
+    function submitSuccess(self, result) {
+        self.node.reset();
+        Divmod.log('liveform', 'Form submitted: ' + result);
+    },
+
+    function submitFailure(self, err) {
+        Divmod.log('liveform', 'Error submitting form: ' + err);
+        return err;
     },
 
     function traverse(self, visitor) {
