@@ -72,5 +72,3 @@ Mantissa.People.InlinePerson.methods(
             
         MochiKit.DOM.hideElement(self.personActions);
     });
-
-alert(Mantissa.People.InlinePerson);
