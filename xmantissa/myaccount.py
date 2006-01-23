@@ -15,7 +15,6 @@ class MyAccount(Item, InstallableMixin):
 
     installedOn = attributes.reference()
 
-
 class MyAccountFragment(FragmentCollector):
     fragmentName = 'my-account'
     title = 'My Account'

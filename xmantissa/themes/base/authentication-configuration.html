@@ -1,6 +1,7 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" class="authentication-panel">
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" class="authentication-panel"
+    nevow:render="liveFragment">
   <center>
-    <form onsubmit="submitNewPassword(this); return false;">
+    <form onsubmit="Mantissa.Authentication.get(this).submitNewPassword(this); return false;">
       <table cellspacing="0" class="control-table">
         <thead>
           <tr>

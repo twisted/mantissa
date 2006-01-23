@@ -14,13 +14,13 @@ from zope.interface import implements
 from twisted.python.components import registerAdapter
 from twisted.internet import defer
 
-from nevow import inevow, livepage, tags
+from nevow import inevow, athena
 
 from epsilon import extime
 
 from axiom import item, attributes, userbase
 
-from xmantissa import ixmantissa, websession, website
+from xmantissa import ixmantissa, websession
 
 class InvalidPassword(Exception):
     pass
@@ -85,22 +85,23 @@ class AuthenticationApplication(item.Item):
             raise NoSuchSession()
 
 
-class AuthenticationFragment(website.AxiomFragment):
+class AuthenticationFragment(athena.LiveFragment):
     implements(ixmantissa.INavigableFragment)
 
     fragmentName = 'authentication-configuration'
-    live = True
+    live = 'athena'
     title = 'Change Password'
+
+    jsClass = u'Mantissa.Authentication'
+
+    iface = allowedMethods = dict(cancel=True, changePassword=True)
 
     def __init__(self, original):
         self.store = original.store
-        website.AxiomFragment.__init__(self, original)
-
+        athena.LiveFragment.__init__(self, original)
 
     def head(self):
-        return tags.script(type='text/javascript',
-                           src='/static/mantissa/js/authentication.js')
-
+        return None
 
     def render_currentPasswordField(self, ctx, data):
         d = self.original.hasCurrentPassword()
@@ -116,35 +117,27 @@ class AuthenticationFragment(website.AxiomFragment):
 
 
     def render_cancel(self, ctx, data):
-        # XXX See previous XXX
-        return ctx.tag(onclick=[
-                livepage.js.server.handle('cancel', data['session'].sessionKey),
-                livepage.stop])
+        # XXX See previous XXX 19th
+        handler = 'Mantissa.Authentication.get(this).cancel(%r); return false'
+        return ctx.tag(onclick=handler % (data['session'].sessionKey,))
 
-
-    def handle_changePassword(self, ctx, currentPassword, newPassword):
+    def changePassword(self, currentPassword, newPassword):
         try:
             self.original.changePassword(unicode(currentPassword), unicode(newPassword))
         except NonExistentAccount:
-            return livepage.alert('You do not seem to exist.  Password unchanged.')
+            raise NonExistentAccount('You do not seem to exist.  Password unchanged.')
         except InvalidPassword:
-            return livepage.alert('Incorrect password!  Nothing changed.')
+            raise InvalidPassword('Incorrect password!  Nothing changed.')
         else:
-            return [
-                livepage.js.document.forms[0].currentPassword.removeAttribute("disabled"),
-                livepage.eol,
-                livepage.alert('Password changed!'),
-                ]
+            return u'Password Changed!'
 
-
-
-    def handle_cancel(self, ctx, uid):
+    def cancel(self, uid):
         try:
-            self.original.cancelPersistentSession(uid)
+            self.original.cancelPersistentSession(str(uid))
         except NoSuchSession:
-            return livepage.alert('That session seems to have vanished.')
+            raise NoSuchSession('That session seems to have vanished.')
         else:
-            return livepage.alert('Session discontinued')
+            return u'Session discontinued'
 
 
     def data_persistentSessions(self, ctx, data):

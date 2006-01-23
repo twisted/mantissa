@@ -1,12 +1,15 @@
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
-from nevow import rend, tags, inevow, livepage
+from nevow import athena
+
 from axiom.item import Item, InstallableMixin
 from axiom import attributes
 
 from xmantissa.fragmentutils import PatternDictionary
-from xmantissa.ixmantissa import (IPreference, IPreferenceCollection,
+
+from xmantissa.ixmantissa import (IPreference,
+                                  IPreferenceCollection,
                                   INavigableFragment,
                                   IPreferenceAggregator)
 
@@ -129,19 +132,18 @@ class PreferenceAggregator(Item, InstallableMixin):
 
 # FIXME this thing *really* needs to use liveform
 
-class PreferenceEditor(rend.Fragment):
+class PreferenceEditor(athena.LiveFragment):
     implements(INavigableFragment)
 
     fragmentName = 'preference-editor'
     title = 'Preferences'
-    live = True
+    live = 'athena'
+    jsClass = u'Mantissa.Preferences'
 
     prefs = None
     aggregator = None
 
-    def head(self):
-        return tags.script(type='text/javascript',
-                           src='/Mantissa/js/preferences.js')
+    iface = allowedMethods = dict(savePref=True)
 
     def serializePref(self, pref):
         value = pref.valueToDisplay(pref.value)
@@ -184,17 +186,10 @@ class PreferenceEditor(rend.Fragment):
         container = pattern.fillSlots('name', name)
         return container.fillSlots('preferences', map(self.serializePref, prefs))
 
-    def handle_savePref(self, ctx, key, value):
+    def savePref(self, key, value):
         pref = self.aggregator.getPreference(key)
-        try:
-            value = pref.displayToValue(value)
-        except PreferenceValidationError, err:
-            # make this nicer at some point
-            return (livepage.js.alert('Error Saving Preferences: %s' % err), livepage.eol)
-
+        value = pref.displayToValue(value)
         pref.collection.setPreferenceValue(pref, value)
-
-        return (livepage.js.updatedPreference(), livepage.eol)
 
     def data_preferences(self, ctx, data):
         self.patterns = PatternDictionary(self.docFactory)
@@ -209,5 +204,8 @@ class PreferenceEditor(rend.Fragment):
         self.prefs = prefs
 
         return self.serializePrefs()
+
+    def head(self):
+        return None
 
 registerAdapter(PreferenceEditor, PreferenceAggregator, INavigableFragment)

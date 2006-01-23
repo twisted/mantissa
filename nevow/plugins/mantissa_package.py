@@ -14,5 +14,7 @@ mantissaPkg = athena.JSPackage({
     'Mantissa.People': _f('static', 'js', 'people.js'),
     'Mantissa.TDB': _f('static', 'js', 'tdb.js'),
     'Mantissa.Offering': _f('static', 'js', 'offerings.js'),
+    'Mantissa.Preferences': _f('static', 'js', 'preferences.js'),
+    'Mantissa.Authentication': _f('static', 'js', 'authentication.js'),
     'Fadomatic': _f('static', 'js', 'fadomatic.js')
     })

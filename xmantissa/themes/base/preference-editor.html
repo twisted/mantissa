@@ -1,4 +1,7 @@
-<div class="preference-panel" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+<div class="preference-panel" xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+  nevow:render="liveFragment">
+
+  <div class="pref-error-log" />
 
   <tr nevow:pattern="preference" nevow:render="mapping">
     <nevow:attr name="id"><nevow:slot name="key" /></nevow:attr>
@@ -7,8 +10,10 @@
       <nevow:slot name="edit-widget" />
     </td>
     <td align="center">
-      <a class="edit" href="#" onclick="return edit(this)">edit</a>
-      <a style="display: none;" class="save" href="#" onclick="return save(this)">save</a></td>
+      <a class="edit" href="#"
+        onclick="Mantissa.Preferences.get(this).edit(this); return false">edit</a>
+      <a style="display: none;" class="save" href="#"
+        onclick="Mantissa.Preferences.get(this).save(this); return false">save</a></td>
   </tr>
 
   <tr nevow:pattern="unsettable-preference" nevow:render="mapping">
