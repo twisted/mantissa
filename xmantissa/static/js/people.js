@@ -1,6 +1,4 @@
-if (typeof(Mantissa) == 'undefined') {
-    Mantissa = {};
-}
+// import Mantissa
 
 if (typeof(Mantissa.People) == 'undefined') {
     Mantissa.People = {};
@@ -74,3 +72,5 @@ Mantissa.People.InlinePerson.methods(
             
         MochiKit.DOM.hideElement(self.personActions);
     });
+
+alert(Mantissa.People.InlinePerson);

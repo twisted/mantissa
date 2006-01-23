@@ -1,6 +1,4 @@
-if (typeof(Mantissa) == 'undefined') {
-    Mantissa = {};
-}
+// import Mantissa
 
 Mantissa.Preferences = Nevow.Athena.Widget.subclass("Mantissa.Preferences");
 
