@@ -149,7 +149,7 @@ class TabularDataView(athena.LiveFragment):
         rows = self.constructRows(modelData)
 
         tablePattern = tablePattern.fillSlots('column-headers', list(headers))
-        
+
         return tablePattern.fillSlots(
                 'rows', list(rows)).fillSlots('width', self.width)
 
