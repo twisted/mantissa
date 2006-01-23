@@ -23,7 +23,13 @@ Mantissa.TDB.Controller.methods(
             self.node.style.opacity = '1';
         }
 
-        var t = self._getHandyNode('throbber');
+        try {
+            var t = self._getHandyNode('throbber');
+        } catch(e) { return };
+
+        if(!t) {
+            return;
+        }
 
         if(t.style.visibility == 'hidden') {
             t.style.visibility = 'visible';

@@ -124,7 +124,11 @@ class TabularDataView(athena.LiveFragment):
     title = ''
     patterns = None
 
-    def __init__(self, model, columnViews, actions=(), width=''):
+    def __init__(self, model, columnViews, actions=(), width='', itemsCalled='Items'):
+        """
+        @param itemsCalled: something describing what a collection of tdb items is called,
+                            e.g. 'Phone Numbers' or 'Clicks'
+        """
         super(TabularDataView, self).__init__(model)
         self.columnViews = list(columnViews)
         if actions:
@@ -133,14 +137,17 @@ class TabularDataView(athena.LiveFragment):
         for action in actions:
             self.actions[action.actionID] = action
         self.width = width
+        self.itemsCalled = itemsCalled
 
     def constructTable(self):
         if self.patterns is None:
             self.patterns = PatternDictionary(self.docFactory)
 
         modelData = self.original.currentPage()
+
         if len(modelData) == 0:
-            return self.patterns['no-rows']()
+            return self.patterns['no-rows'].fillSlots(
+                                            'items-called', self.itemsCalled)
 
         tablePattern = self.patterns['table']
 
@@ -207,8 +214,10 @@ class TabularDataView(athena.LiveFragment):
         return ctx.tag[self.constructTable()]
 
     def render_navigation(self, ctx, data):
-        patterns = PatternDictionary(self.docFactory)
-        return ctx.tag[patterns['navigation']()]
+        if 0 < len(self.original.currentPage()):
+            patterns = PatternDictionary(self.docFactory)
+            return ctx.tag[patterns['navigation']()]
+        return ''
 
     def render_actions(self, ctx, data):
         return '(Actions not yet implemented)'
