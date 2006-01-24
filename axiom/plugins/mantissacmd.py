@@ -124,7 +124,15 @@ class Generate(usage.Options, axiomatic.AxiomaticSubCommandMixin):
         ]
 
     def postOptions(self):
-        proj = self.decodeCommandLine(self['name'])
+        if self['name'] is None:
+            proj = ''
+            while( proj == ''):
+                try:
+                    proj = raw_input("Please provide the name of the app to deploy: " )
+                except KeyboardInterrupt:
+                    raise SystemExit()
+        else:
+            proj = self.decodeCommandLine(self['name'])
         proj = proj.lower()
         capproj = proj.capitalize()
         print "Creating", capproj, "in", capproj
