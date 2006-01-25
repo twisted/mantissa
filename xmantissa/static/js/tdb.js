@@ -73,7 +73,7 @@ Mantissa.TDB.Controller.methods(
         if(items == 0) {
             cp.style.display = "none";
         } else {
-            cp.style.display = "table-cell";
+            cp.style.display = "";
         }
         function setValue(eid, value) {
             var e = self._getHandyNode(eid);
