@@ -458,9 +458,12 @@ def upgradeWebSite2to3(oldSite):
         securePortNumber=oldSite.securePortNumber,
         certificateFile=oldSite.certificateFile,
         httpLog=oldSite.httpLog)
-    staticMistake = newSite.store.findUnique(StaticSite, StaticSite.prefixURL == u'static/mantissa')
-    # Ugh, need cascading deletes
-    staticMistake.store.powerDown(staticMistake, ISessionlessSiteRootPlugin)
-    staticMistake.deleteFromStore()
+    staticMistake = newSite.store.findUnique(StaticSite,
+                                             StaticSite.prefixURL == u'static/mantissa',
+                                             default=None)
+    if staticMistake is not None:
+        # Ugh, need cascading deletes
+        staticMistake.store.powerDown(staticMistake, ISessionlessSiteRootPlugin)
+        staticMistake.deleteFromStore()
     return newSite
 upgrade.registerUpgrader(upgradeWebSite2to3, 'mantissa_web_powerup', 2, 3)
