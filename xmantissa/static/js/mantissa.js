@@ -226,9 +226,9 @@ Mantissa.InterpreterWidget.method(
 Mantissa.InterpreterWidget.method(
     function setupInputPrompt(self) {
         if (self.requiresMoreInput) {
-            self.replInput.innerHTML = '... ';
+            self.replInput.innerHTML = '...&nbsp;';
         } else {
-            self.replInput.innerHTML = '&gt;&gt;&gt; ';
+            self.replInput.innerHTML = '&gt;&gt;&gt;&nbsp;';
         }
     });
 
