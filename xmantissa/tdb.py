@@ -142,6 +142,7 @@ class TabularDataModel:
             # hasNextPage and hasPrevPage methosd.  We gracefully handle it
             # anyway simply because we expect multiple frontends for this
             # model, and multiple frontends means lots of places for bugs.
+            self.totalItems = self.totalPages = 0
             return
         self._currentResults = results
         self._paginate()
