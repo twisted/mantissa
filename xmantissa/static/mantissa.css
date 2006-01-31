@@ -1,5 +1,5 @@
-.throbber {
-    padding-bottom: 8px;
+body {
+    font: 80% Arial, Helvetica, sans-serif;
 }
 
 td.multi-text-input-list > input {
@@ -16,14 +16,6 @@ td.multi-text-input-list > input {
 div.person-actions > div {
     border-bottom: solid 1px #DADADA;
     margin-bottom: 4px;
-}
-
-.numeric {
-    text-align: right;
-}
-
-.actions {
-    text-align: center;
 }
 
 .tdb {
@@ -93,11 +85,10 @@ input.change-password {
  * control-table used in "my account" because the tdb cells we want to
  * accentuate are in the first row, rather than the first column */
 
-.tdb-navigation-panel {
-    margin-left: 1%;
-    width: 100%;
-    padding: 0;
-    border-spacing: 0;
+.tdb-action-result {
+    white-space: nowrap;
+    color: #04a700;
+    font-weight: bold;
 }
 
 .tdb-clickable-header {
@@ -150,32 +141,14 @@ table.mantissa-tdb > tbody > tr > td {
     white-space: nowrap;
 }
 
-.tdb-action-result {
-    color: #04a700;
-    font-weight: bold;
-    text-align: center;
+.tdb-row-alt {
+    background-color: #F1F1F1;
 }
 
 .tdb-sort-arrow {
     color: #000000;
     font-weight: bold;
     vertical-align: middle;
-}
-
-table.mantissa-tdb > tbody > tr > td.datetime {
-    text-align: center;
-}
-
-table.mantissa-tdb > tbody > tr > td.text {
-    overflow: hidden;
-}
-
-table.mantissa-tdb > tbody > tr > td.actions {
-    text-align: center;
-}
-
-table.mantissa-tdb > tbody > tr > td.numeric {
-    text-align: center;
 }
 
 /* the table of controls used by preferences & auth fragments */
@@ -196,7 +169,6 @@ table.control-table > thead {
 
 /* set the first row to be bold-face */
 table.control-table > thead > tr > td {
-
     padding: 5px;
     font-weight: bold;
     border-right: solid 1px #CACACA;
@@ -304,16 +276,139 @@ body {
 
 .fragment-content { width: 100%; }
 
-.mantissa-tab {
-    background-image: url(/Mantissa/images/header_bg.png);
-    background-position: bottom left;
-    background-repeat: repeat-x;
-    white-space: nowrap;
-    margin: 6px;
-    padding: 4px;
-    margin-top: 0px;
-    border: solid 1px #999999;
+/* navigation stuff */
+
+ul#mainmenu {
+    margin: 0;
+    padding: 0;
 }
+
+#mainmenu li.main:hover ul.submenu, #mainmenu li.over ul.submenu {
+    display: block;
+}
+
+div#nav {
+    background: #4ca1d8 url(/Mantissa/images/nav_bg.gif) top left repeat-x;
+    clear: both;
+    height: 26px;
+    padding-left: 11px;
+}
+
+#nav li.main {
+    text-align: center;
+}
+
+ul#mainmenu, ul.submenu {
+    list-style-type: none;
+}
+
+ul.submenu {
+    background: url(/Mantissa/images/dropdown.png) top left repeat-x;
+    border: 1px solid #E0E0E0;
+    border-top: 0;
+    display: none;
+    font-size: 0.9em;
+    left: 0;
+    margin-left: -1px;
+    padding: 5px 0 10px 0;
+    position: absolute;
+    width: 12em;
+    z-index: 2;
+    text-align: left;
+}
+
+li.main, li.current {
+    float: left;
+    font-size: 1.1em;
+    margin-top: 2px;
+    position: relative;
+    width: auto !important;
+    list-style-type: none;
+    width: 1%;
+}
+
+a.mainlink:link, a.mainlink:visited {
+    color: #fff;
+    display: block;
+    height: 14px;
+    padding: 5px 8px 5px 8px;
+    text-shadow: 2px 2px 1px #2A7DB3;
+}
+
+a.mainlink:hover, a.mainlink:active, a.mainlink:focus {
+    background: url(/Mantissa/images/li_over.gif) #70bbec repeat-x top right;
+    color: #2a7db3;
+    cursor: pointer;
+    text-shadow: none;
+}
+
+a.sellink:link, a.sellink:visited, a.sellink:hover, a.sellink:active, a.sellink:focus {
+    background: url(/Mantissa/images/li_over.gif) #70bbec repeat-x top right;
+    color: #2a7db3;
+    cursor: pointer;
+    display: block;
+    height: 14px;
+    padding: 5px 8px 5px 8px;
+    text-shadow: 2px 2px 1px #2A7DB3;
+}
+
+a.sublink:link, a.sublink:visited {
+    color: #3C3C3C;
+    display: block;
+    height: auto;
+    padding: 3px 4px;
+    width: 11.2em;
+}
+
+a.sublink:hover, a.sublink:active, a.sublink:focus {
+    background: #4CA1D8;
+    color: #fff;
+}
+
+#mainmenu li:hover a.mainlink, #mainmenu li.over a.mainlink {
+    background: url(/Mantissa/images/li_over.gif) #70bbec repeat-x top right;
+    color: #2a7db3;
+    text-shadow: none;
+}
+
+#submenubar a:link, #submenubar a:visited {
+    border: 0;
+    color: #656565;
+    display: block;
+    float: left;
+    height: 1.2em;
+    padding: 3px 10px;
+}
+
+a.childsellink {
+    font-weight: bold;
+}
+
+#submenubar a.childunsellink:hover, #submenubar a.childunsellink:active, #submenubar a.childunsellink:focus {
+    background: #4CA1D8 url(/Mantissa/images/submenu_selected.gif) top left repeat-x;
+    color: #fff;
+}
+
+
+#submenubar {
+    background: url(/Mantissa/images/submenubar_bg.gif) #fff repeat-x left top;
+    border-bottom: 1px solid #E9E9E9;
+    clear: both;
+    color: #fff;
+    height: 1.8em;
+    padding-left: 2px;
+    text-align: left;
+}
+
+#submenubar span {
+    color: #000000;
+    cursor: default;
+    font-weight: bold;
+}
+
+
+/* end of navigation stuff */
+
 .logged-in-panel {
     text-align: right;
 }

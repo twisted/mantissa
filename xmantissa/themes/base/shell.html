@@ -33,18 +33,13 @@
     </table>
 
     <div class="shell-content">
-
-      <table>
-        <tr class="page-body">
-          <td class="nav-panel">
-            <span nevow:render="navigation" />
-          </td>
-          <td class="fragment-container">
-            <div class="fragment-content" nevow:render="content" />
-          </td>
-        </tr>
-      </table>
-
+      <div id="head" nevow:render="navigation">
+        <div id="nav">
+          <ul id="mainmenu"><nevow:slot name="tabs" /></ul>
+        </div>
+        <div id="submenubar"><nevow:slot name="selected-children" /></div>
+      </div>
+      <div class="private-fragment-content" nevow:render="content" />
     </div>
 
     <div class="footer" nevow:render="footer" />

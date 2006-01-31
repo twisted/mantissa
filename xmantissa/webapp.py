@@ -14,7 +14,7 @@ from axiom.attributes import text, integer, reference
 from axiom.userbase import getAccountNames
 from axiom import upgrade
 
-from nevow.rend import Page, Fragment
+from nevow.rend import Page
 from nevow import livepage, athena
 from nevow.inevow import IResource, IQ
 from nevow import tags as t
@@ -25,6 +25,7 @@ from xmantissa.website import PrefixURLMixin, StaticRedirect
 from xmantissa.webtheme import getAllThemes
 from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
+from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
     ISiteRootPlugin, IWebTranslator, ISearchAggregator, IStaticShellContent
@@ -47,34 +48,6 @@ def _reorderForPreference(themeList, preferredThemeName):
             return
 
 
-class NavFragment(Fragment):
-    def __init__(self, docFactory, navigation, webapp):
-        Fragment.__init__(self, docFactory=docFactory)
-        self.navigation = navigation
-        self.webapp = webapp
-
-    def render_tab(self, ctx, data):
-        name = data.name
-        subtabs = data.children
-        self.subtabs = subtabs
-        if data.linkURL is None:
-            href = self.webapp.linkTo(data.storeID)
-        else:
-            href = data.linkURL
-
-        ctx.fillSlots('href', href)
-        ctx.fillSlots('name', name)
-        if subtabs:
-            st = NavFragment(self.docFactory, subtabs, self.webapp)
-        else:
-            st = ''
-        ctx.fillSlots('subtabs', st)
-        return ctx.tag
-
-    def data_tabs(self, ctx, data):
-        return self.navigation
-
-
 class NavMixin(object):
 
     fragmentName = 'main'
@@ -92,9 +65,53 @@ class NavMixin(object):
         raise NotImplementedError("implement render_context in subclasses")
 
     def render_navigation(self, ctx, data):
-        return NavFragment(self.getDocFactory('navigation'),
-                           self.pageComponents.navigation,
-                           self.webapp)
+        # this won't work with child tabs who have children
+        url = URL.fromContext(ctx)
+
+        patterns = PatternDictionary(self.getDocFactory('navigation'))
+
+        def fillSlots(tab, pattern):
+            return dictFillSlots(pattern,
+                                 dict(href=tab.linkURL, name=tab.name))
+        allTabsStan = []
+        selChildStan = []
+
+        def markTabs(tabs):
+            for tab in tabs:
+                if tab.linkURL is None:
+                    tab.linkURL = self.webapp.linkTo(tab.storeID)
+                if tab.linkURL[1:] == url.path:
+                    tab.selected = True
+                else:
+                    tab.selected = False
+
+                markTabs(tab.children)
+
+        markTabs(self.pageComponents.navigation)
+
+        for tab in self.pageComponents.navigation:
+            if tab.selected or True in (c.selected for c in tab.children):
+                tabStan = fillSlots(tab, patterns['selected-tab'])
+                for child in tab.children:
+                    if child.selected:
+                        pname = 'selected-child-selected'
+                    else:
+                        pname = 'selected-child-unselected'
+                    selChildStan.append(fillSlots(child, patterns[pname]))
+            else:
+                tabStan = fillSlots(tab, patterns['tab'])
+                if 0 < len(tab.children):
+                    subStan = patterns['subtabs'].fillSlots('subtabs',
+                            list(fillSlots(c, patterns['subtab']) for c in tab.children))
+                else:
+                    subStan = ''
+                tabStan = tabStan.fillSlots('subtabs', subStan)
+
+            allTabsStan.append(tabStan)
+
+        return ctx.tag.fillSlots(
+                'tabs', allTabsStan).fillSlots(
+                        'selected-children', selChildStan)
 
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
