@@ -557,7 +557,7 @@ class PersonDetailFragment(athena.LiveFragment):
                                         for p in self.organizer.peoplePlugins(person))
 
     def head(self):
-        return tabbedPane.tabbedPaneGlue.inlineGlue
+        return tabbedPane.tabbedPaneGlue.inlineCSS
 
     def render_personName(self, ctx, data):
         return ctx.tag[self.person.getDisplayName()]
@@ -578,7 +578,7 @@ class PersonDetailFragment(athena.LiveFragment):
                                   phone=phone or 'None'))
 
 
-    def data_organizerPlugins(self, ctx, data):
+    def render_organizerPlugins(self, ctx, data):
         contactInfo = ContactInfoFragment(self.person)
         contactInfo.setFragmentParent(self)
 
@@ -588,7 +588,9 @@ class PersonDetailFragment(athena.LiveFragment):
                 f.setFragmentParent(self)
             tabs.append((f.title, f))
 
-        return tabbedPane.tabbedPane(ctx, dict(pages=tabs))
+        tpf = tabbedPane.TabbedPaneFragment(self.tabs)
+        tpf.setFragmentParent(self)
+        return tpf
 
 components.registerAdapter(PersonDetailFragment, Person, ixmantissa.INavigableFragment)
 

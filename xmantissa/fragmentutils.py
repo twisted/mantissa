@@ -49,7 +49,9 @@ class FragmentCollector(athena.LiveFragment):
             if content is not None:
                 yield content
 
-        yield tabbedPane.tabbedPaneGlue.inlineGlue
+        yield tabbedPane.tabbedPaneGlue.inlineCSS
 
-    def data_tabbedPane(self, ctx, data):
-        return tabbedPane.tabbedPane(ctx, dict(pages=self.tabs))
+    def render_tabbedPane(self, ctx, data):
+        tpf = tabbedPane.TabbedPaneFragment(self.tabs)
+        tpf.setFragmentParent(self)
+        return tpf
