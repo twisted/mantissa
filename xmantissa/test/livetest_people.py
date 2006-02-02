@@ -1,12 +1,9 @@
-from twisted.application import internet, service
-from twisted.trial.unittest import TestCase
-
-from nevow import appserver, loaders, tags
+from nevow import loaders, tags
+from nevow.livetrial.testcase import TestCase
 
 from axiom.store import Store
 from axiom import attributes
 
-from xmantissa.test.livetest_forms import TestFrameworkRoot
 from xmantissa import people
 
 class ContactInfoTestBase(people.ContactInfoFragment):
@@ -118,13 +115,3 @@ class EditPhoneNumber(ContactInfoTestBase, TestCase):
                                            people.PhoneNumber.default == False)).getColumn('number')
 
         self.assertEqual(sorted(others), ['555-2323', '555-6767'])
-
-def makeService():
-    site = appserver.NevowSite(TestFrameworkRoot((EditEmails(),
-                                                  EditRealName(),
-                                                  EditNickname(),
-                                                  EditPhoneNumber())))
-    return internet.TCPServer(8080, site)
-
-application = service.Application('People LiveTest')
-makeService().setServiceParent(application)

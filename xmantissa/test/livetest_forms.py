@@ -1,102 +1,15 @@
-
 import textwrap
 
-from twisted.python import filepath
-from twisted.trial import unittest
-from twisted.application import internet, service
-
-from nevow import appserver, loaders, tags, url, rend, static, athena
+from nevow import loaders, tags
+from nevow.livetrial import testcase
 
 from xmantissa import liveform
 
-DOCTYPE_XHTML = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">'
-
-class TestSuite(athena.LiveFragment):
-    jsClass = u'Mantissa.Test.TestSuite'
-
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveFragment'))[
-            tags.form(action='#', onsubmit='Mantissa.Test.TestSuite.get(this).run(); return false;')[
-                tags.input(type='submit', value='Run Tests')],
-            tags.div['Tests Passed: ', tags.span(_class='test-success-count')[0]],
-            tags.div['Tests Failed: ', tags.span(_class='test-failure-count')[0]],
-            tags.invisible(render=tags.directive('testFragments'))])
-
-    def __init__(self, page, testFragments):
-        super(TestSuite, self).__init__()
-        self.page = page
-        self.testFragments = testFragments
-
-
-    def render_testFragments(self, ctx, data):
-        for f in self.testFragments:
-            f.setFragmentParent(self)
-            yield f
-        f = athena.IntrospectionFragment()
-        f.setFragmentParent(self)
-        yield f
-
-
-
-class TestFramework(athena.LivePage):
-    addSlash = True
-    docFactory = loaders.stan([
-        tags.xml(DOCTYPE_XHTML),
-        tags.html[
-            tags.head(render=tags.directive('liveglue'))[
-                tags.link(rel='stylesheet', href='static/livetest.css')],
-            tags.body(render=tags.directive('testSuite'))[
-                tags.div(id='nevow-log')]]])
-
-    def __init__(self, testFragments):
-        super(TestFramework, self).__init__(None, None, jsModuleRoot=url.here.child('jsmodule'))
-        self.testFragments = testFragments
-
-        here = filepath.FilePath(__file__).parent()
-        m = here.parent().child('static').child('js')
-        n = filepath.FilePath(athena.__file__).parent().child('athena.js')
-        self.jsModules.mapping.update({
-            'Mantissa.Test': here.child('livetest.js').path,
-            })
-
-
-    def render_testSuite(self, ctx, data):
-        return TestSuite(self, self.testFragments)
-
-
-    def childFactory(self, ctx, name):
-        try:
-            n = int(name)
-        except ValueError:
-            pass
-        else:
-            try:
-                f = self.testFragments[n]
-            except IndexError:
-                pass
-            else:
-                return static.Data(f.script, 'text/javascript')
-        return super(TestFramework, self).childFactory(ctx, name)
-
-
-    def child_static(self, ctx):
-        return static.File(filepath.FilePath(__file__).parent().child('livetest-static').path)
-
-
-
-class TestFrameworkRoot(rend.Page):
-    def child_app(self, ctx):
-        return TestFramework(self.original)
-    child_ = url.URL.fromString('/app')
-
-
-
-class TextInput(athena.LiveFragment, unittest.TestCase):
+class TextInput(testcase.TestCase):
     jsClass = u'Mantissa.Test.Forms'
 
     docFactory = loaders.stan(
-        tags.div(_class='test-unrun',
-                 render=tags.directive('liveFragment'))[
+        tags.div(render=tags.directive('liveTest'))[
             tags.invisible(render=tags.directive('hello_form'))])
 
     def submit(self, argument):
@@ -114,12 +27,11 @@ class TextInput(athena.LiveFragment, unittest.TestCase):
         return ctx.tag[f]
 
 
-class MultiTextInput(athena.LiveFragment, unittest.TestCase):
+class MultiTextInput(testcase.TestCase):
     jsClass = u'Mantissa.Test.Forms'
 
     docFactory = loaders.stan(
-            tags.div(_class='test-unrun',
-                     render=tags.directive('liveFragment'))[
+            tags.div(render=tags.directive('liveTest'))[
                 tags.invisible(render=tags.directive('multiForm'))])
 
     def submit(self, sequence):
@@ -136,12 +48,11 @@ class MultiTextInput(athena.LiveFragment, unittest.TestCase):
         f.setFragmentParent(self)
         return ctx.tag[f]
 
-class TextArea(athena.LiveFragment, unittest.TestCase):
+class TextArea(testcase.TestCase):
     jsClass = u'Mantissa.Test.TextArea'
 
     docFactory = loaders.stan(
-        tags.div(_class='test-unrun',
-                 render=tags.directive('liveFragment'))[
+        tags.div(render=tags.directive('liveTest'))[
             tags.invisible(render=tags.directive('textarea_form'))])
 
 
@@ -175,12 +86,11 @@ class TextArea(athena.LiveFragment, unittest.TestCase):
 SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
                    # accident.
 
-class Traverse(athena.LiveFragment, unittest.TestCase):
+class Traverse(testcase.TestCase):
     jsClass = u'Mantissa.Test.Traverse'
 
     docFactory = loaders.stan(
-        tags.div(_class='test-unrun',
-                 render=tags.directive('liveFragment'))[
+        tags.div(render=tags.directive('liveTest'))[
             tags.invisible(render=tags.directive('hello_form'))])
 
     def submit(self, argument, group):
@@ -212,14 +122,3 @@ class Traverse(athena.LiveFragment, unittest.TestCase):
                                 )])
         f.page = self.page
         return ctx.tag[f]
-
-
-def makeService():
-    site = appserver.NevowSite(TestFrameworkRoot([TextInput(),
-                                                  TextArea(),
-                                                  Traverse(),
-                                                  MultiTextInput()]))
-    return internet.TCPServer(8080, site)
-
-application = service.Application('Forms LiveTest')
-makeService().setServiceParent(application)
