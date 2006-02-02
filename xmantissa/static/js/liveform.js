@@ -2,16 +2,17 @@
 // import Divmod
 // import Divmod.Runtime
 
-// import Mantissa
+// import Nevow
 // import Nevow.Athena
 
-if (Mantissa.LiveForm == undefined) {
-    Mantissa.LiveForm = {};
-}
+// import Mantissa
+
+Mantissa.LiveForm = {};
 
 Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.FormWidget');
-Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.theRuntime.DOM_DESCEND;
-Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.theRuntime.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.Platform.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.Platform.DOM_CONTINUE;
+
 Mantissa.LiveForm.FormWidget.methods(
     function submit(self) {
         var d = self.callRemote('invoke', self.gatherInputs());
