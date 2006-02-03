@@ -22,7 +22,7 @@
   </table>
 
   <!-- Note that any whitespace in the textarea tag will appear in the
-       output, and so none should be included, if at all possible. -->
+  output, and so none should be included, if at all possible. -->
   <tr nevow:pattern="textarea-input-container">
     <td><nevow:slot name="description" /></td>
     <td>
@@ -61,9 +61,13 @@
 
 
   <input nevow:pattern="input">
-  <nevow:attr name="value"><nevow:slot name="value" /></nevow:attr>
-  <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-  <nevow:attr name="type"><nevow:slot name="type" /></nevow:attr>
+    <nevow:attr name="value"><nevow:slot name="value" /></nevow:attr>
+    <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+    <nevow:attr name="type"><nevow:slot name="type" /></nevow:attr>
+  </input>
+
+  <input nevow:pattern="checked-checkbox-input" type="checkbox" checked="true">
+    <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
   </input>
 
 </div>

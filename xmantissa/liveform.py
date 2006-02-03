@@ -113,8 +113,13 @@ class LiveForm(record('callable parameters description',
                 else:
                     value = ''
 
+                if parameter.type == CHECKBOX_INPUT and parameter.default:
+                    inputPattern = 'checked-checkbox-input'
+                else:
+                    inputPattern = 'input'
+
                 p = dictFillSlots(p, dict(description=parameter.description,
-                                          input=dictFillSlots(patterns['input'],
+                                          input=dictFillSlots(patterns[inputPattern],
                                                           dict(name=parameter.name,
                                                                type=parameter.type,
                                                                value=value))))

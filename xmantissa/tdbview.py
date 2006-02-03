@@ -210,14 +210,9 @@ class TabularDataView(athena.LiveFragment):
                                 {'cells': cells,
                                  'class': 'tdb-row-%s' % (idx,)})
 
-    def render_table(self, ctx, data):
-        return ctx.tag[self.constructTable()]
-
     def render_navigation(self, ctx, data):
-        if 0 < len(self.original.currentPage()):
-            patterns = PatternDictionary(self.docFactory)
-            return ctx.tag[patterns['navigation']()]
-        return ''
+        patterns = PatternDictionary(self.docFactory)
+        return ctx.tag[patterns['navigation']()]
 
     def render_actions(self, ctx, data):
         return '(Actions not yet implemented)'

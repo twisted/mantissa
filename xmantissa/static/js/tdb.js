@@ -39,7 +39,8 @@ Mantissa.TDB.Controller.methods(
     },
 
     function _setTableContent(self, tableContent) {
-        Divmod.Runtime.theRuntime.setNodeContent(self._getHandyNode("tdb-table"), tableContent);
+        Divmod.Runtime.theRuntime.setNodeContent(self._getHandyNode("tdb-table"),
+                                '<div xmlns="http://www.w3.org/1999/xhtml">' + tableContent + '</div>');
     },
 
     function _getHandyNode(self, classValue) {
