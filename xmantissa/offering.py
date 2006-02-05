@@ -1,18 +1,15 @@
 # -*- test-case-name: xmantissa.test.test_offering -*-
 
-import os
-
 from zope.interface import implements
 
 from twisted import plugin
-from twisted.python import util
 from twisted.python.components import registerAdapter
 
-from nevow import inevow, loaders, rend, tags, athena
+from nevow import inevow, loaders, rend, athena
 
 from axiom import item, userbase, attributes, substore
 
-from xmantissa import ixmantissa, webnav, plugins, website, webtheme
+from xmantissa import ixmantissa, webnav, plugins
 
 class OfferingAlreadyInstalled(Exception):
     """

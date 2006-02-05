@@ -1,7 +1,5 @@
 # -*- test-case-name: xmantissa -*-
 
-import textwrap
-
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
@@ -13,9 +11,8 @@ from twisted.conch import manhole
 from epsilon import extime
 
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory
-from axiom.item import Item, InstallableMixin
+from axiom.item import Item
 from axiom import userbase
-from axiom.substore import SubStore
 
 from xmantissa import webnav, tdb, tdbview, offering, signup
 from xmantissa.webapp import PrivateApplication
@@ -24,7 +21,7 @@ from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 
-from nevow import rend, athena, flat, json, livepage, static, tags as T
+from nevow import rend, athena, static, tags as T
 
 
 class DeveloperSite(Item, PrefixURLMixin):

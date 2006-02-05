@@ -19,7 +19,6 @@ except ImportError:
 
 from zope.interface import implements
 
-from twisted.python.util import sibpath
 from twisted.application.service import IService, Service
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess

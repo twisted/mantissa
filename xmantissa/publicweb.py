@@ -6,14 +6,13 @@ Support for the public-facing portion of web applications.
 from zope.interface import implements
 
 from twisted.internet import defer
-from twisted import plugin
 from twisted.python import util
 
 from nevow import inevow, rend, static
 
 from axiom import item, attributes, upgrade, userbase
 
-from xmantissa import ixmantissa, website, publicresource, websharing, offering, plugins
+from xmantissa import ixmantissa, website, publicresource, websharing, offering
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """

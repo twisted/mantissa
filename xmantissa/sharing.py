@@ -6,7 +6,6 @@
 
 import os
 
-from zope.interface import directlyProvides, providedBy
 from zope.interface.advice import addClassAdvisor
 
 from axiom import userbase
