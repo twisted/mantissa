@@ -161,15 +161,9 @@ class BasicTest(unittest.TestCase):
         self.store.close()
 
 ###file:_Project_/axiom/plugins/_project_cmd.py
-from zope.interface import classProvides
-from twisted import plugin
-from axiom import iaxiom
 from axiom.scripts import axiomatic
-from twisted.python import usage
 
-class _Project_Command(usage.Options, axiomatic.AxiomaticSubCommandMixin):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class _Project_Command(axiomatic.AxiomaticCommand):
     name = '_project_'
 
     description = '_Project_ command that must be edited to be useful'

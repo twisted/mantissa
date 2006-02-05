@@ -2,12 +2,10 @@
 import os
 import sys
 
-from zope.interface import classProvides
-
 from twisted.python import usage, reflect
-from twisted import plugin
 
-from axiom import iaxiom, item, attributes
+from axiom import item, attributes
+from axiom.scripts import axiomatic
 
 from xmantissa.website import WebSite, StaticSite, WebConfigurationError
 from xmantissa import ixmantissa, webapp, webadmin
@@ -18,9 +16,7 @@ def decodeCommandLine(cmdline):
     codec = sys.stdin.encoding or sys.getdefaultencoding()
     return unicode(cmdline, codec)
 
-class WebConfiguration(usage.Options):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class WebConfiguration(axiomatic.AxiomaticCommand):
     name = 'web'
     description = 'Web.  Yay.'
 
@@ -32,7 +28,7 @@ class WebConfiguration(usage.Options):
         ]
 
     def __init__(self, *a, **k):
-        usage.Options.__init__(self, *a, **k)
+        super(WebConfiguration, self).__init__(*a, **k)
         self.staticPaths = []
 
     didSomething = 0
@@ -142,9 +138,7 @@ class WebConfiguration(usage.Options):
     content on the filesystem (webpath%sfilepath)
     """ % (os.pathsep,)
 
-class WebApplication(usage.Options):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class WebApplication(axiomatic.AxiomaticCommand):
     name = 'web-application'
     description = 'Web interface for normal user'
 
@@ -158,9 +152,7 @@ class WebApplication(usage.Options):
             store=s,
             preferredTheme=decodeCommandLine(self['theme'])).installOn(s)
 
-class WebAdministration(usage.Options):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class WebAdministration(axiomatic.AxiomaticCommand):
     name = 'web-admin'
     description = 'Administrative controls for the web'
 

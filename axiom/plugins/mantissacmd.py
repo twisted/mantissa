@@ -1,16 +1,13 @@
 
 import sys
 
-from zope.interface import classProvides
-
-from twisted.python import usage, util
+from twisted.python import util
 from twisted.cred import portal
-from twisted import plugin
 
-from axiom import iaxiom, errors as eaxiom, userbase
+from axiom import errors as eaxiom, userbase
 from axiom.scripts import axiomatic
 
-from xmantissa import website, webapp, signup, webadmin, offering, publicweb
+from xmantissa import website, webadmin, publicweb
 
 from epsilon.asplode import splode
 
@@ -28,7 +25,7 @@ def gtpswd(prompt, confirmPassword):
         return util.getPassword(prompt=prompt,
                                 confirm=True)
 
-class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+class Mantissa(axiomatic.AxiomaticCommand):
     """
     Create all the moving parts necessary to begin interactively developing a
     Mantissa application component of your own.
@@ -37,8 +34,6 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     # Throughout here we use findOrCreate rather than raw creation so that
     # duplicate installations of these components do not create garbage
     # objects.
-
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
 
     name = 'mantissa'
     description = 'Blank Mantissa service <for development>'
@@ -111,9 +106,7 @@ class Mantissa(usage.Options, axiomatic.AxiomaticSubCommandMixin):
         accStore.transact(self.administrativeBenefactor.endow, None, accStore)
 
 
-class Generate(usage.Options, axiomatic.AxiomaticSubCommandMixin):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class Generate(axiomatic.AxiomaticCommand):
     name = "project"
 
     # This will show up next to the name in --help output

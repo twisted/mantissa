@@ -1,12 +1,9 @@
-from zope.interface import classProvides
 from twisted.python import usage
-from twisted import plugin
-from axiom import iaxiom
 from axiom.scripts import axiomatic
 
 from xmantissa import offering
 
-class Install(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+class Install(axiomatic.AxiomaticSubCommand):
     synopsis = "<offering>"
 
     def parseArgs(self, offering):
@@ -20,14 +17,12 @@ class Install(usage.Options, axiomatic.AxiomaticSubCommandMixin):
         else:
             raise usage.UsageError("No such offering")
 
-class List(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+class List(axiomatic.AxiomaticSubCommand):
     def postOptions(self):
         for o in offering.getOfferings():
             print "%s: %s" % (o.name, o.description)
 
-class OfferingCommand(usage.Options, axiomatic.AxiomaticSubCommandMixin):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class OfferingCommand(axiomatic.AxiomaticCommand):
     name = "offering"
     description = "View and accept the offerings of puny mortals."
 
