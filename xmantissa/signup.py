@@ -108,8 +108,8 @@ class TicketBooth(Item, PrefixURLMixin):
         return '%s://%s%s/%s/%s' % (
             httpScheme, domainName, httpPort, self.prefixURL, nonce)
 
-    def issueViaEmail(self, issuer, email, benefactor,
-                      domainName, httpPort=80, templateFileObj=None):
+    def issueViaEmail(self, issuer, email, benefactor, templateData,
+                      domainName, httpPort=80):
         """
         Send a ticket via email to the supplied address, which, when claimed, will
         create an avatar and allow the given benefactor to endow it with
@@ -129,8 +129,7 @@ class TicketBooth(Item, PrefixURLMixin):
 
         @param httpPort: a port number for the web server running on domainName
 
-        @param templateFileObj: Optional, but suggested: an object with a
-        read() method that returns a string containing an rfc2822-format email
+        @param templateData: A string containing an rfc2822-format email
         message, which will have several python values interpolated into it
         dictwise:
 
@@ -147,12 +146,6 @@ class TicketBooth(Item, PrefixURLMixin):
 
         """
 
-        if templateFileObj is None:
-            if self.defaultTicketEmail is None:
-                templateFileObj = file(sibpath(__file__, 'signup.rfc2822'))
-            else:
-                templateFileObj = file(self.defaultTicketEmail)
-
         ticket = self.createTicket(issuer,
                                    unicode(email, 'ascii'),
                                    benefactor)
@@ -164,8 +157,7 @@ class TicketBooth(Item, PrefixURLMixin):
                       'message-id': smtp.messageid(),
                       'link': self.ticketLink(domainName, httpPort, nonce)}
 
-        msg = templateFileObj.read() % signupInfo
-        templateFileObj.close()
+        msg = templateData % signupInfo
 
         def gotMX(mx):
             return smtp.sendmail(str(mx.name),
@@ -199,19 +191,18 @@ freeTicketSignupConfiguration = [
                        u'The web location at which users will be able to request tickets.',
                        u'signup')]
 
-
-
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
     typeName = 'free_signup'
-    schemaVersion = 2
+    schemaVersion = 3
 
     sessioned = True
 
     prefixURL = text(allowNone=False)
     booth = reference()
     benefactor = reference()
+    emailTemplate = text()
 
     def createResource(self):
         return PublicAthenaLivePage(
@@ -232,6 +223,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
                 self,
                 emailAddress.encode('ascii'), # heh
                 self.benefactor,
+                self.emailTemplate,
                 domain,
                 port)
 
@@ -248,6 +240,19 @@ def freeTicketSignup1To2(old):
 
 upgrade.registerUpgrader(freeTicketSignup1To2, 'free_signup', 1, 2)
 
+def freeTicketSignup2To3(old):
+    emailTemplate = file(sibpath(__file__, 'signup.rfc2822')).read()
+    emailTemplate %= {'blurb': u'',
+                      'subject': 'Welcome to a Generic Axiom Application!',
+                      'linktext': "Click here to claim your 'generic axiom application' account"}
+
+    return old.upgradeVersion('free_signup', 2, 3,
+                              prefixURL=old.prefixURL,
+                              booth=old.booth,
+                              benefactor=old.benefactor,
+                              emailTemplate=emailTemplate)
+
+upgrade.registerUpgrader(freeTicketSignup2To3, 'free_signup', 2, 3)
 
 class InitializerBenefactor(Item, InstallableMixin):
     typeName = 'initializer_benefactor'
@@ -273,12 +278,13 @@ class InitializerBenefactor(Item, InstallableMixin):
     def resumeSignup(self, ticket, avatar):
         self.realBenefactor.endow(ticket, avatar)
 
-def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None, benefactor=None):
+def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None, benefactor=None, emailTemplate=None):
     ibene = store.findOrCreate(InitializerBenefactor, realBenefactor=benefactor)
     return FreeTicketSignup(store=store,
                             benefactor=ibene,
                             booth=booth,
-                            prefixURL=prefixURL)
+                            prefixURL=prefixURL,
+                            emailTemplate=emailTemplate)
 
 
 class Initializer(Item, InstallableMixin):
@@ -452,7 +458,7 @@ class SignupConfiguration(Item, InstallableMixin):
         return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
 
 
-    def createSignup(self, creator, signupClass, signupConf, benefactorFactoryConfigurations):
+    def createSignup(self, creator, signupClass, signupConf, benefactorFactoryConfigurations, emailTemplate):
         siteStore = self.store.parent
 
         multifactor = Multifactor(store=siteStore)
@@ -468,6 +474,7 @@ class SignupConfiguration(Item, InstallableMixin):
             store=siteStore,
             booth=booth,
             benefactor=multifactor,
+            emailTemplate=emailTemplate,
             **signupConf)
         signupItem.installOn(siteStore)
         _SignupTracker(store=siteStore,
@@ -545,8 +552,17 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
     live = 'athena'
 
     def head(self):
-        return None
-
+        # i think this is the lesser evil.
+        # alternatives being:
+        #  * mangle form element names so we can put these in mantissa.css
+        #    without interfering with similarly named things
+        #  * put the following line of CSS into it's own file that is included
+        #    by only this page
+        #  * remove these styles entirely (makes the form unusable, the
+        #    type="text" inputs are *tiny*)
+        return tags.style(type='text/css')['''
+        input[name=linktext], input[name=subject], textarea[name=blurb] { width: 40em }
+        ''']
 
     def render_signupConfigurationForm(self, ctx, data):
         benefactorFactoryConfigurations = self.makeBenefactorFactoryConfigurationForm()
@@ -591,6 +607,28 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
              in self.original.getSignupSystems().itervalues()],
             u"Signup Type")
 
+        def coerceEmailTemplate(**k):
+            return file(sibpath(__file__, 'signup.rfc2822')).read() % k
+
+        emailTemplateConfiguration = liveform.LiveForm(
+            coerceEmailTemplate,
+            [liveform.Parameter('subject',
+                                liveform.TEXT_INPUT,
+                                unicode,
+                                u'Email Subject',
+                                'Welcome to a Generic Axiom Application!'),
+             liveform.Parameter('blurb',
+                                liveform.TEXTAREA_INPUT,
+                                unicode,
+                                u'Blurb',
+                                ''),
+             liveform.Parameter('linktext',
+                                liveform.TEXT_INPUT,
+                                unicode,
+                                u'Link Text',
+                                "Click here to claim your 'generic axiom application' account")],
+             description='Email Template')
+        emailTemplateConfiguration.docFactory = getLoader('liveform-compact')
 
         signupForm = liveform.LiveForm(
             self.createSignup,
@@ -601,7 +639,11 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
              liveform.Parameter('signupTuple',
                                 liveform.FORM_INPUT,
                                 signupMechanismConfigurations,
-                                u'Pick just one dude')])
+                                u'Pick just one dude'),
+             liveform.Parameter('emailTemplate',
+                                liveform.FORM_INPUT,
+                                emailTemplateConfiguration,
+                                u'You know you want to')])
         signupForm.setFragmentParent(self)
         return signupForm
 
@@ -617,13 +659,15 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
     allowedMethods = iface = {'createSignup': True}
     def createSignup(self,
                      signupTuple,
-                     benefactorFactoryConfigurations):
+                     benefactorFactoryConfigurations,
+                     emailTemplate):
         (signupMechanism, signupConfig) = signupTuple
         t = self.original.store.transact
         t(self.original.createSignup,
           self.page.username,
           signupMechanism, signupConfig,
-          benefactorFactoryConfigurations)
+          benefactorFactoryConfigurations,
+          emailTemplate)
         return u'Great job.'
 
 registerAdapter(SignupFragment, SignupConfiguration, INavigableFragment)

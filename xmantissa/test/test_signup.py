@@ -90,10 +90,12 @@ class SignupCreationTestCase(unittest.TestCase):
             u'testuser@localhost',
             free_signup.freeTicket.itemClass,
             {'prefixURL': u'signup'},
-            {adminoff.adminOffering.benefactorFactories[0]: {}})
+            {adminoff.adminOffering.benefactorFactories[0]: {}},
+            u'')
 
         self.sc.createSignup(
             u'testuser@localhost',
             free_signup.freeTicketPassword.itemClass,
             {'prefixURL': u'signup-password'},
-            {adminoff.adminOffering.benefactorFactories[0]: {}})
+            {adminoff.adminOffering.benefactorFactories[0]: {}},
+            u'')

@@ -1,21 +1,19 @@
-From: %(from)s
-To: %(to)s
-Subject: Welcome to a Generic Axiom Application!
-Date: %(date)s
-Message-ID: %(message-id)s
+From: %%(from)s
+To: %%(to)s
+Subject: %(subject)s
+Date: %%(date)s
+Message-ID: %%(message-id)s
 Content-Type: text/html
-Reply-To: %(from)s
+Reply-To: %%(from)s
 MIME-Version: 1.0
 
 <html>
 <head>
-<title>Welcome to a Generic Axiom Application!</title>
+<title>%(subject)s</title>
 </head>
 <body>
-
-<a href="%(link)s">
-    Click here to claim your 'generic axiom application' account.
-</a>
+<div>%(blurb)s</div>
+<a href="%%(link)s">%(linktext)s</a>
 
 </body>
 </html>
