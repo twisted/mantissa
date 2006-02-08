@@ -588,7 +588,7 @@ class PersonDetailFragment(athena.LiveFragment):
                 f.setFragmentParent(self)
             tabs.append((f.title, f))
 
-        tpf = tabbedPane.TabbedPaneFragment(self.tabs)
+        tpf = tabbedPane.TabbedPaneFragment(tabs)
         tpf.setFragmentParent(self)
         return tpf
 
