@@ -9,6 +9,8 @@ import os
 
 from zope.interface import implements
 
+from epsilon.structlike import record
+
 from axiom.item import Item
 from axiom.attributes import text, integer, reference
 from axiom.userbase import getAccountNames
@@ -30,7 +32,7 @@ from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
     ISiteRootPlugin, IWebTranslator, ISearchAggregator, IStaticShellContent
 
-from xmantissa.myaccount import MyAccount
+from xmantissa.settings import Settings
 from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
 from xmantissa.search import SearchAggregator
@@ -136,8 +138,8 @@ class NavMixin(object):
                 self.username = 'nobody@noplace'
         return ctx.tag[self.username]
 
-    def data_myAccountLink(self, ctx, data):
-        return self.webapp.linkTo(self.pageComponents.myAccount.storeID)
+    def data_settingsLink(self, ctx, data):
+        return self.webapp.linkTo(self.pageComponents.settings.storeID)
 
     def render_head(self, ctx, data):
         return ctx.tag
@@ -301,12 +303,8 @@ class PrivateRootPage(Page, NavMixin):
         return pageClass(self.webapp, fragment, self.pageComponents)
 
 
-class _PageComponents(object):
-    def __init__(self, navigation, searchAggregator, staticShellContent, myAccount):
-        self.navigation = navigation
-        self.searchAggregator = searchAggregator
-        self.staticShellContent = staticShellContent
-        self.myAccount = myAccount
+class _PageComponents(record('navigation searchAggregator staticShellContent settings')):
+    pass
 
 class PrivateApplication(Item, PrefixURLMixin):
     """
@@ -383,7 +381,7 @@ class PrivateApplication(Item, PrefixURLMixin):
         findOrCreate(AuthenticationApplication)
         findOrCreate(PreferenceAggregator).installOn(other)
         findOrCreate(DefaultPreferenceCollection).installOn(other)
-        findOrCreate(MyAccount).installOn(other)
+        findOrCreate(Settings).installOn(other)
         findOrCreate(SearchAggregator).installOn(other)
 
     def createResource(self):
@@ -394,7 +392,7 @@ class PrivateApplication(Item, PrefixURLMixin):
         pageComponents = _PageComponents(navigation,
                                          searchAggregator,
                                          staticShellContent,
-                                         self.installedOn.findFirst(MyAccount))
+                                         self.installedOn.findFirst(Settings))
 
         return PrivateRootPage(self, pageComponents)
 

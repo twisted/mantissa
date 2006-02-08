@@ -17,7 +17,6 @@ from axiom import userbase
 from xmantissa import webnav, tdb, tdbview, offering, signup
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
-from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 
@@ -344,7 +343,6 @@ class DONTUSETHISBenefactor(Item):
         self.didYouUseIt += 1 # OMFG can you *read*??
         for X in WebSite, PrivateApplication, DeveloperApplication, TracebackViewer:
             X(store=avatar).installOn(avatar)
-        AuthenticationApplication(store=avatar)
 
 # This is a lot like the above benefactor.  We should probably delete
 # the above benefactor now.
@@ -402,7 +400,6 @@ class AdministrativeBenefactor(Item):
 
 
             avatar.findOrCreate(powerUp).installOn(avatar)
-        AuthenticationApplication(store=avatar)
 
     def deprive(self, ticket, avatar):
         # Only delete the really administratory things.

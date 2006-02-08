@@ -1,24 +1,70 @@
+import pytz
+
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
 from nevow import athena
 
 from axiom.item import Item, InstallableMixin
-from axiom import attributes
+from axiom import attributes, upgrade
 
 from xmantissa.fragmentutils import PatternDictionary
 
-from xmantissa.ixmantissa import (IPreference,
-                                  IPreferenceCollection,
+from xmantissa.ixmantissa import (IPreferenceCollection,
                                   INavigableFragment,
                                   IPreferenceAggregator)
+
+class DefaultPreferenceCollection(Item, InstallableMixin):
+    implements(IPreferenceCollection)
+
+    typeName = 'mantissa_default_preference_collection'
+    schemaVersion = 2
+
+    applicationName = 'Mantissa'
+
+    installedOn = attributes.reference()
+    itemsPerPage = attributes.integer(default=10)
+    timezone = attributes.text(default=u'US/Eastern')
+
+    _cachedPrefs = attributes.inmemory()
+
+    def installOn(self, other):
+        super(DefaultPreferenceCollection, self).installOn(other)
+        other.powerUp(self, IPreferenceCollection)
+
+    def activate(self):
+        ipp = _ItemsPerPage(self.itemsPerPage, self, (10, 20, 30))
+        tz = _TimezonePreference(self.timezone, self)
+
+        self._cachedPrefs = {'itemsPerPage': ipp,
+                             'timezone': tz}
+
+    def getPreferences(self):
+        return self._cachedPrefs
+
+    def setPreferenceValue(self, pref, value):
+        pref.value = value
+        setattr(self, pref.key, value)
+
+    def getSections(self):
+        return None
+
+def defaultPreferenceCollection1To2(old):
+    from xmantissa.settings import Settings
+    Settings(store=old.store).installOn(old.store)
+    return old.upgradeVersion('mantissa_default_preference_collection', 1, 2,
+                              installedOn=old.installedOn,
+                              itemsPerPage=old.itemsPerPage,
+                              timezone=u'US/Eastern')
+
+upgrade.registerUpgrader(defaultPreferenceCollection1To2,
+                         'mantissa_default_preference_collection',
+                         1, 2)
 
 class PreferenceValidationError(Exception):
     pass
 
 class Preference(object):
-    implements(IPreference)
-
     def __init__(self, key, value, name, collection, description):
         self.key = key
         self.value = value
@@ -69,34 +115,19 @@ class _ItemsPerPage(MultipleChoicePreference):
                                             collection, desc,
                                             dict((c, str(c)) for c in choices))
 
-class DefaultPreferenceCollection(Item, InstallableMixin):
-    implements(IPreferenceCollection)
+class _TimezonePreference(Preference):
+    def __init__(self, value, collection):
+        super(_TimezonePreference, self).__init__('timezone', value, 'Timezone',
+                                                  collection, 'Your current timezone')
 
-    schemaVersion = 1
-    typeName = 'mantissa_default_preference_collection'
-    name = 'Basic Preferences'
+    def choices(self):
+        return pytz.common_timezones
 
-    itemsPerPage = attributes.integer(default=10)
-    installedOn = attributes.reference()
-    _cachedPrefs = attributes.inmemory()
+    def displayToValue(self, display):
+        return unicode(display)
 
-    def installOn(self, other):
-        super(DefaultPreferenceCollection, self).installOn(other)
-        other.powerUp(self, IPreferenceCollection)
-
-    def activate(self):
-        ipp = _ItemsPerPage(self.itemsPerPage, self, (10, 20, 30))
-        self._cachedPrefs = {"itemsPerPage" : ipp}
-
-    # IPreferenceCollection
-    def getPreferences(self):
-        return self._cachedPrefs
-
-    def setPreferenceValue(self, pref, value):
-        # this ugliness is short lived
-        assert hasattr(self, pref.key)
-        setattr(pref, 'value', value)
-        self.store.transact(lambda: setattr(self, pref.key, value))
+    def valueToDisplay(self, value):
+        return str(value)
 
 class PreferenceAggregator(Item, InstallableMixin):
     implements(IPreferenceAggregator)
@@ -145,46 +176,32 @@ class PreferenceEditor(athena.LiveFragment):
 
     iface = allowedMethods = dict(savePref=True)
 
-    def serializePref(self, pref):
-        value = pref.valueToDisplay(pref.value)
-
-        prefmap = dict(name=str(pref.name), key=str(pref.key), value=value)
-
-        if pref.settable():
-            pname = 'preference'
-        else:
-            pname = 'unsettable-preference'
-
-        itemPattern = self.patterns[pname](data=prefmap)
-
-        choices = pref.choices()
-
-        if choices is not None:
-            choices = list(dict(choice=pref.valueToDisplay(c))
-                                for c in choices)
-
-            subPattern = self.patterns['multiple-choice-edit']
-            subPattern = subPattern(data=dict(value=value, choices=choices))
-        else:
-            subPattern = self.patterns['edit']
-            subPattern = subPattern.fillSlots('value', value)
-
-        return itemPattern.fillSlots('edit-widget', subPattern)
-
     def serializePrefs(self):
-        for (collectionName, prefs) in self.prefs.iteritems():
-            pattern = self.patterns['preference-collection']
-            container = pattern.fillSlots('name', collectionName)
+        for pref in self.prefs:
+            value = pref.valueToDisplay(pref.value)
 
-            content = map(self.serializePref, prefs)
+            prefmap = dict(name=str(pref.name), key=str(pref.key), value=value)
 
-            yield container.fillSlots('preferences', content)
+            if pref.settable():
+                pname = 'preference'
+            else:
+                pname = 'unsettable-preference'
 
-    def serializePrefCollection(self, name):
-        prefs = self.prefs[name]
-        pattern = self.patterns['preference-collection']
-        container = pattern.fillSlots('name', name)
-        return container.fillSlots('preferences', map(self.serializePref, prefs))
+            itemPattern = self.patterns[pname](data=prefmap)
+
+            choices = pref.choices()
+
+            if choices is not None:
+                choices = list(dict(choice=pref.valueToDisplay(c))
+                                    for c in choices)
+
+                subPattern = self.patterns['multiple-choice-edit']
+                subPattern = subPattern(data=dict(value=value, choices=choices))
+            else:
+                subPattern = self.patterns['edit']
+                subPattern = subPattern.fillSlots('value', value)
+
+            yield itemPattern.fillSlots('edit-widget', subPattern)
 
     def savePref(self, key, value):
         pref = self.aggregator.getPreference(key)
@@ -193,17 +210,11 @@ class PreferenceEditor(athena.LiveFragment):
 
     def data_preferences(self, ctx, data):
         self.patterns = PatternDictionary(self.docFactory)
+        self.aggregator = IPreferenceAggregator(self.original.store)
+        self.prefs = self.original.getPreferences().values()
 
-        installedOn = self.original.installedOn
-        self.aggregator = IPreferenceAggregator(installedOn)
-        prefs = dict()
-
-        for collection in installedOn.powerupsFor(IPreferenceCollection):
-            prefs[collection.name] = collection.getPreferences().values()
-
-        self.prefs = prefs
-
-        return self.serializePrefs()
+        return self.patterns['preference-collection'].fillSlots(
+                    'preferences', self.serializePrefs())
 
     def head(self):
         return None

@@ -27,17 +27,12 @@ class FragmentCollector(athena.LiveFragment):
     live = 'athena'
     title = None
 
-    collect = ()
-
-    def __init__(self, original, docFactory=None):
-        athena.LiveFragment.__init__(self, original, docFactory)
-
-        translator = ixmantissa.IWebTranslator(original.installedOn)
+    def __init__(self, translator, docFactory=None, collect=(), name='default'):
+        self.name = name
+        athena.LiveFragment.__init__(self, None, docFactory)
 
         tabs = []
-        for item in self.collect:
-            item = original.installedOn.findFirst(item)
-            frag = ixmantissa.INavigableFragment(item)
+        for frag in collect:
             frag.docFactory = translator.getDocFactory(frag.fragmentName, None)
             tabs.append((frag.title, frag))
         self.tabs = tabs
@@ -52,6 +47,6 @@ class FragmentCollector(athena.LiveFragment):
         yield tabbedPane.tabbedPaneGlue.inlineCSS
 
     def render_tabbedPane(self, ctx, data):
-        tpf = tabbedPane.TabbedPaneFragment(self.tabs)
+        tpf = tabbedPane.TabbedPaneFragment(self.tabs, name=self.name)
         tpf.setFragmentParent(self)
         return tpf

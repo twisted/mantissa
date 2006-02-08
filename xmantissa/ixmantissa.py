@@ -33,35 +33,6 @@ class IColumn(Interface):
         returns the underlying value for this column
         """
 
-class IPreference(Interface):
-    """
-    Represents the display logic of an individual preference
-    """
-
-    key = Attribute("Internal, unique (per-store) identifier for this preference")
-    value = Attribute("The current value of this preference")
-    name = Attribute("Short, displayable title, e.g. 'Preferred Widget'")
-    collection = Attribute("Reference to my IPreferenceCollection")
-    description = Attribute("Longer, helpful summary of the utility of this preference")
-
-    def choices():
-        """
-        If this is a multiple choice preference, returns all possible values.
-        otherwise returns None.
-        """
-
-    def valueToDisplay(value):
-        """
-        Returns a displayable version of the preferences value.  e.g.
-        True -> "Yes"
-        """
-
-    def displayToValue(display):
-        """
-        inverse of "valueToDisplay".  raises prefs.PreferenceValidationError
-        if the "display" argument is not a valid preference value
-        """
-
 class IPreferenceAggregator(Interface):
     """
     Allows convenient retrieval of individual preferences
@@ -75,27 +46,6 @@ class IPreferenceAggregator(Interface):
     def getPreferenceValue(key):
         """
         Return the value of the preference associated with "key"
-        """
-
-class IPreferenceCollection(Interface):
-    """
-    Represents an Item that aggregates preferences associated with some
-    functionality - i.e. there might be a core mantissa Preference Collection,
-    and an AcmeWidgets Preference Collection that extends the set of available
-    preferences.
-    """
-
-    name = Attribute("The name of this collection, e.g. 'Mantissa Preferences'")
-
-    def getPreferences():
-        """
-        Returns a mapping of key->preference for all preferences
-        in this collection
-        """
-
-    def setPreferenceValue(pref, value):
-        """
-        Update and persist the value of the given preference
         """
 
 class ISearchProvider(Interface):
@@ -419,6 +369,32 @@ class IQ2QService(Interface):
         @see: L{vertex.q2q.Q2QService.connectQ2Q}
         """
 
+class IPreferenceCollection(Interface):
+    """
+    I group per-application preference/settings stuff.
+    """
+
+    applicationName = Attribute("""
+    The name of the application these settings are for.""")
+
+    def getPreferences():
+        """
+        Returns a mapping of key->preference for all preferences
+        that belong to this application.  'key' is a string,
+        'preference' is an xmantissa.prefs.Preference instance
+        """
+
+    def setPreferenceValue(pref, value):
+        """
+        Update and persist the value of the given preference.
+        """
+
+    def getSections(self):
+        """
+        Return a sequence of INavigableFragments or None.
+        These fragments will be displayed alongside
+        preferences under this application's settings group
+        """
 
 class ITemporalEvent(Interface):
     """

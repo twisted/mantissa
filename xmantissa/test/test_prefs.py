@@ -6,7 +6,6 @@ from xmantissa import prefs, ixmantissa
 from twisted.trial.unittest import TestCase
 
 class PreferredWidget(object):
-    implements(ixmantissa.IPreference)
 
     key = 'preferredWidget'
     name = 'Preferred Widget'
