@@ -389,7 +389,7 @@ class IPreferenceCollection(Interface):
         Update and persist the value of the given preference.
         """
 
-    def getSections(self):
+    def getSections():
         """
         Return a sequence of INavigableFragments or None.
         These fragments will be displayed alongside
