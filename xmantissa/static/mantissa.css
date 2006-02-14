@@ -110,41 +110,6 @@ th.tdb-clickable-header:hover {
     padding: 2px;
 }
 
-table.mantissa-tdb {
-    padding: 0;
-    border-spacing: 0;
-    border: solid 1px #B0B0B0;
-    border-right: none;
-}
-
-table.mantissa-tdb > thead {
-    background-color: #FFFFFF;
-    background-image: url(/Mantissa/images/header_bg.png);
-    background-repeat: repeat-x;
-    background-position: bottom left 
-}
-
-table.mantissa-tdb > thead > tr > th {
-    border: solid 1px #B0B0B0;
-    border-left: none;
-    border-top: none;
-    padding: 4px 4px 4px 4px;
-    font-weight: bold;
-    color: #9B9B9B;
-    letter-spacing: 1.5px;
-    white-space: nowrap;
-}
-
-table.mantissa-tdb > tbody > tr > td {
-    border-right: solid 1px #B0B0B0;
-    padding: 4px;
-    white-space: nowrap;
-}
-
-.tdb-row-alt {
-    background-color: #F1F1F1;
-}
-
 .tdb-sort-arrow {
     color: #000000;
     font-weight: bold;
