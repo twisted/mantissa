@@ -36,7 +36,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
     # objects.
 
     name = 'mantissa'
-    description = 'Blank Mantissa service <for development>'
+    description = 'Blank Mantissa service'
 
     longdesc = __doc__
 
