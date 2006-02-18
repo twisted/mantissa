@@ -277,11 +277,7 @@ class PrivateRootPage(Page, NavMixin):
         return athena.JSModules(athena.jsDeps.mapping)
 
     def childFactory(self, ctx, name):
-        storeID = self.webapp.linkFrom(name)
-        if storeID is None:
-            return None
-
-        o = self.webapp.store.getItemByID(storeID, None)
+        o = self.webapp.fromWebID(name)
         if o is None:
             return None
         res = IResource(o, None)
@@ -408,6 +404,13 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     def linkFrom(self, webid):
         return webIDToStoreID(self.privateKey, webid)
+
+    def fromWebID(self, webid):
+        return self.store.getItemByID(self.linkFrom(webid))
+
+    def toWebID(self, item):
+        return storeIDToWebID(self.privateKey, item.storeID)
+
 
     def getDocFactory(self, fragmentName, default=None):
         l = list(getAllThemes())

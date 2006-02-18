@@ -2,6 +2,48 @@ body {
     font: 80% Arial, Helvetica, sans-serif;
 }
 
+.scroll-header-container {
+    background-color: #DADADA;
+    border-bottom: solid 1px #000000;
+    font-weight: bold;
+    text-align: center;
+}
+
+.scroll-row {
+    display: block;
+    white-space: nowrap;
+}
+
+.scroll-row:hover {
+    background-color: #CACACA;
+}
+
+.scroll-column-header, .scroll-cell {
+    padding: 4px;
+    width: 250px;
+    height: 20px;
+    float: left;
+    border-right: solid 1px #000000;
+    overflow: hidden;
+}
+
+.scroll-column-header:hover {
+    background-color: #C0C0C0;
+}
+
+.scroll-column-header {
+    cursor: pointer;
+}
+
+.scroll-column {
+    overflow: hidden;
+    height: 15px;
+}
+
+.scroll-viewport {
+    clear: both;
+}
+
 td.multi-text-input-list > input {
     display: block;
     margin-bottom: 4px;
@@ -110,7 +152,7 @@ th.tdb-clickable-header:hover {
     padding: 2px;
 }
 
-.tdb-sort-arrow {
+.sort-arrow {
     color: #000000;
     font-weight: bold;
     vertical-align: middle;

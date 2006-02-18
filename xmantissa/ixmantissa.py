@@ -181,6 +181,23 @@ class IWebTranslator(Interface):
     Provide methods for naming objects on the web, and vice versa.
     """
 
+    def fromWebID(webID):
+        """
+        @param webID: A string that identifies an item through this translator.
+
+        @return: an Item.
+        """
+
+    def toWebID(item):
+        """
+        @param item: an item in the same store as this translator.
+
+        @return: a string, shorter than 80 characters, which is an opaque
+        identifier that may be used to look items up through this translator
+        using fromWebID (or the legacy 'linkFrom')
+        """
+
+
     def linkTo(storeID):
         """
         @param storeID: The Store ID of an Axiom item.
