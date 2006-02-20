@@ -26,7 +26,7 @@ from twisted.protocols import policies
 from twisted.internet import reactor, defer
 
 from nevow.rend import NotFound, Page, Fragment
-from nevow.inevow import IResource
+from nevow import inevow
 from nevow.appserver import NevowSite, NevowRequest
 from nevow.static import File
 from nevow.url import URL
@@ -56,7 +56,7 @@ def domainAndPortFromContext(ctx):
     return domain, port
 
 class SiteRootMixin(object):
-    implements(IResource)
+    implements(inevow.IResource)
 
     powerupInterface = ISiteRootPlugin
 
@@ -116,11 +116,23 @@ class LoginPage(PublicPage):
             'domain': domain,
             'port': port,
             'root': ''}
+
+        req = inevow.IRequest(ctx)
+        err = req.args.get('login-failure', ('',))[0]
+
+        if 0 < len(err):
+            error = inevow.IQ(
+                        self.fragment).onePattern(
+                                'error').fillSlots('error', err)
+        else:
+            error = ''
+
         ctx.fillSlots("login-action", baseURL + "/__login__")
+        ctx.fillSlots("error", error)
 
 
 class UnguardedWrapper(SiteRootMixin):
-    implements(IResource)
+    implements(inevow.IResource)
 
     powerupInterface = ISessionlessSiteRootPlugin
     hitCount = 0
@@ -275,7 +287,7 @@ upgrade.registerUpgrader(upgradeStaticSite1To2, 'static_web_site', 1, 2)
 
 
 class StaticRedirect(Item, PrefixURLMixin):
-    implements(IResource,
+    implements(inevow.IResource,
                ISessionlessSiteRootPlugin,
                ISiteRootPlugin)
 
@@ -369,7 +381,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     def installOn(self, other):
         super(WebSite, self).installOn(other)
         other.powerUp(self, IService)
-        other.powerUp(self, IResource)
+        other.powerUp(self, inevow.IResource)
         if self.parent is None:
             self.setServiceParent(other)
 

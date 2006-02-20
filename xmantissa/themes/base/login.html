@@ -1,5 +1,6 @@
 <form method="post" name="loginForm" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
   <nevow:attr name="action"><nevow:slot name="login-action" /></nevow:attr>
+
   <table>
     <tr>
       <td>Username:</td>
@@ -10,11 +11,22 @@
       <td><input type="password" name="password" /></td>
     </tr>
     <tr>
-      <td>Remember me</td>
+      <td>Remember Me</td>
       <td><input type="checkbox" name="rememberMe" /></td>
     </tr>
+    <tr>
+      <td colspan="2" align="right">
+        <input type="submit" value="Log In" />
+      </td>
+    </tr>
   </table>
-  <input type="submit" value="log in" />
+
+  <nevow:slot name="error" />
+
+  <div nevow:pattern="error" style="padding-top: 5px">
+    <span style="color: red">Login Failure:</span> <i><nevow:slot name="error" /></i>
+  </div>
+
   <script type="text/javascript">
     document.loginForm.username.focus();
   </script>
