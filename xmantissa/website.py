@@ -30,6 +30,7 @@ from nevow import inevow
 from nevow.appserver import NevowSite, NevowRequest
 from nevow.static import File
 from nevow.url import URL
+from nevow import athena
 
 from vertex import sslverify
 
@@ -65,6 +66,9 @@ class SiteRootMixin(object):
             "This _must_ be installed at the root of a server.")
 
     def locateChild(self, ctx, segments):
+        if segments[0] == 'live':
+            return athena.LivePage(None, None), segments[1:]
+
         self.hitCount += 1
         shortcut = getattr(self, 'child_'+segments[0], None)
         if shortcut:

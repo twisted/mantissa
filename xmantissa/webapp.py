@@ -20,7 +20,7 @@ from nevow.rend import Page
 from nevow import livepage, athena
 from nevow.inevow import IResource, IQ
 from nevow import tags as t
-from nevow.url import URL
+from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, StaticRedirect
@@ -68,7 +68,7 @@ class NavMixin(object):
 
     def render_navigation(self, ctx, data):
         # this won't work with child tabs who have children
-        url = URL.fromContext(ctx)
+        thisurl = url.URL.fromContext(ctx)
 
         patterns = PatternDictionary(self.getDocFactory('navigation'))
 
@@ -82,7 +82,7 @@ class NavMixin(object):
             for tab in tabs:
                 if tab.linkURL is None:
                     tab.linkURL = self.webapp.linkTo(tab.storeID)
-                if tab.linkURL[1:] == url.path:
+                if tab.linkURL[1:] == thisurl.path:
                     tab.selected = True
                 else:
                     tab.selected = False
@@ -231,8 +231,14 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixi
 
 class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
     def __init__(self, webapp, fragment, pageComponents):
-        root = URL.fromString('/').child('private').child('jsmodule')
-        athena.LivePage.__init__(self, getattr(fragment, 'iface', None), fragment, jsModuleRoot=root, docFactory=webapp.getDocFactory('shell'))
+        root = url.URL.fromString('/').child('private').child('jsmodule')
+        athena.LivePage.__init__(
+            self,
+            getattr(fragment, 'iface', None),
+            fragment,
+            jsModuleRoot=root,
+            transportRoot=url.root.child('live'),
+            docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment)
 
@@ -262,7 +268,7 @@ class PrivateRootPage(Page, NavMixin):
             return self
         # /private/XXXX ->
         click = self.webapp.linkTo(navigation[0].storeID)
-        return URL.fromContext(ctx).click(click)
+        return url.URL.fromContext(ctx).click(click)
 
     def render_content(self, ctx, data):
         return """
@@ -293,9 +299,11 @@ class PrivateRootPage(Page, NavMixin):
         if fragment.docFactory is None:
             raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
 
-        pageClass = {False: GenericNavigationPage,
-         True: GenericNavigationLivePage,
-         'athena': GenericNavigationAthenaPage}.get(fragment.live)
+        if isinstance(fragment, athena.LiveFragment):
+            pageClass = GenericNavigationAthenaPage
+        else:
+            pageClass = {False: GenericNavigationPage,
+                         True: GenericNavigationLivePage}.get(fragment.live)
         return pageClass(self.webapp, fragment, self.pageComponents)
 
 
