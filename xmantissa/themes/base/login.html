@@ -1,4 +1,4 @@
-<form method="post" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+<form method="post" name="loginForm" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
   <nevow:attr name="action"><nevow:slot name="login-action" /></nevow:attr>
   <table>
     <tr>
@@ -15,4 +15,7 @@
     </tr>
   </table>
   <input type="submit" value="log in" />
+  <script type="text/javascript">
+    document.loginForm.username.focus();
+  </script>
 </form>
