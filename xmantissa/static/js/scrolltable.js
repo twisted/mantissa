@@ -46,7 +46,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function setViewportHeight(self, rowCount) {
         var rowHeight = self._headerRow.clientHeight;
         if (rowHeight == 0) {
-            rowHeight = 20; // IE can't see clientHeight on some nodes...?
+            rowHeight = 20; /* IE can't see clientHeight on some nodes...? */
         }
         /* actually this is wrong, we should calculate from a dummy
             row, but blah templates or something. */
@@ -76,21 +76,23 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             return Divmod.Defer.succeed(1);
         }
 
-        /* do we have the rows we need ?
-         */
+        /* do we have the rows we need ? */
 
         return self.callRemote("requestRowRange", firstRow, firstRow + desiredRowCount).addCallback(
             function(rowData) {
-                var idx = firstRow;
-                MochiKit.Base.map(
-                    function(row) {
-                        if (typeof self._rows[idx] === 'undefined') {
-                            self._createRow(idx, row);
-                        }
-                        idx++;
-                    },
-                    rowData);
+                return self.createRows(firstRow, rowData);
             });
+    },
+
+    function createRows(self, idx, rowData) {
+        MochiKit.Base.map(
+            function(row) {
+                if (typeof self._rows[idx] === 'undefined') {
+                    self._createRow(idx, row);
+                }
+                idx++;
+            },
+            rowData);
     },
 
     function massageColumnValue(self, columnName, columnType, columnValue) {
@@ -107,7 +109,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         var cells = [];
 
         for(var colName in rowData) {
-            if(!(colName in self._columnOffsets)) {
+            if(!(colName in self._columnOffsets) || self.skipColumn(colName)) {
                 continue;
             }
             cells.push([colName,
@@ -116,7 +118,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                                              colName, self.columnTypes[colName], rowData[colName]))]);
         }
 
-        cells = cells.sort(function(data1, data2) {
+        cells = cells.sort(
+            function(data1, data2) {
                 var a = self._columnOffsets[data1[0]];
                 var b = self._columnOffsets[data2[0]];
 
@@ -130,7 +133,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             });
 
         cells = MochiKit.Base.map.apply(null, [null].concat(cells))[1];
-        var rowNode = self.makeRowElement(rowData, cells);
+        var rowNode = self.makeRowElement(rowOffset, rowData, cells);
 
         rowNode.style.position = 'absolute';
         rowNode.style.top = (self._rowHeight * rowOffset) + 'px';
@@ -144,6 +147,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             {"class": "scroll-row",
              "href": rowData['__id__']},
             cells);
+    },
+
+    function skipColumn(self, name) {
+        return false;
     },
 
     function _createRowHeaders(self, columnNames) {
@@ -161,6 +168,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         var columnOffsets = {};
         var headerNodes = [];
         for( var i = 0; i < columnNames.length; i++ ) {
+            if(self.skipColumn(columnNames[i])) {
+                continue;
+            }
             columnOffsets[columnNames[i]] = i;
             (function () {
                 var bindName = columnNames[i];
@@ -171,7 +181,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 var headerNode = MochiKit.DOM.DIV({"class": "scroll-column-header",
                             onclick: function () {
                             /* XXX real-time feedback, ugh */
-                            self.callRemote("resort", bindName).addCallback(function(isAscendingNow) {
+                            self.callRemote("resort", bindName).addCallback(
+                                function(isAscendingNow) {
                                     self.setSortInfo(bindName, isAscendingNow);
                                     self.emptyAndRefill();
                                 })
@@ -222,17 +233,26 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         if (self._rowTimeout !== null) {
             clearTimeout(self._rowTimeout);
         }
-        self._rowTimeout = setTimeout(function () {
+        self._rowTimeout = setTimeout(
+            function () {
                 self._rowTimeout = null;
                 self._requestWaiting = true;
-                self._getSomeRows().addBoth(function (rslt) {
+                var rowCount = self._rows.length;
+                self._getSomeRows().addBoth(
+                    function (rslt) {
                         self._requestWaiting = false;
                         if (self._moreAfterRequest) {
                             self._moreAfterRequest = false;
                             self.scrolled();
                         }
+                        if(rowCount < self._rows.length) {
+                            self.cbRowsFetched();
+                        }
                         return rslt;
+                        
                     });
             },
             proposedTimeout);
-    });
+    },
+
+    function cbRowsFetched(self) {});

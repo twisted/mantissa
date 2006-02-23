@@ -26,6 +26,8 @@ class ScrollingFragment(LiveFragment):
             defaultSortColumn = getattr(itemType, columns[0])
         self.currentSortColumn = defaultSortColumn
         self.isAscending = True
+        self.currentRowSet = None
+        self.currentRowRange = None
 
     def requestCurrentSize(self):
         return self.store.query(self.itemType, self.baseConstraint).count()
@@ -61,19 +63,30 @@ class ScrollingFragment(LiveFragment):
             return value.asPOSIXTimestamp()
         return value
 
-    def requestRowRange(self, rangeBegin, rangeEnd):
-        rows = []
+    def performQuery(self, rangeBegin, rangeEnd):
+        self.currentRowRange = (rangeBegin, rangeEnd)
+
         if self.isAscending:
             sort = self.currentSortColumn.ascending
         else:
             sort = self.currentSortColumn.descending
+        self.currentRowSet = []
         for item in self.store.query(self.itemType,
                                      self.baseConstraint,
                                      offset=rangeBegin,
                                      limit=rangeEnd-rangeBegin,
                                      sort=sort):
+            self.currentRowSet.append(item)
+        return self.currentRowSet
+
+    def constructRows(self, items):
+        rows = []
+        for item in items:
             row = dict((colname, self.squishValue(getattr(item, colname))) for colname in self.columns)
             if self.wt is not None:
                 row[u'__id__'] = unicode(self.wt.toWebID(item), 'ascii')
             rows.append(row)
         return rows
+
+    def requestRowRange(self, rangeBegin, rangeEnd):
+        return self.constructRows(self.performQuery(rangeBegin, rangeEnd))
