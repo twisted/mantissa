@@ -56,6 +56,15 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollContent.style.height = scrollContentHeight + 'px';
     },
 
+    function adjustViewportHeight(self, rowCount) {
+        var rowHeight = self._headerRow.clientHeight;
+        if(rowHeight == 0) {
+            rowHeight = 20;
+        }
+        var height = parseInt(self._scrollContent.style.height);
+        self._scrollContent.style.height = height + (rowHeight * rowCount) + "px";
+    },
+
     function _getSomeRows(self) {
         var scrollViewportHeight = self._scrollViewport.clientHeight;
         var desiredRowCount = Math.ceil((scrollViewportHeight) / self._rowHeight);
