@@ -3,19 +3,25 @@ import os, sys
 
 from zope.interface import implements
 
-from twisted.plugin import IPlugin
 from twisted.python.util import sibpath
 
 from nevow.loaders import xmlfile
 from nevow import tags
 
-from xmantissa.ixmantissa import IWebTheme
-
-from xmantissa import plugins
-from twisted.plugin import getPlugIns
+from xmantissa.offering import getInstalledOfferings, getOfferings
 
 def getAllThemes():
-    l = list(getPlugIns(IWebTheme, plugins))
+    l = []
+    for offering in getOfferings():
+        l.extend(offering.themes)
+    l.sort(key=lambda o: o.priority)
+    l.reverse()
+    return l
+
+def getInstalledThemes(store):
+    l = []
+    for offering in getInstalledOfferings(store).itervalues():
+        l.extend(offering.themes)
     l.sort(key=lambda o: o.priority)
     l.reverse()
     return l
@@ -32,8 +38,6 @@ def getLoader(n):
     raise RuntimeError("No loader for %r anywhere" % (n,))
 
 class XHTMLDirectoryTheme(object):
-    implements(IWebTheme, IPlugin)
-
     def __init__(self, themeName, priority=0):
         self.themeName = themeName
         self.priority = priority

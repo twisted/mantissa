@@ -1,4 +1,3 @@
-
 from xmantissa import webadmin, offering, provisioning
 
 adminOffering = offering.Offering(
@@ -10,4 +9,6 @@ adminOffering = offering.Offering(
         provisioning.BenefactorFactory(
             u'admin',
             u'System-wide statistics display, Python REPL, and traceback monitoring.',
-            webadmin.AdministrativeBenefactor)])
+            webadmin.AdministrativeBenefactor)],
+
+    themes = ())

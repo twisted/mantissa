@@ -54,6 +54,7 @@ class OfferingTest(unittest.TestCase):
             u'This is an offering which tests the offering installation mechanism',
             [(ITestInterface, TestSiteRequirement)],
             [TestAppPowerup],
+            [],
             []
             )
         conf.installOffering(off, None)
@@ -72,10 +73,10 @@ class OfferingTest(unittest.TestCase):
 
 
     def testGetInstalledOfferingNames(self):
-        self.assertEquals(offering.getInstalledOfferingNames(self.store), [])
+        self.assertEquals(offering.getInstalledOfferingNames(self.store), ['mantissa-base'])
 
         self.testInstallation()
 
         self.assertEquals(
             offering.getInstalledOfferingNames(self.store),
-            [u"test_offering"])
+            [u"mantissa-base", u"test_offering"])

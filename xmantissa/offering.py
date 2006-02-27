@@ -29,12 +29,14 @@ class Offering(object):
                  description,
                  siteRequirements,
                  appPowerups,
-                 benefactorFactories):
+                 benefactorFactories,
+                 themes):
         self.name = name
         self.description = description
         self.siteRequirements = siteRequirements
         self.appPowerups = appPowerups
         self.benefactorFactories = benefactorFactories
+        self.themes = themes
 
 class InstalledOffering(item.Item):
     typeName = 'mantissa_installed_offering'

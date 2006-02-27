@@ -24,7 +24,7 @@ from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, StaticRedirect
-from xmantissa.webtheme import getAllThemes
+from xmantissa.webtheme import getInstalledThemes, getAllThemes
 from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
@@ -167,9 +167,10 @@ class NavMixin(object):
 INSPECTROFY = os.environ.get('MANTISSA_DEV')
 
 class FragmentWrapperMixin:
-    def __init__(self, fragment):
+    def __init__(self, fragment, pageComponents):
         self.fragment = fragment
         fragment.page = self
+        self.pageComponents = pageComponents
 
     def beforeRender(self, ctx):
         return getattr(self.fragment, 'beforeRender', lambda x: None)(ctx)
@@ -182,7 +183,7 @@ class FragmentWrapperMixin:
             return ''
 
     def render_head(self, ctx, data):
-        l = list(getAllThemes())
+        l = self.pageComponents.themes
         _reorderForPreference(l, self.webapp.preferredTheme)
         extras = []
         for theme in l:
@@ -204,14 +205,14 @@ class GenericNavigationPage(FragmentWrapperMixin, Page, NavMixin):
     def __init__(self, webapp, fragment, pageComponents):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
-        FragmentWrapperMixin.__init__(self, fragment)
+        FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
 
 class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixin):
     def __init__(self, webapp, fragment, pageComponents):
         livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
-        FragmentWrapperMixin.__init__(self, fragment)
+        FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
     # XXX TODO: support live nav, live fragments somehow
     def render_head(self, ctx, data):
@@ -240,7 +241,7 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
             transportRoot=url.root.child('live'),
             docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
-        FragmentWrapperMixin.__init__(self, fragment)
+        FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
     def render_head(self, ctx, data):
         ctx.tag[t.invisible(render=t.directive("liveglue"))]
@@ -307,7 +308,7 @@ class PrivateRootPage(Page, NavMixin):
         return pageClass(self.webapp, fragment, self.pageComponents)
 
 
-class _PageComponents(record('navigation searchAggregator staticShellContent settings')):
+class _PageComponents(record('navigation searchAggregator staticShellContent settings themes')):
     pass
 
 class PrivateApplication(Item, PrefixURLMixin):
@@ -396,7 +397,8 @@ class PrivateApplication(Item, PrefixURLMixin):
         pageComponents = _PageComponents(navigation,
                                          searchAggregator,
                                          staticShellContent,
-                                         self.installedOn.findFirst(Settings))
+                                         self.installedOn.findFirst(Settings),
+                                         getInstalledThemes(self.store.parent))
 
         return PrivateRootPage(self, pageComponents)
 
@@ -421,7 +423,7 @@ class PrivateApplication(Item, PrefixURLMixin):
 
 
     def getDocFactory(self, fragmentName, default=None):
-        l = list(getAllThemes())
+        l = getAllThemes()
         _reorderForPreference(l, self.preferredTheme)
         for t in l:
             fact = t.getDocFactory(fragmentName, None)

@@ -19,6 +19,7 @@ from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
+from xmantissa.plugins.baseoff import baseOffering
 
 from nevow import rend, athena, static, tags as T
 
@@ -380,11 +381,6 @@ class AdministrativeBenefactor(Item):
             AdminStatsApplication,
             DeveloperApplication,
 
-            # This is another PrivateApplication plugin.  It allows
-            # the administrator to configure the services offered
-            # here.
-            offering.OfferingConfiguration,
-
             # And another one: SignupConfiguration allows the
             # administrator to add signup forms which grant various
             # kinds of account.
@@ -400,6 +396,20 @@ class AdministrativeBenefactor(Item):
 
 
             avatar.findOrCreate(powerUp).installOn(avatar)
+
+        # This is another PrivateApplication plugin.  It allows
+        # the administrator to configure the services offered
+        # here.
+        oc = avatar.findOrCreate(offering.OfferingConfiguration)
+        oc.installOn(avatar)
+
+        installedOffering = avatar.parent.findUnique(
+                                offering.InstalledOffering,
+                                offering.InstalledOffering.offeringName == baseOffering.name,
+                                default=None)
+
+        if installedOffering is None:
+            oc.installOffering(baseOffering, None)
 
     def deprive(self, ticket, avatar):
         # Only delete the really administratory things.
