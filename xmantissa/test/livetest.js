@@ -14,6 +14,8 @@ Mantissa.Test.Forms.methods(
 
 Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass('Mantissa.Test.TextArea');
 
+Mantissa.Test.Select = Mantissa.Test.Forms.subclass('Mantissa.Test.Select');
+
 Mantissa.Test.Traverse = Mantissa.Test.Forms.subclass('Mantissa.Test.Traverse');
 
 Mantissa.Test.People = Mantissa.Test.Forms.subclass('Mantissa.Test.People');

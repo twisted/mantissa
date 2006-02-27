@@ -99,6 +99,8 @@ Mantissa.LiveForm.FormWidget.methods(
                             // input.
                             var aValue = aNode.value;
                             pushOneValue(aNode.name, aValue);
+                        } else if (aNode.tagName.toLowerCase() == 'select') {
+                            pushOneValue(aNode.name, aNode.value);
                         } else {
                             // Examine the children, since it is some
                             // other kind of element.

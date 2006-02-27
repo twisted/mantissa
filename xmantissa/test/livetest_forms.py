@@ -82,6 +82,30 @@ class TextArea(testcase.TestCase):
         return ctx.tag[f]
 
 
+class Select(testcase.TestCase):
+    jsClass = u'Mantissa.Test.Select'
+
+    docFactory = loaders.stan(
+        tags.div(render=tags.directive('liveTest'))[
+            tags.invisible(render=tags.directive('select_form'))])
+
+    def submit(self, argument):
+        self.assertEquals(argument, u"apples")
+
+    def render_select_form(self, ctx, data):
+        # XXX No support for rendering these yet!
+        f = liveform.LiveForm(
+            self.submit,
+            [liveform.Parameter('argument', None, unicode)])
+        f.docFactory = loaders.stan(tags.form(render=tags.directive('liveFragment'))[
+            tags.select(name="argument")[
+                tags.option(value="apples")["apples"],
+                tags.option(value="oranges")["oranges"]],
+            tags.input(type='submit', render=tags.directive('submitbutton'))])
+        f.setFragmentParent(self)
+        return ctx.tag[f]
+
+
 
 SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
                    # accident.
