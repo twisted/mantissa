@@ -24,7 +24,7 @@ class ColumnViewBase(object):
 
     def stanFromValue(self, idx, item, value):
         # called with the result of extractValue
-        return str(value)
+        return unicode(value)
 
     def getWidth(self):
         if self.width is None:
