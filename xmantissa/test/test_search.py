@@ -1,9 +1,13 @@
 from zope.interface import implements
-from xmantissa import search, ixmantissa
+
+from twisted.trial.unittest import TestCase
+from twisted.internet import defer
+
 from axiom.item import Item
 from axiom.store import Store
 from axiom import attributes
-from twisted.trial.unittest import TestCase
+
+from xmantissa import search, ixmantissa
 
 def makeSearchProvider(results):
     # results = dict of {term:list of SearchResult instances}
@@ -22,12 +26,12 @@ def makeSearchProvider(results):
             self.installedOn = other
 
         def count(self, term):
-            return len(results.get(term, ()))
+            return defer.succeed(len(results.get(term, ())))
 
         def search(self, term, count, offset):
             if term in results:
-                return results[term][offset:count+offset]
-            return []
+                return defer.succeed(results[term][offset:count+offset])
+            return defer.succeed([])
 
     return SomeSearchProvider
 
@@ -47,14 +51,19 @@ class SearchTestCase(TestCase):
             return s
 
         aggregator = store.transact(txn)
-        self.assertEqual(aggregator.count(term), resultCount)
-        self.assertEqual(len(aggregator.search(term, count=0, offset=0)), 0)
-        self.assertEqual(len(aggregator.search(term, count=5, offset=0)), 5)
-        self.assertEqual(len(aggregator.search(term, count=resultCount, offset=resultCount)), 0)
-        self.assertEqual(len(aggregator.search(term, count=1, offset=resultCount-1)), 1)
-        self.assertEqual(len(aggregator.search("nonsense", count=0, offset=0)), 0)
+        tests = []
+        tests.append(aggregator.count(term).addCallback(self.assertEquals, resultCount))
+        tests.append(aggregator.search(term, count=0, offset=0).addCallback(len).addCallback(self.assertEquals, 0))
+        tests.append(aggregator.search(term, count=5, offset=0).addCallback(len).addCallback(self.assertEquals, 5))
+        tests.append(aggregator.search(term, count=resultCount, offset=resultCount).addCallback(len).addCallback(self.assertEquals, 0))
+        tests.append(aggregator.search(term, count=1, offset=resultCount-1).addCallback(len).addCallback(self.assertEquals, 1))
+        tests.append(aggregator.search("nonsense", count=0, offset=0).addCallback(len).addCallback(self.assertEquals, 0))
+        tests.append(aggregator.search(term, count=resultCount, offset=0).addCallback(len).addCallback(self.assertEquals, resultCount))
 
-        searchResults = aggregator.search(term, count=resultCount, offset=0)
-        self.assertEqual(len(searchResults), resultCount)
-        self.assertEqual(sorted(searchResults, key=lambda r: r.score, reverse=True),
-                         searchResults)
+        def gotSearchResults(searchResults):
+            self.assertEquals(
+                sorted(searchResults, key=lambda r: r.score, reverse=True),
+                searchResults)
+        tests.append(aggregator.search(term, count=resultCount, offset=0).addCallback(gotSearchResults))
+
+        return defer.DeferredList(tests, fireOnOneErrback=True)

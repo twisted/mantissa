@@ -48,11 +48,20 @@ class ISearchProvider(Interface):
 
     def search(term, count, offset):
         """
-        Return a sequence of search.SearchResult instances, representing
-        'count' results for unprocessed string 'term', starting from 'offset'.
-        The bounds of offset & count will be within the value last returned from
-        count() for this term
+        Query for items which contain the given term.
+
+        @type term: C{unicode}
+        @type count: C{int} or C{NoneType}
+        @type offset: C{int} or C{NoneType}
+
+        @rtype: L{twisted.internet.defer.Deferred}
+        @return: a Deferred which will fire with an iterable of
+        L{search.SearchResult} instances, representing C{count} results for the
+        unprocessed search represented by C{term}, starting at C{offset}.  The
+        bounds of offset and count will be within the value last returned from
+        L{count} for this term.
         """
+
 
 class ISearchAggregator(Interface):
     """
