@@ -1,26 +1,16 @@
-# -*- test-case-name: xmantissa.test.test_search -*-
-
 from __future__ import division
-
-from operator import attrgetter
-
 from zope.interface import implements
-
-from twisted.internet import defer
-from twisted.python import components, log
-
-from nevow import rend, inevow, tags, flat
-from nevow.url import URL
-
-from epsilon.extime import Time
-
-from axiom import attributes
-from axiom.item import Item, InstallableMixin
 
 from xmantissa.ixmantissa import (ISearchAggregator, ISearchProvider,
                                   INavigableElement, INavigableFragment,
                                   IPreferenceAggregator)
-
+from axiom import attributes
+from axiom.item import Item, InstallableMixin
+from operator import attrgetter
+from nevow import rend, inevow, tags, flat
+from epsilon.extime import Time
+from nevow.url import URL
+from twisted.python.components import registerAdapter
 
 flat.registerFlattener(lambda t, ign: t.asHumanly(), Time)
 
@@ -51,45 +41,28 @@ class SearchAggregator(Item, InstallableMixin):
         other.powerUp(self, ISearchAggregator)
         other.powerUp(self, INavigableElement)
 
-
     def activate(self):
         self._searchProviders = None
 
-
     def _cachePowerups(self):
         self._searchProviders = list(self.installedOn.powerupsFor(ISearchProvider))
-
 
     # INavigableElement
     def getTabs(self):
         return []
 
-
     # ISearchAggregator
     def providers(self):
         if self._searchProviders is None:
             self._cachePowerups()
-        return len(self._searchProviders)
 
+        return len(self._searchProviders)
 
     def count(self, term):
         if self._searchProviders is None:
             self._cachePowerups()
 
-        def countedHits(results):
-            total = 0
-            for (success, result) in results:
-                if success:
-                    total += result
-                else:
-                    log.err(result)
-            return total
-
-        return defer.DeferredList([
-            provider.count(term)
-            for provider
-            in self._searchProviders], consumeErrors=True).addCallback(countedHits)
-
+        return max(provider.count(term) for provider in self._searchProviders)
 
     def search(self, term, count, offset):
         self.searches += 1
@@ -97,25 +70,14 @@ class SearchAggregator(Item, InstallableMixin):
         if self._searchProviders is None:
             self._cachePowerups()
 
-        d = defer.DeferredList([
-            provider.search(term, count, offset)
-            for provider in self._searchProviders
-            ], consumeErrors=True)
+        results = []
+        for provider in self._searchProviders:
+            results.extend(provider.search(term, count, offset))
 
-        def searchCompleted(results):
-            allSearchResults = []
-            for (success, result) in results:
-                if success:
-                    allSearchResults.extend(result)
-                else:
-                    log.err(result)
+        results.sort(key=attrgetter('score'))
+        results.reverse()
 
-            allSearchResults.sort(key=attrgetter('score'))
-            allSearchResults.reverse()
-            return allSearchResults
-        return d.addCallback(searchCompleted)
-
-
+        return results
 
 class SearchAggregatorFragment(rend.Fragment):
     implements(INavigableFragment)
@@ -137,58 +99,40 @@ class SearchAggregatorFragment(rend.Fragment):
         prefAggregator = IPreferenceAggregator(original.installedOn)
         self.itemsPerPage = prefAggregator.getPreference('itemsPerPage').value
 
-
     def head(self):
         return tags.script(type='text/javascript',
                            src='/Mantissa/js/search.js')
 
-
     def setSearchTerm(self, ctx):
         qargs = dict(URL.fromContext(ctx).queryList())
         self.searchTerm = qargs['term']
+        self.totalItems = self.searchAggregator.count(self.searchTerm)
         self.currentPage = 1
 
-        def countedHits(hitCount):
-            self.totalItems = hitCount
-        return self.searchAggregator.count(self.searchTerm).addCallback(countedHits)
-
-
     def beforeRender(self, ctx):
-        return self.setSearchTerm(ctx)
-
+        self.setSearchTerm(ctx)
 
     def data_searchTerm(self, ctx, data):
         return self.searchTerm
 
-
     def makeResults(self):
-        def toDict(result):
-            return dict(
-                url=result.url,
-                description=result.description,
-                score="%.1f" % (result.score * 100),
-                summary=result.summary, timestamp=result.timestamp)
+        data = self.searchAggregator.search(self.searchTerm,
+                                            self.itemsPerPage,
+                                            (self.currentPage-1) * self.itemsPerPage)
 
-        d = self.searchAggregator.search(
-            self.searchTerm,
-            self.itemsPerPage,
-            (self.currentPage - 1) * self.itemsPerPage)
+        todict = lambda sr: dict(url=sr.url, description=sr.description,
+                                 score="%.1f" % (sr.score * 100),
+                                 summary=sr.summary, timestamp=sr.timestamp)
 
-        def searchCompleted(results):
-            return (len(results),
-                    self.resultsPattern(data=map(toDict, results)))
-        return d.addCallback(searchCompleted)
-
+        return (len(data), self.resultsPattern(data=map(todict, data)))
 
     def goingLive(self, ctx, client):
         self.resultsPattern = inevow.IQ(self.docFactory).patternGenerator('results')
+        (hits, data) = self.makeResults()
 
-        def madeResults((hits, data)):
-            start = (self.currentPage - 1) * self.itemsPerPage
-            # (start, stop, total)
-            client.call('setSearchState', start+1, start+hits, self.totalItems)
-            client.set('results', data)
+        start = (self.currentPage - 1) * self.itemsPerPage
+        # (start, stop, total)
+        client.call('setSearchState', start+1, start+hits, self.totalItems)
+        client.set('results', data)
 
-        self.makeResults().addCallback(madeResults)
-
-components.registerAdapter(SearchAggregatorFragment, SearchAggregator, INavigableFragment)
+registerAdapter(SearchAggregatorFragment, SearchAggregator, INavigableFragment)
