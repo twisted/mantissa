@@ -104,14 +104,24 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             rowData);
     },
 
+    function formatDate(self, date) {
+        return date.toUTCString();
+    },
+    
     function massageColumnValue(self, columnName, columnType, columnValue) {
         if(columnType == 'timestamp') {
-            columnValue = (new Date(columnValue * 1000)).toUTCString();
+            return self.formatDate(new Date(columnValue * 1000));
         }
 	if(columnValue ==  null) {
-            columnValue = '';
+            return '';
 	}
         return columnValue;
+    },
+
+    function makeCellElement(self, colName, rowData) {
+        return MochiKit.DOM.DIV({"class": "scroll-cell"},
+                                self.massageColumnValue(
+                                     colName, self.columnTypes[colName], rowData[colName]));
     },
 
     function _createRow(self, rowOffset, rowData) {
@@ -121,10 +131,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             if(!(colName in self._columnOffsets) || self.skipColumn(colName)) {
                 continue;
             }
-            cells.push([colName,
-                        MochiKit.DOM.DIV({"class": "scroll-cell"},
-                                         self.massageColumnValue(
-                                             colName, self.columnTypes[colName], rowData[colName]))]);
+            cells.push([colName, self.makeCellElement(colName, rowData)]);
         }
 
         cells = cells.sort(
