@@ -183,6 +183,14 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             columnOffsets[columnNames[i]] = i;
             (function () {
                 var bindName = columnNames[i];
+                var displayName;
+
+                if(self.columnAliases && bindName in self.columnAliases) {
+                    displayName = self.columnAliases[bindName];
+                } else {
+                    displayName = capitalize(bindName);
+                }
+                    
                 /*
                  * ^ Thank you, brilliant JavaScript designers, for inventing
                  * a whole new language.  This is _way_ better than (let ()).
@@ -195,7 +203,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                                     self.setSortInfo(bindName, isAscendingNow);
                                     self.emptyAndRefill();
                                 })
-                                }}, capitalize(bindName));
+                                }}, displayName);
                 headerRow.appendChild(headerNode);
                 headerNodes.push(headerNode);
             })();
