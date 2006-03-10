@@ -18,6 +18,26 @@ from axiom import item, attributes, upgrade
 from xmantissa import ixmantissa, webnav, webtheme, tdb, tdbview, liveform
 from xmantissa.fragmentutils import dictFillSlots, PatternDictionary
 
+class PeopleBenefactor(item.Item):
+    implements(ixmantissa.IBenefactor)
+    endowed = attributes.integer(default=0)
+
+    def installOn(self, other):
+        other.powerUp(self, ixmantissa.IBenefactor)
+
+    def endow(self, ticket, avatar):
+        avatar.findOrCreate(Organizer).installOn(avatar)
+        avatar.findOrCreate(AddPerson).installOn(avatar)
+        self.endowed += 1
+
+    def revoke(self, ticket, avatar):
+        for cls in (Organizer, AddPerson):
+            item = avatar.findUnique(cls)
+            avatar.powerDown(item, ixmantissa.INavigableElement)
+            item.deleteFromStore()
+
+        self.endowed -= 1
+
 class Person(item.Item):
     typeName = 'mantissa_person'
     schemaVersion = 1
