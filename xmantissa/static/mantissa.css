@@ -397,7 +397,7 @@ a.childsellink {
 
 
 #submenubar {
-    background: url(/Mantissa/images/submenubar_bg.gif) #fff repeat-x left top;
+    background: #fff repeat-x left top;
     border-bottom: 1px solid #E9E9E9;
     clear: both;
     color: #fff;
