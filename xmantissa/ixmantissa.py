@@ -472,16 +472,6 @@ class IPersonFragment(Interface):
     of the tab in the tabbed pane that contains this fragment
     """)
 
-class IPersonAction(Interface):
-    """
-    An action that can be performed on a Person
-    """
-
-    def toLinkStan(self):
-        """
-        Return stan that will perform this action when clicked
-        """
-
 class IOffering(Interface):
     """
     Describes a product, service, application, or other unit of functionality

@@ -13,10 +13,10 @@ from nevow.taglibrary import tabbedPane
 
 from epsilon import extime
 
-from axiom import item, attributes, upgrade
+from axiom import item, attributes
 
 from xmantissa import ixmantissa, webnav, webtheme, tdb, tdbview, liveform
-from xmantissa.fragmentutils import dictFillSlots, PatternDictionary
+from xmantissa.fragmentutils import dictFillSlots
 
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
@@ -145,12 +145,8 @@ class EmailAddressColumnView(tdbview.ColumnViewBase):
         return email
 
 class PersonFragmentColumnView(tdbview.ColumnViewBase):
-    page = None
-
     def stanFromValue(self, idx, item, value):
-        pf = PersonFragment(item)
-        pf.setFragmentParent(self.page)
-        return pf
+        return PersonFragment(item)
 
 class OrganizerFragment(athena.LiveFragment):
     fragmentName = 'people-organizer'
@@ -178,12 +174,9 @@ class OrganizerFragment(athena.LiveFragment):
                 defaultSortColumn='name',
                 itemsPerPage=self.prefs.getPreferenceValue('itemsPerPage'))
 
-        personFragmentColumnView = PersonFragmentColumnView('name')
-        personFragmentColumnView.page = self.page
-
-        views = (personFragmentColumnView,
-                    EmailAddressColumnView('Email Address'),
-                    tdbview.DateColumnView('created'))
+        views = (PersonFragmentColumnView('name'),
+                 EmailAddressColumnView('Email Address'),
+                 tdbview.DateColumnView('created'))
 
         peopleTDB = tdbview.TabularDataView(tdm, views)
         peopleTDB.page = self.page
@@ -259,47 +252,30 @@ class RealName(item.Item):
     typeName = 'mantissa_organizer_addressbook_realname'
     schemaVersion = 1
 
-    person = attributes.reference()
+    person = attributes.reference(allowNone=False)
 
     first = attributes.text()
     last = attributes.text()
 
     def _getDisplay(self):
-        parts = (self.first, self.last)
-        return ' '.join(filter(None, parts))
+        return ' '.join(filter(None, (self.first, self.last)))
     display = property(_getDisplay)
 
 class EmailAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_emailaddress'
-    schemaVersion = 2
+    schemaVersion = 1
 
-    address = attributes.text()
-    person = attributes.reference()
-    default = attributes.boolean(default=False)
-
-def emailAddress1To2(old):
-    return old.upgradeVersion(EmailAddress.typeName, 1, 2,
-                              address=old.address,
-                              person=old.person,
-                              default=False)
-
-upgrade.registerUpgrader(emailAddress1To2, EmailAddress.typeName, 1, 2)
+    address = attributes.text(allowNone=False)
+    person = attributes.reference(allowNone=False)
+    type = attributes.text(allowNone=False) #default|home|business
 
 class PhoneNumber(item.Item):
     typeName = 'mantissa_organizer_addressbook_phonenumber'
-    schemaVersion = 2
+    schemaVersion = 1
 
-    number = attributes.text()
-    person = attributes.reference()
-    default = attributes.boolean(default=False)
-
-def phoneNumber1To2(old):
-    return old.upgradeVersion(PhoneNumber.typeName, 1, 2,
-                              number=old.number,
-                              person=old.person,
-                              default=False)
-
-upgrade.registerUpgrader(phoneNumber1To2, PhoneNumber.typeName, 1, 2)
+    number = attributes.text(allowNone=False)
+    person = attributes.reference(allowNone=False)
+    type = attributes.text(allowNone=False) #default|home|business
 
 class AddPerson(item.Item, item.InstallableMixin):
     implements(ixmantissa.INavigableElement)
@@ -359,9 +335,8 @@ class AddPersonFragment(athena.LiveFragment):
         if not (nickname or firstname or lastname):
             raise ValueError('pleast supply nickname or first/last name')
         store = self.original.store
-        if (nickname is not None
-                and 1 == store.count(Person, Person.name==nickname, limit=1)):
-            raise ValueError('nickname already taken')
+        if nickname is None:
+            nickname = u''
 
         person = self.makePerson(nickname)
 
@@ -369,7 +344,7 @@ class AddPersonFragment(athena.LiveFragment):
             EmailAddress(store=store,
                          address=email,
                          person=person,
-                         default=True)
+                         type=u'default')
 
         if firstname is not None or lastname is not None:
             RealName(store=store,
@@ -408,154 +383,93 @@ class ContactInfoFragment(athena.LiveFragment):
         self.person = person
         self.docFactory = webtheme.getLoader('person-contact-info')
 
-    # limit on # of emails/phone numbers.  might want to make the whole
-    # process more flixble & dynamic at some point
-    maxitems = 3
+    emailTypes = phoneTypes = (u'default', u'home', u'business')
 
     def render_contactInfo(self, ctx, data):
         s = self.person.store
-        self.realName = s.findFirst(RealName, RealName.person == self.person)
+        rn = s.findFirst(RealName, RealName.person == self.person)
 
-        if self.realName is None:
-            (first, last) = ('', '')
+        if rn is None:
+            first = last = ''
         else:
-            (first, last) = (self.realName.first, self.realName.last)
+            (first, last) = (rn.first, rn.last)
 
-        def findDefault(items):
-            for (i, item) in enumerate(items):
-                if item.default:
-                    items.pop(i)
-                    return (item, items)
-            return (None, items)
+        def itemsByType(itemClass, types):
+            d = dict((i.type, i) for i in s.query(itemClass, itemClass.person == self.person))
+            d.update((type, None) for type in types if type not in d)
+            return d
 
-        itemsForPerson = lambda typeClass: s.query(typeClass, typeClass.person == self.person)
-
-        emails = list(itemsForPerson(EmailAddress))
-        (self.defaultEmail, self.otherEmails) = findDefault(emails)
-
-        if self.defaultEmail is not None:
-            defaultEmail = self.defaultEmail.address
-        else:
-            defaultEmail = None
-
-        otherEmails = list(e.address for e in self.otherEmails)
-
-        phones = list(itemsForPerson(PhoneNumber))
-        (self.defaultPhone, self.otherPhones) = findDefault(phones)
-
-        if self.defaultPhone is not None:
-            defaultPhone = self.defaultPhone.number
-        else:
-            defaultPhone = None
-
-        otherPhones = list(p.number for p in self.otherPhones)
-
-        for l in (otherEmails, otherPhones):
-            if len(l) < self.maxitems:
-                l.extend(('',) * (self.maxitems - len(l)))
+        self.emails = itemsByType(EmailAddress, self.emailTypes)
+        self.phones = itemsByType(PhoneNumber, self.phoneTypes)
 
         def makeParam(name, desc, default, coerce=_hasLengthOrNone):
             return liveform.Parameter(name, liveform.TEXT_INPUT, coerce, desc, default)
 
         editPersonForm = liveform.LiveForm(
             self.editPerson,
-            (makeParam('firstname', 'First Name', first),
+            [makeParam('firstname', 'First Name', first),
              makeParam('lastname', 'Last Name', last),
-             makeParam('nickname', 'Nickname', self.person.name),
-             makeParam('defaultEmail', 'Default Email', defaultEmail or ''),
-             liveform.ListParameter('otherEmails', _hasLengthOrNone, self.maxitems, 'Other Emails', otherEmails),
-             makeParam('defaultPhone', 'Default Phone', defaultPhone or ''),
-             liveform.ListParameter('otherPhones', _hasLengthOrNone, self.maxitems, 'Other Phones', otherPhones)),
+             makeParam('nickname', 'Nickname', self.person.name)] +
+
+            [makeParam(k + 'Email',
+                       k.capitalize() + ' Email',
+                       getattr(v, 'address', ''))
+
+                for (k, v) in self.emails.iteritems()] +
+
+            [makeParam(k + 'Phone',
+                       k.capitalize() + ' Phone',
+                       getattr(v, 'number', ''))
+
+                for (k, v) in self.phones.iteritems()],
+
             description='Save')
 
-        self.first = first
-        self.last = last
+        self.realname = rn
 
         editPersonForm.docFactory = webtheme.getLoader('liveform-compact')
         editPersonForm.setFragmentParent(self)
         return editPersonForm
 
-    def editPerson(self,
-                   firstname=None,
-                   lastname=None,
-                   nickname=None,
-                   defaultPhone=None,
-                   otherPhones=None,
-                   defaultEmail=None,
-                   otherEmails=None):
+    def editPerson(self, **k):
+        getval = k.__getitem__
 
-        if nickname is None:
-            raise ValueError('Invalid nickname')
-        if nickname != self.person.name:
-            self.person.name = nickname
+        if self.person.name != getval('nickname'):
+            self.person.name = getval('nickname')
 
-        s = self.person.store
-        if firstname != self.first or lastname != self.last:
-            if self.realName is None:
+        firstname = getval('firstname')
+        lastname  = getval('lastname')
+
+        haveEither = firstname is not None or lastname is not None
+
+        if haveEither:
+            if self.realname is None:
                 RealName(store=self.person.store,
                          person=self.person,
                          first=firstname,
                          last=lastname)
-            else:
-                self.realName.first = firstname
-                self.realName.last = lastname
+            elif (firstname != self.realname.first
+                    or lastname != self.realname.last):
+                if self.realname.first != firstname:
+                    self.realname.first = firstname
+                if self.realname.last != lastname:
+                    self.realname.last = lastname
 
-        if defaultPhone is not None:
-            if self.defaultPhone is not None:
-                if self.defaultPhone.number != defaultPhone:
-                    self.defaultPhone.number = defaultPhone
-            else:
-                PhoneNumber(store=self.person.store,
-                            person=self.person,
-                            number=defaultPhone,
-                            default=True)
-
-        elif self.defaultPhone is not None:
-            self.defaultPhone.deleteFromStore()
-
-        nOtherPhones = len(self.otherPhones)
-        for (i, otherPhone) in enumerate(otherPhones):
-            if nOtherPhones < i+1:
-                if otherPhone is not None:
-                    PhoneNumber(store=self.person.store,
-                                person=self.person,
-                                number=otherPhone,
-                                default=False)
-            elif otherPhone is None:
-                self.otherPhones[i].deleteFromStore()
-            elif self.otherPhones[i].number != otherPhone:
-                self.otherPhones[i].number = otherPhone
-
-        # PhoneNumber and EmailAddress are not-quite similar enough
-        # for us to be able to make this code generic without getting
-        # crazy
-
-        if defaultEmail is not None:
-            if self.defaultEmail is not None:
-                if self.defaultEmail.address != defaultEmail:
-                    self.defaultEmail.address = defaultEmail
-            else:
-                EmailAddress(store=self.person.store,
-                            person=self.person,
-                            address=defaultEmail,
-                            default=True)
-
-        elif self.defaultEmail is not None:
-            self.defaultEmail.deleteFromStore()
-
-        nOtherEmails = len(self.otherEmails)
-        for (i, otherEmail) in enumerate(otherEmails):
-            if nOtherEmails < i+1:
-                if otherEmail is not None:
-                    EmailAddress(store=self.person.store,
-                                person=self.person,
-                                address=otherEmail,
-                                default=False)
-
-            elif otherEmail is None:
-                self.otherEmails[i].deleteFromStore()
-            elif self.otherEmails[i].address != otherEmail:
-                self.otherEmails[i].address = otherEmail
+        for (typeMap, typeSuffix, attr) in ((self.emails, 'Email', EmailAddress.address),
+                                            (self.phones, 'Phone', PhoneNumber.number)):
+            for (_type, item) in typeMap.iteritems():
+                newval = getval(_type + typeSuffix)
+                if item is None:
+                    if newval is not None:
+                        attr.type(store=self.person.store,
+                                  person=self.person,
+                                  type=_type,
+                                  **{attr.attrname: newval})
+                elif newval is not None:
+                    if getattr(item, attr.attrname) != newval:
+                        setattr(item, attr.attrname, newval)
+                else:
+                    item.deleteFromStore()
 
         return u'Updated Person'
 
@@ -614,34 +528,17 @@ class PersonDetailFragment(athena.LiveFragment):
 
 components.registerAdapter(PersonDetailFragment, Person, ixmantissa.INavigableFragment)
 
-class PersonFragment(athena.LiveFragment):
-    jsClass = 'Mantissa.People.InlinePerson'
-    iface = {}
-
+class PersonFragment(rend.Fragment):
     def __init__(self, person, contactMethod=None):
         rend.Fragment.__init__(self, person,
                                webtheme.getLoader('person-fragment'))
         self.person = person
         self.contactMethod = contactMethod
-        self.patterns = PatternDictionary(self.docFactory)
-        self.actions = list(person.powerupsFor(ixmantissa.IPersonAction))
 
     def render_person(self, ctx, data):
         detailURL = ixmantissa.IWebTranslator(self.person.store).linkTo(self.person.storeID)
-        if self.contactMethod is None:
-            cm = ''
-        else:
-            cm = self.patterns['contact-method'].fillSlots('name', self.contactMethod)
 
-        if self.actions:
-            actions = dictFillSlots(self.patterns['actions'],
-                                    {'actions': list(a.toLinkStan() for a in self.actions),
-                                     'name': self.person.name,
-                                     'email': self.person.getEmailAddress()})
-        else:
-            actions = ''
-
-        return dictFillSlots(ctx.tag, {'name': self.person.getDisplayName(),
+        name = self.person.getDisplayName()
+        return dictFillSlots(ctx.tag, {'name': name,
                                        'detail-url': detailURL,
-                                       'contact-method': cm,
-                                       'actions': actions})
+                                       'contact-method': self.contactMethod or name})

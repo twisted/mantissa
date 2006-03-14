@@ -48,17 +48,6 @@ td.multi-text-input-list > input {
     display: block;
     margin-bottom: 4px;
 }
-.person-actions {
-    position: absolute;
-    background-color: #FFFFFF;
-    border: solid 1px #DADADA;
-    padding: 4px;
-}
-
-div.person-actions > div {
-    border-bottom: solid 1px #DADADA;
-    margin-bottom: 4px;
-}
 
 .tdb {
     border-left: 1px solid #E5E5E5;
