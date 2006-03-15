@@ -19,8 +19,7 @@ class AddPersonTestBase(people.AddPersonFragment):
         super(AddPersonTestBase, self).__init__()
 
         self.docFactory = loaders.stan(
-                tags.div(_class='test-unrun',
-                         render=tags.directive('liveFragment'))[
+                tags.div(render=tags.directive('liveTest'))[
                     tags.invisible(render=tags.directive('addPersonForm'))])
 
     def mangleDefaults(self, params):
@@ -125,8 +124,7 @@ class ContactInfoTestBase(people.ContactInfoFragment):
         super(ContactInfoTestBase, self).__init__(self.makePerson())
 
         self.docFactory = loaders.stan(
-            tags.div(_class='test-unrun',
-                     render=tags.directive('liveFragment'))[
+            tags.div(render=tags.directive('liveTest'))[
                 tags.invisible(render=tags.directive('contactInfo'))])
 
     # override this
