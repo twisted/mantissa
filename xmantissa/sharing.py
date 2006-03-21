@@ -6,12 +6,14 @@
 
 import os
 
-from zope.interface.advice import addClassAdvisor
+from zope.interface import implementedBy, directlyProvides
+
+from twisted.python.reflect import qual, namedAny
 
 from axiom import userbase
 from axiom.item import Item
 from axiom.attributes import reference, text, AND, inmemory
-
+from axiom.upgrade import registerUpgrader
 
 class NoSuchShare(Exception):
     """
@@ -54,140 +56,130 @@ class Role(Item):
     def __repr__(self):
         return self.externalID.upper()
 
-def allow(*attributes):
-    """
-    Provide the sharing system with a list of allowed attributes, by decorating
-    a class as with implements().  For example::
-
-        class FirearmHelper:
-            def shoot(self):
-                ...
-
-        class Shotgun(Item, Container):
-            ...
-            bullets = integer()
-            def reload(self):
-                ...
-            allow(bullets,
-                  reload,
-                  'shoot')
-
-    @param attributes: a list of function objects, C{SQLAttribute}s, and strings,
-    naming the attributes to be shared.
-    """
-    attributeNames = []
-    for attribute in attributes:
-        if not isinstance(attribute, str):
-            for attrAttr in ['func_name', 'attrname']:
-                if hasattr(attribute, attrAttr):
-                    attribute = getattr(attribute, attrAttr)
-                    break
-            else:
-                raise TypeError('Attempted to allow insufficiently descriptive attribute type: ' + repr(attribute))
-        assert isinstance(attribute, str)
-        attributeNames.append(attribute)
-    def addSharedAttributes(cls):
-        cls.sharedAttributes = tuple(getattr(cls, 'sharedAttributes', ())) + tuple(attributeNames)
-        return cls
-    addClassAdvisor(addSharedAttributes)
-
-
-def _getSharedItemAndAttributes(sharedProxy):
+def _getSharedItemAndInterfaces(sharedProxy):
     # __providedBy__ is included so that adaptation will work as ... expected.
     # Maybe XXX TODO: add the ability to explicitly set a list of interfaces
     # provided by proxies?
-    sharedAttributes = super(SharedProxy, sharedProxy).__getattribute__('_sharedAttributes')
-    sharedAttributes = sharedAttributes + ('__providedBy__',)
+    sharedInterfaces = super(SharedProxy, sharedProxy).__getattribute__('_sharedInterfaces')
+    # sharedInterfaces = sharedInterfaces + ('__providedBy__',)
     sharedItem = super(SharedProxy, sharedProxy).__getattribute__('_sharedItem')
-    return sharedAttributes, sharedItem
+    return sharedInterfaces, sharedItem
 
+ALLOWED_ON_PROXY = ['__provides__', '__dict__']
 
 class SharedProxy(object):
 
-    def __init__(self, sharedItem, sharedAttributes):
+    def __init__(self, sharedItem, sharedInterfaces):
         super(SharedProxy, self).__setattr__('_sharedItem', sharedItem)
-        super(SharedProxy, self).__setattr__('_sharedAttributes', sharedAttributes)
+        super(SharedProxy, self).__setattr__('_sharedInterfaces', sharedInterfaces)
         # Make me look *exactly* like the item I am proxying for, at least for
         # the purposes of adaptation
         # directlyProvides(self, providedBy(sharedItem))
+        directlyProvides(self, sharedInterfaces)
 
 
     def __repr__(self):
-        return 'SharedProxy(%r, %r)' % tuple(reversed(_getSharedItemAndAttributes(self)))
+        return 'SharedProxy(%r, %r)' % tuple(reversed(_getSharedItemAndInterfaces(self)))
 
 
     def __getattribute__(self, name):
-        sharedAttributes, sharedItem = _getSharedItemAndAttributes(self)
-        if name == 'sharedAttributes':
-            return sharedAttributes
-        if name in sharedAttributes:
-            return getattr(sharedItem, name)
+        if name in ALLOWED_ON_PROXY:
+            return object.__getattribute__(self,name)
+        sharedInterfaces, sharedItem = _getSharedItemAndInterfaces(self)
+        if name == 'sharedInterfaces':
+            return sharedInterfaces
+        for iface in sharedInterfaces:
+            if name in iface:
+                return getattr(sharedItem, name)
         raise AttributeError(name)
 
 
     def __setattr__(self, name, value):
-        sharedAttributes, sharedItem = _getSharedItemAndAttributes(self)
-        if name in sharedAttributes:
+        sharedInterfaces, sharedItem = _getSharedItemAndInterfaces(self)
+        if name in sharedInterfaces:
             setattr(sharedItem, name, value)
+        elif name in ALLOWED_ON_PROXY:
+            self.__dict__[name] = value
+        else:
+            raise AttributeError("unsettable: "+repr(name))
 
 
     def __delattr__(self, name):
-        sharedAttributes, sharedItem = _getSharedItemAndAttributes(self)
-        if name in sharedAttributes:
+        sharedInterfaces, sharedItem = _getSharedItemAndInterfaces(self)
+        if name in sharedInterfaces:
             delattr(sharedItem, name)
 
 
-ALL_SHARED_ATTRIBUTES_DB = u'*'
-
-ALL_SHARED_ATTRIBUTES = object()
+ALL_IMPLEMENTED_DB = u'*'
+ALL_IMPLEMENTED = object()
 
 
 class Share(Item):
-    schemaVersion = 1
+    schemaVersion = 2
     typeName = 'sharing_share'
 
     shareID = text(allowNone=False)
     sharedItem = reference(allowNone=False)
     sharedTo = reference(allowNone=False)
 
-    sharedAttributeNames = text(allowNone=False)
-    _sharedAttributes = inmemory()
+    sharedInterfaceNames = text(allowNone=False)
+    _sharedInterfaces = inmemory()
 
     def __init__(self, **kw):
-        sa = kw.pop('sharedAttributes')
-        if sa is ALL_SHARED_ATTRIBUTES:
-            san = ALL_SHARED_ATTRIBUTES_DB
+        sa = kw.pop('sharedInterfaces')
+        if sa is ALL_IMPLEMENTED:
+            san = ALL_IMPLEMENTED_DB
         else:
-            san = u','.join(sa)
-        kw['sharedAttributeNames'] = san
+            san = u','.join(map(qual, sa))
+        kw['sharedInterfaceNames'] = san
         super(Share, self).__init__(**kw)
 
 
-    def sharedAttributes():
+    def sharedInterfaces():
         def get(self):
-            return self._sharedAttributes
+            return self._sharedInterfaces
         # Maybe one day someone will want this, but it might be incorrect.
         # Think hard about it before uncommenting...
 
 #         def set(self, newValue):
-#             self._sharedAttributes = tuple(newValue)
-#             self.sharedAttributeNames = u','.join(self.sharedAttributes)
+#             self._sharedInterfaces = tuple(newValue)
+#             self.sharedAttributeNames = u','.join(self.sharedInterfaces)
         return get,
-    sharedAttributes = property(*sharedAttributes())
+    sharedInterfaces = property(*sharedInterfaces())
 
 
     def activate(self):
-        if self.sharedAttributeNames == ALL_SHARED_ATTRIBUTES_DB:
-            self._sharedAttributes = self.sharedItem.sharedAttributes
+        if not self.sharedInterfaceNames:
+            self._sharedInterfaces = ()
+            return
+        if self.sharedInterfaceNames == ALL_IMPLEMENTED_DB:
+            I = implementedBy(self.sharedItem.__class__)
+            L = list(I)
+            T = tuple(L)
+            self._sharedInterfaces = T
         else:
-            self._sharedAttributes = tuple(self.sharedAttributeNames.split(u','))
+            self._sharedInterfaces = tuple(map(namedAny, self.sharedInterfaceNames.split(u',')))
 
     def getProxy(self):
-        return SharedProxy(self.sharedItem, self.sharedAttributes)
+        return SharedProxy(self.sharedItem, self.sharedInterfaces)
 
 
-def shareAttributesWith():
-    pass
+def upgradeShare1to2(oldShare):
+    sharedInterfaces = []
+    attrs = set(oldShare.sharedAttributeNames.split(u','))
+    for iface in implementedBy(oldShare.sharedItem.__class__):
+        if set(iface) == attrs or attrs == set('*'):
+            sharedInterfaces.append(iface)
+
+    newShare = oldShare.upgradeVersion('sharing_share', 1, 2,
+                                       shareID=oldShare.shareID,
+                                       sharedItem=oldShare.sharedItem,
+                                       sharedTo=oldShare.sharedTo,
+                                       sharedInterfaces=sharedInterfaces)
+    return newShare
+
+
+registerUpgrader(upgradeShare1to2, 'sharing_share', 1, 2)
 
 def genShareID(store):
     return unicode(os.urandom(16).encode('hex'), 'ascii')
@@ -246,7 +238,7 @@ def getSelfRole(store):
 
 
 def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
-              attributeNames=ALL_SHARED_ATTRIBUTES):
+              interfaces=ALL_IMPLEMENTED):
     assert sharedItem.store is not None
     if shareID is None:
         shareID = genShareID(sharedItem.store)
@@ -262,7 +254,7 @@ def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
                  shareID=shareID,
                  sharedItem=sharedItem,
                  sharedTo=toRole,
-                 sharedAttributes=attributeNames)
+                 sharedInterfaces=interfaces)
 
 def getShare(store, role, shareID):
     for r in role.allRoles():
@@ -270,6 +262,9 @@ def getShare(store, role, shareID):
         if share is not None:
             return share.getProxy()
     raise NoSuchShare()
+
+def itemFromProxy(obj):
+    return object.__getattribute__(obj, '_sharedItem')
 
 def unShare(sharedItem):
     """

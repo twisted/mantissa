@@ -15,18 +15,17 @@ class IPrivateThing(Interface):
     def mutateSomeState():
         pass
 
-
+class INoData(Interface):
+    pass
 
 class PrivateThing(Item):
-    implements(IPrivateThing)
+    implements(IPrivateThing, INoData)
     publicData = integer()
     typeName = 'test_sharing_private_thing'
     schemaVersion = 1
 
     def mutateSomeState(self):
         self.publicData += 5
-
-    sharing.allow(mutateSomeState)
 
 class IPublicThing(Interface):
     def callMethod():
@@ -43,7 +42,7 @@ class PublicFacingAdapter(object):
         self.thunk = thunk
 
     def isMethodAvailable(self):
-        return 'mutateSomeState' in self.thunk.sharedAttributes
+        return IPrivateThing.providedBy(self.thunk)
 
     def callMethod(self):
         return self.thunk.mutateSomeState()
@@ -97,7 +96,7 @@ class SimpleSharingTest(unittest.TestCase):
                          publicData=789)
         self.failUnless(IPublicThing(t).isMethodAvailable())
 
-        shared = sharing.shareItem(t, toName=u'testshare', attributeNames=[])
+        shared = sharing.shareItem(t, toName=u'testshare', interfaces=[INoData])
         proxy = sharing.getShare(self.store,
                 sharing.getPrimaryRole(self.store, u'testshare'),
                 shared.shareID)
@@ -106,4 +105,4 @@ class SimpleSharingTest(unittest.TestCase):
 
 
 
-registerAdapter(PublicFacingAdapter, PrivateThing, IPublicThing)
+registerAdapter(PublicFacingAdapter, INoData, IPublicThing)
