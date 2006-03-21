@@ -202,21 +202,25 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                  * ^ Thank you, brilliant JavaScript designers, for inventing
                  * a whole new language.  This is _way_ better than (let ()).
                  */
-                var headerNode = MochiKit.DOM.DIV({"class": "scroll-column-header",
-                            onclick: function () {
-                            /* XXX real-time feedback, ugh */
-                            self.callRemote("resort", bindName).addCallback(
-                                function(isAscendingNow) {
-                                    self.setSortInfo(bindName, isAscendingNow);
-                                    self.emptyAndRefill();
-                                })
-                                }}, displayName);
+                var headerNode = self.makeHeaderRow(bindName, displayName);
                 headerRow.appendChild(headerNode);
                 headerNodes.push(headerNode);
             })();
         }
         self._headerNodes = headerNodes;
         self._columnOffsets = columnOffsets;
+    },
+
+    function makeHeaderRow(self, bindName, displayName) {
+        return MochiKit.DOM.DIV({"class": "scroll-column-header",
+                    onclick: function () {
+                    /* XXX real-time feedback, ugh */
+                    self.callRemote("resort", bindName).addCallback(
+                        function(isAscendingNow) {
+                            self.setSortInfo(bindName, isAscendingNow);
+                            self.emptyAndRefill();
+                        })
+                        }}, displayName);
     },
 
     function emptyAndRefill(self) {

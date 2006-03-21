@@ -4,7 +4,6 @@ body {
 
 .scroll-header-container {
     background-color: #DADADA;
-    border-bottom: solid 1px #000000;
     font-weight: bold;
     text-align: center;
 }
@@ -14,14 +13,9 @@ body {
     white-space: nowrap;
 }
 
-.scroll-row:hover {
-    background-color: #CACACA;
-}
-
 .scroll-column-header, .scroll-cell {
     padding: 4px;
     width: 250px;
-    height: 20px;
     float: left;
     border-right: solid 1px #000000;
     overflow: hidden;
@@ -46,6 +40,17 @@ body {
 
 td.multi-text-input-list > input {
     display: block;
+    margin-bottom: 4px;
+}
+.person-actions {
+    position: absolute;
+    background-color: #FFFFFF;
+    border: solid 1px #DADADA;
+    padding: 4px;
+}
+
+div.person-actions > div {
+    border-bottom: solid 1px #DADADA;
     margin-bottom: 4px;
 }
 
