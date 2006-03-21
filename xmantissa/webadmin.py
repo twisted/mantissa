@@ -7,7 +7,6 @@ from twisted.python.util import sibpath
 from twisted.python import log
 from twisted.application.service import IService, Service
 from twisted.conch import manhole
-from twisted.cred.portal import IRealm
 
 from epsilon import extime
 
@@ -15,7 +14,7 @@ from axiom.attributes import integer, boolean, timestamp, bytes, reference, inme
 from axiom.item import Item
 from axiom import userbase
 
-from xmantissa import webnav, tdb, tdbview, offering, signup, stats
+from xmantissa import webnav, tdb, tdbview, offering, signup
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
@@ -133,56 +132,14 @@ registerAdapter(LocalUserBrowserFragment, LocalUserBrowser, INavigableFragment)
 
 
 
-class AdminStatsFragment(athena.LiveFragment):
+class AdminStatsFragment(rend.Fragment):
     implements(INavigableFragment)
 
-    live = 'athena'
-    jsClass = u'Mantissa.StatGraph.StatGraph'
+    live = False
     fragmentName = 'admin-stats'
-    allowedMethods = ['buildGraphs']
-
-    def __init__(self, *a, **kw):
-        athena.LiveFragment.__init__(self, *a, **kw)
-
-    def _initializeObserver(self):
-        m = IRealm(self.original.store.parent).accountByAddress(u"mantissa", None)
-        if m:
-            s = m.avatars.open()
-            self.svc = s.findUnique(stats.StatsService)
-            self.svc.addStatsObserver(self)
-        else:
-            self.svc = None
-        self._seenStats = []
-        self.page.notifyOnDisconnect().addCallback(
-            lambda x: self.svc.removeStatsObserver(self))
-
-    def buildGraphs(self):
-        self._initializeObserver()
-        if not self.svc:
-            return []
-        data = []
-        for name in self.svc.minuteBuckets:
-            i = self.svc.currentMinuteBucket
-            bs = self.svc.minuteBuckets[name][i:] + self.svc.minuteBuckets[name][:i]
-            xs, ys = zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs])
-            data.append((xs, ys, unicode(name), unicode(stats.statDescriptions.get(name, name))))
-            self._seenStats.append(name)
-        return data
-
-    def statUpdate(self, updates):
-        for name, time, value in updates:
-            if name not in self._seenStats:
-                i = self.svc.currentMinuteBucket
-                bs = self.svc.minuteBuckets[name][i:] + self.svc.minuteBuckets[name][:i]
-                extraArgs = zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs])
-                extraArgs.append(unicode(stats.statDescriptions.get(name, name)))
-                self._seenStats.append(name)
-            else:
-                extraArgs = ()
-            self.callRemote('update', unicode(name), unicode(time.asHumanly()), value, *extraArgs).addErrback(log.err)
 
     def head(self):
-        return ()
+        return None
 
     def _query(self, *a, **kw):
         return self.original.store.parent.query(*a, **kw)

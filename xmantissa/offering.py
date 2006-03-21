@@ -30,14 +30,12 @@ class Offering(object):
                  siteRequirements,
                  appPowerups,
                  benefactorFactories,
-                 loginInterfaces,
                  themes):
         self.name = name
         self.description = description
         self.siteRequirements = siteRequirements
         self.appPowerups = appPowerups
         self.benefactorFactories = benefactorFactories
-        self.loginInterfaces = loginInterfaces
         self.themes = themes
 
 class InstalledOffering(item.Item):
