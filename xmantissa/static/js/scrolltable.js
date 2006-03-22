@@ -57,12 +57,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     function adjustViewportHeight(self, rowCount) {
-        var rowHeight = self._headerRow.clientHeight;
-        if(rowHeight == 0) {
-            rowHeight = 20;
-        }
         var height = parseInt(self._scrollContent.style.height);
-        self._scrollContent.style.height = height + (rowHeight * rowCount) + "px";
+        self._scrollContent.style.height = height + (self._rowHeight * rowCount) + "px";
     },
 
     function _getSomeRows(self) {
@@ -150,9 +146,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
         cells = MochiKit.Base.map.apply(null, [null].concat(cells))[1];
         var rowNode = self.makeRowElement(rowOffset, rowData, cells);
-
-        rowNode.style.position = 'absolute';
-        rowNode.style.top = (self._rowHeight * rowOffset) + 'px';
 
         self._rows[rowOffset] = [rowData, rowNode];
         self._scrollContent.appendChild(rowNode);
