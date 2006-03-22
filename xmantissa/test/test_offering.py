@@ -55,7 +55,6 @@ class OfferingTest(unittest.TestCase):
             [(ITestInterface, TestSiteRequirement)],
             [TestAppPowerup],
             [],
-            [],
             []
             )
         conf.installOffering(off, None)

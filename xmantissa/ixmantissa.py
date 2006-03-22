@@ -502,13 +502,7 @@ class IOffering(Interface):
     A list of IBenefactorFactory providers
     """)
 
-    loginInterfaces = Attribute("""
-    A list of 2-tuples of (interface, description) of interfaces
-    implemented by avatars provided by this offering, and human
-    readable descriptions of the service provided by logging into
-    them. Used by the statistics reporting system to label graphs of
-    login activity.
-    """)
+
 
 
 class ISignupMechanism(Interface):
