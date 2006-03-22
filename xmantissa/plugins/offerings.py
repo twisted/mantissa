@@ -12,5 +12,6 @@ peopleOffering = offering.Offering(
     siteRequirements=((None, website.WebSite),),
     appPowerups=(),
     benefactorFactories=(peopleBenefactorFactory,),
+    loginInterfaces=(),
     themes=())
 
