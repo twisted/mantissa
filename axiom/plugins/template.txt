@@ -226,7 +226,8 @@ plugin = offering.Offering(
         _project__model._Project_PublicPage,
     ),
 
-    benefactorFactories = (_project_er,)
+    benefactorFactories = (_project_er,),
+    themes = []
     )
 
 ###file:_Project_/_project_/themes/base/_project_-start.html
