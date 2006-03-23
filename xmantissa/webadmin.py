@@ -11,7 +11,7 @@ from twisted.cred.portal import IRealm
 
 from epsilon import extime
 
-from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory
+from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
 from axiom.item import Item
 from axiom import userbase
 
@@ -156,15 +156,35 @@ class AdminStatsFragment(athena.LiveFragment):
         self.page.notifyOnDisconnect().addCallback(
             lambda x: self.svc.removeStatsObserver(self))
 
+    def fetchLastHour(self, name):
+        """Retrieve the last 60 minutes of data points for the named stat."""
+        end = self.svc.currentMinuteBucket
+        beginning = end - 60
+        if beginning < 0:
+            beginning += stats.MAX_MINUTES
+            # this is a round-robin list, so make sure to get
+            # the part recorded before the wraparound:
+            bs = self.svc.store.query(stats.StatBucket,
+                                       AND(stats.StatBucket.type==unicode(name),
+                                           stats.StatBucket.interval== u"minute",
+                                           OR(stats.StatBucket.index >= beginning,
+                                              stats.StatBucket.index <= end)))
+
+        else:
+            bs = self.svc.store.query(stats.StatBucket,
+                                      AND(stats.StatBucket.type==unicode(name),
+                                          stats.StatBucket.interval== u"minute",
+                                          stats.StatBucket.index >= beginning,
+                                          stats.StatBucket.index <= end))
+        return zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs]) or [(), ()]
+
     def buildGraphs(self):
         self._initializeObserver()
         if not self.svc:
             return []
         data = []
-        for name in self.svc.minuteBuckets:
-            i = self.svc.currentMinuteBucket
-            bs = self.svc.minuteBuckets[name][i:] + self.svc.minuteBuckets[name][:i]
-            xs, ys = zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs])
+        for name in self.svc.statTypes:
+            xs, ys = self.fetchLastHour(name)
             data.append((xs, ys, unicode(name), unicode(stats.statDescriptions.get(name, name))))
             self._seenStats.append(name)
         return data
@@ -172,9 +192,7 @@ class AdminStatsFragment(athena.LiveFragment):
     def statUpdate(self, updates):
         for name, time, value in updates:
             if name not in self._seenStats:
-                i = self.svc.currentMinuteBucket
-                bs = self.svc.minuteBuckets[name][i:] + self.svc.minuteBuckets[name][:i]
-                extraArgs = zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs])
+                extraArgs = self.fetchLastHour(name)
                 extraArgs.append(unicode(stats.statDescriptions.get(name, name)))
                 self._seenStats.append(name)
             else:

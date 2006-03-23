@@ -8,9 +8,12 @@ from twisted.python import log
 from axiom import iaxiom, item, attributes, errors
 from epsilon.extime import Time
 from xmantissa.offering import getInstalledOfferings
+
 statDescriptions = {"page_renders": "Nevow page renders per minute",
                     "messages_grabbed": "POP3 messages grabbed per minute",
                     "cache_hits": "Axiom cache hits per minute"}
+
+MAX_MINUTES = 24 * 60 * 7 # a week of minutes
 
 class Statoscope(object):
     """A thing useful for metering the rate of stuff over time.
@@ -207,14 +210,17 @@ class StatSampler(item.Item):
     service = attributes.reference()
 
     def run(self):
-        """Called periodically to write the ongoing stats to disk."""
+        """Called once per minute to write the ongoing stats to disk."""
+        print "Yarr."
         t = Time()
         if self.service.running:
             updates = []
             for scope in self.service.statoscopes.itervalues():
                 scope.setElapsed(60)
                 for k, v in scope._stuffs.iteritems():
-                    b = self.service.minuteBuckets[k][self.service.currentMinuteBucket]
+                    b = self.store.findOrCreate(
+                        StatBucket, type=unicode(k),
+                        interval=u"minute", index=self.service.currentMinuteBucket)
                     b.time = t
                     b.value = float(v)
                     updates.append((k, t, v))
@@ -222,20 +228,64 @@ class StatSampler(item.Item):
             for obs in self.service.observers:
                 obs.statUpdate(updates)
             self.service.currentMinuteBucket += 1
-            if self.service.currentMinuteBucket >= 60:
+            if self.service.currentMinuteBucket >= MAX_MINUTES:
                 self.service.currentMinuteBucket = 0
         return Time.fromDatetime(t._time.replace(second=0) + datetime.timedelta(minutes=1))
 
-class HourlySampler(item.Item):
+def aggregateBuckets(store, name, beginning, end):
+    """Collect a bunch of per-minute StatBuckets and average their value."""
+    if beginning < 0:
+        beginning += MAX_MINUTES 
+        # this is a round-robin list, so make sure to get
+        # the part recorded before the wraparound:
+        return store.query(StatBucket,
+                           attributes.AND(StatBucket.type==unicode(name),
+                                          StatBucket.interval== u"minute",
+                                          attributes.OR(StatBucket.index >= beginning,
+                                                        StatBucket.index <= end))).getColumn('value').average()
+    else:
+        return store.query(StatBucket,
+                           attributes.AND(StatBucket.type==unicode(name),
+                                          StatBucket.interval== u"minute",
+                                          StatBucket.index >= beginning,
+                                          StatBucket.index <= end)).getColumn('value').average()
+
+class QuarterHourSampler(item.Item):
     service = attributes.reference()
     def run(self):
+        """Aggregate the past 15 minutes into a quarter-hour StatBucket."""
         t = Time()
         if self.service.running:
-            for name, buckets in self.service.minuteBuckets.iteritems():
-                hb = self.service.hourBuckets[name][self.service.currentHourBucket]
-                hb.time = t
-                hb.value = float(sum([b.value for b in buckets]) / len(buckets))
-        return Time.fromDatetime(t._time.replace(second=0, minute=0) + datetime.timedelta(hours=1))
+            for name in self.service.statTypes:
+                end = self.service.currentMinuteBucket
+                beginning =  end - 15
+                qhb = self.store.findOrCreate(StatBucket, type=unicode(name), interval=u"quarterhour",
+                                              index=self.service.currentQuarterHourBucket)
+                qhb.time = t
+                qhb.value=aggregateBuckets(self.store, name, beginning, end)
+                if self.service.currentQuarterHourBucket > 2880:
+                    self.service.currentQuarterHourBucket = 0
+            m = t._time.minute
+            hdelta, nextm = divmod(m + 15 - (m % 15), 60)
+            return Time.fromDatetime(t._time.replace(second=0, minute=nextm) + datetime.timedelta(hours=hdelta))
+
+
+class DailySampler(item.Item):
+    service = attributes.reference()
+    def run(self):
+        """Aggregate the past 24 hours into a daily StatBucket."""
+        t = Time()
+        if self.service.running:
+            for name in self.service.statTypes:
+                end = self.service.currentMinuteBucket
+                #only want a day's worth:
+                beginning =  end - (24 * 60)
+                StatBucket(store=self.store,
+                           time=t,
+                           interval=u"day",
+                           type=unicode(name),
+                           value= aggregateBuckets(self.store, name, beginning, end))
+        return Time.fromDatetime(t._time.replace(hour=0, second=0, minute=0) + datetime.timedelta(hours=24))
 
 class StatsService(item.Item, service.Service, item.InstallableMixin):
 
@@ -244,10 +294,9 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     running = attributes.inmemory()
     name = attributes.inmemory()
     statoscopes = attributes.inmemory()
-    minuteBuckets = attributes.inmemory()
-    hourBuckets = attributes.inmemory()
+    statTypes = attributes.inmemory()
     currentMinuteBucket = attributes.integer(default=0)
-    currentHourBucket = attributes.integer(default=0)
+    currentQuarterHourBucket = attributes.integer(default=0)
     observers = attributes.inmemory()
     loginInterfaces = attributes.inmemory()
 
@@ -264,11 +313,20 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
             iaxiom.IScheduler(store).schedule(s, t)
 
         try:
-            store.findUnique(HourlySampler)
+            store.findUnique(QuarterHourSampler)
         except errors.ItemNotFound:
-            hs = store.findOrCreate(HourlySampler, service=self)
-            t2 = Time.fromDatetime(now.replace(second=0, minute=0) + datetime.timedelta(hours=1))
-            iaxiom.IScheduler(store).schedule(hs, t2)
+            qhs = store.findOrCreate(QuarterHourSampler, service=self)
+            m = now.minute
+            hdelta, nextm = divmod(m + 15 - (m % 15), 60)
+            t2 = Time.fromDatetime(now.replace(second=0, minute=m) + datetime.timedelta(hours=hdelta))
+            iaxiom.IScheduler(store).schedule(qhs, t2)
+
+        try:
+            store.findUnique(DailySampler)
+        except errors.ItemNotFound:
+            ds = store.findOrCreate(DailySampler, service=self)
+            t2 = Time.fromDatetime(now.replace(hour=0, second=0, minute=0) + datetime.timedelta(hours=24))
+            iaxiom.IScheduler(store).schedule(ds, t2)
 
         if self.parent is None:
             self.setServiceParent(store)
@@ -278,13 +336,11 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         service.Service.startService(self)
         self.statoscopes = {}
         log.addObserver(self._observeStatEvent)
-        self.minuteBuckets = {}
-        self.hourBuckets = {}
+        self.statTypes = statDescriptions.keys()
         self.observers = []
         self.loginInterfaces = {}
         for x in getInstalledOfferings(self.store.parent).values():
             self.loginInterfaces.update(dict(x.loginInterfaces))
-        self.setupStatBuckets(statDescriptions)
 
     def addStatsObserver(self, obs):
         self.observers.append(obs)
@@ -292,16 +348,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         for name, observers in self.observers.iteritems():
             if obs in observers:
                 observers.remove(obs)
-
-    def setupStatBuckets(self, fields):
-        for field in fields:
-            self.minuteBuckets[field] = [self.store.findOrCreate(
-                StatBucket, type=unicode(field),
-                interval=u"minute", index=i) for i in range(60)]
-
-            self.hourBuckets[field] = [self.store.findOrCreate(
-                StatBucket, type=unicode(field),
-                interval=u"hour", index=i) for i in range(24)]
 
     def stopService(self):
         log.removeObserver(self._observeStatoscopeEvent)
@@ -337,6 +383,5 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         d = dict(itertools.imap(lambda k: (k[0][5:], k[1]), d))
         if not self.statoscopes.get(name):
             self.statoscopes[name] = Statoscope(name, events.get('user'))
-            self.setupStatBuckets(d.keys())
 
         self.statoscopes[name].record(**d)
