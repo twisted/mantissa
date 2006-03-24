@@ -151,7 +151,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollContent.appendChild(rowNode);
     },
 
-    function makeRowElement(self, rowData, cells) {
+    function makeRowElement(self, rowOffset, rowData, cells) {
         return MochiKit.DOM.A(
             {"class": "scroll-row",
              "href": rowData['__id__']},
