@@ -9,7 +9,13 @@ def _f(*sibling):
     return util.sibpath(xmantissa.__file__, '/'.join(sibling))
 
 mantissaPkg = athena.JSPackage({
-    'GraphKit': _f('static', 'js', 'CanvasGraph.js'),
+    'PlotKit.Base': _f('static', 'js', 'PlotKit', 'Base.js'),
+    'PlotKit.Canvas': _f('static', 'js', 'PlotKit', 'Canvas.js'),
+    'PlotKit.Layout': _f('static', 'js', 'PlotKit', 'Layout.js'),
+    'PlotKit.SVGRenderer': _f('static', 'js', 'PlotKit', 'SVG.js'),
+    'PlotKit.SweetSVG': _f('static', 'js', 'PlotKit', 'SweetSVG.js'),
+    'PlotKit.Canvas': _f('static', 'js', 'PlotKit', 'Canvas.js'),
+    'PlotKit.SweetCanvas': _f('static', 'js', 'PlotKit', 'SweetCanvas.js'),
     'Mantissa': _f('static', 'js', 'mantissa.js'),
     'Mantissa.LiveForm': _f('static', 'js', 'liveform.js'),
     'Mantissa.People': _f('static', 'js', 'people.js'),

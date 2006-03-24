@@ -1,26 +1,58 @@
 
 // import MochiKit
-// import GraphKit
+// import PlotKit.Base
+// import PlotKit.Layout
+// import PlotKit.Canvas
+// import PlotKit.SweetCanvas
 // import Mantissa
-
+function printfire()
+    {
+        if (document.createEvent)
+        {
+            printfire.args = arguments;
+            var ev = document.createEvent("Events");
+            ev.initEvent("printfire", false, true);
+            dispatchEvent(ev);
+        }
+    }
 Mantissa.StatGraph = {};
 
 Mantissa.StatGraph.GraphData = Divmod.Class.subclass();
 
 Mantissa.StatGraph.GraphData.methods(
     function __init__(self, xs, ys, canvas) {
-        self.graph = new CanvasGraph(canvas);
         self.xs = xs;
         self.ys = ys;
+        self.canvas = canvas;
+        var xticks = [];
+        self.layout = new PlotKit.Layout("line", {xTicks: xticks});
+        self.graph = new PlotKit.SweetCanvasRenderer(self.canvas, self.layout, {});
+    },
+
+    function updateXTicks(self) {
+        var allXTicks = MochiKit.Base.map(function(L, val) { return {"label": L, v: val};}, self.xs, 
+                                          MochiKit.Iter.range(self.xs.length));
+        // XXX find a better way to do this maybe?
+        var len = allXTicks.length;
+        self.layout.options.xTicks.length = 0;
+        if (len > 5) {
+            for (var i = 0; i < len; i += Math.floor(len/4)) {
+                self.layout.options.xTicks.push(allXTicks[i]);
+            }
+        } else {
+            self.layout.options.xTicks = allXTicks;
+        }
+        printfire("Done. " + self.layout.xticks.toSource());
     },
 
     function draw(self) {
-        self.graph.setDataset("data", map(null, range(self.xs.length), self.ys));
-        self.graph.xlabels = self.xs;
+        self.layout.addDataset("data", MochiKit.Base.map(null, MochiKit.Iter.range(self.xs.length), self.ys));
+        self.updateXTicks();
+        self.layout.evaluate();
         self.graph.clear();
-        var h8 = {};
-        h8["data"] = Color.blueColor();
-        self.graph.drawLinePlot(h8);
+        self.graph.render();
+        //var h8 = {};
+        //h8["data"] = Color.blueColor();
     });
 
 Mantissa.StatGraph.StatGraph = Nevow.Athena.Widget.subclass("Mantissa.StatGraph.StatGraph");

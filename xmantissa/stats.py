@@ -11,7 +11,11 @@ from xmantissa.offering import getInstalledOfferings
 
 statDescriptions = {"page_renders": "Nevow page renders per minute",
                     "messages_grabbed": "POP3 messages grabbed per minute",
-                    "cache_hits": "Axiom cache hits per minute"}
+                    "cache_hits": "Axiom cache hits per minute",
+                    "cursor_execute_time": "Seconds spent in cursor.execute per minute",
+                    "commits": "Axiom commits per minute",
+                    "cache_misses": "Axiom cache misses per minute",
+                    "autocommits": "Axiom autocommits per minute"}
 
 MAX_MINUTES = 24 * 60 * 7 # a week of minutes
 
@@ -211,7 +215,6 @@ class StatSampler(item.Item):
 
     def run(self):
         """Called once per minute to write the ongoing stats to disk."""
-        print "Yarr."
         t = Time()
         if self.service.running:
             updates = []
