@@ -48,24 +48,60 @@ class FakeTestBenefactor(item.Item):
     schemaVersion = 1
 
     endowed = attributes.integer(default=0)
+    deprived = attributes.integer(default=0)
     counter = attributes.inmemory()
 
     def endow(self, ticket, avatar):
         self.endowed = self.counter()
 
+
+    def deprive(self, ticket, avatar):
+        self.deprived = self.counter()
+
+
+
 class MultiBenefactorTestCase(unittest.TestCase):
+    def setUp(self):
+        self.s = store.Store()
+        self.mb = signup.Multifactor(store=self.s)
+        self.counter = itertools.count(1).next
+        self.ftb = FakeTestBenefactor(store=self.s, counter=self.counter)
+        self.ftb2 = FakeTestBenefactor(store=self.s, counter=self.counter)
+
+
+    def testOrdering(self):
+        self.mb.add(self.ftb)
+        self.mb.add(self.ftb2)
+
+        self.assertEquals(
+            list(self.mb.benefactors('ascending')),
+            [self.ftb, self.ftb2])
+
+        self.assertEquals(
+            list(self.mb.benefactors('descending')),
+            [self.ftb2, self.ftb])
+
+
     def testAdding(self):
-        s = store.Store()
-        mb = signup.Multifactor(store=s)
-        counter = itertools.count(1).next
-        ftb = FakeTestBenefactor(store=s, counter=counter)
-        ftb2 = FakeTestBenefactor(store=s, counter=counter)
-        mb.add(ftb)
-        mb.add(ftb2)
-        mb.endow(None, None) # Hopefully no one ever cares about the ticket or
-                             # the avatar here
-        self.assertEquals(ftb.endowed, 1)
-        self.assertEquals(ftb2.endowed, 2)
+        self.mb.add(self.ftb)
+        self.mb.add(self.ftb2)
+
+        self.mb.endow(None, None) # Hopefully no one ever cares about the
+                                  # ticket or the avatar here.
+        self.assertEquals(self.ftb.endowed, 1)
+        self.assertEquals(self.ftb2.endowed, 2)
+
+
+    def testDeprivation(self):
+        self.mb.add(self.ftb)
+        self.mb.add(self.ftb2)
+
+        self.mb.deprive(None, None) # Hopefully no one ever cares about the
+                                    # ticket or the avatar here.
+        self.assertEquals(self.ftb.deprived, 2)
+        self.assertEquals(self.ftb2.deprived, 1)
+
+
 
 class SignupCreationTestCase(unittest.TestCase):
     def setUp(self):

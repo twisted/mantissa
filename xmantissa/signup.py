@@ -23,7 +23,9 @@ from nevow.url import URL
 from nevow.inevow import IResource, ISession
 from nevow import inevow, tags, athena
 
-from xmantissa.ixmantissa import ISiteRootPlugin, IStaticShellContent, INavigableElement, INavigableFragment, ISignupMechanism
+from xmantissa.ixmantissa import (
+    IBenefactor, ISiteRootPlugin, IStaticShellContent, INavigableElement,
+    INavigableFragment, ISignupMechanism)
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
 from xmantissa.webnav import Tab
@@ -121,7 +123,7 @@ class TicketBooth(Item, PrefixURLMixin):
         @param email: a str, formatted as an rfc2821 email address
         (user@domain) -- source routes not allowed.
 
-        @param benefactor: an implementor of ixmantissa.IBenefactor
+        @param benefactor: an implementor of L{IBenefactor}
 
         @param domainName: a domain name, used as the domain part of the
         sender's address, and as the web server to generate a link to within
@@ -404,24 +406,44 @@ class Multifactor(Item):
     references to other benefactors and delegates endowment
     responsibility to them.
     """
+    implements(IBenefactor)
+
     typeName = 'mantissa_multi_benefactor'
     schemaVersion = 1
 
     order = integer(default=0)
 
-    def benefactors(self):
+    def benefactors(self, order):
         for deleg in self.store.query(_DelegatedBenefactor,
                                       _DelegatedBenefactor.multifactor == self,
-                                      sort=_DelegatedBenefactor.order.ascending):
+                                      sort=getattr(_DelegatedBenefactor.order, order)):
             yield deleg.benefactor
 
+
     def add(self, benefactor):
+        """
+        Add the given benefactor to the list of those which will be used to
+        endow or deprive beneficiaries.
+
+        This should only be done when creating the multifactor.  Adding
+        benefactors to a multifactor that has already endowed a beneficiary
+        will most likely have dire consequences.
+        """
         _DelegatedBenefactor(store=self.store, multifactor=self, benefactor=benefactor, order=self.order)
         self.order += 1
 
+
+    # IBenefactor
     def endow(self, ticket, beneficiary):
-        for benefactor in self.benefactors():
+        for benefactor in self.benefactors('ascending'):
             benefactor.endow(ticket, beneficiary)
+
+
+    def deprive(self, ticket, beneficiary):
+        for benefactor in self.benefactors('descending'):
+            benefactor.deprive(ticket, beneficiary)
+
+
 
 class _SignupTracker(Item):
     """

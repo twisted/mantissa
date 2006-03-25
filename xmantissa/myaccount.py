@@ -9,4 +9,9 @@ class MyAccount(Item):
     typeName = 'mantissa_myaccount'
     schemaVersion = 2
 
-registerUpgrader(lambda old: None, 'mantissa_myaccount', 1, 2)
+def deleteMyAccount(old):
+    # Just get rid of the old account object.  Don't even create a new one.
+    old.deleteFromStore()
+    return None
+
+registerUpgrader(deleteMyAccount, 'mantissa_myaccount', 1, 2)
