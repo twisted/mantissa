@@ -15,7 +15,9 @@ statDescriptions = {"page_renders": "Nevow page renders per minute",
                     "cursor_execute_time": "Seconds spent in cursor.execute per minute",
                     "commits": "Axiom commits per minute",
                     "cache_misses": "Axiom cache misses per minute",
-                    "autocommits": "Axiom autocommits per minute"}
+                    "autocommits": "Axiom autocommits per minute",
+                    "athena_messages_sent": "Athena messages sent per minute",
+                    "athena_messages_received": "Athena messages received per minute"}
 
 MAX_MINUTES = 24 * 60 * 7 # a week of minutes
 
@@ -366,6 +368,11 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         """
         if 'http_render' in events:
             events = {'interface':iaxiom.IStatEvent, 'name':'nevow', 'stat_page_renders':1}
+        #blech
+        elif 'athena_send_messages' in events:
+            events = {'interface':iaxiom.IStatEvent, 'name':'athena', 'stat_athena_messages_sent':events['count']}
+        elif 'athena_received_messages' in events:
+            events = {'interface':iaxiom.IStatEvent, 'name':'athena', 'stat_athena_messages_received':events['count']}
         elif 'cred_interface' in events:
             if_desc = self.loginInterfaces.get(events['cred_interface'], None)
             if not if_desc:
