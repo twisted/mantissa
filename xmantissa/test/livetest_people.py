@@ -61,13 +61,15 @@ class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
         p = self.store.findUnique(people.Person)
         self.assertEqual(p.name, '')
         self.assertEqual(p.organizer, self.organizer)
-        p.deleteFromStore()
 
         rn = self.store.findUnique(people.RealName)
         self.assertEqual(rn.first, 'FIRSTNAME')
         self.assertEqual(rn.last, 'LASTNAME')
         self.assertEqual(rn.person, p)
+
         rn.deleteFromStore()
+        p.deleteFromStore()
+
         self.assertEqual(self.store.count(people.EmailAddress), 0)
 
 class OnlyNick(AddPersonTestBase, TestCase):
@@ -106,13 +108,14 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
         p = self.store.findUnique(people.Person)
         self.assertEqual(p.name, 'NICK!!!')
         self.assertEqual(p.organizer, self.organizer)
-        p.deleteFromStore()
 
         e = self.store.findUnique(people.EmailAddress)
         self.assertEqual(e.address, 'a@b.c')
         self.assertEqual(e.person, p)
         self.assertEqual(e.type, 'default')
+
         e.deleteFromStore()
+        p.deleteFromStore()
 
         self.assertEqual(self.store.count(people.RealName), 0)
 
@@ -173,16 +176,15 @@ class EditEmails(ContactInfoTestBase, TestCase):
 
     def checkResult(self):
         EA = people.EmailAddress
-        def assertAddrEquals(_type, addr, delete=True):
+        def assertAddrEquals(_type, addr):
             ea = self.store.findUnique(EA,
                                        attributes.AND(EA.person == self.person,
                                                       EA.type == _type))
             self.assertEqual(ea.address, addr)
-            if delete:
-                ea.deleteFromStore()
 
-        assertAddrEquals(u'default', u'bob.default@divmod.com', False)
+        assertAddrEquals(u'default', u'bob.default@divmod.com')
         assertAddrEquals(u'home', u'bob.home@divmod.com')
+        self.emails.clear()
 
 class EditRealName(ContactInfoTestBase, TestCase):
 
