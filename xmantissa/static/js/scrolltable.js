@@ -15,6 +15,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollContent = self.nodeByAttribute("class", "scroll-content");
         self._scrollViewport = self.nodeByAttribute('class', 'scroll-viewport');
         self._headerRow = self.nodeByAttribute('class', 'scroll-header-row');
+        self.setRowHeight();
+
         self.callRemote("getTableMetadata").addCallback(
             function(metadata) {
                 /*
@@ -43,7 +45,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             });
     },
 
-    function setViewportHeight(self, rowCount) {
+    function setRowHeight(self) {
         var rowHeight = self._headerRow.clientHeight;
         if (rowHeight == 0) {
             rowHeight = 20; /* IE can't see clientHeight on some nodes...? */
@@ -52,7 +54,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             row, but blah templates or something. */
 
         self._rowHeight = rowHeight;
-        var scrollContentHeight = rowHeight * rowCount;
+    },
+
+    function setViewportHeight(self, rowCount) {
+        var scrollContentHeight = self._rowHeight * rowCount;
         self._scrollContent.style.height = scrollContentHeight + 'px';
     },
 
