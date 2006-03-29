@@ -275,11 +275,14 @@ class REPL(athena.LiveFragment):
 
     def __init__(self, *a, **kw):
         rend.Fragment.__init__(self, *a, **kw)
-        self.namespace = {'s': self.original.store}
+        self.namespace = {'s': self.original.store, 'getStore': self.getStore}
         self.interpreter = manhole.ManholeInterpreter(
             self,
             self.namespace)
 
+    def getStore(self, name, domain):
+        """Convenience method for the REPL. I got tired of typing this string every time I logged in."""
+        return IRealm(self.original.store.parent).accountByAddress(name, domain).avatars.open()
 
     def head(self):
         return ()

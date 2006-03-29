@@ -11,6 +11,9 @@ from xmantissa.offering import getInstalledOfferings
 
 statDescriptions = {"page_renders": "Nevow page renders per minute",
                     "messages_grabbed": "POP3 messages grabbed per minute",
+                    "messagesSent": "SMTP messages sent per minute",
+                    "messagesReceived": "SMTP messages received per minute",
+                    "mimePartsCreated": "MIME parts created per minute",
                     "cache_hits": "Axiom cache hits per minute",
                     "cursor_execute_time": "Seconds spent in cursor.execute per minute",
                     "commits": "Axiom commits per minute",
