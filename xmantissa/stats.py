@@ -44,6 +44,7 @@ class Statoscope(object):
     def __init__(self, name, user=None, elapsed=0., stuffs=None):
         self.name = name
         self.user = user
+        self._stuffs = {}
         self.reset(elapsed, stuffs)
 
     def copy(self):
@@ -57,7 +58,7 @@ class Statoscope(object):
         if stuffs:
             self._stuffs = stuffs.copy()
         else:
-            self._stuffs = {}
+            self._stuffs = dict.fromkeys(self._stuffs.iterkeys(), 0)
 
     def start(self):
         """Start the internal timer."""
@@ -223,16 +224,15 @@ class StatSampler(item.Item):
         t = Time()
         if self.service.running:
             updates = []
-            for scope in self.service.statoscopes.itervalues():
-                scope.setElapsed(60)
-                for k, v in scope._stuffs.iteritems():
-                    b = self.store.findOrCreate(
-                        StatBucket, type=unicode(k),
-                        interval=u"minute", index=self.service.currentMinuteBucket)
-                    b.time = t
-                    b.value = float(v)
-                    updates.append((k, t, v))
-                scope.reset()
+            self.service.statoscope.setElapsed(60)
+            for k, v in self.service.statoscope._stuffs.iteritems():
+                b = self.store.findOrCreate(
+                    StatBucket, type=unicode(k),
+                    interval=u"minute", index=self.service.currentMinuteBucket)
+                b.time = t
+                b.value = float(v)
+                updates.append((k, t, v))
+            self.service.statoscope.reset()
             for obs in self.service.observers:
                 obs.statUpdate(updates)
             self.service.currentMinuteBucket += 1
@@ -301,7 +301,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     parent = attributes.inmemory()
     running = attributes.inmemory()
     name = attributes.inmemory()
-    statoscopes = attributes.inmemory()
+    statoscope = attributes.inmemory()
     statTypes = attributes.inmemory()
     currentMinuteBucket = attributes.integer(default=0)
     currentQuarterHourBucket = attributes.integer(default=0)
@@ -342,13 +342,19 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
 
     def startService(self):
         service.Service.startService(self)
-        self.statoscopes = {}
+        self.statoscope = Statoscope("mantissa-stats", None)
         log.addObserver(self._observeStatEvent)
         self.statTypes = statDescriptions.keys()
         self.observers = []
         self.loginInterfaces = {}
         for x in getInstalledOfferings(self.store.parent).values():
             self.loginInterfaces.update(dict(x.loginInterfaces))
+
+        self.statoscope._stuffs = dict.fromkeys(statDescriptions.iterkeys(), 0)
+        self.statoscope._stuffs.update(dict.fromkeys([bucket.type for bucket in
+                                                      self.store.query(StatBucket,
+                                                                       attributes.AND(StatBucket.index==0,
+                                                                                      StatBucket.interval==u"minute"))], 0))
 
     def addStatsObserver(self, obs):
         self.observers.append(obs)
@@ -370,12 +376,12 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         _takeSample.
         """
         if 'http_render' in events:
-            events = {'interface':iaxiom.IStatEvent, 'name':'nevow', 'stat_page_renders':1}
+            events = {'interface':iaxiom.IStatEvent, 'stat_page_renders':1}
         #blech
         elif 'athena_send_messages' in events:
-            events = {'interface':iaxiom.IStatEvent, 'name':'athena', 'stat_athena_messages_sent':events['count']}
+            events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_sent':events['count']}
         elif 'athena_received_messages' in events:
-            events = {'interface':iaxiom.IStatEvent, 'name':'athena', 'stat_athena_messages_received':events['count']}
+            events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_received':events['count']}
         elif 'cred_interface' in events:
             if_desc = self.loginInterfaces.get(events['cred_interface'], None)
             if not if_desc:
@@ -386,7 +392,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         try:
             if not issubclass(events['interface'], iaxiom.IStatEvent ):
                 return
-            name = events['name']
         except (TypeError, KeyError):
             return
 
@@ -394,7 +399,4 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         d = itertools.ifilter(lambda k: k[0][:5]=='stat_', events.iteritems())
         # strip the stat_ prefix
         d = dict(itertools.imap(lambda k: (k[0][5:], k[1]), d))
-        if not self.statoscopes.get(name):
-            self.statoscopes[name] = Statoscope(name, events.get('user'))
-
-        self.statoscopes[name].record(**d)
+        self.statoscope.record(**d)
