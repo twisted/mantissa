@@ -100,7 +100,18 @@ Mantissa.LiveForm.FormWidget.methods(
                             var aValue = aNode.value;
                             pushOneValue(aNode.name, aValue);
                         } else if (aNode.tagName.toLowerCase() == 'select') {
-                            pushOneValue(aNode.name, aNode.value);
+                            if (aNode.getAttribute('multiple') == null) {
+                                pushOneValue(aNode.name, aNode.value);
+                            } else {
+                                // If multiple values can be selected, get them
+                                var values = [];
+                                for (var i = 0; i < aNode.options.length; i++) {
+                                    if (aNode.options[i].selected) {
+                                        values.push(aNode.options[i].value);
+                                    }
+                                }
+                                pushOneValue(aNode.name, values);
+                            }
                         } else {
                             // Examine the children, since it is some
                             // other kind of element.
