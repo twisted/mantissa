@@ -149,7 +149,7 @@ class LiveForm(record('callable parameters description',
                                                           dict(name=parameter.name,
                                                                type=parameter.type,
                                                                value=value))))
-            
+
             p(**{'class' : 'liveform_'+parameter.name})
             inputs.append(p)
 
