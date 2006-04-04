@@ -17,6 +17,29 @@ function printfire()
     }
 Mantissa.StatGraph = {};
 
+Mantissa.StatGraph.Pie = Divmod.Class.subclass();
+
+Mantissa.StatGraph.Pie.methods(
+    function __init__(self, slices, canvas) {
+        self.slices = slices;
+        self.canvas = canvas;
+        canvas.height = 900;
+        canvas.width = 900;
+        var allXTicks = MochiKit.Base.map(function(L, val) { return {"label": L.substring(13), v: val};}, slices[0],
+                                          MochiKit.Iter.range(slices[0].length));
+        self.layout = new PlotKit.Layout("pie",  {"xTicks": allXTicks});
+        self.layout.addDataset("data", MochiKit.Base.zip(MochiKit.Iter.range(self.slices[1].length), self.slices[1]));
+        self.layout.evaluate();
+        
+        self.graph = new PlotKit.SweetCanvasRenderer(self.canvas, self.layout, {'axisLabelWidth':100});
+        self.graph.clear();
+        self.graph.render();
+    },
+
+    function draw(self) {
+    }
+    );
+
 Mantissa.StatGraph.GraphData = Divmod.Class.subclass();
 
 Mantissa.StatGraph.GraphData.methods(
@@ -60,13 +83,18 @@ Mantissa.StatGraph.StatGraph.methods(
     function __init__(self, node) {
         Mantissa.StatGraph.StatGraph.upcall(self, '__init__', node);
         self.graphs = {};
+        self.callRemote('buildPie').addCallback(function (slices) {
+            var g = new Mantissa.StatGraph.Pie(slices, self._newCanvas("Pie!"));
+                self.pie = g;
+                g.draw();
+        }).addCallback(function (_) {
         self.callRemote('buildGraphs').addCallback(function (data) {
             for (var i = 0; i < data.length; i++) {
                 var g = new Mantissa.StatGraph.GraphData(data[i][0], data[i][1], self._newCanvas(data[i][3]));
                 self.graphs[data[i][2]] = g;
                 g.draw();
             }
-        });
+        })});
     },
 
     function _newCanvas(self, title) {

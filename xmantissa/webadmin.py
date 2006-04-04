@@ -139,11 +139,12 @@ class AdminStatsFragment(athena.LiveFragment):
     live = 'athena'
     jsClass = u'Mantissa.StatGraph.StatGraph'
     fragmentName = 'admin-stats'
-    allowedMethods = ['buildGraphs']
+    allowedMethods = ['buildGraphs', 'buildPie']
 
     def __init__(self, *a, **kw):
         athena.LiveFragment.__init__(self, *a, **kw)
-
+        self.svc = None
+        
     def _initializeObserver(self):
         m = IRealm(self.original.store.parent).accountByAddress(u"mantissa", None)
         if m:
@@ -179,7 +180,7 @@ class AdminStatsFragment(athena.LiveFragment):
         return zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs]) or [(), ()]
 
     def buildGraphs(self):
-        self._initializeObserver()
+
         if not self.svc:
             return []
         data = []
@@ -189,8 +190,45 @@ class AdminStatsFragment(athena.LiveFragment):
             self._seenStats.append(name)
         return data
 
+    def buildPie(self):
+        self._initializeObserver()
+        if not self.svc:
+            return []
+        data = []
+        end = self.svc.currentMinuteBucket
+        beginning = end - 60
+        if beginning < 0:
+            beginning += stats.MAX_MINUTES
+            # this is a round-robin list, so make sure to get
+            # the part recorded before the wraparound:
+            bs = self.svc.store.query(stats.StatBucket,
+                                       AND(stats.StatBucket.type.like(u"_axiom_query", u'%'),
+                                           stats.StatBucket.interval== u"minute",
+                                           OR(stats.StatBucket.index >= beginning,
+                                              stats.StatBucket.index <= end)))
+
+        else:
+            bs = self.svc.store.query(stats.StatBucket,
+                                      AND(stats.StatBucket.type.like(u"_axiom_query", u'%'),
+                                          stats.StatBucket.interval== u"minute",
+                                          stats.StatBucket.index >= beginning,
+                                          stats.StatBucket.index <= end))
+        slices = {}
+        for bucket in bs:
+            slices.setdefault(bucket.type, []).append(bucket.value)
+        for k, v in slices.items():
+            avg =  sum(v)/float(len(v))
+            if avg:
+                slices[k] = avg
+            else:
+                del slices[k]
+        return zip(*slices.items())
+
     def statUpdate(self, updates):
         for name, time, value in updates:
+            if name.startswith('_'):
+                #not a directly graphable stat
+                continue
             if name not in self._seenStats:
                 extraArgs = self.fetchLastHour(name)
                 extraArgs.append(unicode(stats.statDescriptions.get(name, name)))
