@@ -1,7 +1,7 @@
 # -*- test-case-name: quotient.test.test_stats -*-
 # Copyright 2005 Divmod, Inc.  See LICENSE file for details
 
-import time, datetime, itertools, os.path
+import time, datetime, itertools
 
 from twisted.application import service
 from twisted.python import log
@@ -225,7 +225,7 @@ class StatSampler(item.Item):
         if self.service.running:
             updates = []
             self.service.statoscope.setElapsed(60)
-            for k, v in self.service.statoscope._stuffs.items():
+            for k, v in self.service.statoscope._stuffs.iteritems():
                 b = self.store.findOrCreate(
                     StatBucket, type=unicode(k),
                     interval=u"minute", index=self.service.currentMinuteBucket)
@@ -375,7 +375,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         These Statoscopes are then periodically written to the log by
         _takeSample.
         """
-
         if 'http_render' in events:
             events = {'interface':iaxiom.IStatEvent, 'stat_page_renders':1}
         #blech
@@ -383,10 +382,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
             events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_sent':events['count']}
         elif 'athena_received_messages' in events:
             events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_received':events['count']}
-        elif 'querySite' in events:
-            self.statoscope.record(**{ "_axiom_query:%s:%s" % (os.path.basename(events['querySite'][0]),
-                                                                events['querySite'][1]): events['queryTime']})
-
         elif 'cred_interface' in events:
             if_desc = self.loginInterfaces.get(events['cred_interface'], None)
             if not if_desc:
