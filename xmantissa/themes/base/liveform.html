@@ -26,32 +26,6 @@
     <nevow:slot name="input" />
   </div>
 
-  <div nevow:pattern="select-one-input-container">
-    <nevow:slot name="description" />
-    <select>
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="options" />
-    </select>
-  </div>
-
-  <div nevow:pattern="select-many-input-container">
-    <nevow:slot name="description" />
-    <select multiple="multiple">
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="options" />
-    </select>
-  </div>
-
-  <option selected="selected" nevow:pattern="selected-option">
-    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
-    <nevow:slot name="text" />
-  </option>
-
-  <option nevow:pattern="unselected-option">
-    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
-    <nevow:slot name="text" />
-  </option>
-
   <div nevow:pattern="multi-text-input-container">
     <nevow:slot name="description" />
     <nevow:slot name="inputs" />

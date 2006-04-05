@@ -106,49 +106,6 @@ class Select(testcase.TestCase):
         return ctx.tag[f]
 
 
-class Choice(testcase.TestCase):
-    jsClass = u'Mantissa.Test.Choice'
-
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('choice_form'))])
-
-    def submit(self, argument):
-        self.assertEquals(argument, 2)
-
-    def render_choice_form(self, ctx, data):
-        f = liveform.LiveForm(
-            self.submit,
-            [liveform.ChoiceParameter('argument', int,
-                [('One', 1, False),
-                 ('Two', 2, True),
-                 ('Three', 3, False)])])
-        f.setFragmentParent(self)
-        return ctx.tag[f]
-
-
-class ChoiceMultiple(testcase.TestCase):
-    jsClass = u'Mantissa.Test.ChoiceMultiple'
-
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('choice_form'))])
-
-    def submit(self, argument):
-        self.assertIn(1, argument)
-        self.assertIn(3, argument)
-
-    def render_choice_form(self, ctx, data):
-        f = liveform.LiveForm(
-            self.submit,
-            [liveform.ChoiceParameter('argument', int,
-                [('One', 1, True),
-                 ('Two', 2, False),
-                 ('Three', 3, True)],
-                "Choosing mulitples from a list.", True)])
-        f.setFragmentParent(self)
-        return ctx.tag[f]
-
 
 SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
                    # accident.
