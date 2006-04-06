@@ -1,5 +1,17 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+
+  <nevow:invisible nevow:pattern="login-links">
+	  <nevow:slot name="signups" /> <a href="/login">Sign in</a>
+  </nevow:invisible>
+
+  <nevow:invisible nevow:pattern="signup">
+    <a>
+      <nevow:attr name="href"><nevow:slot name="url" /></nevow:attr>
+      <nevow:slot name="prompt" />
+    </a> |
+  </nevow:invisible>
+
   <head nevow:render="head">
     <title nevow:render="title" />
   </head>

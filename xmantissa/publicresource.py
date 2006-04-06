@@ -1,4 +1,4 @@
-from nevow import rend, livepage, athena, tags
+from nevow import rend, livepage, athena, tags, inevow
 
 from xmantissa.webtheme import getLoader, getAllThemes
 
@@ -17,9 +17,22 @@ class PublicPageMixin(object):
         return ctx.tag[self.title]
 
     def render_username(self, ctx, data):
+        from xmantissa.signup import FreeTicketSignup
+
         if self.username is not None:
             return ctx.tag.fillSlots('username', self.username)
-        return ctx.tag.clear()[tags.a(href='/login')['Sign in']]
+
+        IQ = inevow.IQ(self.docFactory)
+        signupPattern = IQ.patternGenerator('signup')
+        loginLinks = IQ.onePattern('login-links')
+
+        signups = []
+        for signup in self.store.query(FreeTicketSignup):
+            signups.append(signupPattern.fillSlots(
+                                'prompt', signup.prompt).fillSlots(
+                                'url', '/' + signup.prefixURL))
+
+        return ctx.tag.clear()[loginLinks.fillSlots('signups', signups)]
 
     def render_header(self, ctx, data):
         if self.staticContent is None:
@@ -53,8 +66,9 @@ class PublicPageMixin(object):
         return ctx.tag[filter(None, content)]
 
 class PublicPage(PublicPageMixin, rend.Page):
-    def __init__(self, original, fragment, staticContent, forUser):
+    def __init__(self, original, store, fragment, staticContent, forUser):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
+        self.store = store
         self.fragment = fragment
         self.staticContent = staticContent
         if forUser is not None:
@@ -62,8 +76,9 @@ class PublicPage(PublicPageMixin, rend.Page):
         self.username = forUser
 
 class PublicLivePage(PublicPageMixin, livepage.LivePage):
-    def __init__(self, original, fragment, staticContent, forUser):
+    def __init__(self, original, store, fragment, staticContent, forUser):
         super(PublicLivePage, self).__init__(original, docFactory=getLoader("public-shell"))
+        self.store = store
         self.fragment = fragment
         self.staticContent = staticContent
         if forUser is not None:
@@ -76,7 +91,8 @@ class PublicLivePage(PublicPageMixin, livepage.LivePage):
 
 class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
     fragment = None
-    def __init__(self, fragment, staticContent=None, forUser=None, *a, **k):
+    def __init__(self, store, fragment, staticContent=None, forUser=None, *a, **k):
+        self.store = store
         super(PublicAthenaLivePage, self).__init__(
             docFactory=getLoader("public-shell"),
             *a, **k)

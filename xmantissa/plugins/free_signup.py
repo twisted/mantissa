@@ -2,7 +2,7 @@
 from xmantissa import signup
 
 freeTicket = signup.SignupMechanism(
-    name = 'free-ticket',
+    name = 'Free Ticket',
     description = '''
     Create a page which will allow anyone with a verified email
     address to sign up for the system.  When the user enters their
@@ -15,7 +15,7 @@ freeTicket = signup.SignupMechanism(
     configuration = signup.freeTicketSignupConfiguration)
 
 freeTicketPassword = signup.SignupMechanism(
-    name = 'free-ticket-password',
+    name = 'Free Ticket (Password)',
     description = '''
     Create a page which will allow anyone with a verified email address to
     sign up for the system.  When the user enters their email address, a

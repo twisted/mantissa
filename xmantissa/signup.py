@@ -13,7 +13,7 @@ from twisted import plugin
 
 from epsilon import extime
 
-from axiom.item import Item, InstallableMixin, transacted
+from axiom.item import Item, InstallableMixin, transacted, declareLegacyItem
 from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase, upgrade
@@ -197,7 +197,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
     typeName = 'free_signup'
-    schemaVersion = 3
+    schemaVersion = 4
 
     sessioned = True
 
@@ -205,9 +205,11 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     booth = reference()
     benefactor = reference()
     emailTemplate = text()
+    prompt = text()
 
     def createResource(self):
         return PublicAthenaLivePage(
+            self.store,
             getLoader("signup"),
             IStaticShellContent(self.store, None),
             None,
@@ -256,6 +258,23 @@ def freeTicketSignup2To3(old):
 
 upgrade.registerUpgrader(freeTicketSignup2To3, 'free_signup', 2, 3)
 
+declareLegacyItem(typeName='free_signup',
+                  schemaVersion=3,
+                  attributes=dict(prefixURL=text(),
+                                  booth=reference(),
+                                  benefactor=reference(),
+                                  emailTemplate=text()))
+
+def freeTicketSignup3To4(old):
+    return old.upgradeVersion('free_signup', 3, 4,
+                              prefixURL=old.prefixURL,
+                              booth=old.booth,
+                              benefactor=old.benefactor,
+                              emailTemplate=old.emailTemplate,
+                              prompt=u'Sign Up')
+
+upgrade.registerUpgrader(freeTicketSignup3To4, 'free_signup', 3, 4)
+
 class InitializerBenefactor(Item, InstallableMixin):
     typeName = 'initializer_benefactor'
     schemaVersion = 1
@@ -280,13 +299,16 @@ class InitializerBenefactor(Item, InstallableMixin):
     def resumeSignup(self, ticket, avatar):
         self.realBenefactor.endow(ticket, avatar)
 
-def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None, benefactor=None, emailTemplate=None):
+def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None,
+                             benefactor=None, emailTemplate=None, prompt=None):
+
     ibene = store.findOrCreate(InitializerBenefactor, realBenefactor=benefactor)
     return FreeTicketSignup(store=store,
                             benefactor=ibene,
                             booth=booth,
                             prefixURL=prefixURL,
-                            emailTemplate=emailTemplate)
+                            emailTemplate=emailTemplate,
+                            prompt=prompt)
 
 
 class Initializer(Item, InstallableMixin):
@@ -330,7 +352,7 @@ class InitializerPage(PublicPage):
             break
         else:
             username = None
-        PublicPage.__init__(self, original, getLoader('initialize'),
+        PublicPage.__init__(self, original, original.store, getLoader('initialize'),
                             IStaticShellContent(original.installedOn, None),
                             username)
 
@@ -480,7 +502,7 @@ class SignupConfiguration(Item, InstallableMixin):
         return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
 
 
-    def createSignup(self, creator, signupClass, signupConf, benefactorFactoryConfigurations, emailTemplate):
+    def createSignup(self, creator, signupClass, signupConf, benefactorFactoryConfigurations, emailTemplate, prompt):
         siteStore = self.store.parent
 
         multifactor = Multifactor(store=siteStore)
@@ -497,6 +519,7 @@ class SignupConfiguration(Item, InstallableMixin):
             booth=booth,
             benefactor=multifactor,
             emailTemplate=emailTemplate,
+            prompt=prompt,
             **signupConf)
         signupItem.installOn(siteStore)
         _SignupTracker(store=siteStore,
@@ -652,9 +675,28 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
              description='Email Template')
         emailTemplateConfiguration.docFactory = getLoader('liveform-compact')
 
-        signupForm = liveform.LiveForm(
+        existing = list(self.original.store.parent.query(FreeTicketSignup))
+        if 0 < len(existing):
+            deleteSignupForm = liveform.LiveForm(
+                lambda **kw: self.deleteSignups(k for (k, v) in kw.itervalues() if v),
+                [liveform.Parameter('signup-' + str(i),
+                                    liveform.CHECKBOX_INPUT,
+                                    lambda wasSelected, signup=signup: (signup, wasSelected),
+                                    u'"%s" at /%s' % (signup.prompt, signup.prefixURL))
+                    for (i, signup) in enumerate(existing)],
+                description='Delete Existing Signups')
+            deleteSignupForm.setFragmentParent(self)
+        else:
+            deleteSignupForm = ''
+
+        createSignupForm = liveform.LiveForm(
             self.createSignup,
-            [liveform.Parameter('benefactorFactoryConfigurations',
+            [liveform.Parameter('signupPrompt',
+                                liveform.TEXT_INPUT,
+                                unicode,
+                                u'Descriptive, user-facing prompt for this signup',
+                                u'Sign Up'),
+             liveform.Parameter('benefactorFactoryConfigurations',
                                 liveform.FORM_INPUT,
                                 benefactorFactoryConfigurations,
                                 u'Pick some dude'),
@@ -665,9 +707,11 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
              liveform.Parameter('emailTemplate',
                                 liveform.FORM_INPUT,
                                 emailTemplateConfiguration,
-                                u'You know you want to')])
-        signupForm.setFragmentParent(self)
-        return signupForm
+                                u'You know you want to')],
+             description='Create Signup')
+        createSignupForm.setFragmentParent(self)
+
+        return [deleteSignupForm, createSignupForm]
 
 
     def data_configuredSignupMechanisms(self, ctx, data):
@@ -678,8 +722,10 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
                 'createdOn': _signupTracker.createdOn.asHumanly()}
 
 
-    allowedMethods = iface = {'createSignup': True}
+    allowedMethods = iface = {'createSignup': True,
+                              'deleteSignup': True}
     def createSignup(self,
+                     signupPrompt,
                      signupTuple,
                      benefactorFactoryConfigurations,
                      emailTemplate):
@@ -687,9 +733,37 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
         t = self.original.store.transact
         t(self.original.createSignup,
           self.page.username,
-          signupMechanism, signupConfig,
+          signupMechanism,
+          signupConfig,
           benefactorFactoryConfigurations,
-          emailTemplate)
+          emailTemplate,
+          signupPrompt)
         return u'Great job.'
+
+    def deleteSignups(self, signups):
+        """
+        delete the given signups.  this, and some of the
+        other code in this module and elsewhere that expects
+        everything to be a L{FreeTicketSignup} should eventually
+        be changed to use a more extensible mechanism for signup
+        location, like searching by interface or something (b/c
+        we claim to support user defined signup types)
+
+        @param signups: sequence of L{FreeTicketSignup}
+        """
+
+        for signup in signups:
+            if signup.store is None:
+                # we're not updating the list of live signups
+                # client side, so we might get a signup that has
+                # already been deleted
+                continue
+
+            signup.store.findUnique(_SignupTracker,
+                                    _SignupTracker.signupItem == signup).deleteFromStore()
+
+            for iface in signup.store.interfacesFor(signup):
+                signup.store.powerDown(signup, iface)
+            signup.deleteFromStore()
 
 registerAdapter(SignupFragment, SignupConfiguration, INavigableFragment)

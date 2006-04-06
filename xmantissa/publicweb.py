@@ -205,7 +205,7 @@ class PublicFrontPage(publicresource.PublicPage):
 
     def __init__(self, original, staticContent, forUser=None):
         publicresource.PublicPage.__init__(
-            self, original, OfferingsFragment(original), staticContent, forUser)
+            self, original, original.store, OfferingsFragment(original), staticContent, forUser)
 
     def locateChild(self, ctx, segments):
         result = super(PublicFrontPage, self).locateChild(ctx, segments)

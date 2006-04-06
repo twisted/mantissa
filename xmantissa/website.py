@@ -88,8 +88,8 @@ class SiteRootMixin(object):
         return NotFound
 
 class LoginPage(PublicPage):
-    def __init__(self, original):
-        PublicPage.__init__(self, original, getLoader("login"),
+    def __init__(self, original, store):
+        PublicPage.__init__(self, original, store, getLoader("login"),
                             IStaticShellContent(original.installedOn, None),
                             None)
 
@@ -147,7 +147,7 @@ class UnguardedWrapper(SiteRootMixin):
 
     def locateChild(self, ctx, segments):
         if segments[0] == 'login':
-            return LoginPage(self), ()
+            return LoginPage(self, self.installedOn), ()
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x
