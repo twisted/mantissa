@@ -152,6 +152,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         cells = MochiKit.Base.map.apply(null, [null].concat(cells))[1];
         var rowNode = self.makeRowElement(rowOffset, rowData, cells);
 
+        rowNode.style.position = "absolute";
+        rowNode.style.top = (rowOffset * self._rowHeight) + "px";
+
         self._rows[rowOffset] = [rowData, rowNode];
         self._scrollContent.appendChild(rowNode);
     },
