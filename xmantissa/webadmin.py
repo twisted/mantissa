@@ -1,5 +1,7 @@
 # -*- test-case-name: xmantissa -*-
 
+import operator
+
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
@@ -8,8 +10,6 @@ from twisted.python import log
 from twisted.application.service import IService, Service
 from twisted.conch import manhole
 from twisted.cred.portal import IRealm
-
-from epsilon import extime
 
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
 from axiom.item import Item
@@ -139,12 +139,16 @@ class AdminStatsFragment(athena.LiveFragment):
     live = 'athena'
     jsClass = u'Mantissa.StatGraph.StatGraph'
     fragmentName = 'admin-stats'
-    allowedMethods = ['buildGraphs']
+    allowedMethods = ['buildGraphs', 'buildPie', 'setPiePeriod']
 
     def __init__(self, *a, **kw):
         athena.LiveFragment.__init__(self, *a, **kw)
+        self.svc = None
+        self.piePeriod = 60
 
     def _initializeObserver(self):
+        if self.svc:
+            return
         m = IRealm(self.original.store.parent).accountByAddress(u"mantissa", None)
         if m:
             s = m.avatars.open()
@@ -179,7 +183,7 @@ class AdminStatsFragment(athena.LiveFragment):
         return zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs]) or [(), ()]
 
     def buildGraphs(self):
-        self._initializeObserver()
+
         if not self.svc:
             return []
         data = []
@@ -189,8 +193,52 @@ class AdminStatsFragment(athena.LiveFragment):
             self._seenStats.append(name)
         return data
 
+    def setPiePeriod(self, period):
+        self.piePeriod = int(period)
+
+    def buildPie(self):
+
+        self._initializeObserver()
+        if not self.svc:
+            return []
+        data = []
+        end = self.svc.currentMinuteBucket
+        beginning = end - self.piePeriod
+        if beginning < 0:
+            beginning += stats.MAX_MINUTES
+            # this is a round-robin list, so make sure to get
+            # the part recorded before the wraparound:
+            bs = self.svc.store.query(stats.StatBucket,
+                                       AND(stats.StatBucket.type.like(u"_axiom_query", u'%'),
+                                           stats.StatBucket.interval== u"minute",
+                                           OR(stats.StatBucket.index >= beginning,
+                                              stats.StatBucket.index <= end)))
+
+        else:
+            bs = self.svc.store.query(stats.StatBucket,
+                                      AND(stats.StatBucket.type.like(u"_axiom_query", u'%'),
+                                          stats.StatBucket.interval== u"minute",
+                                          stats.StatBucket.index >= beginning,
+                                          stats.StatBucket.index <= end))
+        slices = {}
+        for bucket in bs:
+            slices.setdefault(bucket.type, []).append(bucket.value)
+        for k, v in slices.items():
+            tot =  sum(v)
+            if tot:
+                slices[k] = tot
+            else:
+                del slices[k]
+        data = slices.items()
+        data.sort(key=operator.itemgetter(1), reverse=True)
+
+        return zip(*data)
+
     def statUpdate(self, updates):
         for name, time, value in updates:
+            if name.startswith('_'):
+                #not a directly graphable stat
+                continue
             if name not in self._seenStats:
                 extraArgs = self.fetchLastHour(name)
                 extraArgs.append(unicode(stats.statDescriptions.get(name, name)))
@@ -198,6 +246,10 @@ class AdminStatsFragment(athena.LiveFragment):
             else:
                 extraArgs = ()
             self.callRemote('update', unicode(name), unicode(time.asHumanly()), value, *extraArgs).addErrback(log.err)
+        from epsilon import spewer
+        #spewer.Spewer().install()
+        pie = self.buildPie()
+        self.callRemote('updatePie', pie).addErrback(log.err)
 
     def head(self):
         return ()
