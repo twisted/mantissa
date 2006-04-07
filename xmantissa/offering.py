@@ -140,8 +140,8 @@ class OfferingConfiguration(item.Item, item.InstallableMixin):
 
     def getTabs(self):
         return [webnav.Tab('Admin', self.storeID, 0.3,
-                           [webnav.Tab('Offerings', self.storeID, 0.5)],
-                           authoritative=False)]
+                           [webnav.Tab('Offerings', self.storeID, 1.0)],
+                           authoritative=True)]
 
 
 

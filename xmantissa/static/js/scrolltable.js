@@ -226,7 +226,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
     function emptyAndRefill(self) {
         for (var whichRow = 0; whichRow < self._rows.length; whichRow++) {
-            if (typeof self._rows[whichRow] !== 'undefined') {
+            if (self._rows[whichRow] != undefined) {
                 var rowNode = self._rows[whichRow][1];
                 rowNode.parentNode.removeChild(rowNode);
             }
