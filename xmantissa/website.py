@@ -40,6 +40,7 @@ from axiom.attributes import AND, integer, inmemory, text, reference, bytes, boo
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent
 from xmantissa import websession
+from xmantissa.stats import BandwidthMeasuringFactory
 from xmantissa.publicresource import PublicPage, getLoader
 
 from axiom.slotmachine import hyper as super
@@ -428,7 +429,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
             self.site = policies.TrafficLoggingFactory(self.site, 'http')
 
         if self.portNumber is not None:
-            self.port = reactor.listenTCP(self.portNumber, self.site)
+            self.port = reactor.listenTCP(self.portNumber, BandwidthMeasuringFactory(self.site, 'http'))
 
         if self.securePortNumber is not None and self.certificateFile is not None:
             cert = sslverify.PrivateCertificate.loadPEM(file(self.certificateFile).read())
@@ -437,7 +438,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
                 cert.original,
                 requireCertificate=False,
                 method=SSL.SSLv23_METHOD)
-            self.securePort = reactor.listenSSL(self.securePortNumber, self.site, certOpts)
+            self.securePort = reactor.listenSSL(self.securePortNumber, BandwidthMeasuringFactory(self.site, 'https'), certOpts)
 
 
     def stopService(self):

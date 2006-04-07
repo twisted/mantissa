@@ -222,7 +222,7 @@ class AdminStatsFragment(athena.LiveFragment):
                                           stats.StatBucket.index <= end))
         slices = {}
         for bucket in bs:
-            slices.setdefault(bucket.type, []).append(bucket.value)
+            slices.setdefault(bucket.type[len("_axiom_query:"):], []).append(bucket.value)
         for k, v in slices.items():
             tot =  sum(v)
             if tot:
@@ -246,8 +246,6 @@ class AdminStatsFragment(athena.LiveFragment):
             else:
                 extraArgs = ()
             self.callRemote('update', unicode(name), unicode(time.asHumanly()), value, *extraArgs).addErrback(log.err)
-        from epsilon import spewer
-        #spewer.Spewer().install()
         pie = self.buildPie()
         self.callRemote('updatePie', pie).addErrback(log.err)
 

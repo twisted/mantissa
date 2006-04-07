@@ -4,6 +4,7 @@
 import time, datetime, itertools, os.path
 
 from twisted.application import service
+from twisted.protocols import policies
 from twisted.python import log
 from axiom import iaxiom, item, attributes, errors
 from epsilon.extime import Time
@@ -20,7 +21,24 @@ statDescriptions = {"page_renders": "Nevow page renders per minute",
                     "cache_misses": "Axiom cache misses per minute",
                     "autocommits": "Axiom autocommits per minute",
                     "athena_messages_sent": "Athena messages sent per minute",
-                    "athena_messages_received": "Athena messages received per minute"}
+                    "athena_messages_received": "Athena messages received per minute",
+                    "bandwidth_http_up": "HTTP KB/sec received",
+                    "bandwidth_http_down": "HTTP KB/sec sent",
+                    "bandwidth_https_up": "HTTPS KB/sec sent",
+                    "bandwidth_https_down": "HTTPS KB/sec received",
+                    "bandwidth_pop3_up": "POP3 server KB/sec sent",
+                    "bandwidth_pop3_down":"POP3 server KB/sec received",
+                    "bandwidth_pop3s_up":"POP3S server KB/sec sent",
+                    "bandwidth_pop3s_down": "POP3S server KB/sec received",
+                    "bandwidth_smtp_up": "SMTP server KB/sec sent",
+                    "bandwidth_smtp_down": "SMTP server KB/sec received",
+                    "bandwidth_smtps_up": "SMTPS server KB/sec sent",
+                    "bandwidth_smtps_down": "SMTPS server KB/sec received",
+                    "bandwidth_pop3-grabber_up": "POP3 grabber KB/sec sent",
+                    "bandwidth_pop3-grabber_down": "POP3 grabber KB/sec received",
+                    "bandwidth_sip_up": "SIP KB/sec sent",
+                    "bandwidth_sip_received": "SIP KB/sec received",
+                    }
 
 MAX_MINUTES = 24 * 60 * 7 # a week of minutes
 
@@ -226,6 +244,9 @@ class StatSampler(item.Item):
             updates = []
             self.service.statoscope.setElapsed(60)
             for k, v in self.service.statoscope._stuffs.items():
+                if k.startswith("bandwidth_"):
+                    #measured in kB/sec, not bytes/minute
+                    v = float(v) / (60 * 1024)
                 b = self.store.findOrCreate(
                     StatBucket, type=unicode(k),
                     interval=u"minute", index=self.service.currentMinuteBucket)
@@ -405,3 +426,31 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         # strip the stat_ prefix
         d = dict(itertools.imap(lambda k: (k[0][5:], k[1]), d))
         self.statoscope.record(**d)
+
+class BandwidthMeasuringProtocol(policies.ProtocolWrapper):
+
+    def write(self, data):
+        self.factory.registerWritten(len(data))
+        policies.ProtocolWrapper.write(self, data)
+
+    def writeSequence(self, seq):
+        self.factory.registerWritten(sum(map(len, seq)))
+        policies.ProtocolWrapper.writeSequence(self, seq)
+
+    def dataReceived(self, data):
+        self.factory.registerRead(len(data))
+        policies.ProtocolWrapper.dataReceived(self, data)
+
+class BandwidthMeasuringFactory(policies.WrappingFactory):
+
+    protocol = BandwidthMeasuringProtocol
+
+    def __init__(self, wrappedFactory, protocolName):
+        policies.WrappingFactory.__init__(self, wrappedFactory)
+        self.name = protocolName
+
+    def registerWritten(self, length):
+        log.msg(interface=iaxiom.IStatEvent, **{"stat_bandwidth_" + self.name + "_up": length})
+
+    def registerRead(self, length):
+        log.msg(interface=iaxiom.IStatEvent, **{"stat_bandwidth_" + self.name + "_down": length})

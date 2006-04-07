@@ -29,7 +29,7 @@ Mantissa.StatGraph.Pie.methods(
     },
 
     function draw(self, slices) {
-        self.layout.options.xTicks = MochiKit.Base.map(function(L, val) { return {"label": L.substring(13), v: val};}, slices[0],
+        self.layout.options.xTicks = MochiKit.Base.map(function(L, val) { return {"label": L, v: val};}, slices[0],
                                                        MochiKit.Iter.range(slices[0].length));
         self.layout.addDataset("data", MochiKit.Base.zip(MochiKit.Iter.range(slices[1].length), slices[1]));
         self.layout.evaluate();
