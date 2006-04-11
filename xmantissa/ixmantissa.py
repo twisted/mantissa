@@ -510,6 +510,10 @@ class IOffering(Interface):
     login activity.
     """)
 
+    themes = Attribute("""
+    XXX Someone added this but did not document it.
+    """)
+
 
 class ISignupMechanism(Interface):
     """
