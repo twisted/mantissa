@@ -309,6 +309,10 @@ class PrivateRootPage(Page, NavMixin):
 
 
 class _PageComponents(record('navigation searchAggregator staticShellContent settings themes')):
+    """
+    I encapsulate various plugin objects that have some say
+    in determining the available functionality on a given page
+    """
     pass
 
 class PrivateApplication(Item, PrefixURLMixin):
@@ -389,18 +393,19 @@ class PrivateApplication(Item, PrefixURLMixin):
         findOrCreate(Settings).installOn(other)
         findOrCreate(SearchAggregator).installOn(other)
 
-    def createResource(self):
+    def getPageComponents(self):
         navigation = getTabs(self.installedOn.powerupsFor(INavigableElement))
         searchAggregator = ISearchAggregator(self.installedOn, None)
         staticShellContent = IStaticShellContent(self.installedOn, None)
 
-        pageComponents = _PageComponents(navigation,
-                                         searchAggregator,
-                                         staticShellContent,
-                                         self.installedOn.findFirst(Settings),
-                                         getInstalledThemes(self.store.parent))
+        return _PageComponents(navigation,
+                               searchAggregator,
+                               staticShellContent,
+                               self.installedOn.findFirst(Settings),
+                               getInstalledThemes(self.store.parent))
 
-        return PrivateRootPage(self, pageComponents)
+    def createResource(self):
+        return PrivateRootPage(self, self.getPageComponents())
 
     # ISiteRootPlugin
     def resourceFactory(self, segments):
