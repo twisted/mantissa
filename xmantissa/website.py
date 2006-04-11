@@ -49,14 +49,6 @@ class WebConfigurationError(RuntimeError):
     """You specified some invalid configuration.
     """
 
-def domainAndPortFromContext(ctx):
-    netloc = URL.fromContext(ctx).netloc.split(':', 1)
-    if len(netloc) == 1:
-        domain, port = netloc[0], 80
-    else:
-        domain, port = netloc[0], int(netloc[1])
-    return domain, port
-
 class SiteRootMixin(object):
     implements(inevow.IResource)
 
@@ -89,19 +81,14 @@ class SiteRootMixin(object):
         return NotFound
 
 class LoginPage(PublicPage):
-    def __init__(self, original, store):
+    def __init__(self, original, store, segments=()):
         PublicPage.__init__(self, original, store, getLoader("login"),
                             IStaticShellContent(original.installedOn, None),
                             None)
+        self.segments = segments
 
     def beforeRender(self, ctx):
-        secure = ''
-        domain, port = domainAndPortFromContext(ctx)
-
-        if port == 80:
-            port = ''
-        else:
-            port = ':%d' % (port,)
+        url = URL.fromContext(ctx).click('/')
 
         # There should be a nicer way to discover this information
         ws = self.original.installedOn.findFirst(
@@ -109,18 +96,11 @@ class LoginPage(PublicPage):
             WebSite.installedOn == self.original.installedOn)
 
         if ws.securePort is not None:
-            secure = 's'
-            port = ws.securePort.getHost().port
-            if port == 443:
-                port = ''
-            else:
-                port = ':%d' % (port,)
+            url = url.secure(port=ws.securePort.getHost().port)
 
-        baseURL = "http%(secure)s://%(domain)s%(port)s%(root)s" % {
-            'secure': secure,
-            'domain': domain,
-            'port': port,
-            'root': ''}
+        url = url.child('__login__')
+        for seg in self.segments:
+            url = url.child(seg)
 
         req = inevow.IRequest(ctx)
         err = req.args.get('login-failure', ('',))[0]
@@ -132,8 +112,11 @@ class LoginPage(PublicPage):
         else:
             error = ''
 
-        ctx.fillSlots("login-action", baseURL + "/__login__")
+        ctx.fillSlots("login-action", url)
         ctx.fillSlots("error", error)
+
+    def locateChild(self, ctx, segments):
+        return self.__class__(self.original, self.store, segments), ()
 
 
 class UnguardedWrapper(SiteRootMixin):
@@ -148,7 +131,7 @@ class UnguardedWrapper(SiteRootMixin):
 
     def locateChild(self, ctx, segments):
         if segments[0] == 'login':
-            return LoginPage(self, self.installedOn), ()
+            return LoginPage(self, self.installedOn), segments[1:]
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x

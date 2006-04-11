@@ -8,7 +8,7 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.python import util
 
-from nevow import inevow, rend, static
+from nevow import inevow, rend, static, url
 
 from axiom import item, attributes, upgrade, userbase
 
@@ -216,6 +216,16 @@ class PublicFrontPage(publicresource.PublicPage):
                 if cust is not None:
                     return cust.customizeFor(self.username), segments
             return child, segments
+
+        # If the user is trying to access /private/*, then his session has
+        # expired or he is otherwise not logged in. Redirect him to /login,
+        # preserving the URL segments, rather than giving him an obscure 404.
+        if segments[0] == 'private':
+            u = url.URL.fromContext(ctx).click('/').child('login')
+            for seg in segments:
+                u = u.child(seg)
+            return u, ()
+
         return rend.NotFound
 
     def child_(self, ctx):
