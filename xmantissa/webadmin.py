@@ -11,18 +11,20 @@ from twisted.application.service import IService, Service
 from twisted.conch import manhole
 from twisted.cred.portal import IRealm
 
+from epsilon import extime
+
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
 from axiom.item import Item
 from axiom import userbase
 
-from xmantissa import webnav, tdb, tdbview, offering, signup, stats
+from xmantissa import ixmantissa, webtheme, liveform, webnav, tdb, tdbview, offering, signup, stats
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 from xmantissa.plugins.baseoff import baseOffering
 
-from nevow import rend, athena, static, tags as T
+from nevow import rend, athena, static, tags as T, loaders
 
 
 class DeveloperSite(Item, PrefixURLMixin):
@@ -112,7 +114,32 @@ class LocalUserBrowser(Item):
 
 
 
+class _EndowDepriveActionBase(tdbview.Action):
+    clickFmt = ("return Nevow.Athena.Widget.get(this"
+                ").updateUserDetail(this, event, %r);")
+
+    def toLinkStan(self, idx, loginMethod):
+        return T.a(href='#',
+                   style="padding-right: 5px;",
+                   class_=idx,
+                   onclick=self.clickFmt % (self.benefactorAction,))[
+            self.benefactorAction]
+
+    def actionable(self, item):
+        return True
+
+
+class EndowAction(_EndowDepriveActionBase):
+    benefactorAction = 'endow'
+
+
+class DepriveAction(_EndowDepriveActionBase):
+    benefactorAction = 'deprive'
+
+
 class LocalUserBrowserFragment(tdbview.TabularDataView):
+    jsClass = u'Mantissa.Admin.LocalUserBrowser'
+
     def __init__(self, userBrowser):
         tdm = tdb.TabularDataModel(
             userBrowser.store.parent,
@@ -127,10 +154,79 @@ class LocalUserBrowserFragment(tdbview.TabularDataView):
             tdbview.ColumnViewBase('localpart', typeHint='text'),
             tdbview.ColumnViewBase('domain', typeHint='text'),
             tdbview.ColumnViewBase('verified', typeHint='boolean')]
-        super(LocalUserBrowserFragment, self).__init__(tdm, views)
+
+        actions = [
+            EndowAction('Endow', None, None),
+            DepriveAction('Deprive', None, None),
+            ]
+        super(LocalUserBrowserFragment, self).__init__(tdm, views, actions)
+
+    allowedMethods = list(tdbview.TabularDataView.allowedMethods) + ['getActionFragment']
+    def getActionFragment(self, targetID, action):
+        loginMethod = self.itemFromTargetID(targetID)
+        loginAccount = loginMethod.account
+        f = EndowDepriveFragment(loginMethod.localpart + u'@' + loginMethod.domain, loginAccount, action)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        f.setFragmentParent(self)
+        return f
 
 registerAdapter(LocalUserBrowserFragment, LocalUserBrowser, INavigableFragment)
 
+
+
+class EndowDepriveFragment(athena.LiveFragment):
+    fragmentName = 'user-detail'
+
+    def __init__(self, username, loginAccount, which):
+        athena.LiveFragment.__init__(self)
+        self.account = loginAccount
+        self.benefactors = list(self.account.store.query(signup.Multifactor))
+        self.which = which
+        self.username = username
+
+    def _endow(self, **kw):
+        subs = self.account.avatars.open()
+        for benefactor in kw.values():
+            if benefactor is not None:
+                getattr(benefactor, self.which)(None, subs)
+
+
+    def render_benefactorForm(self, ctx, data):
+        """
+        Render a L{liveform.LiveForm} -- the main purpose of this fragment --
+        which will allow the administrator to endow or deprive existing users
+        using multifactors, which can be created through the signup mechanism
+        interface.
+        """
+
+        def makeRemover(i):
+            def remover(s3lected):
+                if s3lected:
+                    return self.benefactors[i]
+                return None
+            return remover
+
+        f = liveform.LiveForm(
+            self._endow,
+            [liveform.Parameter(
+                    'benefactors' + str(i),
+                    liveform.FORM_INPUT,
+                    liveform.LiveForm(
+                        makeRemover(i),
+                        [liveform.Parameter(
+                                's3lected',
+                                liveform.RADIO_INPUT,
+                                bool,
+                                b.briefMultifactorDescription(),
+                                )],
+                        '',
+                        ),
+                    )
+             for (i, b)
+             in enumerate(self.benefactors)],
+            self.which.capitalize() + u' ' + self.username)
+        f.setFragmentParent(self)
+        return f
 
 
 class AdminStatsFragment(athena.LiveFragment):

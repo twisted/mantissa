@@ -8,7 +8,7 @@ from twisted.cred.portal import IRealm
 from twisted.python.components import registerAdapter
 from twisted.mail import smtp, relaymanager
 from twisted.python.util import sibpath
-from twisted.python import log
+from twisted.python import log, reflect
 from twisted import plugin
 
 from epsilon import extime
@@ -440,6 +440,14 @@ class Multifactor(Item):
                                       _DelegatedBenefactor.multifactor == self,
                                       sort=getattr(_DelegatedBenefactor.order, order)):
             yield deleg.benefactor
+
+    def briefMultifactorDescription(self):
+        """
+        Generate a string which will allow an administrator to identify what
+        this multifactor provides.  Currently it's raw.
+        """
+        return ', '.join(reflect.qual(x.__class__)
+                         for x in self.benefactors('ascending'))
 
 
     def add(self, benefactor):

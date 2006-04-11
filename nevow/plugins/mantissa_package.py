@@ -17,6 +17,7 @@ mantissaPkg = athena.JSPackage({
     'PlotKit.Canvas': _f('static', 'js', 'PlotKit', 'Canvas.js'),
     'PlotKit.SweetCanvas': _f('static', 'js', 'PlotKit', 'SweetCanvas.js'),
     'Mantissa': _f('static', 'js', 'mantissa.js'),
+    'Mantissa.Admin': _f('static', 'js', 'admin.js'),
     'Mantissa.LiveForm': _f('static', 'js', 'liveform.js'),
     'Mantissa.People': _f('static', 'js', 'people.js'),
     'Mantissa.TDB': _f('static', 'js', 'tdb.js'),
