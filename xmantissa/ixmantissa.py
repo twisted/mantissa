@@ -20,6 +20,11 @@ class IColumn(Interface):
         returns the underlying value for this column
         """
 
+    def getType():
+        """
+        returns a string describing the type of this column, or None
+        """
+
 class IPreferenceAggregator(Interface):
     """
     Allows convenient retrieval of individual preferences

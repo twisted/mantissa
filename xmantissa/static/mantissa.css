@@ -11,9 +11,14 @@ body {
 .scroll-row {
     display: block;
     white-space: nowrap;
+    clear: both;
 }
 
-.scroll-column-header, .scroll-cell {
+.scroll-row:hover {
+    background-color: #DADADA;
+}
+
+.scroll-column-header, .scroll-cell, .sortable-scroll-column-header, .actions-column-header {
     padding: 4px;
     width: 250px;
     float: left;
@@ -21,17 +26,16 @@ body {
     overflow: hidden;
 }
 
-.scroll-column-header:hover {
+.sortable-scroll-column-header:hover {
     background-color: #C0C0C0;
 }
 
-.scroll-column-header {
+.sortable-scroll-column-header {
     cursor: pointer;
 }
 
 .scroll-column {
     overflow: hidden;
-    height: 15px;
 }
 
 .scroll-viewport {

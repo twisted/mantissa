@@ -15,7 +15,8 @@ from epsilon import extime
 
 from axiom import item, attributes
 
-from xmantissa import ixmantissa, webnav, webtheme, tdb, tdbview, liveform
+from xmantissa import ixmantissa, webnav, webtheme, liveform
+from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
 
 class PeopleBenefactor(item.Item):
@@ -137,16 +138,9 @@ class Organizer(item.Item, item.InstallableMixin):
         return [webnav.Tab('People', self.storeID, 0.5,
                            authoritative=True, children=children)]
 
-class EmailAddressColumnView(tdbview.ColumnViewBase):
-    def stanFromValue(self, idx, item, value):
-        email = item.getEmailAddress()
-        if email is None:
-            return 'No Email'
-        return email
-
-class PersonFragmentColumnView(tdbview.ColumnViewBase):
-    def stanFromValue(self, idx, item, value):
-        return PersonFragment(item)
+class PersonNameColumn(UnsortableColumn):
+    def extractValue(self, model, item):
+        return item.getDisplayName()
 
 class OrganizerFragment(athena.LiveFragment):
     fragmentName = 'people-organizer'
@@ -163,25 +157,16 @@ class OrganizerFragment(athena.LiveFragment):
         athena.LiveFragment.__init__(self, original)
 
     def _createPeopleTDB(self, baseComparison):
-        # this is a property because we need to set the 'page'
-        # attribute of the child fragment, but we dont have that
-        # in __init__
-
-        tdm = tdb.TabularDataModel(
+        f = ScrollingFragment(
                 self.original.store,
-                Person, [Person.name, Person.created],
-                baseComparison=baseComparison,
-                defaultSortColumn='name',
-                itemsPerPage=self.prefs.getPreferenceValue('itemsPerPage'))
+                Person,
+                baseComparison,
+                [PersonNameColumn(None, 'name'), Person.created],
+                defaultSortColumn=Person.name)
 
-        views = (PersonFragmentColumnView('name'),
-                 EmailAddressColumnView('Email Address'),
-                 tdbview.DateColumnView('created'))
-
-        peopleTDB = tdbview.TabularDataView(tdm, views)
-        peopleTDB.page = self.page
-        peopleTDB.docFactory = webtheme.getLoader(peopleTDB.fragmentName)
-        return peopleTDB
+        f.setFragmentParent(self)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        return f
 
     def _getBaseComparison(self, ctx):
         req = inevow.IRequest(ctx)

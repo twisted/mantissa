@@ -26,7 +26,7 @@ class ScrollTableTest(unittest.TestCase):
         four = DataThunk(a=4, b=6327, c=u'four', store=self.store)
         five = DataThunk(a=5, b=91856, c=u'five', store=self.store)
 
-        sf = ScrollingFragment(self.store, DataThunk, DataThunk.a > 4, ['b', 'c'], DataThunk.a)
+        sf = ScrollingFragment(self.store, DataThunk, DataThunk.a > 4, [DataThunk.b, DataThunk.c], DataThunk.a)
 
         self.assertEquals(
             sf.requestRowRange(0, 2),

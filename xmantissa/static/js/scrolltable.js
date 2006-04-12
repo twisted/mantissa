@@ -21,6 +21,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                   argument passing convention!  woo, someday soon Javascript
                   will have all the expressiveness of PL/1.  Maybe then we can
                   decide what registers get used to store variables, too!!!!
+
                 */
                 var columnNames = metadata[0];
                 self.columnTypes = metadata[1];
@@ -44,12 +45,20 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     function setRowHeight(self) {
-        var rowHeight = self._headerRow.clientHeight;
-        if (rowHeight == 0) {
-            rowHeight = 20; /* IE can't see clientHeight on some nodes...? */
+        var r = MochiKit.DOM.DIV({"style": "visibility: hidden",
+                                  "class": "scroll-row"},
+                    [MochiKit.DOM.DIV({"class": "scroll-cell",
+                                       "style": "float: none"}, "TEST!!!")]);
+
+        self._scrollContent.appendChild(r);
+        var rowHeight = r.clientHeight
+        if(rowHeight == 0) {
+            self._headerRow.clientHeight;
         }
-        /* actually this is wrong, we should calculate from a dummy
-            row, but blah templates or something. */
+        if(rowHeight == 0) {
+            rowHeight = 20;
+        }
+        self._scrollContent.removeChild(r);
 
         self._rowHeight = rowHeight;
     },
@@ -66,8 +75,13 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
     function _getSomeRows(self) {
         var scrollViewportHeight = self._scrollViewport.clientHeight;
-        var desiredRowCount = Math.ceil((scrollViewportHeight) / self._rowHeight);
-
+        if(!scrollViewportHeight) {
+            scrollViewportHeight = parseInt(self._scrollViewport.style.height);
+        }
+        if(!scrollViewportHeight) {
+            scrollViewportHeight = 400;
+        }
+        var desiredRowCount = Math.ceil(scrollViewportHeight / self._rowHeight);
         var firstRow = Math.floor(self._scrollViewport.scrollTop / self._rowHeight);
 
         var requestNeeded = false;
@@ -79,7 +93,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             }
             firstRow++;
         }
-
         if (!requestNeeded) {
             return Divmod.Defer.succeed(1);
         }
@@ -118,11 +131,61 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     function makeCellElement(self, colName, rowData) {
-        return MochiKit.DOM.DIV({"class": "scroll-cell"},
-                                self.massageColumnValue(
-                                     colName, self.columnTypes[colName], rowData[colName]));
+        var attrs = {"class": "scroll-cell"};
+        if(self.columnWidths && colName in self.columnWidths) {
+            attrs["style"] = "width:" + self.columnWidths[colName];
+        }
+        var node = MochiKit.DOM.DIV(attrs,
+                                     self.massageColumnValue(
+                                         colName, self.columnTypes[colName][0], rowData[colName]));
+        if(self.columnTypes[colName][0] == "fragment") {
+            Divmod.Runtime.theRuntime.setNodeContent(node, 
+                '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName] + '</div>');
+        }
+        return node;
     },
 
+    function clickEventForAction(self, actionID, rowData) {
+        /* override tsis to set a custom onclick for this action */
+    },
+
+    function makeActionsCells(self, rowData) {
+        var icon, actionID, onclick, content;
+        var actions = [];
+
+        var makeOnClick = function(actionID) {
+            return function(event) {
+                var D = self.callRemote("performAction", actionID, rowData["__id__"]);
+                D.addCallback(function(ign) { self.emptyAndRefill() });
+                D.addErrback(alert);
+                return false;
+            }
+        }
+        var actionData = rowData["actions"];
+        for(var i = 0; i < actionData.length; i++) {
+            icon = actionData[i]["iconURL"];
+            actionID = actionData[i]["actionID"];
+            onclick = self.clickEventForAction(actionID, rowData);
+
+            if(!onclick) {
+                onclick = makeOnClick(actionID);
+            }
+
+            if(icon) {
+                content = MochiKit.DOM.IMG({"src": icon, "border": 0});
+            } else { content = actionID; }
+
+            actions.push(MochiKit.DOM.A({"href": "#",
+                                         "onclick": onclick}, content));
+        }
+
+        var attrs = {"class": "scroll-cell"};
+        if(self.columnWidths && "actions" in self.columnWidths) {
+            attrs["style"] = "width:" + self.columnWidths["actions"];
+        }
+        return MochiKit.DOM.DIV(attrs, actions);
+    },
+        
     function _createRow(self, rowOffset, rowData) {
         var cells = [];
 
@@ -130,7 +193,11 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             if(!(colName in self._columnOffsets) || self.skipColumn(colName)) {
                 continue;
             }
-            cells.push([colName, self.makeCellElement(colName, rowData)]);
+            if(colName == "actions") {
+                cells.push([colName, self.makeActionsCells(rowData)]);
+            } else {
+                cells.push([colName, self.makeCellElement(colName, rowData)]);
+            }
         }
 
         cells = cells.sort(
@@ -158,9 +225,16 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     function makeRowElement(self, rowOffset, rowData, cells) {
+        var attrs = {"class": "scroll-row",
+                     "style": "height:" + self._rowHeight + "px"};
+        if("actions" in rowData) {
+            /* XXX HACK, actions break if the row is clickable */
+            return MochiKit.DOM.DIV(attrs, cells);
+        }
         return MochiKit.DOM.A(
             {"class": "scroll-row",
-             "href": rowData['__id__']},
+             "style": "height:" + self._rowHeight + "px",
+             "href": rowData["__id__"]},
             cells);
     },
 
@@ -182,44 +256,54 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         var headerRow = self._headerRow;
         var columnOffsets = {};
         var headerNodes = [];
+        var sortable, attrs;
         for( var i = 0; i < columnNames.length; i++ ) {
             if(self.skipColumn(columnNames[i])) {
                 continue;
             }
             columnOffsets[columnNames[i]] = i;
             (function () {
-                var bindName = columnNames[i];
+                var columnName = columnNames[i];
                 var displayName;
 
-                if(self.columnAliases && bindName in self.columnAliases) {
-                    displayName = self.columnAliases[bindName];
+                if(self.columnAliases && columnName in self.columnAliases) {
+                    displayName = self.columnAliases[columnName];
                 } else {
-                    displayName = capitalize(bindName);
+                    displayName = capitalize(columnName);
                 }
                     
                 /*
                  * ^ Thank you, brilliant JavaScript designers, for inventing
                  * a whole new language.  This is _way_ better than (let ()).
                  */
-                var headerNode = self.makeHeaderRow(bindName, displayName);
+                sortable = self.columnTypes[columnName][1];
+                attrs = {"class": "scroll-column-header"};
+                if(columnName == "actions") {
+                    attrs["class"] = "actions-column-header";
+                }
+                if(self.columnWidths && columnName in self.columnWidths) {
+                    attrs["style"] = "width:" + self.columnWidths[columnName];
+                }
+                if(sortable) {
+                    attrs["class"] = "sortable-" + attrs["class"];
+                    attrs["onclick"] = function() {
+                        /* XXX real-time feedback, ugh */
+                        self.callRemote("resort", columnName).addCallback(
+                            function(isAscendingNow) {
+                                self.setSortInfo(columnName, isAscendingNow);
+                                self.emptyAndRefill();
+                            });
+                    }
+                }
+                
+                
+                var headerNode = MochiKit.DOM.DIV(attrs, displayName);
                 headerRow.appendChild(headerNode);
                 headerNodes.push(headerNode);
             })();
         }
         self._headerNodes = headerNodes;
         self._columnOffsets = columnOffsets;
-    },
-
-    function makeHeaderRow(self, bindName, displayName) {
-        return MochiKit.DOM.DIV({"class": "scroll-column-header",
-                    onclick: function () {
-                    /* XXX real-time feedback, ugh */
-                    self.callRemote("resort", bindName).addCallback(
-                        function(isAscendingNow) {
-                            self.setSortInfo(bindName, isAscendingNow);
-                            self.emptyAndRefill();
-                        })
-                        }}, displayName);
     },
 
     function emptyAndRefill(self) {

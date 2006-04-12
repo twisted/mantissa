@@ -286,4 +286,9 @@ class AttributeColumn(object):
     def sortAttribute(self):
         return self.attribute
 
+    def getType(self):
+        sortattr = self.sortAttribute()
+        if sortattr is not None:
+            return sortattr.__class__.__name__
+
 registerAdapter(AttributeColumn, SQLAttribute, IColumn)
