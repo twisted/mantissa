@@ -1,8 +1,6 @@
 
 // import Nevow.Athena
 
-var Mantissa = {};
-
 Mantissa.log = function(msg) {
     /* XXX TODO: make this look good - moe, please? :) */
     var d = document.createElement("div");

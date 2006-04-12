@@ -13,7 +13,6 @@ function printfire() {
             dispatchEvent(ev);
         }
 }
-Mantissa.StatGraph = {};
 
 Mantissa.StatGraph.Pie = Divmod.Class.subclass();
 

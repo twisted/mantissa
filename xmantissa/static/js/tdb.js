@@ -5,10 +5,6 @@
 // import Fadomatic
 // import Mantissa
 
-if (typeof(Mantissa.TDB) == 'undefined') {
-    Mantissa.TDB = {};
-}
-
 Mantissa.TDB.Controller = Nevow.Athena.Widget.subclass('Mantissa.TDB.Controller');
 Mantissa.TDB.Controller.methods(
     function loaded(self) {

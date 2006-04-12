@@ -1,9 +1,5 @@
 // import Mantissa
 
-if (typeof(Mantissa.People) == 'undefined') {
-    Mantissa.People = {};
-}
-
 Mantissa.People.Organizer = Nevow.Athena.Widget.subclass('Mantissa.People.Organizer');
 Mantissa.People.Organizer.methods(
     function cbPersonError(self, err) {

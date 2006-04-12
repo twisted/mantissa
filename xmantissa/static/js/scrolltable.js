@@ -1,7 +1,5 @@
 // import Mantissa
 
-Mantissa.ScrollTable = {};
-
 Mantissa.ScrollTable.ScrollingWidget = Nevow.Athena.Widget.subclass('Mantissa.ScrollTable.ScrollingWidget');
 
 Mantissa.ScrollTable.ScrollingWidget.methods(

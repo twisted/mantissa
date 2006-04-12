@@ -2,10 +2,6 @@
 // import Mantissa
 // import Nevow.Athena.Test
 
-if (Mantissa.Test == undefined) {
-    Mantissa.Test = {};
-}
-
 Mantissa.Test.Forms = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Forms');
 Mantissa.Test.Forms.methods(
     function run(self) {

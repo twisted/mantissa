@@ -2,10 +2,6 @@
 // import Mantissa
 // import Mantissa.LiveForm
 
-if (typeof Mantissa.Offering == 'undefined') {
-    Mantissa.Offering = {};
-}
-
 Mantissa.Offering.UninstalledOffering = Nevow.Athena.Widget.subclass('Mantissa.Offering.UninstalledOffering');
 Mantissa.Offering.UninstalledOffering.methods(
     function installOffering(self, offeringName) {
