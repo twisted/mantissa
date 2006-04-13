@@ -6,7 +6,8 @@ import time, datetime, itertools, os.path
 from twisted.application import service
 from twisted.protocols import policies
 from twisted.python import log
-from axiom import iaxiom, item, attributes, errors
+
+from axiom import iaxiom, item, attributes, errors, userbase
 from epsilon.extime import Time
 from xmantissa.offering import getInstalledOfferings
 
@@ -242,79 +243,51 @@ class StatSampler(item.Item):
         t = Time()
         if self.service.running:
             updates = []
-            self.service.statoscope.setElapsed(60)
-            for k, v in self.service.statoscope._stuffs.items():
-                if k.startswith("bandwidth_"):
-                    #measured in kB/sec, not bytes/minute
-                    v = float(v) / (60 * 1024)
-                b = self.store.findOrCreate(
-                    StatBucket, type=unicode(k),
-                    interval=u"minute", index=self.service.currentMinuteBucket)
-                b.time = t
-                b.value = float(v)
-                updates.append((k, t, v))
-            self.service.statoscope.reset()
+            self.doStatSample(self.store, self.service.statoscope, t, updates)
+            for recorder in self.service.userStats:
+                self.doStatSample(recorder.store, recorder.statoscope, t, updates)
             for obs in self.service.observers:
                 obs.statUpdate(updates)
             self.service.currentMinuteBucket += 1
             if self.service.currentMinuteBucket >= MAX_MINUTES:
                 self.service.currentMinuteBucket = 0
-        return Time.fromDatetime(t._time.replace(second=0) + datetime.timedelta(minutes=1))
 
-def aggregateBuckets(store, name, beginning, end):
-    """Collect a bunch of per-minute StatBuckets and average their value."""
-    if beginning < 0:
-        beginning += MAX_MINUTES 
-        # this is a round-robin list, so make sure to get
-        # the part recorded before the wraparound:
-        return store.query(StatBucket,
-                           attributes.AND(StatBucket.type==unicode(name),
-                                          StatBucket.interval== u"minute",
-                                          attributes.OR(StatBucket.index >= beginning,
-                                                        StatBucket.index <= end))).getColumn('value').average()
-    else:
-        return store.query(StatBucket,
-                           attributes.AND(StatBucket.type==unicode(name),
-                                          StatBucket.interval== u"minute",
-                                          StatBucket.index >= beginning,
-                                          StatBucket.index <= end)).getColumn('value').average()
-
-class QuarterHourSampler(item.Item):
-    service = attributes.reference()
-    def run(self):
-        """Aggregate the past 15 minutes into a quarter-hour StatBucket."""
-        t = Time()
-        if self.service.running:
-            for name in self.service.statTypes:
-                end = self.service.currentMinuteBucket
-                beginning =  end - 15
-                qhb = self.store.findOrCreate(StatBucket, type=unicode(name), interval=u"quarterhour",
-                                              index=self.service.currentQuarterHourBucket)
-                qhb.time = t
-                qhb.value=aggregateBuckets(self.store, name, beginning, end)
+            if t._time.minute in (15, 30, 45, 00):
+                self.service.currentQuarterHourBucket += 1
                 if self.service.currentQuarterHourBucket > 2880:
                     self.service.currentQuarterHourBucket = 0
-            m = t._time.minute
-            hdelta, nextm = divmod(m + 15 - (m % 15), 60)
-            return Time.fromDatetime(t._time.replace(second=0, minute=nextm) + datetime.timedelta(hours=hdelta))
 
+        return Time.fromDatetime(t._time.replace(second=0) + datetime.timedelta(minutes=1))
 
-class DailySampler(item.Item):
-    service = attributes.reference()
-    def run(self):
-        """Aggregate the past 24 hours into a daily StatBucket."""
-        t = Time()
-        if self.service.running:
-            for name in self.service.statTypes:
-                end = self.service.currentMinuteBucket
-                #only want a day's worth:
-                beginning =  end - (24 * 60)
-                StatBucket(store=self.store,
-                           time=t,
-                           interval=u"day",
-                           type=unicode(name),
-                           value= aggregateBuckets(self.store, name, beginning, end))
-        return Time.fromDatetime(t._time.replace(hour=0, second=0, minute=0) + datetime.timedelta(hours=24))
+    def doStatSample(self, store, statoscope, t, updates):
+        """
+        Record stats collected over the past minute.  All current
+        statoscopes are dumped into per-minute buckets, and a running
+        total for the quarter-hour and day are updated as well.
+        """
+        statoscope.setElapsed(60)
+        for k, v in statoscope._stuffs.items():
+            if k.startswith("bandwidth_"):
+                #measured in kB/sec, not bytes/minute
+                v = float(v) / (60 * 1024)
+            mb = store.findOrCreate(
+                StatBucket, type=unicode(k),
+                interval=u"minute", index=self.service.currentMinuteBucket)
+            mb.time = t
+            mb.value = float(v)
+            qhb = store.findOrCreate(
+                StatBucket, type=unicode(k),
+                interval=u"quarter-hour", index=self.service.currentQuarterHourBucket)
+            qhb.time = t
+            qhb.value += float(v)
+            db = store.findOrCreate(
+                StatBucket, type=unicode(k),
+                interval=u"day", time=Time.fromDatetime(t._time.replace(hour=0, second=0, minute=0, microsecond=0)))
+            db.value += float(v)
+            if (k, t, v) not in updates:
+                updates.append((k, t, v))
+        statoscope.reset()
+
 
 class StatsService(item.Item, service.Service, item.InstallableMixin):
 
@@ -328,7 +301,8 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     currentQuarterHourBucket = attributes.integer(default=0)
     observers = attributes.inmemory()
     loginInterfaces = attributes.inmemory()
-
+    userStats = attributes.inmemory()
+    
     def installOn(self, store):
         super(StatsService, self).installOn(store)
         store.powerUp(self, service.IService)
@@ -341,22 +315,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
             t = Time.fromDatetime(now.replace(second=0) + datetime.timedelta(minutes=1))
             iaxiom.IScheduler(store).schedule(s, t)
 
-        try:
-            store.findUnique(QuarterHourSampler)
-        except errors.ItemNotFound:
-            qhs = store.findOrCreate(QuarterHourSampler, service=self)
-            m = now.minute
-            hdelta, nextm = divmod(m + 15 - (m % 15), 60)
-            t2 = Time.fromDatetime(now.replace(second=0, minute=m) + datetime.timedelta(hours=hdelta))
-            iaxiom.IScheduler(store).schedule(qhs, t2)
-
-        try:
-            store.findUnique(DailySampler)
-        except errors.ItemNotFound:
-            ds = store.findOrCreate(DailySampler, service=self)
-            t2 = Time.fromDatetime(now.replace(hour=0, second=0, minute=0) + datetime.timedelta(hours=24))
-            iaxiom.IScheduler(store).schedule(ds, t2)
-
         if self.parent is None:
             self.setServiceParent(store)
             self.startService()
@@ -368,6 +326,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         self.statTypes = statDescriptions.keys()
         self.observers = []
         self.loginInterfaces = {}
+        self.userStats = {}
         for x in getInstalledOfferings(self.store.parent).values():
             self.loginInterfaces.update(dict(x.loginInterfaces))
 
@@ -426,6 +385,18 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         # strip the stat_ prefix
         d = dict(itertools.imap(lambda k: (k[0][5:], k[1]), d))
         self.statoscope.record(**d)
+        if 'userstore' in events:
+            store = events['userstore']
+            user, domain = userbase.getAccountNames(store).next()
+            self.userStats.setdefault((user, domain), UserStatRecorder(store, user, domain)).record(**d)
+
+class UserStatRecorder:
+    def __init__(self, store, user, domain):
+        self.store = store
+        self.statoscope = Statoscope(user="%s@%s" % (user, domain))
+    def record(self, **kws):
+        self.statoscope.record(**kws)
+
 
 class BandwidthMeasuringProtocol(policies.ProtocolWrapper):
 
