@@ -344,7 +344,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
                 observers.remove(obs)
 
     def stopService(self):
-        log.removeObserver(self._observeStatoscopeEvent)
         log.removeObserver(self._observeStatEvent)
         service.Service.stopService(self)
 

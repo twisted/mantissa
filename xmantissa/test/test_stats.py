@@ -17,3 +17,4 @@ class StatCollectorTest(unittest.TestCase):
                                                                      stats.StatBucket.interval == u"minute")))
         self.assertEquals(len(minutebucket), 1)
         self.assertEquals(minutebucket[0].value, 17)
+        svc.stopService()
