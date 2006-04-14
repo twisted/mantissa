@@ -70,4 +70,33 @@
     <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
   </input>
 
+  <tr nevow:pattern="choice-input-container">
+    <td><nevow:slot name="description" /></td>
+    <td>
+    <select>
+      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+      <nevow:slot name="options" />
+    </select>
+    </td>
+  </tr>
+
+  <tr nevow:pattern="multi-choice-input-container">
+    <td><nevow:slot name="description" /></td>
+    <td>
+    <select multiple="multiple">
+      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
+      <nevow:slot name="options" />
+    </select>
+    </td>
+  </tr>
+
+  <option selected="selected" nevow:pattern="selected-option">
+    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
+    <nevow:slot name="text" />
+  </option>
+
+  <option nevow:pattern="unselected-option">
+    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
+    <nevow:slot name="text" />
+  </option>
 </div>

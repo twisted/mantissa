@@ -24,6 +24,31 @@ class ListParameter(record('name coercer count description defaults',
 
     type = MULTI_TEXT_INPUT
 
+CHOICE_INPUT = 'choice'
+MULTI_CHOICE_INPUT = 'multi-choice'
+
+class ChoiceParameter(record('name choices description multiple',
+                    description="",
+                    multiple=False)):
+    """
+    A choice parameter, represented by a <select> element in HTML.
+
+    @ivar choices: a sequence of choices, represented as sequences of the form
+    C{(description, value, initiallySelected)}
+    @ivar multiple: C{True} if multiple choice selections are allowed
+    """
+
+    def type(self):
+        if self.multiple:
+            return MULTI_CHOICE_INPUT
+        return CHOICE_INPUT
+    type = property(type)
+
+    def coercer(self, value):
+        if self.multiple:
+            return tuple(self.choices[int(v[0])][1] for v in value)
+        return self.choices[int(value)][1]
+
 TEXT_INPUT = 'text'
 PASSWORD_INPUT = 'password'
 TEXTAREA_INPUT = 'textarea'
@@ -107,6 +132,19 @@ class LiveForm(record('callable parameters description',
 
                 p = dictFillSlots(p, dict(description=parameter.description,
                                           inputs=subInputs))
+            elif parameter.type in (CHOICE_INPUT, MULTI_CHOICE_INPUT):
+                selectedOptionPattern = patterns['selected-option']
+                unselectedOptionPattern = patterns['unselected-option']
+                options = []
+                for index, (text, value, selected) in enumerate(parameter.choices):
+                    if selected:
+                        pattern = selectedOptionPattern
+                    else:
+                        pattern = unselectedOptionPattern
+                    options.append(dictFillSlots(pattern, dict(code=index, text=text)))
+                p = dictFillSlots(p, dict(name=parameter.name,
+                                          description=parameter.description,
+                                          options=options))
             else:
                 if parameter.default is not None:
                     value = parameter.default
@@ -123,6 +161,8 @@ class LiveForm(record('callable parameters description',
                                                           dict(name=parameter.name,
                                                                type=parameter.type,
                                                                value=value))))
+
+            p(**{'class' : 'liveform_'+parameter.name})
             inputs.append(p)
 
         if self.subFormName is None:
