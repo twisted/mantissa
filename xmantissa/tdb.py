@@ -59,7 +59,7 @@ class TabularDataModel:
         self.resort(defaultSortColumn,
                     defaultSortAscending)
 
-    currentSortColumn = None # this is set in __init__ by resort() 
+    currentSortColumn = None # this is set in __init__ by resort()
                              # so client code will never see this value
 
     def resort(self, attributeID, isAscending=None):

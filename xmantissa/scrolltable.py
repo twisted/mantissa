@@ -13,7 +13,7 @@ TYPE_FRAGMENT = 'fragment'
 class TimestampAttributeColumn(AttributeColumn):
     # timestamps are a special case; we need to get the posix timestamp
     # so we can send the attribute value to javascript.  we don't register
-    # an adapter for attributes.timestamp because the TDB model uses 
+    # an adapter for attributes.timestamp because the TDB model uses
     # IColumn.extractValue() to determine the value of the query pivot,
     # and so it needs an extime.Time instance, not a float
 

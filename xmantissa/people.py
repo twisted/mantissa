@@ -484,7 +484,7 @@ class PersonDetailFragment(athena.LiveFragment):
     def render_contactInformationSummary(self, ctx, data):
         # FIXME like getEmailAddress() and getDisplayName(),
         # we need to allow the user to set defaults, so we
-        # can show the default phone number for person X, 
+        # can show the default phone number for person X,
         # instead of the first one we find in the store
 
         phone = self.original.store.findFirst(PhoneNumber,

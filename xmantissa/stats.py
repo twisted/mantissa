@@ -302,7 +302,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     observers = attributes.inmemory()
     loginInterfaces = attributes.inmemory()
     userStats = attributes.inmemory()
-    
+
     def installOn(self, store):
         super(StatsService, self).installOn(store)
         store.powerUp(self, service.IService)
