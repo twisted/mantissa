@@ -1,8 +1,6 @@
 
 import os, sys
 
-from zope.interface import implements
-
 from twisted.python.util import sibpath
 
 from nevow.loaders import xmlfile

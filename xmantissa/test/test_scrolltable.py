@@ -1,7 +1,7 @@
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, text, AND
+from axiom.attributes import integer, text
 from twisted.trial import unittest
 
 from xmantissa.scrolltable import ScrollingFragment

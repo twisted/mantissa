@@ -17,14 +17,14 @@ from axiom.attributes import integer, boolean, timestamp, bytes, reference, inme
 from axiom.item import Item
 from axiom import userbase
 
-from xmantissa import ixmantissa, webtheme, liveform, webnav, tdb, tdbview, offering, signup, stats
+from xmantissa import webtheme, liveform, webnav, tdb, tdbview, offering, signup, stats
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
 from xmantissa.plugins.baseoff import baseOffering
 
-from nevow import rend, athena, static, tags as T, loaders
+from nevow import rend, athena, static, tags as T
 
 
 class DeveloperSite(Item, PrefixURLMixin):

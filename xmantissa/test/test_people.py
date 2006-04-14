@@ -3,8 +3,6 @@ from twisted.trial import unittest
 
 from epsilon import extime
 
-from vertex import q2q
-
 from axiom import store
 
 from xmantissa import people
