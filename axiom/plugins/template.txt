@@ -227,6 +227,7 @@ plugin = offering.Offering(
     ),
 
     benefactorFactories = (_project_er,),
+    loginInterfaces = [],
     themes = []
     )
 
