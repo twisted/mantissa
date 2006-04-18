@@ -31,9 +31,7 @@ Mantissa.Admin.LocalUserBrowser.methods(
      * purpose, on demand).  Removes the existing content of that node if
      * there is any.
      */
-    function updateUserDetail(self, node, event, action) {
-        var idx = parseInt(node.getAttribute('class'));
-
+    function updateUserDetail(self, node, idx, event, action) {
         var d = self.callRemote('getActionFragment', idx, action);
         d.addCallback(function(result) {
             var n = self._getUserDetailElement();

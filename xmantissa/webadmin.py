@@ -116,13 +116,12 @@ class LocalUserBrowser(Item):
 
 class _EndowDepriveActionBase(tdbview.Action):
     clickFmt = ("return Nevow.Athena.Widget.get(this"
-                ").updateUserDetail(this, event, %r);")
+                ").updateUserDetail(this, %d, event, %r);")
 
     def toLinkStan(self, idx, loginMethod):
         return T.a(href='#',
                    style="padding-right: 5px;",
-                   class_=idx,
-                   onclick=self.clickFmt % (self.benefactorAction,))[
+                   onclick=self.clickFmt % (idx, self.benefactorAction))[
             self.benefactorAction]
 
     def actionable(self, item):
