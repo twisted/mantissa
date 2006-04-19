@@ -16,7 +16,7 @@ from axiom.attributes import text, integer, reference
 from axiom.userbase import getAccountNames
 from axiom import upgrade
 
-from nevow.rend import Page
+from nevow.rend import Page, NotFound
 from nevow import livepage, athena
 from nevow.inevow import IResource, IQ
 from nevow import tags as t
@@ -254,6 +254,14 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
             return ctx.tag[f]
         else:
             return ''
+
+    def locateChild(self, ctx, segments):
+        res = NotFound
+        if hasattr(self.fragment, 'locateChild'):
+            res = self.fragment.locateChild(ctx, segments)
+        if res is NotFound:
+            res = super(GenericNavigationAthenaPage, self).locateChild(ctx, segments)
+        return res
 
 class PrivateRootPage(Page, NavMixin):
     addSlash = True

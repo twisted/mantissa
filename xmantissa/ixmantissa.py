@@ -309,6 +309,23 @@ class INavigableFragment(Interface):
         May return None if nothing needs to be added there.
         """
 
+    def locateChild(self, ctx, segments):
+        """
+        INavigableFragments may optionally provide a locateChild method similar
+        to the one found on L{nevow.inevow.IResource.locateChild}.  You may
+        implement this method if your INavigableFragment contains any resources
+        which it may need to refer to with hyperlinks when rendered.  Please
+        note that an INavigableFragment may be rendered on any page within an
+        application, and that hyperlinks to resources returned from this method
+        must always be to /private/<your-webid>/..., not the current page's
+        URL, if you are using the default
+        L{xmantissa.webapp.PrivateApplication} URL dispatcher.
+
+        (There is a slight bug in the calling code's handling of Deferreds.
+        If you wish to delegate to normal child-resource handling, you must
+        return rend.NotFound exactly, not a Deferred which fires it.)
+        """
+
 class ITab(Interface):
     """
     Abstract, non-UI representation of a tab that shows up in the UI.  The only
