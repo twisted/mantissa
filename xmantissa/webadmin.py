@@ -1,6 +1,6 @@
 # -*- test-case-name: xmantissa -*-
 
-import operator
+import operator, random, string
 
 from zope.interface import implements
 
@@ -97,6 +97,14 @@ class AdminStatsApplication(Item, ParentCounterMixin):
 
 
 class LocalUserBrowser(Item):
+    """
+    XXX I am an unfortunate necessity.
+
+    This class shouldn't exist, and in fact, will be destroyed at the first
+    possible moment.  It's stateless, existing only to serve as a web lookup
+    hook for the UserInteractionFragment view class.
+    """
+
     implements(INavigableElement)
 
     typeName = 'local_user_browser'
@@ -114,6 +122,81 @@ class LocalUserBrowser(Item):
 
 
 
+class UserInteractionFragment(webtheme.ThemedFragment):
+    """
+    Contains two other user-interface elements which allow existing users to be
+    browsed and new users to be created, respectively.
+    """
+    fragmentName = 'admin-user-interaction'
+
+    def __init__(self, userBrowser):
+        """
+        @param userBrowser: a LocalUserBrowser instance
+        """
+        super(UserInteractionFragment, self).__init__()
+        self.userBrowser = userBrowser
+
+
+    def render_userBrowser(self, ctx, data):
+        """
+        Render a TDB of local users.
+        """
+        f = LocalUserBrowserFragment(self.userBrowser)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        f.setFragmentParent(self)
+        return f
+
+
+    def render_userCreate(self, ctx, data):
+        """
+        Render a form for creating new users.
+        """
+        userCreator = liveform.LiveForm(
+            self.createUser,
+            [liveform.Parameter(
+                    "localpart",
+                    liveform.TEXT_INPUT,
+                    unicode,
+                    "localpart"),
+             liveform.Parameter(
+                    "domain",
+                    liveform.TEXT_INPUT,
+                    unicode,
+                    "domain"),
+             liveform.Parameter(
+                    "password",
+                    liveform.PASSWORD_INPUT,
+                    unicode,
+                    "password")])
+        userCreator.setFragmentParent(self)
+        return userCreator
+
+    def createUser(self, localpart, domain, password=None):
+        """
+        Create a new, blank user account with the given name and domain and, if
+        specified, with the given password.
+
+        @type localpart: C{unicode}
+        @param localpart: The local portion of the username.  ie, the
+        C{'alice'} in C{'alice@example.com'}.
+
+        @type domain: C{unicode}
+        @param domain: The domain portion of the username.  ie, the
+        C{'example.com'} in C{'alice@example.com'}.
+
+        @type password: C{unicode} or C{None}
+        @param password: The password to associate with the new account.  If
+        C{None}, generate a new password automatically.
+        """
+        loginSystem = self.userBrowser.store.parent.findUnique(userbase.LoginSystem)
+        if password is None:
+            password = u''.join([random.choice(string.ascii_letters + string.digits) for i in xrange(8)])
+        loginSystem.addAccount(localpart, domain, password)
+
+registerAdapter(UserInteractionFragment, LocalUserBrowser, INavigableFragment)
+
+
+
 class _EndowDepriveActionBase(tdbview.Action):
     clickFmt = ("return Nevow.Athena.Widget.get(this"
                 ").updateUserDetail(this, %d, event, %r);")
@@ -128,12 +211,15 @@ class _EndowDepriveActionBase(tdbview.Action):
         return True
 
 
+
 class EndowAction(_EndowDepriveActionBase):
     benefactorAction = 'endow'
 
 
+
 class DepriveAction(_EndowDepriveActionBase):
     benefactorAction = 'deprive'
+
 
 
 class LocalUserBrowserFragment(tdbview.TabularDataView):
@@ -164,30 +250,32 @@ class LocalUserBrowserFragment(tdbview.TabularDataView):
     def getActionFragment(self, targetID, action):
         loginMethod = self.itemFromTargetID(targetID)
         loginAccount = loginMethod.account
-        f = EndowDepriveFragment(loginMethod.localpart + u'@' + loginMethod.domain, loginAccount, action)
-        f.docFactory = webtheme.getLoader(f.fragmentName)
-        f.setFragmentParent(self)
-        return f
-
-registerAdapter(LocalUserBrowserFragment, LocalUserBrowser, INavigableFragment)
-
+        return EndowDepriveFragment(
+            self,
+            loginMethod.localpart + u'@' + loginMethod.domain,
+            loginAccount,
+            action)
 
 
-class EndowDepriveFragment(athena.LiveFragment):
+
+class EndowDepriveFragment(webtheme.ThemedFragment):
     fragmentName = 'user-detail'
 
-    def __init__(self, username, loginAccount, which):
-        athena.LiveFragment.__init__(self)
+    def __init__(self, fragmentParent, username, loginAccount, which):
+        super(EndowDepriveFragment, self).__init__(fragmentParent)
         self.account = loginAccount
         self.benefactors = list(self.account.store.query(signup.Multifactor))
         self.which = which
         self.username = username
 
+
     def _endow(self, **kw):
         subs = self.account.avatars.open()
-        for benefactor in kw.values():
-            if benefactor is not None:
-                getattr(benefactor, self.which)(None, subs)
+        def endowall():
+            for benefactor in kw.values():
+                if benefactor is not None:
+                    getattr(benefactor, self.which)(None, subs)
+        subs.transact(endowall)
 
 
     def render_benefactorForm(self, ctx, data):
@@ -226,6 +314,7 @@ class EndowDepriveFragment(athena.LiveFragment):
             self.which.capitalize() + u' ' + self.username)
         f.setFragmentParent(self)
         return f
+
 
 
 class AdminStatsFragment(athena.LiveFragment):

@@ -1,11 +1,16 @@
 
 import os, sys
 
+from zope.interface import implements
+
+from twisted.python import reflect
 from twisted.python.util import sibpath
 
 from nevow.loaders import xmlfile
 from nevow import tags
+from nevow import athena
 
+from xmantissa import ixmantissa
 from xmantissa.offering import getInstalledOfferings, getOfferings
 
 def getAllThemes():
@@ -24,30 +29,71 @@ def getInstalledThemes(store):
     l.reverse()
     return l
 
-def getLoader(n):
-    # TODO: implement PublicApplication (?) in webapp.py, so we can make sure
-    # that these go in the right order.  Right now we've only got the one
-    # though.
+_marker = object()
+
+def getLoader(n, default=_marker):
+    """
+    Deprecated.  Don't call this.
+    """
     for t in getAllThemes():
         fact = t.getDocFactory(n, None)
         if fact is not None:
             return fact
-
-    raise RuntimeError("No loader for %r anywhere" % (n,))
+    if default is _marker:
+        raise RuntimeError("No loader for %r anywhere" % (n,))
+    return default
 
 class XHTMLDirectoryTheme(object):
-    def __init__(self, themeName, priority=0):
+    """
+    I am a theme made up of a directory full of XHTML templates.
+
+    The suggested use for this class is to make a subclass,
+    C{YourThemeSubclass}, in a module in your Mantissa package, create a
+    directory in your package called 'yourpackage/themes/<your theme name>',
+    and then pass <your theme name> as the constructor to C{YourThemeSubclass}
+    when passing it to the constructor of L{xmantissa.offering.Offering}.  You
+    can then avoid calculating the path name in the constructor, since it will
+    be calculated based on where your subclass was defined.
+
+    @ivar directoryName: the name of the directory containing the appropriate
+    template files.
+
+    @ivar themeName: the name of the theme that this directory represents.
+    This will be displayed to the user.
+    """
+    implements(ixmantissa.ITemplateNameResolver)
+
+    def __init__(self, themeName, priority=0, directoryName=None):
+        """
+        Create a theme based off of a directory full of XHTML templates.
+
+        @param themeName: sets my themeName
+
+        @param priority: an integer that affects the ordering of themes
+        returned from L{getAllThemes}.
+
+        @param directoryName: If None, calculates the directory name based on
+        the module the class is defined in and the given theme name.  For a
+        subclass C{bar.baz.FooTheme} defined in C{bar/baz.py} the instance
+        C{FooTheme('qux')}, regardless of where it is created, will have a
+        default directoryName of {bar/themes/qux/}.
+        """
+
         self.themeName = themeName
         self.priority = priority
         self.cachedLoaders = {}
+        if directoryName is None:
+            directoryName = os.path.join(
+                sibpath(sys.modules[self.__class__.__module__].__file__,
+                        'themes'),
+                self.themeName)
+        self.directoryName = directoryName
 
+    # IThemePreferrer
     def getDocFactory(self, fragmentName, default=None):
         if fragmentName in self.cachedLoaders:
             return self.cachedLoaders[fragmentName]
-        p = os.path.join(
-            sibpath(sys.modules[self.__class__.__module__].__file__, 'themes'),
-            self.themeName,
-            fragmentName+'.html')
+        p = os.path.join(self.directoryName, fragmentName + '.html')
         if os.path.exists(p):
             loader = xmlfile(p)
             self.cachedLoaders[fragmentName] = loader
@@ -61,3 +107,62 @@ class MantissaTheme(XHTMLDirectoryTheme):
     def head(self):
         return tags.link(rel='stylesheet', type='text/css',
                          href='/Mantissa/mantissa.css')
+
+
+class ThemedFragment(athena.LiveFragment):
+    """
+    Subclass me to create a LiveFragment which supports automatic theming.
+
+    @ivar fragmentName: A short string naming the template from which the
+    docFactory for this fragment should be loaded.
+
+    """
+    implements(ixmantissa.ITemplateNameResolver)
+
+    fragmentName = 'no-fragment-name-specified'
+
+    def __init__(self, fragmentParent=None):
+        """
+        Create a themed fragment with the given parent.
+
+        @param fragmentParent: An object to pass to C{setFragmentParent}.  If
+        not None, C{self.setFragmentParent} is called immediately.  It is
+        suggested but not required that you set this here; if not, the
+        resulting fragment will be initialized in an inconsistent state.  You
+        must call setFragmentParent to correct this before this fragment is
+        rendered.
+        """
+
+        super(ThemedFragment, self).__init__()
+        if fragmentParent is not None:
+            self.setFragmentParent(fragmentParent)
+
+
+    def head(self):
+        """
+        Don't do anything.
+        """
+
+    def rend(self, context, data):
+        """
+        Automatically retrieve my C{docFactory} based on C{self.fragmentName}
+        before invoking L{athena.LiveFragment.rend}.
+        """
+        if self.docFactory is None:
+            self.docFactory = self.getDocFactory(self.fragmentName)
+        return super(ThemedFragment, self).rend(context, data)
+
+
+    def render_pythonClass(self, ctx, data):
+        """
+        This renderer is available on all themed fragments.  It returns the fully
+        qualified python name of the class of the fragment being rendered.
+        """
+        return reflect.qual(self.__class__)
+
+
+    # ITemplateNameResolver
+
+    def getDocFactory(self, fragmentName, default=None):
+        f = getattr(self.page, "getDocFactory", getLoader)
+        return f(fragmentName, default)

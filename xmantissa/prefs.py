@@ -1,3 +1,5 @@
+# -*- test-case-name: xmantissa.test.historic -*-
+
 import pytz
 
 from zope.interface import implements
@@ -6,7 +8,7 @@ from twisted.python.components import registerAdapter
 from nevow import athena
 
 from axiom.item import Item, InstallableMixin
-from axiom import attributes, upgrade
+from axiom import attributes, upgrade, userbase
 
 from xmantissa.fragmentutils import PatternDictionary
 
@@ -36,18 +38,54 @@ class DefaultPreferenceCollection(Item, InstallableMixin):
         ipp = _ItemsPerPage(self.itemsPerPage, self, (10, 20, 30))
         tz = _TimezonePreference(self.timezone, self)
 
+
+        localparts = list(self.store.query(
+            userbase.LoginMethod,
+            userbase.LoginMethod.internal == True,
+            limit=1).getColumn("localpart"))
+        if localparts:
+            localpart = localparts[0]
+        else:
+            localpart = None
+
+        lp = _LocalpartPreference(localpart, self)
+
         self._cachedPrefs = {'itemsPerPage': ipp,
-                             'timezone': tz}
+                             'timezone': tz,
+                             'localpart': lp}
 
     def getPreferences(self):
         return self._cachedPrefs
 
+
+    def _localpartSet(self, value):
+        # Create a LoginMethod to actually hold this information.  This
+        # "preference" can only be set once, so only one LoginMethod will be
+        # created in this way.
+        siteStore = self.store.parent
+        hostname = userbase.getDomainNames(siteStore)[0]
+
+        loginAccount = self.store.findUnique(userbase.LoginAccount)
+        loginAccount.addLoginMethod(
+            localpart=value,
+            internal=True,
+            protocol=userbase.ANY_PROTOCOL,
+            verified=True,
+            domain=hostname)
+
+
     def setPreferenceValue(self, pref, value):
         pref.value = value
-        setattr(self, pref.key, value)
+        if pref.key == "localpart":
+            self._localpartSet(value)
+        else:
+            setattr(self, pref.key, value)
+
 
     def getSections(self):
         return None
+
+
 
 def defaultPreferenceCollection1To2(old):
     from xmantissa.settings import Settings
@@ -128,6 +166,58 @@ class _TimezonePreference(Preference):
 
     def valueToDisplay(self, value):
         return str(value)
+
+
+
+class _LocalpartPreference(Preference):
+    """
+    Allow the one-time configuration of a local address for an account.
+
+    This will be an address beneath a domain which is hosted by this server.
+    It is intended as the outward-facing contact address for protocols such as
+    Q2Q, SIP, and SMTP.
+
+    XXX TODO - At some point, this should also support selection of a domain,
+    since a Mantissa server may host multiple domains.
+    """
+    def __init__(self, value, collection):
+        Preference.__init__(self, 'localpart', value, 'Localpart', collection,
+                            'Localpart')
+
+
+    def choices(self):
+        return None
+
+
+    def displayToValue(self, display):
+        value = unicode(display)
+        store = self.collection.store.parent
+
+        # XXX This enforces uniqueness across all domains.  We really want to
+        # enforce uniqueness within each domain.
+        existing = store.query(
+            userbase.LoginMethod,
+            attributes.AND(userbase.LoginMethod.localpart == value,
+                           userbase.LoginMethod.internal == True),
+            limit=1).count()
+
+        if existing:
+            raise PreferenceValidationError('Localpart is not unique')
+        return value
+
+
+    def valueToDisplay(self, value):
+        if value is None:
+            return 'Not Set'
+        return value
+
+
+    def settable(self):
+        # localpart can only be set once - so we'll only allow the user to set
+        # it when the current value is None.
+        return self.value is None
+
+
 
 class PreferenceAggregator(Item, InstallableMixin):
     implements(IPreferenceAggregator)

@@ -25,6 +25,26 @@ class IColumn(Interface):
         returns a string describing the type of this column, or None
         """
 
+
+
+class ITemplateNameResolver(Interface):
+    """
+    Loads Nevow document factories from a particular theme based on simple
+    string names.
+    """
+
+    def getDocFactory(name, default=None):
+        """
+        Retrieve a Nevow document factory for the given name.
+
+        @param name: a short string that names a fragment template for
+        development purposes.
+
+        @return: a Nevow docFactory
+        """
+
+
+
 class IPreferenceAggregator(Interface):
     """
     Allows convenient retrieval of individual preferences
@@ -211,12 +231,6 @@ class IWebTranslator(Interface):
         """
         The inverse of L{linkTO}
         """
-
-    def getDocFactory(name):
-        """
-        Retrieve a Nevow document factory for the given name.
-        """
-
 
 class INavigableElement(Interface):
     """Tab interface used by the web navigation plugin system.

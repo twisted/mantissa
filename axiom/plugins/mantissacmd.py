@@ -98,7 +98,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
         r = portal.IRealm(s)
         username, domain = username.split('@')
         try:
-            acc = r.addAccount(username, domain, password)
+            acc = r.addAccount(username, domain, password, internal=True, verified=True)
         except eaxiom.DuplicateUser:
             acc = r.accountByAddress(username, domain)
 
