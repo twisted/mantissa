@@ -1,6 +1,33 @@
 # -*- test-case-name: quotient.test.test_stats -*-
 # Copyright 2005 Divmod, Inc.  See LICENSE file for details
 
+"""
+
+Statistics collection and recording facility.
+
+Primarily this is a system for handling time-series data such as
+"mail messages received per minute". The idea is that you call the
+Twisted logger with the stat values to be recorded, and the given
+values will be added to the collector. Once a minute, these values are
+stored in the database; each stat has a set of StatBuckets that are
+reused for per-minute stats, keeping values for a week. Every 15
+minutes, these values are totalled; the 15-minute totals are kept for
+a month. Finally, daily stats are recorded, and kept indefinitely.
+
+Example::
+  twisted.python.log.msg(interface=axiom.iaxiom.IStatEvent,
+                         userstore=store, stat_foo=1, stat_bar=2, ...)
+
+The 'userstore' argument, if present, indicates the store to record
+per-user stats in, in addition to the global stats.
+
+The statDescriptions dict in this module maps stat names (such as
+'foo' or 'bar' here) to human-readable descriptions.
+
+See L{xmantissa.webadmin.AdminStatsFragment} for the code that graphs
+these stats in the admin page.
+"""
+
 import time, datetime, itertools, os.path
 
 from twisted.application import service
@@ -229,11 +256,12 @@ def formatSize(size, suffix='', pluralize=False, base10=None, fractionalDigits=N
 
 
 class StatBucket(item.Item):
-    type = attributes.text() #e.g. "messages received per second"
-    value = attributes.ieee754_double(default=0.0)
-    interval = attributes.text() # e.g. "hour" or "minute" or "day"
-    index = attributes.integer()
-    time = attributes.timestamp()
+    "I record the totals for a particular statistic over some time period."
+    type = attributes.text(doc="A stat name, such as 'messagesReceived'")
+    value = attributes.ieee754_double(default=0.0, doc='Total number of events for this time period')
+    interval = attributes.text(doc='A time period, e.g. "quarter-hour" or "minute" or "day"')
+    index = attributes.integer(doc='The position in the round-robin list for non-daily stats')
+    time = attributes.timestamp(doc='When this bucket was last updated')
 
 class StatSampler(item.Item):
     service = attributes.reference()
@@ -290,7 +318,17 @@ class StatSampler(item.Item):
 
 
 class StatsService(item.Item, service.Service, item.InstallableMixin):
+    """
+    I collect and record statistics from various parts of a Mantissa app.
+    Data is collected by means of a log observer.
+    For example, to record the value 7 for a stat named "foo"::
 
+        log.msg(interface=axiom.iaxiom.IStatEvent, stat_foo=7)
+
+    Per-user stats can be recorded as well by passing the keyword
+    argument"userstore" with a Store you wish to record stats into.
+
+    """
     installedOn = attributes.reference()
     parent = attributes.inmemory()
     running = attributes.inmemory()
@@ -374,7 +412,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
             events = {'interface':iaxiom.IStatEvent, 'name':if_desc, 'stat_' +
                       if_desc: 1}
         try:
-            if not issubclass(events['interface'], iaxiom.IStatEvent ):
+            if not issubclass(events['interface'], iaxiom.IStatEvent):
                 return
         except (TypeError, KeyError):
             return
@@ -387,18 +425,17 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         if 'userstore' in events:
             store = events['userstore']
             user, domain = userbase.getAccountNames(store).next()
-            self.userStats.setdefault((user, domain), UserStatRecorder(store, user, domain)).record(**d)
+            self.userStats.setdefault((user, domain), UserStatRecorder(store, user, domain)).statoscope.record(**d)
 
 class UserStatRecorder:
+    "Keeps track of stats recorded for particular users."
     def __init__(self, store, user, domain):
         self.store = store
         self.statoscope = Statoscope(user="%s@%s" % (user, domain))
-    def record(self, **kws):
-        self.statoscope.record(**kws)
 
 
 class BandwidthMeasuringProtocol(policies.ProtocolWrapper):
-
+    "Wraps a Protocol and sends bandwidth stats to a BandwidthMeasuringFactory."
     def write(self, data):
         self.factory.registerWritten(len(data))
         policies.ProtocolWrapper.write(self, data)
@@ -412,7 +449,7 @@ class BandwidthMeasuringProtocol(policies.ProtocolWrapper):
         policies.ProtocolWrapper.dataReceived(self, data)
 
 class BandwidthMeasuringFactory(policies.WrappingFactory):
-
+    "Collects stats on the number of bytes written and read by protocol instances from the wrapped factory."
     protocol = BandwidthMeasuringProtocol
 
     def __init__(self, wrappedFactory, protocolName):

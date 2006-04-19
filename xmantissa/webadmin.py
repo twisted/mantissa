@@ -242,6 +242,8 @@ class AdminStatsFragment(athena.LiveFragment):
         self.piePeriod = 60
 
     def _initializeObserver(self):
+        "Look up the StatsService and registers to receive notifications of recorded stats."
+
         if self.svc:
             return
         m = IRealm(self.original.store.parent).accountByAddress(u"mantissa", None)
@@ -278,7 +280,7 @@ class AdminStatsFragment(athena.LiveFragment):
         return zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs]) or [(), ()]
 
     def buildGraphs(self):
-
+        "Called from Javascript to produce the initial state of the graphs."
         if not self.svc:
             return []
         data = []
@@ -289,10 +291,11 @@ class AdminStatsFragment(athena.LiveFragment):
         return data
 
     def setPiePeriod(self, period):
+        "Set how much time the query-time pie chart should cover."
         self.piePeriod = int(period)
 
     def buildPie(self):
-
+        "Called from javascript to produce the initial state of the query-time pie chart."
         self._initializeObserver()
         if not self.svc:
             return []
@@ -330,6 +333,7 @@ class AdminStatsFragment(athena.LiveFragment):
         return zip(*data)
 
     def statUpdate(self, updates):
+        "Update the graphs with the new data point."
         for name, time, value in updates:
             if name.startswith('_'):
                 #not a directly graphable stat
