@@ -438,7 +438,12 @@ class AdminStatsFragment(athena.LiveFragment):
         self.callRemote('updatePie', pie).addErrback(log.err)
 
     def head(self):
-        return ()
+        # XXX TODO - There is a race condition loading new dependencies after
+        # the initial page render.  Work around this by forcing all these
+        # dependencies to load at startup.
+        return [
+            T.script(language='javascript', src='/private/jsmodule/PlotKit.' + x)
+            for x in ['Base', 'Canvas', 'Layout', 'SVGRenderer', 'SweetSVG', 'Canvas', 'SweetCanvas']]
 
     def _query(self, *a, **kw):
         return self.original.store.parent.query(*a, **kw)

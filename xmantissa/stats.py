@@ -272,7 +272,7 @@ class StatSampler(item.Item):
         if self.service.running:
             updates = []
             self.doStatSample(self.store, self.service.statoscope, t, updates)
-            for recorder in self.service.userStats:
+            for recorder in self.service.userStats.values():
                 self.doStatSample(recorder.store, recorder.statoscope, t, updates)
             for obs in self.service.observers:
                 obs.statUpdate(updates)
@@ -431,7 +431,7 @@ class UserStatRecorder:
     "Keeps track of stats recorded for particular users."
     def __init__(self, store, user, domain):
         self.store = store
-        self.statoscope = Statoscope(user="%s@%s" % (user, domain))
+        self.statoscope = Statoscope("", user="%s@%s" % (user, domain))
 
 
 class BandwidthMeasuringProtocol(policies.ProtocolWrapper):

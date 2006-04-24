@@ -1,20 +1,19 @@
-function setText(elem, text) {
-    if(!elem.childNodes.length) {
-        var t = document.createTextNode(text);
-        elem.appendChild(t);
-    } else
-        elem.firstChild.nodeValue = text;
-}
 
-function setSearchState(start, stop, total) {
-    var rsummary = document.getElementById("results-summary");
+// import Nevow
+// import Nevow.Athena
 
-    if(parseInt(total) == 0)
-        rsummary.style.display = "none";
-    else {
-        setText(document.getElementById("viewing-start"), start);
-        setText(document.getElementById("viewing-stop"), stop);
-        setText(document.getElementById("total-matches"), total);
-        rsummary.style.display = "block";
-    }
-}
+// import Mantissa
+
+Mantissa.Search.Search = Nevow.Athena.Widget.subclass('Mantissa.Search.Search');
+Mantissa.Search.Search.methods(
+    function __init__(self, node) {
+        Mantissa.Search.Search.upcall(self, '__init__', node);
+        self.resultsContainer = self.nodeByAttribute('class', 'results-container');
+    },
+
+    function search(self, term) {
+        self.callRemote('search', term).addCallback(function(result) {
+            Divmod.Runtime.theRuntime.setNodeContent(
+                self.resultsContainer, result);
+        });
+    });

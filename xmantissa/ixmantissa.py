@@ -88,6 +88,7 @@ class ISearchProvider(Interface):
         """
 
 
+
 class ISearchAggregator(Interface):
     """
     An Item responsible for interleaving and displaying search results
@@ -108,6 +109,31 @@ class ISearchAggregator(Interface):
         """
         returns the number of available search providers
         """
+
+
+
+class IFulltextIndexer(Interface):
+    """
+    A general interface to a low-level full-text indexer.
+    """
+    def openWriteIndex():
+        pass
+
+
+    def openReadIndex():
+        pass
+
+
+
+
+class IFulltextIndexable(Interface):
+    """
+    Something which can be indexed for later search.
+    """
+    def textParts():
+        pass
+
+
 
 class IStaticShellContent(Interface):
     """

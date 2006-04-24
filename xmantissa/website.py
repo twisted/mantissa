@@ -340,6 +340,14 @@ class AxiomFragment(Fragment):
         return self.store.transact(Fragment.rend, self, ctx, data)
 
 class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
+    """
+    Govern an HTTP server which binds a port on startup and tears it down at
+    shutdown using the Twisted Service system.  Unfortunately, also provide web
+    pages.  These two tasks should be the responsibility of two separate Items,
+    but writing the upgrader to fix this won't be fun so I don't want to do it.
+    Someone else should though.
+    """
+
     typeName = 'mantissa_web_powerup'
     schemaVersion = 3
 
@@ -368,10 +376,11 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
 
     def installOn(self, other):
         super(WebSite, self).installOn(other)
-        other.powerUp(self, IService)
         other.powerUp(self, inevow.IResource)
-        if self.parent is None:
-            self.setServiceParent(other)
+        if self.store.parent is None:
+            other.powerUp(self, IService)
+            if self.parent is None:
+                self.setServiceParent(other)
 
     def child_by(self, ctx):
         from xmantissa.websharing import UserIndexPage
