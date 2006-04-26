@@ -98,7 +98,7 @@ Mantissa.LiveForm.FormWidget.methods(
                             var aValue = aNode.value;
                             pushOneValue(aNode.name, aValue);
                         } else if (aNode.tagName.toLowerCase() == 'select') {
-                            if (aNode.getAttribute('multiple') == null) {
+                            if (aNode.type == 'select-one') {
                                 pushOneValue(aNode.name, aNode.value);
                             } else {
                                 // If multiple values can be selected, get them
