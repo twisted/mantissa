@@ -1,0 +1,20 @@
+<html>
+  <head>
+    <script type="text/javascript">
+      function verifyPost(form) {
+        if(form.password1.value != form.password2.value) {
+          alert("Passwords don't match");
+          return false;
+        }
+        return true;
+      }
+    </script>
+  </head>
+  <body>
+    <form method="POST" onsubmit="return verifyPost(this)">
+      Password: <input type="password" name="password1" />
+      Repeat: <input type="password" name="password2" />
+      <input type="submit" />
+    </form>
+  </body>
+</html>

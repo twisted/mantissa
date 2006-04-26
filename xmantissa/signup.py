@@ -1,6 +1,6 @@
 # -*- test-case-name: xmantissa.test.test_signup -*-
 
-import os, rfc822
+import os, rfc822, md5, time, random
 
 from zope.interface import Interface, implements
 
@@ -14,14 +14,14 @@ from twisted import plugin
 from epsilon import extime
 
 from axiom.item import Item, InstallableMixin, transacted, declareLegacyItem
-from axiom.attributes import integer, reference, text, timestamp, AND
+from axiom.attributes import integer, reference, text, timestamp, inmemory, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase, upgrade
 
-from nevow.rend import Page
+from nevow.rend import Page, NotFound
 from nevow.url import URL
 from nevow.inevow import IResource, ISession
-from nevow import inevow, tags, athena
+from nevow import inevow, tags, athena, loaders
 
 from xmantissa.ixmantissa import (
     IBenefactor, ISiteRootPlugin, IStaticShellContent, INavigableElement,
@@ -32,6 +32,144 @@ from xmantissa.webnav import Tab
 from xmantissa.webapp import PrivateApplication
 from xmantissa.offering import getInstalledOfferings
 from xmantissa import plugins, liveform
+from xmantissa.websession import PersistentSession
+
+class PasswordResetResource(Page):
+    """
+    I handle the user-facing parts of password reset -
+    the web form junk and sending of emails
+    """
+
+    attempt = None
+
+    def __init__(self, original):
+        Page.__init__(self, original, docFactory=getLoader('reset'))
+
+    def locateChild(self, ctx, segments):
+        if len(segments) == 1:
+            attempt = self.original.attemptByKey(unicode(segments[0]))
+            if attempt is not None:
+                self.attempt = attempt
+                return (self, ())
+        return NotFound
+
+    def renderHTTP(self, ctx):
+        req = inevow.IRequest(ctx)
+
+        if req.method == 'POST':
+            if 'username' in req.args:
+                (user,) = req.args['username']
+
+                att = self.original.newAttemptForUser(unicode(user))
+                if self.original.accountByAddress(user) is not None:
+                    self._sendEmail(ctx, att)
+                else:
+                    # do we want to disclose this to the user?
+                    pass
+                self.docFactory = loaders.stan(tags.h1['Check your email'])
+            else:
+                (password,) = req.args['password1']
+                self.original.resetPassword(self.attempt, unicode(password))
+                self.docFactory = loaders.stan(tags.h1['Password reset, you can now ',
+                                                       tags.a(href='/login')['Login']])
+        elif self.attempt:
+            self.docFactory = getLoader('reset-step-two')
+
+        return Page.renderHTTP(self, ctx)
+
+    def _sendEmail(self, ctx, attempt):
+        url = URL.fromContext(ctx)
+        netloc = url.netloc.split(':')
+        host = netloc.pop(0)
+        if netloc:
+            (port,) = netloc
+        else:
+            port = 80
+
+        body = file(sibpath(__file__, 'reset.rfc2822')).read()
+        body %= {'from': 'reset@' + host,
+                 'to': attempt.username,
+                 'date': rfc822.formatdate(),
+                 'message-id': smtp.messageid(),
+                 'link': 'http://%s:%s/%s/%s' % (host, port, self.prefixURL, attempt.key)}
+
+        _sendEmail('reset@' + host, attempt.username, body)
+
+class _PasswordResetAttempt(Item):
+    """
+    I represent as as-yet incomplete attempt at password reset
+    """
+
+    typeName = 'password_reset_attempt'
+    schemaVersion = 1
+
+    key = text()
+    username = text()
+    timestamp = timestamp()
+
+class PasswordReset(Item, PrefixURLMixin):
+    typeName = 'password_reset'
+    schemaVersion = 1
+
+    sessioned = False
+    sessionless = True
+
+    prefixURL = 'reset-password'
+    installedOn = reference()
+    loginSystem = inmemory()
+
+    def activate(self):
+        self.loginSystem = self.store.findUnique(userbase.LoginSystem, default=None)
+
+    def createResource(self):
+        return PasswordResetResource(self)
+
+    def attemptByKey(self, key):
+        """
+        Locate the L{_PasswordResetAttempt} that corresponds to C{key}
+        """
+
+        return self.store.findUnique(_PasswordResetAttempt,
+                                     _PasswordResetAttempt.key == key,
+                                     default=None)
+
+    def _makeKey(self, usern):
+        return unicode(md5.new(str((usern, time.time(), random.random()))).hexdigest())
+
+    def newAttemptForUser(self, user):
+        """
+        Create an L{_PasswordResetAttempt} for the user whose username is C{user}
+        @param user: C{unicode} username
+        """
+        # we could query for other attempts by the same
+        # user within some timeframe and raise an exception,
+        # if we wanted
+        return _PasswordResetAttempt(store=self.store,
+                                     username=user,
+                                     timestamp=extime.Time(),
+                                     key=self._makeKey(user))
+
+    def accountByAddress(self, username):
+        """
+        @return: L{userbase.LoginAccount} for C{username} or None
+        """
+        return self.loginSystem.accountByAddress(*username.split('@', 1))
+
+    def resetPassword(self, attempt, newPassword):
+        """
+        @param attempt: L{_PasswordResetAttempt}
+
+        reset the password of the user who initiated C{attempt} to C{newPassword},
+        and afterward, delete the attempt and any persistent sessions that belong
+        to the user
+        """
+
+        self.accountByAddress(attempt.username).password = newPassword
+
+        self.store.query(PersistentSession,
+                         PersistentSession.authenticatedAs == str(attempt.username)).deleteFromStore()
+
+        attempt.deleteFromStore()
 
 class NoSuchFactory(Exception):
     """
@@ -161,15 +299,14 @@ class TicketBooth(Item, PrefixURLMixin):
 
         msg = templateData % signupInfo
 
-        def gotMX(mx):
-            return smtp.sendmail(str(mx.name),
-                                 signupInfo['from'],
-                                 [email],
-                                 msg)
+        return ticket, _sendEmail(signupInfo['from'], email, msg)
 
-        mxc = getMX()
-        return ticket, mxc.getMX(email.split('@', 1)[1]).addCallback(gotMX)
+def _sendEmail(_from, to, msg):
 
+    def gotMX(mx):
+        return smtp.sendmail(str(mx.name), _from, [to], msg)
+
+    return getMX().getMX(to.split('@', 1)[1]).addCallback(gotMX)
 
 def _generateNonce():
     return unicode(os.urandom(16).encode('hex'), 'ascii')
@@ -197,7 +334,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
     typeName = 'free_signup'
-    schemaVersion = 4
+    schemaVersion = 5
 
     sessioned = True
 
@@ -275,6 +412,26 @@ def freeTicketSignup3To4(old):
 
 upgrade.registerUpgrader(freeTicketSignup3To4, 'free_signup', 3, 4)
 
+declareLegacyItem(typeName='free_signup',
+                  schemaVersion=4,
+                  attributes=dict(prefixURL=text(),
+                                  booth=reference(),
+                                  benefactor=reference(),
+                                  emailTemplate=text(),
+                                  prompt=text()))
+
+def freeTicketSignup4To5(old):
+    PasswordReset(store=old.store).installOn(old.store)
+
+    return old.upgradeVersion('free_signup', 4, 5,
+                              prefixURL=old.prefixURL,
+                              booth=old.booth,
+                              benefactor=old.benefactor,
+                              emailTemplate=old.emailTemplate,
+                              prompt=old.prompt)
+
+upgrade.registerUpgrader(freeTicketSignup4To5, 'free_signup', 4, 5)
+
 class InitializerBenefactor(Item, InstallableMixin):
     typeName = 'initializer_benefactor'
     schemaVersion = 1
@@ -303,6 +460,7 @@ def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None,
                              benefactor=None, emailTemplate=None, prompt=None):
 
     ibene = store.findOrCreate(InitializerBenefactor, realBenefactor=benefactor)
+
     return FreeTicketSignup(store=store,
                             benefactor=ibene,
                             booth=booth,
