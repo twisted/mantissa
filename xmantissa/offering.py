@@ -33,9 +33,6 @@ class Offering(object):
                  loginInterfaces,
                  themes,
                  version=None):
-        """
-        @param version: optional - L{epsilon.versions.Version} instance
-        """
         self.name = name
         self.description = description
         self.siteRequirements = siteRequirements

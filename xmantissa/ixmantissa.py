@@ -573,8 +573,14 @@ class IOffering(Interface):
     """)
 
     themes = Attribute("""
-    XXX Someone added this but did not document it.
+    Sequence of L{xmantissa.webtheme.XHTMLDirectoryTheme} instances,
+    constituting themes that belong to this offering
     """)
+
+    version = Attribute("""
+    L{epsilon.versions.Version} instance indicating the version of
+    this offering.  If included, the Version's value will be displayed
+    to users once the offering is installed.  Defaults to None""")
 
 
 class ISignupMechanism(Interface):
