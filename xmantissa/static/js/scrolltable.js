@@ -357,11 +357,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                             self._moreAfterRequest = false;
                             self.scrolled();
                         }
-                        if(rowCount < self._rows.length) {
-                            self.cbRowsFetched();
-                        }
+                        self.cbRowsFetched(Math.abs(self._rows.length - rowCount));
                         return rslt;
-                        
                     });
             },
             proposedTimeout);
