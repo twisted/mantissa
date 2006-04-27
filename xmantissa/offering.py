@@ -31,7 +31,11 @@ class Offering(object):
                  appPowerups,
                  benefactorFactories,
                  loginInterfaces,
-                 themes):
+                 themes,
+                 version=None):
+        """
+        @param version: optional - L{epsilon.versions.Version} instance
+        """
         self.name = name
         self.description = description
         self.siteRequirements = siteRequirements
@@ -39,6 +43,7 @@ class Offering(object):
         self.benefactorFactories = benefactorFactories
         self.loginInterfaces = loginInterfaces
         self.themes = themes
+        self.version = version
 
 class InstalledOffering(item.Item):
     typeName = 'mantissa_installed_offering'

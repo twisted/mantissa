@@ -28,6 +28,7 @@ from xmantissa.webtheme import getInstalledThemes, getAllThemes
 from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
+from xmantissa.offering import getInstalledOfferings
 
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
     ISiteRootPlugin, IWebTranslator, ISearchAggregator, IStaticShellContent
@@ -154,15 +155,22 @@ class NavMixin(object):
         else:
             return ctx.tag
 
+    def _getVersions(self):
+        versions = []
+        for (name, offering) in getInstalledOfferings(self.webapp.store.parent).iteritems():
+            if offering.version is not None:
+                v = offering.version
+                versions.append(str(v).replace(v.package, name))
+        return ' '.join(versions)
+
     def render_footer(self, ctx, data):
+        footer = [self._getVersions()]
         staticShellContent = self.pageComponents.staticShellContent
-        if staticShellContent is None:
-            return ctx.tag
-        footer = staticShellContent.getFooter()
-        if footer is not None:
-            return ctx.tag[footer]
-        else:
-            return ctx.tag
+        if staticShellContent is not None:
+            f = staticShellContent.getFooter()
+            if f is not None:
+                footer.append(f)
+        return ctx.tag[footer]
 
 INSPECTROFY = os.environ.get('MANTISSA_DEV')
 
