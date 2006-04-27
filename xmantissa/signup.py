@@ -58,9 +58,9 @@ class PasswordResetResource(Page):
 
         if req.method == 'POST':
             if 'username' in req.args:
-                (user,) = req.args['username']
+                user = unicode(req.args['username'][0], 'ascii')
 
-                att = self.original.newAttemptForUser(unicode(user))
+                att = self.original.newAttemptForUser(user)
                 if self.original.accountByAddress(user) is not None:
                     self._sendEmail(ctx, att)
                 else:
@@ -91,7 +91,7 @@ class PasswordResetResource(Page):
                  'to': attempt.username,
                  'date': rfc822.formatdate(),
                  'message-id': smtp.messageid(),
-                 'link': 'http://%s:%s/%s/%s' % (host, port, self.prefixURL, attempt.key)}
+                 'link': 'http://%s:%s/%s/%s' % (host, port, self.original.prefixURL, attempt.key)}
 
         _sendEmail('reset@' + host, attempt.username, body)
 
