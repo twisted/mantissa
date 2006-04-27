@@ -7,9 +7,10 @@
 
 Mantissa.TDB.Controller = Nevow.Athena.Widget.subclass('Mantissa.TDB.Controller');
 Mantissa.TDB.Controller.methods(
-    function loaded(self) {
+    function __init__(self, node, hasPrevPage, hasNextPage, curPage, itemsPerPage, items) {
+        Mantissa.TDB.Controller.upcall(self, '__init__', node);
         self.tdbElements = {};
-        return self._differentPage('replaceTable');
+        self._setPageState(hasPrevPage, hasNextPage, curPage, itemsPerPage, items);
     },
 
     function _toggleThrobberVisibility(self) {
