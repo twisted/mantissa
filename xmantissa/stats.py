@@ -66,6 +66,10 @@ statDescriptions = {"page_renders": "Nevow page renders per minute",
                     "bandwidth_pop3-grabber_down": "POP3 grabber KB/sec received",
                     "bandwidth_sip_up": "SIP KB/sec sent",
                     "bandwidth_sip_received": "SIP KB/sec received",
+                    "spamClassified": "Messages classified as spam",
+                    "hamClassified": "Messages classified as ham",
+                    "spamFalsePositives": "Spam filter false positives",
+                    "spamFalseNegatives": "Spam filter false negatives",
                     }
 
 MAX_MINUTES = 24 * 60 * 7 # a week of minutes
