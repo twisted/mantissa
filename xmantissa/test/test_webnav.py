@@ -6,7 +6,7 @@ from xmantissa import webnav
 
 class FakeNavigator1(object):
     def getTabs(self):
-        return [webnav.Tab('Hello', 1234, 1.,
+        return [webnav.Tab('Hello', 1234, 0.5,
                            [webnav.Tab('Super', 'sup', 1.0),
                             webnav.Tab('Mega', 'meg', 0.5)],
                            False)]

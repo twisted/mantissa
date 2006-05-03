@@ -16,7 +16,6 @@ class TabMisconfiguration(Exception):
 class TabInfo(_structlike):
     __names__ = [
         'priority',
-        'number',
         'storeID',
         'children',
         'authoritative',
@@ -103,7 +102,6 @@ def getTabs(navElements):
             if tab.name not in primary:
                 primary[tab.name] = TabInfo(
                     priority=tab.priority,
-                    number=1,
                     storeID=tab.storeID,
                     children=list(tab.children),
                     linkURL=tab.linkURL)
@@ -116,11 +114,8 @@ def getTabs(navElements):
                 else:
                     if tab.authoritative:
                         info.authoritative = True
+                        info.priority = tab.priority
                         info.storeID = tab.storeID
-
-                if tab.priority is not None:
-                    info.priority += tab.priority
-                    info.number += 1
                 info.children.extend(tab.children)
 
     # Sort the tabs and their children by their priority
@@ -130,7 +125,6 @@ def getTabs(navElements):
     resultTabs = []
 
     for (name, info) in primary.iteritems():
-        info.priority /= info.number
         info.children.sort(key=key)
 
         resultTabs.append(
