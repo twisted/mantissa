@@ -1,6 +1,6 @@
 from nevow import rend, livepage, athena, tags, inevow
 
-from xmantissa.webtheme import getLoader, getAllThemes
+from xmantissa.webtheme import getLoader, getInstalledThemes
 
 class PublicPageMixin(object):
     fragment = None
@@ -60,10 +60,12 @@ class PublicPageMixin(object):
     def head(self):
         return None
 
+    def getHeadContent(self):
+        for t in getInstalledThemes(self.store):
+            yield t.head()
+
     def render_head(self, ctx, data):
-        content = list(t.head() for t in getAllThemes())
-        content.append(self.head())
-        return ctx.tag[filter(None, content)]
+        return ctx.tag[filter(None, list(self.getHeadContent()) + [self.head()])]
 
 class PublicPage(PublicPageMixin, rend.Page):
     def __init__(self, original, store, fragment, staticContent, forUser):

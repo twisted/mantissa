@@ -510,7 +510,7 @@ class InitializerPage(PublicPage):
             break
         else:
             username = None
-        PublicPage.__init__(self, original, original.store, getLoader('initialize'),
+        PublicPage.__init__(self, original, original.store.parent, getLoader('initialize'),
                             IStaticShellContent(original.installedOn, None),
                             username)
 
