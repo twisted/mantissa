@@ -323,12 +323,13 @@ class AdminStatsFragment(athena.LiveFragment):
     live = 'athena'
     jsClass = u'Mantissa.StatGraph.StatGraph'
     fragmentName = 'admin-stats'
-    allowedMethods = ['buildGraphs', 'buildPie', 'setPiePeriod']
+    allowedMethods = ['getGraphNames', 'addStat', 'removeStat', 'buildPie', 'setPiePeriod']
 
     def __init__(self, *a, **kw):
         athena.LiveFragment.__init__(self, *a, **kw)
         self.svc = None
         self.piePeriod = 60
+        self.activeStats = []
 
     def _initializeObserver(self):
         "Look up the StatsService and registers to receive notifications of recorded stats."
@@ -368,16 +369,21 @@ class AdminStatsFragment(athena.LiveFragment):
                                           stats.StatBucket.index <= end))
         return zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs]) or [(), ()]
 
-    def buildGraphs(self):
-        "Called from Javascript to produce the initial state of the graphs."
+
+
+    def getGraphNames(self):
+        self._initializeObserver()
         if not self.svc:
             return []
-        data = []
-        for name in self.svc.statTypes:
-            xs, ys = self.fetchLastHour(name)
-            data.append((xs, ys, unicode(name), unicode(stats.statDescriptions.get(name, name))))
-            self._seenStats.append(name)
+        return [(unicode(name), unicode(stats.statDescriptions[name])) for name in self.svc.statTypes]
+
+    def addStat(self, name):
+        data = self.fetchLastHour(name)
+        self.activeStats.append(name)
         return data
+
+    def removeStat(self, name):
+        self.activeStats.remove(name)
 
     def setPiePeriod(self, period):
         "Set how much time the query-time pie chart should cover."
@@ -421,19 +427,16 @@ class AdminStatsFragment(athena.LiveFragment):
 
         return zip(*data)
 
-    def statUpdate(self, updates):
+    def statUpdate(self, time, updates):
         "Update the graphs with the new data point."
-        for name, time, value in updates:
+        data = []
+        for name, value in updates:
             if name.startswith('_'):
                 #not a directly graphable stat
                 continue
-            if name not in self._seenStats:
-                extraArgs = self.fetchLastHour(name)
-                extraArgs.append(unicode(stats.statDescriptions.get(name, name)))
-                self._seenStats.append(name)
-            else:
-                extraArgs = ()
-            self.callRemote('update', unicode(name), unicode(time.asHumanly()), value, *extraArgs).addErrback(log.err)
+            if name in self.activeStats:
+                data.append((unicode(name), value))
+        self.callRemote('update', unicode(time.asHumanly()), dict(data))
         pie = self.buildPie()
         self.callRemote('updatePie', pie).addErrback(log.err)
 

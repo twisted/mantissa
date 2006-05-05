@@ -329,4 +329,3 @@ PlotKit.Base.__new__ = function() {
 
 PlotKit.Base.__new__();
 MochiKit.Base._exportSymbols(this, PlotKit.Base);
-

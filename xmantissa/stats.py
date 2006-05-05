@@ -277,8 +277,9 @@ class StatSampler(item.Item):
             self.doStatSample(self.store, self.service.statoscope, t, updates)
             for recorder in self.service.userStats.values():
                 self.doStatSample(recorder.store, recorder.statoscope, t, updates)
+
             for obs in self.service.observers:
-                obs.statUpdate(updates)
+                obs.statUpdate(t, updates)
             self.service.currentMinuteBucket += 1
             if self.service.currentMinuteBucket >= MAX_MINUTES:
                 self.service.currentMinuteBucket = 0
@@ -315,8 +316,8 @@ class StatSampler(item.Item):
                 StatBucket, type=unicode(k),
                 interval=u"day", time=Time.fromDatetime(t._time.replace(hour=0, second=0, minute=0, microsecond=0)))
             db.value += float(v)
-            if (k, t, v) not in updates:
-                updates.append((k, t, v))
+            if (k, v) not in updates:
+                updates.append((k, v))
         statoscope.reset()
 
 
