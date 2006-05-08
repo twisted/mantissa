@@ -119,7 +119,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function formatDate(self, date) {
         return date.toUTCString();
     },
-    
+
     function massageColumnValue(self, columnName, columnType, columnValue) {
         var tzoff = (new Date()).getTimezoneOffset() * 60;
         if(columnType == 'timestamp') {
@@ -140,7 +140,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                                      self.massageColumnValue(
                                          colName, self.columnTypes[colName][0], rowData[colName]));
         if(self.columnTypes[colName][0] == "fragment") {
-            Divmod.Runtime.theRuntime.setNodeContent(node, 
+            Divmod.Runtime.theRuntime.setNodeContent(node,
                 '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName] + '</div>');
         }
         return node;
@@ -186,7 +186,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         }
         return MochiKit.DOM.DIV(attrs, actions);
     },
-        
+
     function _createRow(self, rowOffset, rowData) {
         var cells = [];
 
@@ -272,7 +272,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 } else {
                     displayName = capitalize(columnName);
                 }
-                    
+
                 /*
                  * ^ Thank you, brilliant JavaScript designers, for inventing
                  * a whole new language.  This is _way_ better than (let ()).
@@ -296,8 +296,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                             });
                     }
                 }
-                
-                
+
+
                 var headerNode = MochiKit.DOM.DIV(attrs, displayName);
                 headerRow.appendChild(headerNode);
                 headerNodes.push(headerNode);
