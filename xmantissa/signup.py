@@ -316,8 +316,39 @@ class ITicketIssuer(Interface):
         pass
 
 class SignupMechanism(object):
+    """
+    I am a Twisted plugin helper.
+
+    Instantiate me at module scope in a xmantissa.plugins submodule, including
+    a name and description for the administrator.
+    """
     implements(ISignupMechanism, plugin.IPlugin)
     def __init__(self, name, description, itemClass, configuration):
+        """
+
+        @param name: the name (a short string) to display to the administrator
+        for selecting this signup mechanism.
+
+        @param description: the descrioption (a long string) for this signup
+        mechanism.
+
+        @param itemClass: a reference to a callable which takes keyword
+        arguments described by L{configuration}, in addition to:
+
+            store: the store to create the item in
+
+            booth: a reference to a L{TicketBooth} that can create tickets for
+            the created signup mechanism
+
+            benefactor: a reference to the aggregate Multifactor instance (a
+            benefactor which is itself a list of benefactors)
+
+            emailTemplate: a template for the email to be sent to the user
+
+            prompt: ???
+
+        @param configuration: a list of LiveForm arguments.
+        """
         self.name = name
         self.description = description
         self.itemClass = itemClass
@@ -431,6 +462,83 @@ def freeTicketSignup4To5(old):
                               prompt=old.prompt)
 
 upgrade.registerUpgrader(freeTicketSignup4To5, 'free_signup', 4, 5)
+
+class ValidatingSignupForm(liveform.LiveForm):
+    jsClass = u'Mantissa.Validate.SignupForm'
+
+    def __init__(self, uis):
+        self.docFactory = getLoader("user-info-signup")
+        self.userInfoSignup = uis
+        super(ValidatingSignupForm, self).__init__(
+            uis.createUser,
+            [liveform.Parameter(pname, liveform.TEXT_INPUT, unicode)
+             for pname in
+             'firstName lastName username domain password emailAddress'.split()])
+
+    def usernameAvailable(self, username, domain):
+        return self.userInfoSignup.usernameAvailable(username, domain)
+
+    athena.expose(usernameAvailable,
+                  liveform.LiveForm.invoke.im_func)
+
+class UserInfoSignup(Item, PrefixURLMixin):
+    """
+    This signup page provides a way to sign up while including some relevant
+    information about yourself, including the selection of a username.
+    """
+
+    implements(ISiteRootPlugin)
+
+    sessioned = True
+
+    booth = reference()
+    benefactor = reference()
+    emailTemplate = text()
+    prompt = text()
+
+    # ISiteRootPlugin
+
+    prefixURL = text(allowNone=False)
+
+    def createResource(self):
+        return PublicAthenaLivePage(
+            self.store,
+            ValidatingSignupForm(self),
+            IStaticShellContent(self.store, None))
+
+    # UserInfoSignup
+
+    def usernameAvailable(self, username, domain):
+        """
+        Check to see if a username is available for the user to select.
+        """
+        if len(username) < 2:
+            return False
+        return not bool(self.store.query(userbase.LoginMethod,
+                                         AND(userbase.LoginMethod.localpart == username,
+                                             userbase.LoginMethod.domain == domain)
+                                         ).count())
+
+    def createUser(self, firstName, lastName, username, domain,
+                   password, emailAddress):
+        """
+        Create a user with some associated metadata.
+        """
+        # what do I do with firstName and lastName?
+        def _():
+            loginsystem = self.store.findUnique(userbase.LoginSystem)
+            acct = loginsystem.addAccount(username, domain, password)
+            # XXX TODO: firstName and lastName should be on the "Me" person?
+            acct.addLoginMethod(username, domain,
+                                verified=True, internal=True)
+            # did we really just want to do that?  do we need to verify
+            # anything...?
+            emailPart, emailDomain = emailAddress.split("@")
+            acct.addLoginMethod(emailPart, emailDomain, protocol=u"email",
+                                verified=False, internal=False)
+            self.benefactor.endow(None, IBeneficiary(acct))
+        self.store.transact(_)
+
 
 class InitializerBenefactor(Item, InstallableMixin):
     typeName = 'initializer_benefactor'
@@ -668,7 +776,8 @@ class SignupConfiguration(Item, InstallableMixin):
         return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
 
 
-    def createSignup(self, creator, signupClass, signupConf, benefactorFactoryConfigurations, emailTemplate, prompt):
+    def createSignup(self, creator, signupClass, signupConf,
+                     benefactorFactoryConfigurations, emailTemplate, prompt):
         siteStore = self.store.parent
 
         multifactor = Multifactor(store=siteStore)
@@ -692,6 +801,8 @@ class SignupConfiguration(Item, InstallableMixin):
                        signupItem=signupItem,
                        createdOn=extime.Time(),
                        createdBy=creator)
+
+        return signupItem
 
 
 def _insertDep(dependent, ordered):

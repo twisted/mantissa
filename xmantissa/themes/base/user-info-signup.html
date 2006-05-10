@@ -1,0 +1,176 @@
+<form
+   xmlns="http://www.w3.org/1999/xhtml"
+   xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+   nevow:render="liveFragment"
+   action="#"
+   onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
+   style="position: relative"
+   >
+    <div style="display: none;
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                background-color: gray;
+                display: none;
+                opacity: 0.8;
+                color: black;
+                font-weight: bold;
+                text-align: center;
+                "
+         class="progress-message"
+         >
+      Signing Up...
+    </div>
+
+    <div style="display: none;
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                background-color: #00aa00;
+                color: #88ff88;
+                font-weight: bold;
+                font-size: 72px;
+                "
+         class="success-message">
+    </div>
+
+    <div style="display: none;
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                background-color: green;
+                "
+         class="failure-message">
+    </div>
+
+    <div class="verified-field">
+      First Name
+      <input
+         type="text"
+         name="firstName"
+         onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
+                  return false"
+         />
+
+      <span style="height: 24px;
+                  width: 24px;
+                  background-color: grey;
+                  "
+           class="verify-status"
+           >
+        ...
+      </span>
+    </div>
+
+
+    <div class="verified-field">
+      Last Name
+      <input
+         type="text"
+         name="lastName"
+         onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
+                  return false"
+         />
+
+      <span style="height: 24px;
+                  width: 24px;
+                  background-color: grey;
+                  "
+           class="verify-status"
+           >
+        ...
+      </span>
+    </div>
+
+    <div class="verified-field">
+      User Name
+      <input
+         type="text"
+         name="username"
+         onkeyup="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this);
+                  return false"
+         onfocus="Nevow.Athena.Widget.get(this).defaultUsername(this)"
+         />
+
+      <span style="height: 24px;
+                  width: 24px;
+                  background-color: grey;
+                  "
+           class="verify-status"
+           >
+        ...
+      </span>
+    </div>
+
+
+    <div class="verified-field">
+      Password
+      <input
+         type="password"
+         name="password"
+         onkeyup="Nevow.Athena.Widget.get(this).verifyStrongPassword(this);
+                  return false"
+         />
+
+      <span style="height: 24px;
+                  width: 24px;
+                  background-color: grey;
+                  "
+           class="verify-status"
+           >
+        ...
+      </span>
+    </div>
+
+
+    <div class="verified-field">
+      Confirm
+      <input
+         type="password"
+         name="confirmPassword"
+         onkeyup="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this);
+                  return false"
+         />
+
+      <span style="height: 24px;
+                  width: 24px;
+                  background-color: grey;
+                  "
+           class="verify-status"
+           >
+        ...
+      </span>
+    </div>
+
+    <div class="verified-field">
+      Email Address
+      <input
+         type="text"
+         name="emailAddress"
+         onkeyup="Nevow.Athena.Widget.get(this).verifyValidEmail(this);
+                  return false"
+         />
+
+      <span style="height: 24px;
+                  width: 24px;
+                  background-color: grey;
+                  "
+           class="verify-status"
+           >
+        ...
+      </span>
+    </div>
+
+    <input type="submit"
+           name="__submit__"
+           value="Create Account"
+           disabled="true"
+           />
+  </form>
+

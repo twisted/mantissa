@@ -27,3 +27,15 @@ freeTicketPassword = signup.SignupMechanism(
     ''',
     itemClass = signup.freeTicketPasswordSignup,
     configuration = signup.freeTicketSignupConfiguration)
+
+userInfo = signup.SignupMechanism(
+    name = 'Required User Information',
+    description = '''
+    Create a signup mechanism with several self-validating fields.
+
+    This will also require the user to select a local username before the
+    account is created, and it will create the account immediately rather than
+    waiting for the ticket to be claimed.
+    ''',
+    itemClass = signup.UserInfoSignup,
+    configuration = signup.freeTicketSignupConfiguration)

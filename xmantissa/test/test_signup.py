@@ -5,7 +5,7 @@ from twisted.trial import unittest
 
 from axiom import store, userbase, item, attributes
 
-from xmantissa import signup, offering
+from xmantissa import signup, offering, provisioning
 from xmantissa.plugins import adminoff, free_signup
 
 
@@ -40,8 +40,9 @@ class DependencyOrderTestCase(unittest.TestCase):
                 for dependency in element.deps:
                     self.failUnless(
                         order.index(element) > order.index(dependency),
-                        "%r came before %r in %r (input was %r)" % (element, dependency,
-                                                                    order, inputList))
+                        "%r came before %r in %r (input was %r)" %
+                        (element, dependency,
+                         order, inputList))
 
 class FakeTestBenefactor(item.Item):
     typeName = 'test_fake_test_benefactor'
@@ -118,20 +119,53 @@ class SignupCreationTestCase(unittest.TestCase):
             offeringName=u"mantissa",
             application=None)
 
+    def createFreeSignup(self, itemClass):
+        """
 
-    def testCreateSignup(self):
+        A utility method to ensure that the same arguments are always used to
+        create signup mechanisms, since these are the arguments that are going
+        to be coming from the admin form.
+
+        """
+        self.ftb = FakeTestBenefactor(store=self.store,
+                                      counter=itertools.count(1).next)
+        return self.sc.createSignup(
+            u'testuser@localhost',
+            itemClass,
+            {'prefixURL': u'signup'},
+            {adminoff.adminOffering.benefactorFactories[0]: {},
+             provisioning.BenefactorFactory(u'blah', u'blah',
+                                            lambda **kw: self.ftb): {}},
+            u'', u'')
+
+    def testCreateFreeSignups(self):
         self._installTestOffering()
 
-        self.sc.createSignup(
-            u'testuser@localhost',
-            free_signup.freeTicket.itemClass,
-            {'prefixURL': u'signup'},
-            {adminoff.adminOffering.benefactorFactories[0]: {}},
-            u'', u'')
+        for signupMechanismPlugin in [free_signup.freeTicket,
+                                      free_signup.freeTicketPassword,
+                                      free_signup.userInfo]:
+            self.createFreeSignup(signupMechanismPlugin.itemClass)
 
-        self.sc.createSignup(
-            u'testuser@localhost',
-            free_signup.freeTicketPassword.itemClass,
-            {'prefixURL': u'signup-password'},
-            {adminoff.adminOffering.benefactorFactories[0]: {}},
-            u'', u'')
+
+    def testUserInfoSignupValidation(self):
+        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
+        self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
+                          True)
+
+        self.assertEquals(self.ftb.endowed, 0)
+
+        signup.createUser(
+            firstName=u"Frank",
+            lastName=u"Jones",
+            username=u'fjones',
+            domain=u'localhost',
+            password=u'asdf',
+            emailAddress=u'fj@crappy.example.com')
+
+        self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
+                          False)
+
+        self.assertEquals(self.ftb.endowed, 1)
+
+
+

@@ -85,7 +85,9 @@ class LiveForm(record('callable parameters description',
 
     def __init__(self, *a, **k):
         super(LiveForm, self).__init__(*a, **k)
-        self.docFactory = webtheme.getLoader('liveform')
+        if self.docFactory is None:
+            # Give subclasses a chance to assign their own docFactory.
+            self.docFactory = webtheme.getLoader('liveform')
 
     def asSubForm(self, name):
         self.subFormName = name

@@ -4,8 +4,46 @@
   </nevow:invisible>
 
   <form action="#" nevow:render="liveFragment"
-    onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
-    nevow:pattern="liveform">
+        onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
+        nevow:pattern="liveform"
+        style="position: relative"
+        >
+
+    <div style="display: none;
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                background-color: gray;
+                display: none;
+                "
+         class="progress-message"
+         >
+    </div>
+
+    <div style="display: none;
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                background-color: #00aa00;
+                color: #88ff88;
+                "
+         class="success-message">
+    </div>
+
+    <div style="display: none;
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                background-color: green;
+                "
+         class="failure-message">
+    </div>
 
     <fieldset>
       <legend><nevow:slot name="description" /></legend>
