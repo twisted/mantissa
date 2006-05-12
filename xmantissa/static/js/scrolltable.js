@@ -10,6 +10,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._requestWaiting = false;
         self._moreAfterRequest = false;
 
+        self.scrollingDown = true;
+        self.lastScrollPos = 0;
+
         self._scrollContent = self.nodeByAttribute("class", "scroll-content");
         self._scrollViewport = self.nodeByAttribute('class', 'scroll-viewport');
         self._headerRow = self.nodeByAttribute('class', 'scroll-header-row');
@@ -73,7 +76,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollContent.style.height = height + (self._rowHeight * rowCount) + "px";
     },
 
-    function _getSomeRows(self) {
+    function _getSomeRows(self, scrollingDown) {
         var scrollViewportHeight = self._scrollViewport.clientHeight;
         if(!scrollViewportHeight) {
             scrollViewportHeight = parseInt(self._scrollViewport.style.height);
@@ -83,21 +86,31 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         }
         var desiredRowCount = Math.ceil(scrollViewportHeight / self._rowHeight);
         var firstRow = Math.floor(self._scrollViewport.scrollTop / self._rowHeight);
-
         var requestNeeded = false;
 
-        for (var i = 0; i < desiredRowCount; i++) {
-            if (typeof self._rows[firstRow] === 'undefined') {
-                requestNeeded = true;
-                break;
+        if(scrollingDown) {
+            for (var i = 0; i < desiredRowCount; i++) {
+                if (typeof self._rows[firstRow] === 'undefined') {
+                    requestNeeded = true;
+                    break;
+                }
+                firstRow++;
             }
-            firstRow++;
-        }
-        if (!requestNeeded) {
-            return Divmod.Defer.succeed(1);
+        } else {
+            for (var i = 0; i < desiredRowCount; i++) {
+                if (typeof self._rows[firstRow+desiredRowCount-1] === 'undefined') {
+                    requestNeeded = true;
+                     break;
+                }
+                firstRow--;
+            }
         }
 
         /* do we have the rows we need ? */
+
+        if(!requestNeeded) {
+            return Divmod.Defer.succeed(1);
+        }
 
         return self.callRemote("requestRowRange", firstRow, firstRow + desiredRowCount).addCallback(
             function(rowData) {
@@ -334,9 +347,19 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             MochiKit.DOM.SPAN({"class": "sort-arrow"}, c));
     },
 
-    function scrolled(self, proposedTimeout) {
+    /* Called in response to *user* initiated scroll events */
+    function onScroll(self) {
+        var scrollingDown = self.lastScrollPos < self._scrollViewport.scrollTop;
+        self.lastScrollPos = self._scrollViewport.scrollTop;
+        self.scrolled(undefined, scrollingDown);
+    },
+
+    function scrolled(self, proposedTimeout, scrollingDown) {
         if (typeof proposedTimeout === 'undefined') {
             proposedTimeout = 250;
+        }
+        if(scrollingDown == undefined) {
+            scrollingDown = true;
         }
         if (self._requestWaiting) {
             self._moreAfterRequest = true;
@@ -350,7 +373,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 self._rowTimeout = null;
                 self._requestWaiting = true;
                 var rowCount = self._rows.length;
-                self._getSomeRows().addBoth(
+                self._getSomeRows(scrollingDown).addBoth(
                     function (rslt) {
                         self._requestWaiting = false;
                         if (self._moreAfterRequest) {
