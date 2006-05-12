@@ -265,7 +265,8 @@ class StatBucket(item.Item):
     interval = attributes.text(doc='A time period, e.g. "quarter-hour" or "minute" or "day"')
     index = attributes.integer(doc='The position in the round-robin list for non-daily stats')
     time = attributes.timestamp(doc='When this bucket was last updated')
-
+    attributes.compoundIndex(interval, type, index)
+    
 class StatSampler(item.Item):
     service = attributes.reference()
 
@@ -404,9 +405,8 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
             events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_sent':events['count']}
         elif 'athena_received_messages' in events:
             events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_received':events['count']}
-        elif 'querySite' in events:
-            self.statoscope.record(**{ "_axiom_query:%s:%s" % (os.path.basename(events['querySite'][0]),
-                                                                events['querySite'][1]): events['queryTime']})
+        elif 'querySQL' in events:
+            self.statoscope.record(**{ "_axiom_query:" + events['querySQL']: events['queryTime']})
 
         elif 'cred_interface' in events:
             if_desc = self.loginInterfaces.get(events['cred_interface'], None)
