@@ -30,15 +30,27 @@ Mantissa.Test.TestableScrollTable.methods(
         self._rowHeight = 1;
         self._scrollViewport.style.height = "10px";
         self._rows = [];
-        self._rowFetches = 0;
+        self._firstRowFetch = true;
     },
-    
+
     function cbRowsFetched(self, n) {
-        self._rowFetches++;
-        if(self._rowFetches == 1) {
+        if(self._firstRowFetch) {
+            self._firstRowFetch = false;
             self.widgetParent.scroller = self;
             self.widgetParent.actuallyRunTests(n);
+        } else {
+            if(!self._pendingScrollDeferred) {
+                self.widgetParent.fail('extraneous row request');
+            }
+            self._pendingScrollDeferred.callback(n);
+            self._pendingScrollDeferred = null;
         }
+    },
+
+    function scrollBy(self, rows, deferred) {
+        self._pendingScrollDeferred = deferred;
+        self._scrollViewport.scrollTop += rows;
+        self.scrolled();
     });
 
 Mantissa.Test.ScrollTable = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Scrolltable');
@@ -50,15 +62,32 @@ Mantissa.Test.ScrollTable.methods(
     },
 
     function run(self) {
+        var assertRowCount = function(n) {
+            var rows = self.scroller.nodesByAttribute("class", "scroll-row");
+            var cell;
+            for(var i = 0; i < rows.length; i++) {
+                cell = Nevow.Athena.FirstNodeByAttribute(rows[i], "class", "scroll-cell");
+                self.assertEquals(cell.firstChild.nodeValue, parseInt(i));
+            }
+            self.assertEquals(i, n);
+        }
         return self._preTestDeferred.addCallback(
-            function(rowCount) {
-                self.assertEquals(rowCount, 10);
-                var rows = Nevow.Athena.NodesByAttribute(self.scroller.node, "class", "scroll-row");
-                var cell;
-                for(var i = 0; i < rows.length; i++) {
-                    cell = Nevow.Athena.FirstNodeByAttribute(rows[i], "class", "scroll-cell");
-                    self.assertEquals(cell.firstChild.nodeValue, parseInt(i));
-                }
+            function(requestedRowCount) {
+                self.assertEquals(requestedRowCount, 10);
+                assertRowCount(10);
+
+                var scrollDeferred = Divmod.Defer.Deferred();
+
+                scrollDeferred.addCallback(
+                    function(requestedRowCount) {
+                        /* but check a full screenful was requested */
+                        self.assertEquals(requestedRowCount, 10);
+                        assertRowCount(20);
+                    });
+
+                /* only scroll half a screenful */
+                self.scroller.scrollBy(5, scrollDeferred);
+                return scrollDeferred;
             });
     },
 
