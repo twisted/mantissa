@@ -77,6 +77,11 @@ statDescriptions = {
     "bandwidth_telnet_down": "Telnet KB/sec received",
     "bandwidth_ssh_up": "SSH KB/sec sent",
     "bandwidth_ssh_down": "SSH KB/sec received",
+
+    "Imaginary logins": "Imaginary Logins/Minute",
+    "Web logins": "Web Logins/Minute",
+    "SMTP logins": "SMTP Logins/Minute",
+    "POP3 logins": "POP3 Logins/Minute",
     }
 
 MAX_MINUTES = 24 * 60 * 7 # a week of minutes
