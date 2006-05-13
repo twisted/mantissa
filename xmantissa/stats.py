@@ -53,6 +53,10 @@ statDescriptions = {
     "autocommits": "Axiom autocommits per minute",
     "athena_messages_sent": "Athena messages sent per minute",
     "athena_messages_received": "Athena messages received per minute",
+
+    "actionDuration": "Seconds/Minute spent executing Imaginary Commands",
+    "actionExecuted": "Imaginary Commands/Minute executed",
+
     "bandwidth_http_up": "HTTP KB/sec received",
     "bandwidth_http_down": "HTTP KB/sec sent",
     "bandwidth_https_up": "HTTPS KB/sec sent",
@@ -68,7 +72,11 @@ statDescriptions = {
     "bandwidth_pop3-grabber_up": "POP3 grabber KB/sec sent",
     "bandwidth_pop3-grabber_down": "POP3 grabber KB/sec received",
     "bandwidth_sip_up": "SIP KB/sec sent",
-    "bandwidth_sip_received": "SIP KB/sec received",
+    "bandwidth_sip_down": "SIP KB/sec received",
+    "bandwidth_telnet_up": "Telnet KB/sec sent",
+    "bandwidth_telnet_down": "Telnet KB/sec received",
+    "bandwidth_ssh_up": "SSH KB/sec sent",
+    "bandwidth_ssh_down": "SSH KB/sec received",
     }
 
 MAX_MINUTES = 24 * 60 * 7 # a week of minutes
