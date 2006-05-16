@@ -21,29 +21,30 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self.callRemote("getTableMetadata").addCallback(
             function(metadata) {
                 /*
-                  argument passing convention!  woo, someday soon Javascript
-                  will have all the expressiveness of PL/1.  Maybe then we can
-                  decide what registers get used to store variables, too!!!!
-
-                */
-                var columnNames = metadata[0];
-                self.columnTypes = metadata[1];
-                var rowCount = metadata[2];
-                var currentSort = metadata[3];
-                var isAscendingNow = metadata[4];
-
-                /*
-                  (OK, seriously, there should be some kind of
-                  multiple-value-unpacking that's easier than this, since we
-                  want to decrease the number of round-trips as much as
-                  possible...)
+                argument passing convention!  woo, someday soon Javascript
+                will have all the expressiveness of PL/1.  Maybe then we can
+                decide what registers get used to store variables, too!!!!
                 */
 
-                self._createRowHeaders(columnNames);
-                self.setSortInfo(currentSort, isAscendingNow);
-                self.setViewportHeight(rowCount);
-                // Go suuuper fast for the first request
-                self.scrolled(10);
+                (function(columnNames, columnTypes, rowCount, currentSort, isAscendingNow) {
+                    /*
+                    (OK, seriously, there should be some kind of
+                    multiple-value-unpacking that's easier than this, since we
+                    want to decrease the number of round-trips as much as
+                    possible...)
+                    */
+
+                    self.columnTypes = metadata[1];
+
+                    self._createRowHeaders(columnNames);
+                    self.setSortInfo(currentSort, isAscendingNow);
+                    self.setViewportHeight(rowCount);
+
+                    // Go suuuper fast for the first request
+
+                    self.scrolled(10);
+
+                }).apply(null, metadata);
             });
     },
 
@@ -54,9 +55,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                                        "style": "float: none"}, "TEST!!!")]);
 
         self._scrollContent.appendChild(r);
-        var rowHeight = r.clientHeight
+        var rowHeight = Divmod.Runtime.theRuntime.getElementSize(r).h;
         if(rowHeight == 0) {
-            self._headerRow.clientHeight;
+            rowHeight = Divmod.Runtime.theRuntime.getElementSize(self._headerRow).h;
         }
         if(rowHeight == 0) {
             rowHeight = 20;
@@ -77,7 +78,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     function _getSomeRows(self, scrollingDown) {
-        var scrollViewportHeight = self._scrollViewport.clientHeight;
+        var scrollViewportHeight = Divmod.Runtime.theRuntime.getElementSize(self._scrollViewport).h;
         if(!scrollViewportHeight) {
             scrollViewportHeight = parseInt(self._scrollViewport.style.height);
         }
@@ -97,7 +98,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 firstRow++;
             }
         } else {
-            for (var i = 0; i < desiredRowCount; i++) {
+            for (i = 0; i < desiredRowCount; i++) {
                 if (typeof self._rows[firstRow+desiredRowCount-1] === 'undefined') {
                     requestNeeded = true;
                      break;

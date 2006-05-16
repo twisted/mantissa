@@ -38,7 +38,8 @@ Mantissa.Test.TestableScrollTable.methods(
             self._firstRowFetch = false;
             self.widgetParent.scroller = self;
             self.widgetParent.actuallyRunTests(n);
-        } else {
+        /* if n == 0, then nothing was actually requested, so it's fine */
+        } else if(0 < n) {
             if(!self._pendingScrollDeferred) {
                 self.widgetParent.fail('extraneous row request');
             }
@@ -49,8 +50,8 @@ Mantissa.Test.TestableScrollTable.methods(
 
     function scrollBy(self, rows, deferred) {
         self._pendingScrollDeferred = deferred;
+        /* changing scrollTop will call the onscroll handler */
         self._scrollViewport.scrollTop += rows;
-        self.scrolled();
     });
 
 Mantissa.Test.ScrollTable = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Scrolltable');
@@ -94,3 +95,4 @@ Mantissa.Test.ScrollTable.methods(
     function actuallyRunTests(self, n) {
         self._preTestDeferred.callback(n);
     });
+
