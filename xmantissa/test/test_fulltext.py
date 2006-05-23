@@ -160,3 +160,24 @@ class XapianTestCase(FulltextTestsMixin, unittest.TestCase):
 class PyLuceneTestCase(FulltextTestsMixin, unittest.TestCase):
     def createIndexer(self, path):
         return fulltext.PyLuceneIndexer(store=self.store, indexDirectory=path)
+
+
+    def testAutomaticClosing(self):
+        """
+        Test that if we create a writer and call the close-helper function,
+        the writer gets closed.
+        """
+        writer = self.openWriteIndex()
+        fulltext._closeIndexes()
+        self.failUnless(writer.closed, "Writer should have been closed.")
+
+
+    def testRepeatedClosing(self):
+        """
+        Test that if for some reason a writer is explicitly closed after the
+        close-helper has run, nothing untoward occurs.
+        """
+        writer = self.openWriteIndex()
+        fulltext._closeIndexes()
+        writer.close()
+        self.failUnless(writer.closed, "Writer should have stayed closed.")

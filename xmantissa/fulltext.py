@@ -4,6 +4,8 @@
 General functionality re-usable by various concrete fulltext indexing systems.
 """
 
+import atexit
+
 from zope.interface import implements
 
 from twisted.python import log
@@ -262,6 +264,7 @@ class _PyLuceneIndex(object):
     def __init__(self, fsdir, index, analyzer):
         self.fsdir = fsdir
         self.index = index
+        _closeObjects.append(self)
         self.analyzer = analyzer
 
 
@@ -285,10 +288,31 @@ class _PyLuceneIndex(object):
         return [int(h.get('storeID')) for (n, h) in hits]
 
 
+    closed = False
     def close(self):
-        self.index.close()
-        self.fsdir.close()
+        if not self.closed:
+            self.index.close()
+            self.fsdir.close()
+        self.closed = True
+        try:
+            _closeObjects.remove(self)
+        except ValueError:
+            pass
 
+
+_closeObjects = []
+def _closeIndexes():
+    """
+    Helper for _PyLuceneIndex to make sure FSDirectory and IndexWriter
+    instances always get closed.  This gets registered with atexit and
+    closes any _PyLuceneIndex objects still in _closeObjects when it gets
+    run.
+    """
+    global _closeObjects
+    for o in _closeObjects:
+        o.close()
+    _closeObjects = []
+atexit.register(_closeIndexes)
 
 
 class PyLuceneIndexer(RemoteIndexer, item.Item):
@@ -344,8 +368,13 @@ class PyLuceneIndexer(RemoteIndexer, item.Item):
 
             fsdir = PyLucene.FSDirectory.getDirectory(luceneDir.path, create)
             analyzer = self._analyzer()
+
+            # XXX TODO - Creating an IndexWriter might fail with an error
+            # acquiring the write lock.  This should only ever be possible
+            # after a hardware crash or some other unclean shutdown of the
+            # batch process.  If it does happen, though, we probably need to
+            # delete the Lucene index and recreate it.
             return _PyLuceneIndex(
                 fsdir,
                 PyLucene.IndexWriter(fsdir, analyzer, create),
                 analyzer)
-
