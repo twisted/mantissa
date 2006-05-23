@@ -16,6 +16,7 @@ from epsilon import extime
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
 from axiom.item import Item
 from axiom import userbase
+from axiom.batch import BatchManholePowerup
 
 from xmantissa import webtheme, liveform, webnav, tdb, tdbview, offering, signup, stats
 from xmantissa.webapp import PrivateApplication
@@ -699,6 +700,10 @@ class AdministrativeBenefactor(Item):
             # This one lets the administrator view unhandled
             # exceptions which occur in the server.
             TracebackViewer,
+
+            # This one lets the administrator ssh in to a REPL in the
+            # batch process.
+            BatchManholePowerup,
 
             # And this one gives the administrator a page listing all
             # users which exist in this site's credentials database.
