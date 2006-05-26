@@ -32,7 +32,7 @@ from nevow.static import File
 from nevow.url import URL
 from nevow import athena
 
-from vertex import sslverify
+from epsilon import sslverify
 
 from axiom import upgrade
 from axiom.item import Item, InstallableMixin, _PowerupConnector
