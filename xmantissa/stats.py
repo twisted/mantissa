@@ -28,8 +28,9 @@ See L{xmantissa.webadmin.AdminStatsFragment} for the code that graphs
 these stats in the admin page.
 """
 
-import time, datetime, itertools, os.path
+import time, datetime, itertools
 
+from twisted.internet import defer, reactor, protocol
 from twisted.application import service
 from twisted.protocols import policies
 from twisted.python import log
@@ -37,6 +38,7 @@ from twisted.python import log
 from axiom import iaxiom, item, attributes, errors, userbase
 from epsilon.extime import Time
 from xmantissa.offering import getInstalledOfferings
+from vertex import juice
 
 statDescriptions = {
     "page_renders": "Nevow page renders per minute",
@@ -279,7 +281,7 @@ class StatBucket(item.Item):
     index = attributes.integer(doc='The position in the round-robin list for non-daily stats')
     time = attributes.timestamp(doc='When this bucket was last updated')
     attributes.compoundIndex(interval, type, index)
-    
+
 class StatSampler(item.Item):
     service = attributes.reference()
 
@@ -291,7 +293,6 @@ class StatSampler(item.Item):
             self.doStatSample(self.store, self.service.statoscope, t, updates)
             for recorder in self.service.userStats.values():
                 self.doStatSample(recorder.store, recorder.statoscope, t, updates)
-
             for obs in self.service.observers:
                 obs.statUpdate(t, updates)
             self.service.currentMinuteBucket += 1
@@ -358,7 +359,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     observers = attributes.inmemory()
     loginInterfaces = attributes.inmemory()
     userStats = attributes.inmemory()
-
+    
     def installOn(self, store):
         super(StatsService, self).installOn(store)
         store.powerUp(self, service.IService)
@@ -381,6 +382,8 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         log.addObserver(self._observeStatEvent)
         self.statTypes = statDescriptions.keys()
         self.observers = []
+        
+        self.observers.extend(self.store.query(RemoteStatsObserver))
         self.loginInterfaces = {}
         self.userStats = {}
         for x in getInstalledOfferings(self.store.parent).values():
@@ -478,3 +481,49 @@ class BandwidthMeasuringFactory(policies.WrappingFactory):
 
     def registerRead(self, length):
         log.msg(interface=iaxiom.IStatEvent, **{"stat_bandwidth_" + self.name + "_down": length})
+
+class RemoteStatsObserver(item.Item):
+
+    hostname = attributes.bytes(doc="A host to send stat updates to")
+    port = attributes.integer(doc="The port to send stat updates to")
+    protocol = attributes.inmemory(doc="The juice protocol instance to send stat updates over")
+
+    def activate(self):
+        #axiom is weak
+        self.protocol = None
+
+    def statUpdate(self, t, updates):
+        """
+        Sends a stringified version of the stat update data (a list of
+        name, value pairs) and the current time over a juice
+        connection to a remote stats collector.
+
+        XXX: find a better way to preserve the structure of the update
+        info
+        """
+        if not self.protocol:
+            self._connectToStatsServer().addCallback(
+                lambda x: StatUpdate(time=t,
+                                     data=repr(updates)).do(self.protocol))
+        else:
+            StatUpdate(time=t, data=repr(updates)).do(self.protocol,
+                                                      requiresAnswer=False)
+
+    def _connectToStatsServer(self):
+        return protocol.ClientCreator(reactor,
+                             juice.Juice, False).connectTCP(self.hostname,
+                                                     self.port).addCallback(
+            lambda p: setattr(self, "protocol", p))
+
+class StatUpdate(juice.Command):
+    commandName = "Stat-Update"
+    arguments = [('time', juice.Time()), ('data', juice.String())]
+
+
+class SimpleRemoteStatsCollector(juice.Juice):
+
+    def command_STAT_UPDATE(self, time, data):
+        "Shove the current time and some stat data into a log file."
+        self.factory.log.write("%s %s\n" % (time, data))
+        return {}
+    command_STAT_UPDATE.command = StatUpdate

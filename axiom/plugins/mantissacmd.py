@@ -6,8 +6,9 @@ from twisted.cred import portal
 
 from axiom import errors as eaxiom, userbase
 from axiom.scripts import axiomatic
+from axiom.attributes import AND
 
-from xmantissa import website, webadmin, publicweb
+from xmantissa import website, webadmin, publicweb, stats
 
 from epsilon.asplode import splode
 
@@ -133,3 +134,48 @@ class Generate(axiomatic.AxiomaticCommand):
         fObj = file(util.sibpath(__file__, 'template.txt'))
 
         splode(fObj.readlines(), proj, capproj)
+
+class RemoteStatsAdd(axiomatic.AxiomaticSubCommand):
+
+    optParameters = [
+        ("host", "h", None, "The host accepting statistical data."),
+        ("port", "p", None, "The port to connect to."),
+        ]
+
+    def postOptions(self):
+        s = self.parent.parent.getStore()
+        s.transact(self.installCollector, s, self['host'], int(self['port']))
+
+    def installCollector(self, s, host, port):
+        ss = portal.IRealm(s).accountByAddress(u'mantissa',
+                                               None).avatars.open()
+        obs = stats.RemoteStatsObserver(store=ss, hostname=host, port=port)
+
+class RemoteStatsList(axiomatic.AxiomaticSubCommand):
+    def postOptions(self):
+        s = self.parent.parent.getStore()
+        ss = portal.IRealm(s).accountByAddress(u'mantissa',
+                                               None).avatars.open()
+        for i, obs in enumerate(ss.query(stats.RemoteStatsObserver)):
+            print "%s) %s:%s" % (i, obs.hostname, obs.port)
+
+class RemoteStatsRemove(axiomatic.AxiomaticSubCommand):
+    optParameters = [
+        ("host", "h", None, "The hostname of the observer to remove."),
+        ("port", "p", None, "The port of the observer to remove."),
+        ]
+    def postOptions(self):
+        s = self.parent.parent.getStore()
+        ss = portal.IRealm(s).accountByAddress(u'mantissa',
+                                               None).avatars.open()
+        for obs in ss.query(stats.RemoteStatsObserver,
+                            AND(stats.RemoteStatsObserver.hostname==self['host'], stats.RemoteStatsObserver.port==int(self['port']))):
+            obs.deleteFromStore()
+
+class RemoteStats(axiomatic.AxiomaticCommand):
+    name = "stats"
+    description = "Control remote statistics collection"
+
+    subCommands = [("add", None, RemoteStatsAdd, "Submit Mantissa statistical data to another server"),
+                   ("list", None, RemoteStatsList, "List remote targets for stats delivery"),
+                   ("remove", None, RemoteStatsRemove, "Remove a remote stats target")]
