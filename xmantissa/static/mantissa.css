@@ -151,12 +151,20 @@ body {
     background-color: #DADADA;
 }
 
-.scroll-column-header, .scroll-cell, .actions-column-header {
+.scroll-column-header, .scroll-cell, .sortable-scroll-column-header, .actions-column-header {
     padding: 4px;
     width: 250px;
     float: left;
     border-right: solid 1px #000000;
     overflow: hidden;
+}
+
+.sortable-scroll-column-header:hover {
+    background-color: #C0C0C0;
+}
+
+.sortable-scroll-column-header {
+    cursor: pointer;
 }
 
 .scroll-column {
