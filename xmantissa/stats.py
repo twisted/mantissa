@@ -38,7 +38,7 @@ from twisted.python import log
 from axiom import iaxiom, item, attributes, errors, userbase
 from epsilon.extime import Time
 from xmantissa.offering import getInstalledOfferings
-from vertex import juice
+from epsilon import juice
 
 statDescriptions = {
     "page_renders": "Nevow page renders per minute",

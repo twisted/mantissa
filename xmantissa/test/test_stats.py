@@ -5,7 +5,7 @@ from twisted.trial import unittest
 from axiom import store, attributes, scheduler, iaxiom
 from xmantissa import stats
 from epsilon.extime import Time
-from vertex import juice
+from epsilon import juice
 class StatCollectorTest(unittest.TestCase):
 
     def testStatCollectionAndRecording(self):
