@@ -1,5 +1,138 @@
 body {
-    font: 80% Arial, Helvetica, sans-serif;
+    font: 80% Helvetica, Arial, sans-serif;
+}
+
+#search-button {
+    margin: 0px 4px 0px 4px;
+}
+
+#divmod-menu, .subtabs {
+    position: absolute;
+    background-color: #666666;
+    border-left: solid 8px #525252;
+    margin: 0px;
+    list-style: none;
+    padding: 0px;
+}
+
+#divmod-menu {
+    min-width: 77px;
+    display: none;
+    z-index: 99;
+    white-space: nowrap;
+}
+
+.menu-separator {
+    height: 2px;
+    background-image: url(/Mantissa/images/menu-separator.png);
+    padding: 1px 0px 1px 0px;
+    background-repeat: repeat-x;
+}
+
+.divmod-menu-container:hover #divmod-menu {
+    display: block;
+}
+
+.tab-link {
+    font-size: 1.2em;
+    padding: 2px 2px 2px 4px;
+    display: block;
+}
+
+.tab-link:link, .tab-link:visited {
+    color: #CCCCCC;
+}
+
+.tab-link:hover {
+    color: #FFFFFF;
+}
+
+.private-fragment-content {
+    border-top: solid 1px #0099CC;
+}
+
+.divmod-menu-container {
+    background-color: #000000;
+    border-right: solid 1px #666666;
+    vertical-align: top;
+    width: 77px;
+}
+
+.app-nav-container {
+    background-color: #333333;
+    white-space: nowrap;
+}
+
+.search-container {
+    background-color: #333333;
+    height: 100%;
+}
+
+.search-container .username {
+    color: #FFFFFF;
+    font-weight: bold;
+    background-color: #525252;
+    border: solid 1px #666666;
+    padding: 4px;
+    margin-right: 4px;
+}
+
+.tab-button, .selected-tab-button {
+    float: left;
+    margin-left: 8px;
+    position: relative;
+    top: 1px;
+}
+
+.selected-tab-button, .tab-button:hover {
+    border-bottom: dotted 1px #7ACAE4;
+}
+
+.tab-button-row {
+    line-height: 0px;
+}
+
+.tab-tl-corner, .tab-tr-corner {
+    width: 3px;
+    height: 3px;
+}
+
+.tab-corner {
+    vertical-align: top;
+}
+
+.tab-top-edge {
+    height: 3px;
+}
+
+.tab-text-cell {
+    color: #FFFFFF;
+    font-size: 1.7em;
+}
+
+.tab-button:hover .tab-text-row, .selected-tab-button .tab-text-row {
+    background-image: url(/Mantissa/images/tab-bg.png);
+    background-color: #77C9E3;
+    background-repeat: repeat-x;
+}
+
+.tab-text-row {
+    text-align: center;
+}
+
+.tab-button:hover .tab-pyramid, .selected-tab-button .tab-pyramid {
+    color: #FFFFFF;
+}
+
+.tab-button:hover .tab-top-edge, .selected-tab-button .tab-top-edge {
+    background-image: url(/Mantissa/images/tab-top-edge.png);
+    background-repeat: repeat-x;
+}
+.tab-button:hover .tab-tl-corner, .selected-tab-button .tab-tl-corner {
+    background-image: url(/Mantissa/images/tab-tl-corner.png);
+}
+.tab-button:hover .tab-tr-corner, .selected-tab-button .tab-tr-corner {
+    background-image: url(/Mantissa/images/tab-tr-corner.png);
 }
 
 .scroll-header-container {
@@ -18,20 +151,12 @@ body {
     background-color: #DADADA;
 }
 
-.scroll-column-header, .scroll-cell, .sortable-scroll-column-header, .actions-column-header {
+.scroll-column-header, .scroll-cell, .actions-column-header {
     padding: 4px;
     width: 250px;
     float: left;
     border-right: solid 1px #000000;
     overflow: hidden;
-}
-
-.sortable-scroll-column-header:hover {
-    background-color: #C0C0C0;
-}
-
-.sortable-scroll-column-header {
-    cursor: pointer;
 }
 
 .scroll-column {
@@ -44,17 +169,6 @@ body {
 
 td.multi-text-input-list > input {
     display: block;
-    margin-bottom: 4px;
-}
-.person-actions {
-    position: absolute;
-    background-color: #FFFFFF;
-    border: solid 1px #DADADA;
-    padding: 4px;
-}
-
-div.person-actions > div {
-    border-bottom: solid 1px #DADADA;
     margin-bottom: 4px;
 }
 
@@ -95,12 +209,6 @@ a:visited { color: #A6A6A6; text-decoration: none }
 a:hover   { color: #575757; text-decoration: none }
 a:active  { color: #000000; text-decoration: underline }
 
-.subsection-title {
-    font-size: 1.1em;
-    font-weight: bold;
-    padding-bottom: 5px;
-}
-
 /* in authentication-configuration.html */
 .authentication-panel {
     padding: 15px;
@@ -122,8 +230,8 @@ input.change-password {
 }
 
 /* styles for the tdb - kind of similar but pretty different to the
- * control-table used in "my account" because the tdb cells we want to
- * accentuate are in the first row, rather than the first column */
+* control-table used in "my account" because the tdb cells we want to
+* accentuate are in the first row, rather than the first column */
 
 .tdb-action-result {
     white-space: nowrap;
@@ -169,7 +277,7 @@ table.control-table > thead {
     background-color: #FFFFFF;
     background-image: url(/Mantissa/images/header_bg.png);
     background-repeat: repeat-x;
-    background-position: bottom left 
+    background-position: bottom left
 }
 
 /* set the first row to be bold-face */
@@ -184,19 +292,6 @@ table.control-table > thead > tr > td {
 table.control-table > tbody > tr > td {
     border-right: solid 1px #CACACA;
     padding: 5px;
-}
-
-/* make the score of each result grey and italic,
-   because nobody really cares about it */
-.search-score {
-    color: #CACACA;
-    font-style: italic;
-}
-
-/* slightly indent the summary text that appears below
- * each search item */
-.search-summary {
-    margin-left: 15px;
 }
 
 #results-summary {
@@ -215,6 +310,12 @@ table.control-table > tbody > tr > td {
 
 #search-form {
     padding: 6px;
+}
+
+#search-form-container {
+    position: absolute;
+    z-index: 99;
+    background-color: #999999;
 }
 
 select {
@@ -258,24 +359,21 @@ input[type=password], input[type=text] {
     vertical-align: top;
 }
 
-.fragment-container { 
-    width: 100% 
+.fragment-container {
+    width: 100%
 }
 
-.username { 
-    font-weight: bold 
-}
-.footer { 
-    text-align: center 
+.username {
+    font-weight: bold
 }
 
-body { 
+#mantissa-footer {
+    text-align: center;
+}
+
+body {
     margin: 0px;
     border: 0px;
-}
-
-.private-fragment-content { 
-    padding: 8px;
 }
 
 .fragment-content { width: 100%; }
@@ -292,10 +390,8 @@ ul#mainmenu {
 }
 
 div#nav {
-    background: #4ca1d8 url(/Mantissa/images/nav_bg.gif) top left repeat-x;
     clear: both;
-    height: 26px;
-    padding-left: 11px;
+    margin-left: 2px;
 }
 
 #nav li.main {
@@ -311,7 +407,7 @@ ul.submenu {
     border: 1px solid #E0E0E0;
     border-top: 0;
     display: none;
-    font-size: 0.9em;
+    font-size: 0.8em;
     left: 0;
     margin-left: -1px;
     padding: 5px 0 10px 0;
@@ -331,29 +427,37 @@ li.main, li.current {
     width: 1%;
 }
 
+a.mainlink {
+    margin-left: 2px;
+}
+
 a.mainlink:link, a.mainlink:visited {
-    color: #fff;
+    color: #FFFFFF;
     display: block;
     height: 14px;
-    padding: 5px 8px 5px 8px;
+    padding: 2px 5px 2px 5px;
     text-shadow: 2px 2px 1px #2A7DB3;
+    border: solid 1px #333333;
 }
 
 a.mainlink:hover, a.mainlink:active, a.mainlink:focus {
-    background: url(/Mantissa/images/li_over.gif) #70bbec repeat-x top right;
-    color: #2a7db3;
+    border: solid 1px #FFFFFF;
     cursor: pointer;
     text-shadow: none;
 }
 
+a.sellink {
+    margin-left: 2px;
+}
+
 a.sellink:link, a.sellink:visited, a.sellink:hover, a.sellink:active, a.sellink:focus {
-    background: url(/Mantissa/images/li_over.gif) #70bbec repeat-x top right;
-    color: #2a7db3;
+    color: #FFFFFF;
     cursor: pointer;
     display: block;
     height: 14px;
-    padding: 5px 8px 5px 8px;
+    padding: 2px 5px 2px 5px;
     text-shadow: 2px 2px 1px #2A7DB3;
+    border: solid 1px #FFFFFF;
 }
 
 a.sublink:link, a.sublink:visited {
@@ -366,12 +470,11 @@ a.sublink:link, a.sublink:visited {
 
 a.sublink:hover, a.sublink:active, a.sublink:focus {
     background: #4CA1D8;
-    color: #fff;
+    color: #FFFFFF;
 }
 
 #mainmenu li:hover a.mainlink, #mainmenu li.over a.mainlink {
-    background: url(/Mantissa/images/li_over.gif) #70bbec repeat-x top right;
-    color: #2a7db3;
+    border: solid 1px #FFFFFF;
     text-shadow: none;
 }
 
@@ -389,16 +492,13 @@ a.childsellink {
 }
 
 #submenubar a.childunsellink:hover, #submenubar a.childunsellink:active, #submenubar a.childunsellink:focus {
-    background: #4CA1D8 url(/Mantissa/images/submenu_selected.gif) top left repeat-x;
-    color: #fff;
+    color: #FFFFFF;
 }
 
 
 #submenubar {
-    background: #fff repeat-x left top;
-    border-bottom: 1px solid #E9E9E9;
     clear: both;
-    color: #fff;
+    color: #FFFFFF;
     height: 1.8em;
     padding-left: 2px;
     text-align: left;

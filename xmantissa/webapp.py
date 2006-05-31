@@ -27,7 +27,7 @@ from xmantissa.website import PrefixURLMixin, StaticRedirect
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
 from xmantissa.webnav import getTabs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
-from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
+from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.offering import getInstalledOfferings
 
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
@@ -67,68 +67,69 @@ class NavMixin(object):
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
 
-    def render_navigation(self, ctx, data):
-        # this won't work with child tabs who have children
-        thisurl = url.URL.fromContext(ctx)
+    def _markTabs(self, url, tabs):
+        for tab in tabs:
+            if tab.linkURL is None:
+                tab.linkURL = self.webapp.linkTo(tab.storeID)
+            if tab.linkURL[1:] == url.path:
+                tab.selected = True
+            else:
+                tab.selected = False
 
-        patterns = PatternDictionary(self.getDocFactory('navigation'))
+            self._markTabs(url, tab.children)
 
-        def fillSlots(tab, pattern):
-            return dictFillSlots(pattern,
-                                 dict(href=tab.linkURL, name=tab.name))
-        allTabsStan = []
-        selChildStan = []
-
-        def markTabs(tabs):
-            for tab in tabs:
-                if tab.linkURL is None:
-                    tab.linkURL = self.webapp.linkTo(tab.storeID)
-                if tab.linkURL[1:] == thisurl.path:
-                    tab.selected = True
-                else:
-                    tab.selected = False
-
-                markTabs(tab.children)
-
-        markTabs(self.pageComponents.navigation)
+    def render_appNavigation(self, ctx, data):
+        self._markTabs(url.URL.fromContext(ctx), self.pageComponents.navigation)
+        getp = IQ(self.docFactory).onePattern
+        contents = getp('tab-contents')
 
         for tab in self.pageComponents.navigation:
             if tab.selected or True in (c.selected for c in tab.children):
-                tabStan = fillSlots(tab, patterns['selected-tab'])
-                for child in tab.children:
-                    if child.selected:
-                        pname = 'selected-child-selected'
-                    else:
-                        pname = 'selected-child-unselected'
-                    selChildStan.append(fillSlots(child, patterns[pname]))
+                p = 'selected-app-tab'
             else:
-                tabStan = fillSlots(tab, patterns['tab'])
-                if 0 < len(tab.children):
-                    subStan = patterns['subtabs'].fillSlots('subtabs',
-                            list(fillSlots(c, patterns['subtab']) for c in tab.children))
+                p = 'app-tab'
+
+            yield dictFillSlots(getp(p),
+                    {'name': tab.name,
+                     'href': tab.linkURL,
+                     'tab-contents': contents})
+
+    def render_navigation(self, ctx, data):
+        self._markTabs(url.URL.fromContext(ctx), self.pageComponents.navigation)
+        getp = IQ(self.docFactory).onePattern
+
+        def fillSlots(tabs):
+            for tab in tabs:
+                if tab.children:
+                    kids = getp('subtabs').fillSlots('kids', fillSlots(tab.children))
                 else:
-                    subStan = ''
-                tabStan = tabStan.fillSlots('subtabs', subStan)
+                    kids = ''
 
-            allTabsStan.append(tabStan)
+                yield dictFillSlots(getp('tab'), dict(href=tab.linkURL,
+                                                      name=tab.name,
+                                                      kids=kids))
 
-        return ctx.tag.fillSlots(
-                'tabs', allTabsStan).fillSlots(
-                        'selected-children', selChildStan)
+        return fillSlots(self.pageComponents.navigation)
 
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
 
     def render_search(self, ctx, data):
         searchAggregator = self.pageComponents.searchAggregator
+
         if searchAggregator is None or not searchAggregator.providers():
             return ''
+        return IQ(self.docFactory).patternGenerator("search")()
 
-        if self.searchPattern is None:
-            self.searchPattern = IQ(self.docFactory).patternGenerator("search")
+    def render_searchFormAction(self, ctx, data):
+        searchAggregator = self.pageComponents.searchAggregator
 
-        action = self.webapp.linkTo(searchAggregator.storeID)
-        return ctx.tag[self.searchPattern.fillSlots('form-action', action)]
+        if searchAggregator is None or not searchAggregator.providers():
+            action = ''
+        else:
+            action = self.webapp.linkTo(searchAggregator.storeID)
+
+        return ctx.tag.fillSlots('form-action', action)
 
     def render_username(self, ctx, data):
         if self.username is None:
