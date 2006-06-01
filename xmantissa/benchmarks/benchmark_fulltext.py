@@ -6,6 +6,8 @@ fulltext indexing API.
 
 from zope.interface import implements
 
+from epsilon.scripts import benchmark
+
 from axiom import store
 
 from xmantissa import ixmantissa, fulltext
@@ -23,14 +25,18 @@ class Message(object):
             u"seeing this message as an indexer test." * 100]
 
 
+
 def main():
     s = store.Store("lucene.axiom")
     indexer = fulltext.PyLuceneIndexer(store=s)
 
+    benchmark.start()
     writer = indexer.openWriteIndex()
     for i in xrange(10000):
         writer.add(Message())
     writer.close()
+    benchmark.close()
+
 
 
 if __name__ == '__main__':
