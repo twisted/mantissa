@@ -35,7 +35,7 @@ def main():
     for i in xrange(10000):
         writer.add(Message())
     writer.close()
-    benchmark.close()
+    benchmark.stop()
 
 
 
