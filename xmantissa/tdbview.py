@@ -1,6 +1,6 @@
 from zope.interface import implements
 
-from nevow import tags, athena, flat
+from nevow import tags, athena, flat, loaders
 
 from formless.annotate import nameToLabel
 
@@ -34,6 +34,56 @@ class ColumnViewBase(object):
 
     def onclick(self, idx, item, value):
         return None
+
+class EditableColumnView(ColumnViewBase):
+    """Column View that can be edited within the table."""
+
+    def __init__(self, attributeID, displayName=None, width=None,
+                 typeHint=None, coercer=unicode, getter=None, setter=None,
+                 **kw):
+        super(EditableColumnView, self).__init__(attributeID=attributeID,
+            displayName=displayName, width=width, typeHint=typeHint, **kw)
+        if getter is not None:
+            self.getter = getter
+        if setter is not None:
+            self.setter = setter
+
+    def stanFromValue(self, idx, item, value):
+        return EditableColumnField(self, idx, item, value)
+
+    # custom getter/setter can be given as kwargs to override default
+
+    def setter(self, item, value):
+        setattr(item, self.attributeID, coerced)
+
+    def getter(self, item):
+        return getattr(item, self.attributeID)
+
+class EditableColumnField(athena.LiveFragment):
+    """Renders the input field in the table cell to edit data in-place."""
+
+    allowedMethods = {'handleValueChange':True}
+    docFactory = loaders.stan(
+        tags.span(render=tags.directive('liveFragment'))[
+            tags.span(render=tags.directive('field'))
+        ])
+
+    def __init__(self, original, idx, item, value, *a, **kw):
+        athena.LiveFragment.__init__(self, original, *a, **kw)
+        self.idx = idx
+        self.item = item
+        self.value = value
+
+    def render_field(self, ctx, data):
+        handler = "Nevow.Athena.Widget.get(this).callRemote('handleValueChange', this.value)"
+        t = tags.input(type="text",
+                onchange=handler,
+                value=self.original.getter(self.item))
+        return t
+
+    def handleValueChange(self, value):
+        return self.original.setter(self.item, self.original.coercer(value))
+
 
 class DateColumnView(ColumnViewBase):
     def __init__(self, attributeID, displayName=None, width=None,
@@ -198,6 +248,8 @@ class TabularDataView(athena.LiveFragment):
                 value = row.get(cview.attributeID)
                 cellContents = cview.stanFromValue(
                         idx, row['__item__'], value)
+                if hasattr(cellContents, 'setFragmentParent'):
+                    cellContents.setFragmentParent(self)
                 handler = cview.onclick(idx, row['__item__'], value)
                 cellStan = dictFillSlots(cellPattern,
                                          {'value': cellContents,
