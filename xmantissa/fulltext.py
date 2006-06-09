@@ -4,14 +4,15 @@
 General functionality re-usable by various concrete fulltext indexing systems.
 """
 
-import atexit
+import atexit, os
 
 from zope.interface import implements
 
-from twisted.python import log
-from twisted.internet import defer, reactor
+from twisted.python import log, reflect
+from twisted.internet import defer
 
-from axiom import item, attributes, iaxiom
+from axiom import item, attributes, iaxiom, batch
+from axiom.upgrade import registerUpgrader
 
 from xmantissa import ixmantissa
 
@@ -20,6 +21,29 @@ XAPIAN_INDEX_DIR = u'xap.index'
 LUCENE_INDEX_DIR = u'lucene.index'
 
 VERBOSE = True
+
+class IndexCorrupt(Exception):
+    """
+    An attempt was made to open an index which has had unrecoverable data
+    corruption.
+    """
+
+
+
+class _IndexerInputSource(item.Item):
+    """
+    Tracks L{IBatchProcessor}s which have had an indexer added to them as a
+    listener.
+    """
+    indexer = attributes.reference(doc="""
+    The indexer item with which this input source is associated.
+    """, whenDeleted=attributes.reference.CASCADE)
+
+    source = attributes.reference(doc="""
+    The L{IBatchProcessor} which acts as the input source.
+    """, whenDeleted=attributes.reference.CASCADE)
+
+
 
 class RemoteIndexer(item.InstallableMixin):
     """
@@ -59,6 +83,31 @@ class RemoteIndexer(item.InstallableMixin):
             log.msg("Activating %s/%d with null index" % (self.store, self.storeID))
 
 
+    def addSource(self, itemSource):
+        """
+        Add the given L{IBatchProcessor} as a source of input for this indexer.
+        """
+        _IndexerInputSource(store=self.store, indexer=self, source=itemSource)
+        itemSource.addReliableListener(self, style=iaxiom.REMOTE)
+
+
+    def getSources(self):
+        return self.store.query(_IndexerInputSource, _IndexerInputSource.indexer == self).getColumn("source")
+
+
+    def reset(self):
+        """
+        Process everything all over again.
+        """
+        self.indexCount = 0
+        indexDir = self.store.newDirectory(self.indexDirectory)
+        if indexDir.exists():
+            indexDir.remove()
+        for src in self.getSources():
+            src.removeReliableListener(self)
+            src.addReliableListener(self, style=iaxiom.REMOTE)
+
+
     def _closeIndex(self):
         if VERBOSE:
             log.msg("%s/%d closing index" % (self.store, self.storeID))
@@ -84,10 +133,13 @@ class RemoteIndexer(item.InstallableMixin):
 
 
     def processItem(self, item):
-        reactor.callLater(10, lambda: self)
-
         if self._index is None:
-            self._index = self.openWriteIndex()
+            try:
+                self._index = self.openWriteIndex()
+            except IndexCorrupt:
+                self.reset()
+                return
+
             if VERBOSE:
                 log.msg("Opened %s %s/%d for writing" % (self._index, self.store, self.storeID))
 
@@ -174,6 +226,8 @@ class _HypeIndex(object):
 
 class HypeIndexer(RemoteIndexer, item.Item):
 
+    schemaVersion = 2
+
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
     indexDirectory = attributes.text(default=HYPE_INDEX_DIR)
@@ -236,6 +290,8 @@ class _XapianIndex(object):
 
 
 class XapianIndexer(RemoteIndexer, item.Item):
+
+    schemaVersion = 2
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
@@ -308,35 +364,42 @@ def _closeIndexes():
     closes any _PyLuceneIndex objects still in _closeObjects when it gets
     run.
     """
-    global _closeObjects
-    for o in _closeObjects:
-        o.close()
-    _closeObjects = []
+    while _closeObjects:
+        _closeObjects[-1].close()
 atexit.register(_closeIndexes)
 
 
 class PyLuceneIndexer(RemoteIndexer, item.Item):
+
+    schemaVersion = 2
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
     indexDirectory = attributes.text(default=LUCENE_INDEX_DIR)
 
     _index = attributes.inmemory()
+    _lockfile = attributes.inmemory()
+
+
+    def reset(self):
+        """
+        In addition to the behavior of the superclass, delete any dangling
+        lockfiles which may prevent this index from being opened.  With the
+        tested version of PyLucene (something pre-2.0), this appears to not
+        actually be necessary: deleting the entire index directory but
+        leaving the lockfile in place seems to still allow the index to be
+        recreated (perhaps because when the directory does not exist, we
+        pass True as the create flag when opening the FSDirectory, I am
+        uncertain).  Nevertheless, do this anyway for now.
+        """
+        RemoteIndexer.reset(self)
+        if hasattr(self, '_lockfile'):
+            os.remove(self._lockfile)
+            del self._lockfile
 
 
     def _analyzer(self):
         return PyLucene.SimpleAnalyzer()
-
-
-    def _setLockDirectory(self):
-        lockdir = self.store.newTemporaryFilePath('lucene-locks')
-        if not lockdir.exists():
-            lockdir.makedirs()
-        # Is Lucene really so bad that I actually have to do this?  I hope not
-        # but I can't see any other way. - exarkun
-
-        # XXX Actually this doesn't do anything at all, apparently. - exarkun
-        PyLucene.FSDirectory.LOCK_DIR = lockdir.path
 
 
     if PyLucene is None:
@@ -350,31 +413,71 @@ class PyLuceneIndexer(RemoteIndexer, item.Item):
         def openReadIndex(self):
             luceneDir = self.store.newDirectory(self.indexDirectory)
 
-            self._setLockDirectory()
 
             if not luceneDir.exists():
                 self.openWriteIndex().close()
 
             fsdir = PyLucene.FSDirectory.getDirectory(luceneDir.path, False)
-            return _PyLuceneIndex(fsdir, PyLucene.IndexSearcher(fsdir), self._analyzer())
+            try:
+                reader = PyLucene.IndexSearcher(fsdir)
+            except PyLucene.JavaError, e:
+                raise IndexCorrupt()
+            else:
+                return _PyLuceneIndex(fsdir, reader, self._analyzer())
 
 
         def openWriteIndex(self):
-            self._setLockDirectory()
-
             luceneDir = self.store.newDirectory(self.indexDirectory)
+
 
             create = not luceneDir.exists()
 
-            fsdir = PyLucene.FSDirectory.getDirectory(luceneDir.path, create)
             analyzer = self._analyzer()
 
-            # XXX TODO - Creating an IndexWriter might fail with an error
-            # acquiring the write lock.  This should only ever be possible
-            # after a hardware crash or some other unclean shutdown of the
-            # batch process.  If it does happen, though, we probably need to
-            # delete the Lucene index and recreate it.
-            return _PyLuceneIndex(
-                fsdir,
-                PyLucene.IndexWriter(fsdir, analyzer, create),
-                analyzer)
+            fsdir = PyLucene.FSDirectory.getDirectory(luceneDir.path, create)
+            try:
+                writer = PyLucene.IndexWriter(fsdir, analyzer, create)
+            except PyLucene.JavaError, e:
+                lockTimeout = u'Lock obtain timed out: Lock@'
+                msg = e.getJavaException().getMessage()
+                if msg.startswith(lockTimeout):
+                    self._lockfile = msg[len(lockTimeout):]
+                raise IndexCorrupt()
+            return _PyLuceneIndex(fsdir, writer, analyzer)
+
+
+
+def remoteIndexer1to2(oldIndexer):
+    """
+    Previously external application code was responsible for adding a
+    RemoteListener to a batch work source as a reliable listener.  This
+    precluded the possibility of the RemoteListener resetting itself
+    unilaterally.  With version 2, RemoteListener takes control of adding
+    itself as a reliable listener and keeps track of the sources with which it
+    is associated.  This upgrader creates that tracking state.
+    """
+    newIndexer = oldIndexer.upgradeVersion(
+        oldIndexer.typeName, 1, 2,
+        indexCount=oldIndexer.indexCount,
+        installedOn=oldIndexer.installedOn,
+        indexDirectory=oldIndexer.indexDirectory)
+
+    listeners = newIndexer.store.query(
+        batch._ReliableListener,
+        batch._ReliableListener.listener == newIndexer)
+
+    for listener in listeners:
+        _IndexerInputSource(
+            store=newIndexer.store,
+            indexer=newIndexer,
+            source=listener.processor)
+
+    return newIndexer
+
+for cls in [HypeIndexer, XapianIndexer, PyLuceneIndexer]:
+    registerUpgrader(
+        remoteIndexer1to2,
+        item.normalize(reflect.qual(cls)),
+        1,
+        2)
+del cls
