@@ -35,7 +35,7 @@ from twisted.application import service
 from twisted.protocols import policies
 from twisted.python import log
 
-from axiom import iaxiom, item, attributes, errors, userbase
+from axiom import iaxiom, item, attributes, errors, userbase, upgrade
 from epsilon.extime import Time
 from xmantissa.offering import getInstalledOfferings
 from epsilon import juice
@@ -274,8 +274,18 @@ def formatSize(size, suffix='', pluralize=False, base10=None, fractionalDigits=N
 
 
 class StatBucket(item.Item):
+    schemaVersion = 2
     "I record the totals for a particular statistic over some time period."
     type = attributes.text(doc="A stat name, such as 'messagesReceived'")
+    value = attributes.ieee754_double(default=0.0, doc='Total number of events for this time period')
+    interval = attributes.text(doc='A time period, e.g. "quarter-hour" or "minute" or "day"')
+    index = attributes.integer(doc='The position in the round-robin list for non-daily stats')
+    time = attributes.timestamp(doc='When this bucket was last updated')
+    attributes.compoundIndex(interval, type, index)
+
+class QueryStatBucket(item.Item):
+    "Pretty much the same thing as above, but just for SQL query stats"
+    type = attributes.text("the SQL query string")
     value = attributes.ieee754_double(default=0.0, doc='Total number of events for this time period')
     interval = attributes.text(doc='A time period, e.g. "quarter-hour" or "minute" or "day"')
     index = attributes.integer(doc='The position in the round-robin list for non-daily stats')
@@ -291,6 +301,7 @@ class StatSampler(item.Item):
         if self.service.running:
             updates = []
             self.doStatSample(self.store, self.service.statoscope, t, updates)
+            self.doStatSample(self.store, self.service.queryStatoscope, t, [], bucketType=QueryStatBucket)
             for recorder in self.service.userStats.values():
                 self.doStatSample(recorder.store, recorder.statoscope, t, updates)
             for obs in self.service.observers:
@@ -306,7 +317,7 @@ class StatSampler(item.Item):
 
         return Time.fromDatetime(t._time.replace(second=0) + datetime.timedelta(minutes=1))
 
-    def doStatSample(self, store, statoscope, t, updates):
+    def doStatSample(self, store, statoscope, t, updates, bucketType=StatBucket):
         """
         Record stats collected over the past minute.  All current
         statoscopes are dumped into per-minute buckets, and a running
@@ -318,17 +329,17 @@ class StatSampler(item.Item):
                 #measured in kB/sec, not bytes/minute
                 v = float(v) / (60 * 1024)
             mb = store.findOrCreate(
-                StatBucket, type=unicode(k),
+                bucketType, type=unicode(k),
                 interval=u"minute", index=self.service.currentMinuteBucket)
             mb.time = t
             mb.value = float(v)
             qhb = store.findOrCreate(
-                StatBucket, type=unicode(k),
+                bucketType, type=unicode(k),
                 interval=u"quarter-hour", index=self.service.currentQuarterHourBucket)
             qhb.time = t
             qhb.value += float(v)
             db = store.findOrCreate(
-                StatBucket, type=unicode(k),
+                bucketType, type=unicode(k),
                 interval=u"day", time=Time.fromDatetime(t._time.replace(hour=0, second=0, minute=0, microsecond=0)))
             db.value += float(v)
             if (k, v) not in updates:
@@ -353,13 +364,14 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     running = attributes.inmemory()
     name = attributes.inmemory()
     statoscope = attributes.inmemory()
+    queryStatoscope = attributes.inmemory()
     statTypes = attributes.inmemory()
     currentMinuteBucket = attributes.integer(default=0)
     currentQuarterHourBucket = attributes.integer(default=0)
     observers = attributes.inmemory()
     loginInterfaces = attributes.inmemory()
     userStats = attributes.inmemory()
-    
+
     def installOn(self, store):
         super(StatsService, self).installOn(store)
         store.powerUp(self, service.IService)
@@ -379,10 +391,11 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     def startService(self):
         service.Service.startService(self)
         self.statoscope = Statoscope("mantissa-stats", None)
+        self.queryStatoscope = Statoscope("query-stats", None)
         log.addObserver(self._observeStatEvent)
         self.statTypes = statDescriptions.keys()
         self.observers = []
-        
+
         self.observers.extend(self.store.query(RemoteStatsObserver))
         self.loginInterfaces = {}
         self.userStats = {}
@@ -422,7 +435,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         elif 'athena_received_messages' in events:
             events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_received':events['count']}
         elif 'querySQL' in events:
-            self.statoscope.record(**{ "_axiom_query:" + events['querySQL']: events['queryTime']})
+            self.queryStatoscope.record(**{events['querySQL']: events['queryTime']})
 
         elif 'cred_interface' in events:
             if_desc = self.loginInterfaces.get(events['cred_interface'], None)
@@ -527,3 +540,16 @@ class SimpleRemoteStatsCollector(juice.Juice):
         self.factory.log.write("%s %s\n" % (time, data))
         return {}
     command_STAT_UPDATE.command = StatUpdate
+
+def upgradeStatBucket1to2(bucket):
+    if bucket.type.startswith(u"_axiom_query"):
+        bucket.deleteFromStore()
+        return None
+    else:
+        return bucket.upgradeVersion("xmantissa_stats_statbucket", 1, 2,
+                                     type=bucket.type,
+                                     index=bucket.index,
+                                     interval=bucket.interval,
+                                     value=bucket.value,
+                                     time=bucket.time)
+upgrade.registerUpgrader(upgradeStatBucket1to2, 'xmantissa_stats_statbucket', 1, 2)

@@ -1,6 +1,6 @@
 # -*- test-case-name: xmantissa -*-
 
-import operator, random, string
+import operator, random, string, time
 
 from zope.interface import implements
 
@@ -402,21 +402,21 @@ class AdminStatsFragment(athena.LiveFragment):
             beginning += stats.MAX_MINUTES
             # this is a round-robin list, so make sure to get
             # the part recorded before the wraparound:
-            bs = self.svc.store.query(stats.StatBucket,
-                                       AND(stats.StatBucket.type.like(u"_axiom_query", u'%'),
-                                           stats.StatBucket.interval== u"minute",
-                                           OR(stats.StatBucket.index >= beginning,
-                                              stats.StatBucket.index <= end)))
+            bs = self.svc.store.query(stats.QueryStatBucket, AND(
+                                           stats.QueryStatBucket.interval== u"minute",
+                                           OR(stats.QueryStatBucket.index >= beginning,
+                                              stats.QueryStatBucket.index <= end)))
 
         else:
-            bs = self.svc.store.query(stats.StatBucket,
-                                      AND(stats.StatBucket.type.like(u"_axiom_query", u'%'),
-                                          stats.StatBucket.interval== u"minute",
-                                          stats.StatBucket.index >= beginning,
-                                          stats.StatBucket.index <= end))
+            bs = self.svc.store.query(stats.QueryStatBucket, AND(
+                                          stats.QueryStatBucket.interval== u"minute",
+                                          stats.QueryStatBucket.index >= beginning,
+                                          stats.QueryStatBucket.index <= end))
         slices = {}
+        start = time.time()
         for bucket in bs:
-            slices.setdefault(bucket.type[len("_axiom_query:"):], []).append(bucket.value)
+            slices.setdefault(bucket.type, []).append(bucket.value)
+        log.msg("Query-stats query time: %s Items: %s" % (time.time() - start, bs.count()))
         for k, v in slices.items():
             tot =  sum(v)
             if tot:
