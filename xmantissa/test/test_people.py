@@ -59,7 +59,6 @@ class PeopleTests(unittest.TestCase):
         email = s.findUnique(people.EmailAddress, people.EmailAddress.person == person)
 
         self.assertEquals(email.address, 'jlp@starship.enterprise')
-        self.assertEquals(email.type, 'default')
 
         rn = s.findUnique(people.RealName, people.RealName.person == person)
 

@@ -4,9 +4,10 @@ from nevow import loaders, tags
 from nevow.livetrial.testcase import TestCase
 
 from axiom.store import Store
-from axiom import attributes
 
-from xmantissa import people
+from xmantissa import people, ixmantissa
+from xmantissa.webtheme import getLoader
+from xmantissa.webapp import PrivateApplication
 
 class AddPersonTestBase(people.AddPersonFragment):
     jsClass = u'Mantissa.Test.People'
@@ -112,118 +113,35 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
         e = self.store.findUnique(people.EmailAddress)
         self.assertEqual(e.address, 'a@b.c')
         self.assertEqual(e.person, p)
-        self.assertEqual(e.type, 'default')
 
         e.deleteFromStore()
         p.deleteFromStore()
 
         self.assertEqual(self.store.count(people.RealName), 0)
 
-class ContactInfoTestBase(people.ContactInfoFragment):
-    jsClass = u'Mantissa.Test.People'
+class PersonDetailTestCase(TestCase):
+    jsClass = u'Mantissa.Test.PersonDetail'
 
-    def __init__(self):
-        self.store = Store()
-        super(ContactInfoTestBase, self).__init__(self.makePerson())
+    docFactory = loaders.stan(tags.div[
+                    tags.div(render=tags.directive('liveTest'))[
+                        tags.div(render=tags.directive('personDetail'))]])
 
-        self.docFactory = loaders.stan(
-            tags.div(render=tags.directive('liveTest'))[
-                tags.invisible(render=tags.directive('contactInfo'))])
+    def render_personDetail(self, ctx, data):
+        s = Store()
 
-    # override this
-    def makePerson(self):
-        self.person = people.Person(name=u'Bob', store=self.store)
-        return self.person
+        PrivateApplication(store=s).installOn(s)
 
-    # and this
-    def mangleDefaults(self, params):
-        pass
+        o = people.Organizer(store=s)
+        o.installOn(s)
 
-    # and this.  this will get called after editPerson,
-    # so fail the test here if appropriate
-    def checkResult(self):
-        pass
+        p = people.Person(store=s,
+                          name=u'The Foo Person',
+                          organizer=o)
 
-    def editPerson(self, *a, **k):
-        super(ContactInfoTestBase, self).editPerson(*a, **k)
-        self.checkResult()
+        people.EmailAddress(store=s, person=p, address=u'foo@skynet')
+        people.PhoneNumber(store=s, person=p, number=u'434-5030')
 
-    def render_contactInfo(self, ctx, data):
-        liveform = super(ContactInfoTestBase, self).render_contactInfo(ctx, data)
-        params = dict((p.name, p) for p in liveform.parameters)
-        self.mangleDefaults(params)
-        return liveform
-
-class EditEmails(ContactInfoTestBase, TestCase):
-
-    def makePerson(self):
-        super(EditEmails, self).makePerson()
-
-        people.EmailAddress(person=self.person,
-                            store=self.store,
-                            address=u'bob@divmod.com',
-                            type=u'default')
-        people.EmailAddress(person=self.person,
-                            store=self.store,
-                            address=u'bob.business@divmod.com',
-                            type=u'business')
-        return self.person
-
-    def mangleDefaults(self, params):
-        params['defaultEmail'].default = u'bob.default@divmod.com'
-        params['homeEmail'].default = u'bob.home@divmod.com'
-        params['businessEmail'].default = u''
-
-    def checkResult(self):
-        EA = people.EmailAddress
-        def assertAddrEquals(_type, addr):
-            ea = self.store.findUnique(EA,
-                                       attributes.AND(EA.person == self.person,
-                                                      EA.type == _type))
-            self.assertEqual(ea.address, addr)
-
-        assertAddrEquals(u'default', u'bob.default@divmod.com')
-        assertAddrEquals(u'home', u'bob.home@divmod.com')
-        self.emails.clear()
-
-class EditRealName(ContactInfoTestBase, TestCase):
-
-    def mangleDefaults(self, params):
-        params['firstname'].default = u'Bob'
-        params['lastname'].default = u'The Slob'
-
-    def checkResult(self):
-        rn = self.store.findUnique(people.RealName,
-                                   people.RealName.person == self.person)
-
-        self.assertEqual(rn.display, 'Bob The Slob')
-        rn.deleteFromStore()
-
-class EditNickname(ContactInfoTestBase, TestCase):
-
-    def mangleDefaults(self, params):
-        params['nickname'].default = u'Bobby'
-
-    def checkResult(self):
-        self.assertEqual(self.person.name, 'Bobby')
-
-
-class EditPhoneNumber(ContactInfoTestBase, TestCase):
-
-    def mangleDefaults(self, params):
-        params['defaultPhone'].default = u'555-1212'
-        params['businessPhone'].default = u'555-2323'
-
-    def checkResult(self):
-        PN = people.PhoneNumber
-        def assertNumberEquals(_type, addr):
-            pn = self.store.findUnique(PN,
-                                       attributes.AND(PN.person == self.person,
-                                                      PN.type == _type))
-            self.assertEqual(pn.number, addr)
-            pn.deleteFromStore()
-
-        assertNumberEquals(u'default', '555-1212')
-        assertNumberEquals(u'business', '555-2323')
-
-        self.assertEqual(self.store.count(PN), 0)
+        f = ixmantissa.INavigableFragment(p)
+        f.docFactory = getLoader(f.fragmentName)
+        f.setFragmentParent(self)
+        return f

@@ -96,3 +96,101 @@ Mantissa.Test.ScrollTable.methods(
         self._preTestDeferred.callback(n);
     });
 
+Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
+Mantissa.Test.PersonDetail.methods(
+    function contactInfoSectionsFromSectionName(self, sectionName) {
+        return Nevow.Athena.NodesByAttribute(
+            self.personDetail.firstNodeByAttribute("class", sectionName),
+            "class",
+            "contact-info-item");
+    },
+
+    function firstNodeByAttributeAndNodeValue(self, root, attr, value, nodeValue) {
+        var nodes = Nevow.Athena.NodesByAttribute(root, attr, value);
+        for(var i = 0; i < nodes.length; i++) {
+            if(nodes[i].childNodes && nodes[i].firstChild.nodeValue == nodeValue) {
+                return nodes[i];
+            }
+        }
+        throw new Error("couldn't find node with " + attr + " value " +
+                        value + " and node value " + nodeValue);
+    },
+
+    function changeAndSaveItemWithValue(self, sections, value, newValue) {
+        var node, valueNode;
+        for(var i = 0; i < sections.length; i++) {
+            try {
+                valueNode = self.firstNodeByAttributeAndNodeValue(
+                                sections[i], "class", "value", value);
+            } catch(e) {
+                continue;
+            }
+            node = sections[i];
+        }
+        if(!node) {
+            throw new Error("can't find item with value " + value);
+        }
+
+        Nevow.Athena.FirstNodeByAttribute(
+            node, "class", "contact-info-action-edit").onclick();
+
+        Nevow.Athena.FirstNodeByAttribute(node, "value", value).value = newValue;
+
+        var D = self.personDetail.saveContactInfoItem(
+            Nevow.Athena.FirstNodeByAttribute(
+                node, "class", "contact-info-action-save"));
+
+        return D.addCallback(
+            function() {
+                self.assertEquals(valueNode.firstChild.nodeValue, newValue);
+            });
+    },
+
+    function addItemToSection(self, sectionName, value) {
+        var section = self.personDetail.firstNodeByAttribute("class", sectionName);
+
+        Nevow.Athena.FirstNodeByAttribute(
+            section, "class", "contact-info-action-add").onclick();
+
+        var addForm = Nevow.Athena.FirstNodeByAttribute(
+                        section, "class", "add-contact-info");
+
+        var inputs = addForm.getElementsByTagName("input");
+        self.assertEquals(inputs.length, 1);
+        inputs[0].value = value;
+
+        var createLink = Nevow.Athena.FirstNodeByAttribute(
+                            addForm, "class", "contact-info-action-create");
+
+        var D = self.personDetail.createContactInfoItem(createLink);
+        return D.addCallback(
+            function(node) {
+                node = Nevow.Athena.FirstNodeByAttribute(
+                            node, "class", "value");
+                self.assertEquals(node.firstChild.nodeValue, value);
+            });
+    },
+
+    function run(self) {
+        self.personDetail = Nevow.Athena.Widget.get(
+                                Nevow.Athena.FirstNodeByAttribute(
+                                    self.node,
+                                    "athena:class",
+                                    "Mantissa.People.PersonDetail"));
+
+        var phoneSections = self.contactInfoSectionsFromSectionName("PhoneNumber");
+        var emailSections = self.contactInfoSectionsFromSectionName("EmailAddress");
+
+        var D = self.changeAndSaveItemWithValue(phoneSections, "434-5030", "555-1212");
+
+        D.addCallback(
+            function() {
+                return self.changeAndSaveItemWithValue(
+                    emailSections, "foo@skynet", "foo@internet");
+        }).addCallback(
+            function() {
+                return self.addItemToSection("PhoneNumber", "123-4567");
+        });
+
+        return D;
+    });

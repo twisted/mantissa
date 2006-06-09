@@ -515,19 +515,19 @@ class IOrganizerPlugin(Interface):
         """
         Return some plugin-specific state for the given person.
 
-        @param person: A C{xmantissa.person.Person} instance.
+        @param person: A L{xmantissa.person.Person} instance.
 
-        The returned object should probably be adaptable to
-        IPersonFragment.
+        @return: something adaptable to L{IPersonFragment}
         """
+
 
 class IPersonFragment(Interface):
     """
-    A detailed view of a Mantissa Person.
+    Web facet of a personalized L{IOrganizerPlugin}, e.g.
+    widget that provides web UI for associating RSS feeds
+    with a person, or shows a list of emails recently received
+    from them.
     """
-    docFactory = Attribute("""
-    Nevow-style docFactory object.
-    """)
 
     title = Attribute("""
     The title of this fragment.  This will be displayed as the title

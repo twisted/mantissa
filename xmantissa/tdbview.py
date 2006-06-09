@@ -201,7 +201,6 @@ class TabularDataView(athena.LiveFragment):
 
         tablePattern = self.patterns['table']
 
-
         headers = self.constructColumnHeaders()
         rows = self.constructRows(modelData)
 

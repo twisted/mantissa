@@ -8,16 +8,28 @@ from zope.interface import implements
 
 from twisted.python import components
 
-from nevow import rend, athena, inevow
-from nevow.taglibrary import tabbedPane
+from nevow import rend, athena, inevow, static, url
+from nevow.flat import flatten
 
 from epsilon import extime
 
 from axiom import item, attributes
+from axiom.upgrade import registerUpgrader
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
+from xmantissa.tdbview import TabularDataView, ColumnViewBase
+from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
+
+from PIL import Image
+
+def makeThumbnail(infile, outfile, thumbSize=200, format='jpeg'):
+    image = Image.open(infile)
+    (width, height) = image.size
+    scale = float(thumbSize) / max(max(width, height), thumbSize)
+    image.resize((int(width * scale),
+                  int(height * scale)), Image.ANTIALIAS).save(outfile, format)
 
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
@@ -52,6 +64,9 @@ class Person(item.Item):
         "This name of this person.")
     created = attributes.timestamp()
 
+    def __init__(self, **kw):
+        kw['created'] = extime.Time()
+        super(Person, self).__init__(**kw)
 
     def getDisplayName(self):
         # XXX figure out the default
@@ -64,10 +79,29 @@ class Person(item.Item):
         for email in self.store.query(EmailAddress, EmailAddress.person == self):
             return email.address
 
-    def __init__(self, **kw):
-        kw['created'] = extime.Time()
-        super(Person, self).__init__(**kw)
+    def registerExtract(self, extract, timestamp=None):
+        """
+        @param extract: some Item that implements L{inevow.IRenderer}
+        """
+        if timestamp is None:
+            timestamp = extime.Time()
 
+        return ExtractWrapper(store=self.store,
+                              extract=extract,
+                              timestamp=timestamp,
+                              person=self)
+
+    def getExtractWrappers(self, n):
+        return self.store.query(ExtractWrapper,
+                                ExtractWrapper.person == self,
+                                sort=ExtractWrapper.timestamp.desc,
+                                limit=n)
+
+class ExtractWrapper(item.Item):
+    extract = attributes.reference(whenDeleted=attributes.reference.CASCADE)
+    timestamp = attributes.timestamp(indexed=True)
+    person = attributes.reference(reftype=Person,
+                                  whenDeleted=attributes.reference.CASCADE)
 
 class Organizer(item.Item, item.InstallableMixin):
     """
@@ -248,19 +282,37 @@ class RealName(item.Item):
 
 class EmailAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_emailaddress'
-    schemaVersion = 1
+    schemaVersion = 2
 
     address = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
-    type = attributes.text(allowNone=False) #default|home|business
+
+def emailAddress1to2(old):
+    return old.upgradeVersion('mantissa_organizer_addressbook_emailaddress',
+                              1, 2,
+                              address=old.address,
+                              person=old.person)
+
+registerUpgrader(emailAddress1to2,
+                 'mantissa_organizer_addressbook_emailaddress',
+                 1, 2)
 
 class PhoneNumber(item.Item):
     typeName = 'mantissa_organizer_addressbook_phonenumber'
-    schemaVersion = 1
+    schemaVersion = 2
 
     number = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
-    type = attributes.text(allowNone=False) #default|home|business
+
+def phoneNumber1to2(old):
+    return old.upgradeVersion('mantissa_organizer_addressbook_phonenumber',
+                              1, 2,
+                              number=old.number,
+                              person=old.person)
+
+registerUpgrader(phoneNumber1to2,
+                 'mantissa_organizer_addressbook_phonenumber',
+                 1, 2)
 
 class AddPerson(item.Item, item.InstallableMixin):
     implements(ixmantissa.INavigableElement)
@@ -328,8 +380,7 @@ class AddPersonFragment(athena.LiveFragment):
         if email:
             EmailAddress(store=store,
                          address=email,
-                         person=person,
-                         type=u'default')
+                         person=person)
 
         if firstname is not None or lastname is not None:
             RealName(store=store,
@@ -360,108 +411,48 @@ class AddressBook(item.Item, item.InstallableMixin):
             _AddressBook,
             person=person)
 
-class ContactInfoFragment(athena.LiveFragment):
-    iface = {}
+class PersonExtractFragment(TabularDataView):
+    def render_navigation(self, ctx, data):
+        return inevow.IQ(
+                webtheme.getLoader('person-extracts')).onePattern('navigation')
 
-    def __init__(self, person):
-        super(ContactInfoFragment, self).__init__(person)
-        self.person = person
-        self.docFactory = webtheme.getLoader('person-contact-info')
+class ExtractWrapperColumnView(ColumnViewBase):
+    def stanFromValue(self, idx, item, value):
+        return inevow.IRenderer(item.extract)
 
-    emailTypes = phoneTypes = (u'default', u'home', u'business')
+class MugshotUploadPage(rend.Page):
+    def __init__(self, cbGotFile, redirectTo):
+        self._cbGotFile = cbGotFile
+        self._redirectTo = redirectTo
+        rend.Page.__init__(self)
 
-    def render_contactInfo(self, ctx, data):
-        s = self.person.store
-        rn = s.findFirst(RealName, RealName.person == self.person)
-
-        if rn is None:
-            first = last = ''
+    def renderHTTP(self, ctx):
+        req = inevow.IRequest(ctx)
+        if req.method == 'POST':
+            udata = req.fields['uploaddata']
+            self._cbGotFile(udata.type, udata.file)
+            req.redirect(url.URL.fromString(self._redirectTo))
+            return ''
         else:
-            (first, last) = (rn.first, rn.last)
+            return rend.Page.renderHTTP(self, ctx)
 
-        def itemsByType(itemClass, types):
-            d = dict((i.type, i) for i in s.query(itemClass, itemClass.person == self.person))
-            d.update((type, None) for type in types if type not in d)
-            return d
+class Mugshot(item.Item):
+    """
+    An image that is associated with a person
+    """
+    type = attributes.text(allowNone=False) # content type
+    body = attributes.path(allowNone=False) # path to image data
 
-        self.emails = itemsByType(EmailAddress, self.emailTypes)
-        self.phones = itemsByType(PhoneNumber, self.phoneTypes)
+    person  = attributes.reference(allowNone=False)
 
-        def makeParam(name, desc, default, coerce=_hasLengthOrNone):
-            return liveform.Parameter(name, liveform.TEXT_INPUT, coerce, desc, default)
-
-        editPersonForm = liveform.LiveForm(
-            self.editPerson,
-            [makeParam('firstname', 'First Name', first),
-             makeParam('lastname', 'Last Name', last),
-             makeParam('nickname', 'Nickname', self.person.name)] +
-
-            [makeParam(k + 'Email',
-                       k.capitalize() + ' Email',
-                       getattr(v, 'address', ''))
-
-                for (k, v) in self.emails.iteritems()] +
-
-            [makeParam(k + 'Phone',
-                       k.capitalize() + ' Phone',
-                       getattr(v, 'number', ''))
-
-                for (k, v) in self.phones.iteritems()],
-
-            description='Save')
-
-        self.realname = rn
-
-        editPersonForm.docFactory = webtheme.getLoader('liveform-compact')
-        editPersonForm.setFragmentParent(self)
-        return editPersonForm
-
-    def editPerson(self, **k):
-        getval = k.__getitem__
-
-        if self.person.name != getval('nickname'):
-            self.person.name = getval('nickname')
-
-        firstname = getval('firstname')
-        lastname  = getval('lastname')
-
-        haveEither = firstname is not None or lastname is not None
-
-        if haveEither:
-            if self.realname is None:
-                RealName(store=self.person.store,
-                         person=self.person,
-                         first=firstname,
-                         last=lastname)
-            elif (firstname != self.realname.first
-                    or lastname != self.realname.last):
-                if self.realname.first != firstname:
-                    self.realname.first = firstname
-                if self.realname.last != lastname:
-                    self.realname.last = lastname
-
-        for (typeMap, typeSuffix, attr) in ((self.emails, 'Email', EmailAddress.address),
-                                            (self.phones, 'Phone', PhoneNumber.number)):
-            for (_type, item) in typeMap.iteritems():
-                newval = getval(_type + typeSuffix)
-                if item is None:
-                    if newval is not None:
-                        attr.type(store=self.person.store,
-                                  person=self.person,
-                                  type=_type,
-                                  **{attr.attrname: newval})
-                elif newval is not None:
-                    if getattr(item, attr.attrname) != newval:
-                        setattr(item, attr.attrname, newval)
-                else:
-                    item.deleteFromStore()
-
-        return u'Updated Person'
-
-class PersonDetailFragment(athena.LiveFragment):
+class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'person-detail'
-    iface = {}
     live = 'athena'
+    jsClass = 'Mantissa.People.PersonDetail'
+
+    iface = allowedMethods = {'createContactInfoItem': True,
+                              'editContactInfoItem': True,
+                              'deleteContactInfoItem': True}
 
     def __init__(self, person):
         athena.LiveFragment.__init__(self, person)
@@ -475,41 +466,120 @@ class PersonDetailFragment(athena.LiveFragment):
         self.personFragments = list(ixmantissa.IPersonFragment(p)
                                         for p in self.organizer.peoplePlugins(person))
 
+        self.myURL = ixmantissa.IWebTranslator(person.store).linkTo(person.storeID)
+
+    def _gotMugshotFile(self, ctype, infile):
+        (majortype, minortype) = ctype.split('/')
+        if majortype != 'image':
+            return
+
+        outfile = self.person.store.newFile('mugshots', str(self.person.storeID))
+        makeThumbnail(infile, outfile, format=minortype)
+        outfile.close()
+
+        ctype = unicode(ctype, 'ascii')
+        mugshot = self.person.store.findUnique(
+                        Mugshot, Mugshot.person == self.person, default=None)
+
+        if mugshot is None:
+            Mugshot(store=self.person.store,
+                    person=self.person,
+                    type=ctype,
+                    body=outfile.finalpath)
+        else:
+            mugshot.type = ctype
+            mugshot.body = outfile.finalpath
+
+    def child_uploadMugshot(self, ctx):
+        return MugshotUploadPage(self._gotMugshotFile, self.myURL)
+
+    def child_mugshot(self, ctx):
+        mugshot = self.person.store.findUnique(Mugshot, Mugshot.person == self.person)
+        return static.File(mugshot.body.path, str(mugshot.type))
+
+    def render_mugshotLink(self, ctx, data):
+        self.mugshot = self.person.store.findUnique(
+                            Mugshot, Mugshot.person == self.person, default=None)
+        if self.mugshot is None:
+            return '/Mantissa/images/mugshot-placeholder.png'
+        return self.myURL + '/mugshot'
+
+    def render_mugshotFormAction(self, ctx, data):
+        return self.myURL + '/uploadMugshot'
+
+    def editContactInfoItem(self, typeName, oldValue, newValue):
+        for (cls, attr) in self.contactInfoItemTypes:
+            if typeName == cls.__name__:
+                item = self.person.store.findFirst(cls,
+                            attributes.AND(
+                                getattr(cls, attr) == oldValue,
+                                cls.person == self.person))
+                setattr(item, attr, newValue)
+                break
+
+    def createContactInfoItem(self, typeName, value):
+        for (cls, attr) in self.contactInfoItemTypes:
+            if typeName == cls.__name__:
+                cls(person=self.person,
+                    store=self.person.store,
+                    **{attr: value})
+                p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
+                return unicode(flatten(p.fillSlots('value', value)), 'utf-8')
+
+    def deleteContactInfoItem(self, typeName, value):
+        for (cls, attr) in self.contactInfoItemTypes:
+            if typeName == cls.__name__:
+                self.person.store.findFirst(cls,
+                        attributes.AND(
+                            getattr(cls, attr) == value,
+                            cls.person == self.person)).deleteFromStore()
+                break
+
     def head(self):
-        return tabbedPane.tabbedPaneGlue.inlineCSS
+        return None
 
     def render_personName(self, ctx, data):
         return ctx.tag[self.person.getDisplayName()]
 
-    def render_contactInformationSummary(self, ctx, data):
-        # FIXME like getEmailAddress() and getDisplayName(),
-        # we need to allow the user to set defaults, so we
-        # can show the default phone number for person X,
-        # instead of the first one we find in the store
+    contactInfoItemTypes = ((PhoneNumber, 'number'),
+                            (EmailAddress, 'address'))
 
-        phone = self.original.store.findFirst(PhoneNumber,
-                                              PhoneNumber.person == self.original)
-        if phone is not None:
-            phone = phone.number
+    def render_contactInfoSummary(self, ctx, data):
+        iq = inevow.IQ(self.docFactory)
+        itemPattern = iq.patternGenerator('contact-info-item')
+        sectionPattern = iq.patternGenerator('contact-info-section')
+        sections = []
 
-        return dictFillSlots(ctx.tag,
-                             dict(email=self.email or 'None',
-                                  phone=phone or 'None'))
+        return ctx.tag.fillSlots('sections',
+            (dictFillSlots(sectionPattern,
+                           {'type': itemType.__name__,
+                            'icon-path': '/Mantissa/images/' + itemType.__name__ + '-icon.png',
+                            'items': (itemPattern.fillSlots('value', value)
+                                         for value in self.person.store.query(
+                                             itemType, itemType.person == self.person).getColumn(valueColumn))})
+                for (itemType, valueColumn) in self.contactInfoItemTypes))
 
+    def render_extracts(self, ctx, data):
+        tdm = TabularDataModel(
+                self.person.store,
+                ExtractWrapper,
+                (ExtractWrapper.timestamp,),
+                itemsPerPage=10,
+                defaultSortAscending=False)
+
+        f = PersonExtractFragment(tdm, (ExtractWrapperColumnView('extract'),))
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        f.setFragmentParent(self)
+        return f
 
     def render_organizerPlugins(self, ctx, data):
-        contactInfo = ContactInfoFragment(self.person)
-        contactInfo.setFragmentParent(self)
-
-        tabs = [('Contact Info', contactInfo)]
+        pat = inevow.IQ(self.docFactory).patternGenerator('person-fragment')
         for f in self.personFragments:
             if hasattr(f, 'setFragmentParent'):
                 f.setFragmentParent(self)
-            tabs.append((f.title, f))
-
-        tpf = tabbedPane.TabbedPaneFragment(tabs)
-        tpf.setFragmentParent(self)
-        return tpf
+            yield dictFillSlots(pat,
+                                dict(title=f.title,
+                                     fragment=f))
 
 components.registerAdapter(PersonDetailFragment, Person, ixmantissa.INavigableFragment)
 
