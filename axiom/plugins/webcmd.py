@@ -24,7 +24,8 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
         ('port', 'p', None, 'TCP port over which to serve HTTP (empty string to disable)'),
         ('secure-port', 's', None, 'TCP port over which to serve HTTPS (empty string to disable)'),
         ('pem-file', 'f', None, 'Filename containing PEM-format private key and certificate (empty string to disable; ignored if --secure-port is not specified)'),
-        ('http-log', 'h', 'httpd.log', 'Filename to which to log HTTP requests (empty string to disable)'),
+        ('http-log', 'h', None,
+         'Filename to which to log HTTP requests (empty string to disable)'),
         ]
 
     def __init__(self, *a, **k):
@@ -132,6 +133,7 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
         print 'Sessioned plugins:'
         for srp, prio in powerupsWithPriorityFor(ixmantissa.ISiteRootPlugin):
             print '  %s (prio. %d)' % (srp, prio)
+        sys.exit(0)
 
     opt_static.__doc__ = """
     Add an element to the mapping of web URLs to locations of static
