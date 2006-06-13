@@ -26,7 +26,7 @@ MantissaShell.subtabHover = function(node) {
 
 /**
  * Called when the divmod "start menu" button is hovered over.
- * It pops up the top level menu
+ * It cleans up the top level menu before it gets displayed
  */
 MantissaShell.menuButtonHover = function() {
     var subtabs, child;
@@ -37,7 +37,6 @@ MantissaShell.menuButtonHover = function() {
             subtabs = MantissaShell.getSubtabs(child);
             if(subtabs && subtabs.style.display != "none") {
                 subtabs.style.display = "none";
-            } else if(subtabs) {
             }
         }
     }
