@@ -9,8 +9,12 @@ Document your project here!
 
 ###file:_Project_/_project_/__init__.py
 # Don't put code here.
-from epsilon.versions import Version
-version = Version('_project_', 0, 0, 1)
+from _project_._version import version
+
+###file:_Project_/_project_/_version.py
+# This is an auto-generated file. Use release automation software to update.
+from twisted.python import versions
+version = versions.Version(__name__[:__name__.rfind('.')], 0, 0, 1)
 
 ###file:_Project_/_project_/_project__model.py
 from zope.interface import implements

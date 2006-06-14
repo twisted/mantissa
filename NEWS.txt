@@ -1,4 +1,27 @@
-x.x.x (YYYY-MM-DD):
+0.5.0 (2006-06-12):
+  - A number of bugfixes and minor functionality changes.
+  - added LiveForm, a layer to automate processing simple forms with Athena
+    LivePage.
+  - added a "sharing" system, for controlling permissions on publicly published
+    database objects, and a "websharing" system, for creating a public page and
+    publishing items on it by ID, displaying different items for a particular
+    ID based on who is viewing it
+  - Moved most URLs from ad-hoc /static hierarchy to new application-based
+    hierarchy, e.g. /Mantissa, /Quotient, etc.
+  - vastly different navigation
+  - full-text index and search support, with hype, xapian, and pylucene
+    backends.
+  - administrative interactive statistics view
+  - tools for adding and removing account features interactively
+  - new signup mechanism that allows the user to see whether their inputs are
+    valid in real-time
+  - migrate (almost) every list view of data to use scrolltable rather than
+    the page-based tabular data browser.
+  - password-reset page (although this is not linked from anywhere)
+  - appropriate version numbers are now displayed on every page
+  - fixed various issues with "tab" ordering in the navigation system
+  - 'axiomatic web' command-line tool no longer makes spurious database
+    changes.
 
 0.4.1 (2005-12-20):
   - Include accidentally omitted nevow plugins in release tarball.
