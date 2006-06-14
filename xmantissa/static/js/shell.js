@@ -43,6 +43,22 @@ MantissaShell.menuButtonHover = function() {
 }
 
 /**
+ * Pair of functions that toggle the menu container's class to work around IE's
+ * lack of :hover support for anything other than <a> elements.
+ */
+MantissaShell.menuHover = function menuHover() {
+    var menu = document.getElementById("divmod-menu");
+    var container = menu.parentNode;
+    container.className = "divmod-menu-container divmod-menu-container-hover";
+};
+
+MantissaShell.menuUnhover = function menuUnhover() {
+    var menu = document.getElementById("divmod-menu");
+    var container = menu.parentNode;
+    container.className = "divmod-menu-container";
+};
+
+/**
  * Called when a top level tab is hovered over.
  * This makes the tab's submenu visibile, if there is one.
  *

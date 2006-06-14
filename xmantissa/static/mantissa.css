@@ -205,6 +205,11 @@ body {
     white-space: nowrap;
 }
 
+/* make sure the menu displays below the icon on IE, not next to it */
+.divmod-menu-icon {
+    display: block;
+}
+
 .menu-separator {
     height: 2px;
     background-image: url(/Mantissa/images/menu-separator.png);
@@ -212,7 +217,7 @@ body {
     background-repeat: repeat-x;
 }
 
-.divmod-menu-container:hover #divmod-menu {
+.divmod-menu-container:hover #divmod-menu, .divmod-menu-container-hover #divmod-menu {
     display: block;
 }
 
@@ -220,6 +225,9 @@ body {
     font-size: 1.2em;
     padding: 2px 2px 2px 4px;
     display: block;
+
+    /* hack to force this element to "have layout" on IE */
+    zoom: 1;
 }
 
 .tab-link:link, .tab-link:visited {
