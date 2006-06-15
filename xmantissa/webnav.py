@@ -1,8 +1,8 @@
 # -*- test-case-name: xmantissa.test.test_webnav -*-
 
-from zope.interface import implements
+from epsilon.structlike import record
 
-from axiom.slotmachine import _structlike
+from zope.interface import implements
 
 from xmantissa.ixmantissa import ITab
 
@@ -13,13 +13,8 @@ class TabMisconfiguration(Exception):
             "Inconsistent tab item factory information",
             info, tab)
 
-class TabInfo(_structlike):
-    __names__ = [
-        'priority',
-        'storeID',
-        'children',
-        'authoritative',
-        'linkURL']
+TabInfo = record('priority storeID children linkURL authoritative',
+                 authoritative=None)
 
 class Tab(object):
     """Represent part or all of the layout of a single navigation tab.
