@@ -578,9 +578,10 @@ class IOffering(Interface):
     """)
 
     version = Attribute("""
-    L{epsilon.versions.Version} instance indicating the version of
-    this offering.  If included, the Version's value will be displayed
-    to users once the offering is installed.  Defaults to None""")
+    L{twisted.python.versions.Version} instance indicating the version of
+    this offering.  If included, the Version's value will be displayed to
+    users once the offering is installed.  Defaults to None.
+    """)
 
 
 class ISignupMechanism(Interface):
