@@ -159,7 +159,7 @@ body {
 }
 
 .person-detail {
-    padding-left: 77px;
+    padding-left: 50px;
 }
 
 .contact-type-icon {
@@ -199,7 +199,7 @@ body {
 }
 
 #divmod-menu {
-    min-width: 77px;
+    min-width: 50px;
     display: none;
     z-index: 99;
     white-space: nowrap;
@@ -238,24 +238,18 @@ body {
     color: #FFFFFF;
 }
 
-.private-fragment-content {
-    border-top: solid 1px #0099CC;
-}
-
 .divmod-menu-container {
     background-color: #000000;
     border-right: solid 1px #666666;
     vertical-align: top;
-    width: 77px;
+    width: 50px;
 }
 
 .app-nav-container {
-    background-color: #333333;
     white-space: nowrap;
 }
 
 .search-container {
-    background-color: #333333;
     height: 100%;
 }
 
@@ -266,6 +260,7 @@ body {
     border: solid 1px #666666;
     padding: 4px;
     margin-right: 4px;
+    font-size: 90%;
 }
 
 .tab-button, .selected-tab-button {
@@ -275,15 +270,19 @@ body {
     top: 1px;
 }
 
-.selected-tab-button, .tab-button:hover {
-    border-bottom: dotted 1px #7ACAE4;
+.tab-button {
+    margin-bottom: 2px;
+}
+
+.selected-tab-button {
+    border-bottom: solid 1px #0099CC;
 }
 
 .tab-button-row {
     line-height: 0px;
 }
 
-.tab-tl-corner, .tab-tr-corner {
+.selected-tab-button .tab-tl-corner, .selected-tab-button .tab-tr-corner {
     width: 3px;
     height: 3px;
 }
@@ -298,10 +297,15 @@ body {
 
 .tab-text-cell {
     color: #FFFFFF;
-    font-size: 1.7em;
+    padding: 0px 4px 0px 4px;
+    font-size: 1.3em;
 }
 
-.tab-button:hover .tab-text-row, .selected-tab-button .tab-text-row {
+.tab-text-cell > div {
+    margin-bottom: 2px;
+}
+
+.selected-tab-button .tab-text-row {
     background-image: url(/Mantissa/images/tab-bg.png);
     background-color: #77C9E3;
     background-repeat: repeat-x;
@@ -311,18 +315,40 @@ body {
     text-align: center;
 }
 
-.tab-button:hover .tab-pyramid, .selected-tab-button .tab-pyramid {
-    color: #FFFFFF;
-}
-
-.tab-button:hover .tab-top-edge, .selected-tab-button .tab-top-edge {
+.selected-tab-button .tab-top-edge {
     background-image: url(/Mantissa/images/tab-top-edge.png);
     background-repeat: repeat-x;
 }
-.tab-button:hover .tab-tl-corner, .selected-tab-button .tab-tl-corner {
+
+.tab-button:hover .tab-top-edge {
+    border-bottom: solid 1px #323232;
+}
+
+.tab-button:hover .tab-left-edge {
+    background-color: #323232;
+}
+
+.tab-left-edge, .tab-right-edge {
+    width: 1px;
+}
+
+.tab-bottom-edge {
+    height: 1px;
+}
+
+.tab-button:hover .tab-right-edge, .tab-button:hover .tab-bottom-edge {
+    background-color: #505050;
+}
+
+.tab-button:hover .tab-text-cell {
+    background-color: #484848;
+}
+
+.selected-tab-button .tab-tl-corner {
     background-image: url(/Mantissa/images/tab-tl-corner.png);
 }
-.tab-button:hover .tab-tr-corner, .selected-tab-button .tab-tr-corner {
+
+.selected-tab-button .tab-tr-corner {
     background-image: url(/Mantissa/images/tab-tr-corner.png);
 }
 
@@ -707,6 +733,10 @@ a.childsellink {
     color: #000000;
     cursor: default;
     font-weight: bold;
+}
+
+.mantissa-menubar {
+    background-image: url(/Mantissa/images/menubar-bg.png);
 }
 
 

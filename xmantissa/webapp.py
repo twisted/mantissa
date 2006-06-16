@@ -81,18 +81,19 @@ class NavMixin(object):
     def render_appNavigation(self, ctx, data):
         self._markTabs(url.URL.fromContext(ctx), self.pageComponents.navigation)
         getp = IQ(self.docFactory).onePattern
-        contents = getp('tab-contents')
 
         for tab in self.pageComponents.navigation:
             if tab.selected or True in (c.selected for c in tab.children):
                 p = 'selected-app-tab'
+                contentp = 'selected-tab-contents'
             else:
                 p = 'app-tab'
+                contentp = 'tab-contents'
 
             yield dictFillSlots(getp(p),
                     {'name': tab.name,
                      'href': tab.linkURL,
-                     'tab-contents': contents})
+                     'tab-contents': getp(contentp)})
 
     def render_navigation(self, ctx, data):
         self._markTabs(url.URL.fromContext(ctx), self.pageComponents.navigation)
