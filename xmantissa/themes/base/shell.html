@@ -78,11 +78,10 @@
       <tbody>
         <tr valign="bottom">
           <td class="divmod-menu-container"
-              onmouseover="MantissaShell.menuHover()"
-              onmouseout="MantissaShell.menuUnhover()">
+            onclick="MantissaShell.menuClick(this);">
             <img class="divmod-menu-icon" src="/Mantissa/images/divmod-menu.png"
               onmouseover="MantissaShell.menuButtonHover()" />
-            <ul id="divmod-menu">
+            <ul id="divmod-menu" style="display: none">
               <nevow:invisible nevow:render="navigation" />
               <li>
                 <div class="menu-separator" />

@@ -200,7 +200,6 @@ body {
 
 #divmod-menu {
     min-width: 50px;
-    display: none;
     z-index: 99;
     white-space: nowrap;
 }
@@ -215,10 +214,6 @@ body {
     background-image: url(/Mantissa/images/menu-separator.png);
     padding: 1px 0px 1px 0px;
     background-repeat: repeat-x;
-}
-
-.divmod-menu-container:hover #divmod-menu, .divmod-menu-container-hover #divmod-menu {
-    display: block;
 }
 
 .tab-link {
@@ -243,6 +238,7 @@ body {
     border-right: solid 1px #666666;
     vertical-align: top;
     width: 50px;
+    cursor: pointer;
 }
 
 .app-nav-container {
