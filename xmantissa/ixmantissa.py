@@ -71,11 +71,14 @@ class ISearchProvider(Interface):
         (unprocessed) search string
         """
 
-    def search(term, count, offset):
+    def search(term, keywords=None, count=None, offset=None):
         """
         Query for items which contain the given term.
 
         @type term: C{unicode}
+        @param keywords: C{dict} mapping C{unicode} field name to C{unicode}
+        field contents.  Search results will be limited to documents with
+        fields of these names containing these values.
         @type count: C{int} or C{NoneType}
         @type offset: C{int} or C{NoneType}
 
@@ -100,7 +103,7 @@ class ISearchAggregator(Interface):
         same as ISearchProviders.count, but queries all search providers
         """
 
-    def search(term, count, offset):
+    def search(term, keywords, count, offset):
         """
         same as ISearchProvider.search, but queries all search providers
         """

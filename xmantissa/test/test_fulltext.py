@@ -199,6 +199,46 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(results, [])
 
 
+    def testKeywordIndexing(self):
+        """
+        Test that an L{IFulltextIndexable}'s keyword parts can be searched for.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+            _uniqueIdentifier=u'50',
+            _textParts=[u'apple', u'banana'],
+            _valueParts={},
+            _keywordParts={u'subject': u'fruit'}))
+        writer.close()
+
+        reader = self.openReadIndex()
+        self.assertEquals(list(reader.search(u'fruit')), [])
+        self.assertEquals(list(reader.search(u'apple')), [50])
+        self.assertEquals(list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
+        self.assertEquals(list(reader.search(u'', {u'subject': u'fruit'})), [50])
+
+
+    def testKeywordTokenization(self):
+        """
+        Keyword values should be tokenized just like text parts.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+            _uniqueIdentifier=u'50',
+            _textParts=[u'apple', u'banana'],
+            _valueParts={},
+            _keywordParts={u'subject': u'list of fruit things'}))
+        writer.close()
+
+        reader = self.openReadIndex()
+        self.assertEquals(list(reader.search(u'fruit')), [])
+        self.assertEquals(list(reader.search(u'apple')), [50])
+        self.assertEquals(list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
+        self.assertEquals(list(reader.search(u'', {u'subject': u'fruit'})), [50])
+        self.assertEquals(list(reader.search(u'', {u'subject': u'list'})), [50])
+        self.assertEquals(list(reader.search(u'', {u'subject': u'things'})), [50])
+
+
 
 class CorruptionRecoveryMixin(IndexerTestsMixin):
     def corruptIndex(self):

@@ -56,10 +56,20 @@ class RemoteIndexer(item.InstallableMixin):
 
 
     def openReadIndex(self):
+        """
+        Return an object usable to search this index.
+
+        Subclasses should implement this.
+        """
         raise NotImplementedError
 
 
     def openWriteIndex(self):
+        """
+        Return an object usable to add documents to this index.
+
+        Subclasses should implement this.
+        """
         raise NotImplementedError
 
 
@@ -149,8 +159,8 @@ class RemoteIndexer(item.InstallableMixin):
         self.indexCount += 1
 
 
-    # ISearchablemumblkelkjaeroiutr28u3
-    def search(self, aString, count=None, offset=None, retry=3):
+    # ISearchProvider
+    def search(self, aString, keywords=None, count=None, offset=None, retry=3):
         b = iaxiom.IBatchService(self.store)
         if VERBOSE:
             log.msg("%s/%d issueing suspend" % (self.store, self.storeID))
@@ -163,7 +173,7 @@ class RemoteIndexer(item.InstallableMixin):
             try:
                 if VERBOSE:
                     log.msg("%s/%d searching for %s" % (self.store, self.storeID, aString))
-                results = list(idx.search(aString.encode('utf-8')))
+                results = list(idx.search(aString.encode('utf-8'), keywords))
                 if VERBOSE:
                     log.msg("%s/%d found %d results" % (self.store, self.storeID, len(results)))
                 if count is not None and offset is not None:
@@ -187,7 +197,7 @@ class RemoteIndexer(item.InstallableMixin):
             log.err(err)
             if retry:
                 log.msg("Re-issuing search")
-                return self.search(aString, count, offset, retry=retry-1)
+                return self.search(aString, keywords, count, offset, retry=retry-1)
             else:
                 log.msg("Wow, lots of failures searching.  Giving up and returning (probably wrong!) no results to user.")
                 return []
@@ -219,7 +229,7 @@ class _HypeIndex(object):
         self.index.put_doc(doc)
 
 
-    def search(self, term):
+    def search(self, term, keywords=None):
         return [int(d.uri) for d in self.index.search(term)]
 
 
@@ -284,7 +294,7 @@ class _XapianIndex(object):
                               uid=message.uniqueIdentifier()))
 
 
-    def search(self, term):
+    def search(self, term, keywords=None):
         return [d['uid'] for d in self.smartIndex.search(term.encode('utf-8'))]
 
 
@@ -335,10 +345,25 @@ class _PyLuceneIndex(object):
                            PyLucene.Field.Store.YES,
                            PyLucene.Field.Index.UN_TOKENIZED))
         # Deprecated. use Field(name, value, Field.Store.YES, Field.Index.UN_TOKENIZED) instead
+
+        for (k, v) in message.keywordParts().iteritems():
+            doc.add(
+                PyLucene.Field(k, v,
+                               PyLucene.Field.Store.YES,
+                               PyLucene.Field.Index.TOKENIZED))
+
         self.index.addDocument(doc)
 
 
-    def search(self, phrase):
+    def search(self, phrase, keywords=None):
+        # XXX Colons in phrase will screw stuff up.  Can they be quoted or
+        # escaped somehow?  Probably by using a different QueryParser.
+        if keywords:
+            fieldPhrase = u' '.join(u':'.join((k, v)) for (k, v) in keywords.iteritems())
+            if phrase:
+                phrase = phrase + u' ' + fieldPhrase
+            else:
+                phrase = fieldPhrase
         query = PyLucene.QueryParser.parse(phrase, 'text', self.analyzer)
         hits = self.index.search(query)
         return [int(h.get('storeID')) for (n, h) in hits]

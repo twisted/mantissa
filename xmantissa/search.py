@@ -78,11 +78,11 @@ class SearchAggregator(item.Item, item.InstallableMixin):
             in self.providers()], consumeErrors=True).addCallback(countedHits)
 
 
-    def search(self, term, count, offset):
+    def search(self, term, keywords, count, offset):
         self.searches += 1
 
         d = defer.DeferredList([
-            provider.search(term, count, offset)
+            provider.search(term, keywords, count, offset)
             for provider in self.providers()
             ], consumeErrors=True)
 
@@ -97,6 +97,29 @@ class SearchAggregator(item.Item, item.InstallableMixin):
         d.addCallback(searchCompleted)
 
         return d
+
+
+
+def parseSearchTerm(term):
+    """
+    Turn a string search query into a two-tuple of a search term and a
+    dictionary of search keywords.
+    """
+    terms = []
+    keywords = {}
+    for word in term.split():
+        if word.count(':') == 1:
+            k, v = word.split(u':')
+            if k and v:
+                keywords[k] = v
+            elif k or v:
+                terms.append(k or v)
+        else:
+            terms.append(word)
+    term = u' '.join(terms)
+    if keywords:
+        return term, keywords
+    return term, None
 
 
 
@@ -117,7 +140,8 @@ class AggregateSearchResults(athena.LiveFragment):
         term = req.args.get('term', [None])[0]
         if term is None:
             return ''
-        d = self.aggregator.search(term, 1000, 0)
+        term, keywords = parseSearchTerm(term)
+        d = self.aggregator.search(term, keywords, 1000, 0)
         def gotSearchResultFragments(fragments):
             for f in fragments:
                 f.setFragmentParent(self)
@@ -158,8 +182,8 @@ class SearchProviderMixin:
         return s.transact(transacted, results)
 
 
-    def search(self, term, count, offset):
-        d = self.indexer.search(term, count, offset)
+    def search(self, term, keywords, count, offset):
+        d = self.indexer.search(term, keywords, count, offset)
         d.addCallback(self.storeSearchResults)
         d.addCallback(self.wrapSearchResults)
         return d
