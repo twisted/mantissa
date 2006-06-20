@@ -300,12 +300,15 @@ class StatSampler(item.Item):
         t = Time()
         if self.service.running:
             updates = []
+            queryUpdates = []
             self.doStatSample(self.store, self.service.statoscope, t, updates)
-            self.doStatSample(self.store, self.service.queryStatoscope, t, [], bucketType=QueryStatBucket)
+            self.doStatSample(self.store, self.service.queryStatoscope, t, queryUpdates, bucketType=QueryStatBucket)
             for recorder in self.service.userStats.values():
                 self.doStatSample(recorder.store, recorder.statoscope, t, updates)
             for obs in self.service.observers:
                 obs.statUpdate(t, updates)
+                obs.queryStatUpdate(t, queryUpdates)
+                
             self.service.currentMinuteBucket += 1
             if self.service.currentMinuteBucket >= MAX_MINUTES:
                 self.service.currentMinuteBucket = 0
@@ -343,7 +346,7 @@ class StatSampler(item.Item):
                 interval=u"day", time=Time.fromDatetime(t._time.replace(hour=0, second=0, minute=0, microsecond=0)))
             db.value += float(v)
             if (k, v) not in updates:
-                updates.append((k, v))
+                updates.append((unicode(k), v))
         statoscope.reset()
 
 
@@ -435,7 +438,7 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         elif 'athena_received_messages' in events:
             events = {'interface':iaxiom.IStatEvent, 'stat_athena_messages_received':events['count']}
         elif 'querySQL' in events:
-            self.queryStatoscope.record(**{events['querySQL']: events['queryTime']})
+            self.queryStatoscope.record(**{str(events['querySQL']): events['queryTime']})
 
         elif 'cred_interface' in events:
             if_desc = self.loginInterfaces.get(events['cred_interface'], None)
@@ -504,8 +507,10 @@ class RemoteStatsObserver(item.Item):
     def activate(self):
         #axiom is weak
         self.protocol = None
-
-    def statUpdate(self, t, updates):
+    def queryStatUpdate(self, t, updates):
+        self.statUpdate(t, updates, queryStat=True)
+        
+    def statUpdate(self, t, updates, queryStat=False):
         """
         Sends a stringified version of the stat update data (a list of
         name, value pairs) and the current time over a juice
@@ -517,10 +522,12 @@ class RemoteStatsObserver(item.Item):
         if not self.protocol:
             self._connectToStatsServer().addCallback(
                 lambda x: StatUpdate(time=t,
-                                     data=repr(updates)).do(self.protocol))
+                                     data=repr(updates),
+                                     querystat=queryStat).do(self.protocol))
         else:
-            StatUpdate(time=t, data=repr(updates)).do(self.protocol,
-                                                      requiresAnswer=False)
+            StatUpdate(time=t, data=repr(updates),
+                       querystat=queryStat).do(self.protocol,
+                                               requiresAnswer=False)
 
     def _connectToStatsServer(self):
         return protocol.ClientCreator(reactor,
@@ -530,7 +537,8 @@ class RemoteStatsObserver(item.Item):
 
 class StatUpdate(juice.Command):
     commandName = "Stat-Update"
-    arguments = [('time', juice.Time()), ('data', juice.String())]
+    arguments = [('time', juice.Time()), ('data', juice.String()),
+                 ('querystat', juice.Boolean())]
 
 
 class SimpleRemoteStatsCollector(juice.Juice):

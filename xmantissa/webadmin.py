@@ -331,7 +331,7 @@ class AdminStatsFragment(athena.LiveFragment):
         self.svc = None
         self.piePeriod = 60
         self.activeStats = []
-
+        self.queryStats = None
     def _initializeObserver(self):
         "Look up the StatsService and registers to receive notifications of recorded stats."
 
@@ -395,6 +395,7 @@ class AdminStatsFragment(athena.LiveFragment):
         self._initializeObserver()
         if not self.svc:
             return []
+
         data = []
         end = self.svc.currentMinuteBucket
         beginning = end - self.piePeriod
@@ -423,10 +424,23 @@ class AdminStatsFragment(athena.LiveFragment):
                 slices[k] = tot
             else:
                 del slices[k]
-        data = slices.items()
-        data.sort(key=operator.itemgetter(1), reverse=True)
 
+        self.queryStats = slices
+        return self.pieSlices()
+
+    def pieSlices(self):
+        data = self.queryStats.items()
+        data.sort(key=operator.itemgetter(1), reverse=True)
         return zip(*data)
+
+    def queryStatUpdate(self, time, updates):
+        if self.queryStats is None:
+            return
+        for k, delta in updates:
+            val = self.queryStats.get(k, 0)
+            self.queryStats[k] = val + delta
+        pie = self.pieSlices()
+        self.callRemote('updatePie', pie).addErrback(log.err)
 
     def statUpdate(self, time, updates):
         "Update the graphs with the new data point."
@@ -438,8 +452,8 @@ class AdminStatsFragment(athena.LiveFragment):
             if name in self.activeStats:
                 data.append((unicode(name), value))
         self.callRemote('update', unicode(time.asHumanly()), dict(data))
-        pie = self.buildPie()
-        self.callRemote('updatePie', pie).addErrback(log.err)
+
+
 
     def head(self):
         # XXX TODO - There is a race condition loading new dependencies after

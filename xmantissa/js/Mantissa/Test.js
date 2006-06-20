@@ -9,6 +9,12 @@ Mantissa.Test.Forms.methods(
         return self.childWidgets[0].submit();
     });
 
+Mantissa.Test.StatsTest = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.StatsTest');
+Mantissa.Test.StatsTest.methods(
+    function run(self) {
+        return self.callRemote('run');
+    });
+
 Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass('Mantissa.Test.TextArea');
 
 Mantissa.Test.Select = Mantissa.Test.Forms.subclass('Mantissa.Test.Select');
