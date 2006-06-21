@@ -355,6 +355,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self.scrolled(undefined, scrollingDown);
     },
 
+    function nonEmptyRowCount(self) {
+        return MochiKit.Base.filter(null, self._rows).length;
+    },
+
     function scrolled(self, proposedTimeout, scrollingDown) {
         if (typeof proposedTimeout === 'undefined') {
             proposedTimeout = 250;
@@ -373,7 +377,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             function () {
                 self._rowTimeout = null;
                 self._requestWaiting = true;
-                var rowCount = self._rows.length;
+                var rowCount = self.nonEmptyRowCount();
                 self._getSomeRows(scrollingDown).addBoth(
                     function (rslt) {
                         self._requestWaiting = false;
@@ -381,7 +385,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                             self._moreAfterRequest = false;
                             self.scrolled();
                         }
-                        self.cbRowsFetched(Math.abs(self._rows.length - rowCount));
+                        self.cbRowsFetched(self.nonEmptyRowCount() - rowCount);
                         return rslt;
                     });
             },
