@@ -9,7 +9,9 @@
         onclick="Mantissa.People.PersonDetail.get(this).deleteContactInfoItem(this); return false">(delete)</a>
     </div>
     <div class="contact-info-edit-container" style="display: none">
-      <input type="text"><nevow:attr name="value"><nevow:slot name="value" /></nevow:attr></input>
+      <form onsubmit="Mantissa.People.PersonDetail.get(this).saveContactInfoItem(this.elements[0]); return false">
+        <input type="text"><nevow:attr name="value"><nevow:slot name="value" /></nevow:attr></input>
+      </form>
       <a href="#" class="contact-info-action-save"
         onclick="Mantissa.People.PersonDetail.get(this).saveContactInfoItem(this); return false">(save)</a>
       <a href="#" class="contact-info-action-cancel"
@@ -33,7 +35,9 @@
       <a href="#" class="contact-info-action-add"
         onclick="Mantissa.People.PersonDetail.get(this).showAddForm(this); return false">(add)</a>
       <div class="add-contact-info" style="display: none">
-        <input type="text" />
+        <form onsubmit="Mantissa.People.PersonDetail.get(this).createContactInfoItem(this.elements[0]); return false">
+          <input type="text" />
+        </form>
         <a href="#" class="contact-info-action-create"
           onclick="Mantissa.People.PersonDetail.get(this).createContactInfoItem(this); return false">(create)</a>
         <a href="#" class="contact-info-action-cancel"
