@@ -1,3 +1,11 @@
+0.5.2 (2006-06-20):
+  - Query-stats graph changed to not hit the database on every update.
+  - Searches can now be restricted to certain fields in indexed documents.
+  - Various UI fixes.
+
+0.5.1 (2006-06-16):
+  - Updated navigation, plus improved functionality in IE.
+
 0.5.0 (2006-06-12):
   - A number of bugfixes and minor functionality changes.
   - added LiveForm, a layer to automate processing simple forms with Athena
