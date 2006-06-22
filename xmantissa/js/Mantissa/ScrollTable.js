@@ -253,6 +253,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             cells);
     },
 
+    /**
+     * @param name: column name
+     * @return: boolean, indicating whether this column should not be rendered
+     */
     function skipColumn(self, name) {
         return false;
     },
