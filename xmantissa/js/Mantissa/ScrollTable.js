@@ -321,7 +321,13 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._columnOffsets = columnOffsets;
     },
 
+    /**
+     * Remove all rows from scrolltable, as well as our cache of
+     * fetched/unfetched rows, scroll the table to the top, and
+     * refill it
+     */
     function emptyAndRefill(self) {
+        self._scrollViewport.scrollTop = 0;
         for (var whichRow = 0; whichRow < self._rows.length; whichRow++) {
             if (self._rows[whichRow] != undefined) {
                 var rowNode = self._rows[whichRow][1];
