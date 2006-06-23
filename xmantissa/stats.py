@@ -282,7 +282,7 @@ class StatBucket(item.Item):
     index = attributes.integer(doc='The position in the round-robin list for non-daily stats')
     time = attributes.timestamp(doc='When this bucket was last updated')
     attributes.compoundIndex(interval, type, index)
-
+    attributes.compoundIndex(index, interval)
 class QueryStatBucket(item.Item):
     "Pretty much the same thing as above, but just for SQL query stats"
     type = attributes.text("the SQL query string")
