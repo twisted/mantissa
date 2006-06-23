@@ -1,3 +1,6 @@
+0.5.3 (2006-06-23):
+  - UI fixes: #1009, #1173, #1187
+
 0.5.2 (2006-06-20):
   - Query-stats graph changed to not hit the database on every update.
   - Searches can now be restricted to certain fields in indexed documents.
