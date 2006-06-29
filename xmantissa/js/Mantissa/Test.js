@@ -33,8 +33,8 @@ Mantissa.Test.TestableScrollTable = Mantissa.ScrollTable.ScrollingWidget.subclas
 Mantissa.Test.TestableScrollTable.methods(
     function __init__(self, node) {
         Mantissa.Test.TestableScrollTable.upcall(self, "__init__", node);
-        self._rowHeight = 1;
-        self._scrollViewport.style.height = "10px";
+        self._rowHeight = 20;
+        self._scrollViewport.style.height = "200px";
         self._rows = [];
         self._firstRowFetch = true;
     },
@@ -57,7 +57,7 @@ Mantissa.Test.TestableScrollTable.methods(
     function scrollBy(self, rows, deferred) {
         self._pendingScrollDeferred = deferred;
         /* changing scrollTop will call the onscroll handler */
-        self._scrollViewport.scrollTop += rows;
+        self._scrollViewport.scrollTop += rows * self._rowHeight;
     });
 
 Mantissa.Test.ScrollTable = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Scrolltable');
