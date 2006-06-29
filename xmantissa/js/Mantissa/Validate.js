@@ -125,9 +125,9 @@ Mantissa.Validate.SignupForm.methods(
         var wasPreviouslyVerified = !!self.testedInputs[inputnode.name];
 
         if (condition) {
-            statusNode.style.backgroundColor = 'green';
+            statusNode.src = '/Mantissa/images/ok-small.png';
         } else {
-            statusNode.style.backgroundColor = 'red';
+            statusNode.src = '/Mantissa/images/error-small.png';
         }
 
         if (condition != wasPreviouslyVerified) {
@@ -137,8 +137,11 @@ Mantissa.Validate.SignupForm.methods(
             } else {
                 self.verifiedCount--;
             }
-            self.submitButton.disabled = !(
-                self.verifiedCount === self.inputCount);
+            if(self.verifiedCount === self.inputCount) {
+                self.submitButton.removeAttribute("disabled");
+            } else {
+                self.submitButton.disabled = true;
+            }
         }
     },
     function _findStatusElement(self, inputnode) {
