@@ -19,10 +19,15 @@ class Message(object):
     def uniqueIdentifier(self):
         return str(id(self))
 
+
     def textParts(self):
         return [
             u"Hello, how are you.  Please to be "
             u"seeing this message as an indexer test." * 100]
+
+
+    def keywordParts(self):
+            return {u'foo': "A Keyword"}
 
 
 
