@@ -10,6 +10,7 @@ from twisted.python import components
 
 from nevow import rend, athena, inevow, static, url
 from nevow.flat import flatten
+from nevow.athena import expose
 
 from epsilon import extime
 
@@ -182,7 +183,6 @@ class OrganizerFragment(athena.LiveFragment):
     title = 'People'
     jsClass = 'Mantissa.People.Organizer'
 
-    allowedMethods = iface = {'addPerson': True}
     prefs = None
     baseComparison = None
 
@@ -249,7 +249,6 @@ class AddressBookFragment(athena.LiveFragment):
             for p
             in s.query(RealName, RealName.person == ab.person))
 
-    allowedMethods = {"addName": None}
     def addName(self, name):
         parts = name.rsplit(None, 1)
         if len(parts) == 1:
@@ -261,6 +260,8 @@ class AddressBookFragment(athena.LiveFragment):
             person=self.original.person,
             first=first,
             last=last)
+    expose(addName)
+
 
     def head(self):
         return None
@@ -387,8 +388,8 @@ class AddPersonFragment(athena.LiveFragment):
                      person=person,
                      first=firstname,
                      last=lastname)
-
         return u'Made A Person!'
+    expose(addPerson)
 
 components.registerAdapter(AddPersonFragment, AddPerson, ixmantissa.INavigableFragment)
 
@@ -449,10 +450,6 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'person-detail'
     live = 'athena'
     jsClass = 'Mantissa.People.PersonDetail'
-
-    iface = allowedMethods = {'createContactInfoItem': True,
-                              'editContactInfoItem': True,
-                              'deleteContactInfoItem': True}
 
     def __init__(self, person):
         athena.LiveFragment.__init__(self, person)
@@ -516,6 +513,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
                                 cls.person == self.person))
                 setattr(item, attr, newValue)
                 break
+    expose(editContactInfoItem)
 
     def createContactInfoItem(self, typeName, value):
         for (cls, attr) in self.contactInfoItemTypes:
@@ -525,6 +523,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
                     **{attr: value})
                 p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
                 return unicode(flatten(p.fillSlots('value', value)), 'utf-8')
+    expose(createContactInfoItem)
 
     def deleteContactInfoItem(self, typeName, value):
         for (cls, attr) in self.contactInfoItemTypes:
@@ -534,6 +533,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
                             getattr(cls, attr) == value,
                             cls.person == self.person)).deleteFromStore()
                 break
+    expose(deleteContactInfoItem)
 
     def head(self):
         return None

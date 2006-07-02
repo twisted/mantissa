@@ -1,17 +1,25 @@
-from nevow.livetrial import testcase
-from nevow import loaders, tags, athena
-from epsilon import extime
-from xmantissa import webadmin
-from xmantissa.webtheme import getLoader
 import datetime
 
+from nevow.livetrial import testcase
+from nevow import loaders, tags, athena
+
+from epsilon import extime
+
+from xmantissa import webadmin
+from xmantissa.webtheme import getLoader
+
+
 class AdminStatsTestBase(webadmin.AdminStatsFragment):
-    docFactory =  loaders.stan(tags.div(render=tags.directive('liveFragment')))
+    docFactory = loaders.stan(tags.div(render=tags.directive('liveElement')))
+
     def _initializeObserver(self):
         pass
 
+
     def getGraphNames(self):
         return [(u"graph1", u"graph 1"), (u"graph2", u"graph 2")]
+    athena.expose(getGraphNames)
+
 
     def fetchLastHour(self, name):
         t = extime.Time()
@@ -23,10 +31,14 @@ class AdminStatsTestBase(webadmin.AdminStatsFragment):
                  25, 24, 20, 16, 39, 22, 39, 29, 29, 18, 39, 19, 21, 12,
                  25, 25, 25, 29])
 
+
     def buildPie(self):
         self.queryStats = {u'beans': 10, u'enchiladas': 27, u'salsa': 3,
                            u'fajitas': 48}
         self.pieSlices()
+    athena.expose(buildPie)
+
+
 
 class StatsTestCase(testcase.TestCase):
     jsClass = u'Mantissa.Test.StatsTest'
@@ -34,10 +46,12 @@ class StatsTestCase(testcase.TestCase):
         tags.div(render=tags.directive('liveTest'))[
             tags.invisible(render=tags.directive('start'))])
 
+
     def render_start(self, ctx, data):
         self.testfragment = AdminStatsTestBase()
         self.testfragment.setFragmentParent(self)
         return self.testfragment
+
 
     def run(self):
         self.testfragment.statUpdate(extime.Time(), [(u'graph1', 43)])

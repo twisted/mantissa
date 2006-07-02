@@ -5,7 +5,9 @@ import pytz
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
+
 from nevow import athena
+from nevow.athena import expose
 
 from axiom.item import Item, InstallableMixin
 from axiom import attributes, upgrade, userbase
@@ -264,8 +266,6 @@ class PreferenceEditor(athena.LiveFragment):
     prefs = None
     aggregator = None
 
-    iface = allowedMethods = dict(savePref=True)
-
     def serializePrefs(self):
         for pref in self.prefs:
             value = pref.valueToDisplay(pref.value)
@@ -297,6 +297,7 @@ class PreferenceEditor(athena.LiveFragment):
         pref = self.aggregator.getPreference(key)
         value = pref.displayToValue(value)
         pref.collection.setPreferenceValue(pref, value)
+    expose(savePref)
 
     def data_preferences(self, ctx, data):
         self.patterns = PatternDictionary(self.docFactory)

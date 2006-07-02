@@ -6,7 +6,8 @@ XXX HYPER TURBO SUPER UNSTABLE DO NOT USE XXX
 
 from epsilon.structlike import record
 
-from nevow import tags, athena
+from nevow import inevow, tags, page, athena
+from nevow.athena import expose
 
 from xmantissa import webtheme
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
@@ -67,31 +68,23 @@ class InvalidInput(Exception):
     Data entered did not meet the requirements of the coercer.
     """
 
-class LiveForm(record('callable parameters description',
-                      description=None), athena.LiveFragment):
-    """
-    A live form.
-
-    Create with a callable and a list of L{Parameter}s which describe the form
-    of the arguments which the callable will expect.
-
-    @ivar callable: a callable that you can call
-    @ivar parameters: a list of Parameter objects describing
-    """
-    allowedMethods = dict(invoke = True)
+class _LiveFormMixin(record('callable parameters description',
+                            description=None)):
     jsClass = u'Mantissa.LiveForm.FormWidget'
 
     subFormName = None
 
     def __init__(self, *a, **k):
-        super(LiveForm, self).__init__(*a, **k)
+        super(_LiveFormMixin, self).__init__(*a, **k)
         if self.docFactory is None:
             # Give subclasses a chance to assign their own docFactory.
             self.docFactory = webtheme.getLoader('liveform')
 
+
     def asSubForm(self, name):
         self.subFormName = name
         return self
+
 
     def _getDescription(self):
         descr = self.description
@@ -99,15 +92,34 @@ class LiveForm(record('callable parameters description',
             descr = self.callable.__name__
         return descr
 
+
+    def submitbutton(self, request, tag):
+        """
+        Render an INPUT element of type SUBMIT which will post this form to the
+        server.
+        """
+        return tags.input(type='submit',
+                          name='__submit__',
+                          value=self._getDescription())
+    page.renderer(submitbutton)
+
+
     def render_submitbutton(self, ctx, data):
-        return tags.input(type='submit', name='__submit__', value=self._getDescription())
+        return self.submitbutton(inevow.IRequest(ctx), ctx.tag)
+
+
+    def liveElement(self, request, tag):
+        if self.subFormName:
+            tag(**{'athena:formname': self.subFormName})
+        return super(_LiveFormMixin, self).liveElement(request, tag)
+    page.renderer(liveElement)
+
 
     def render_liveFragment(self, ctx, data):
-        if self.subFormName:
-            ctx.tag(**{'athena:formname': self.subFormName})
-        return super(LiveForm, self).render_liveFragment(ctx, data)
+        return self.liveElement(inevow.IRequest(ctx), ctx.tag)
 
-    def render_form(self, ctx, data):
+
+    def form(self, request, tag):
         patterns = PatternDictionary(self.docFactory)
         inputs = list()
 
@@ -138,12 +150,13 @@ class LiveForm(record('callable parameters description',
                 selectedOptionPattern = patterns['selected-option']
                 unselectedOptionPattern = patterns['unselected-option']
                 options = []
-                for index, (text, value, selected) in enumerate(parameter.choices):
+                for index, (text, _, selected) in enumerate(parameter.choices):
                     if selected:
                         pattern = selectedOptionPattern
                     else:
                         pattern = unselectedOptionPattern
-                    options.append(dictFillSlots(pattern, dict(code=index, text=text)))
+                    options.append(dictFillSlots(
+                            pattern, dict(code=index, text=text)))
                 p = dictFillSlots(p, dict(name=parameter.name,
                                           description=parameter.description,
                                           options=options))
@@ -158,11 +171,12 @@ class LiveForm(record('callable parameters description',
                 else:
                     inputPattern = 'input'
 
-                p = dictFillSlots(p, dict(description=parameter.description,
-                                          input=dictFillSlots(patterns[inputPattern],
-                                                          dict(name=parameter.name,
-                                                               type=parameter.type,
-                                                               value=value))))
+                p = dictFillSlots(
+                    p, dict(description=parameter.description,
+                            input=dictFillSlots(patterns[inputPattern],
+                                                dict(name=parameter.name,
+                                                     type=parameter.type,
+                                                     value=value))))
 
             p(**{'class' : 'liveform_'+parameter.name})
             inputs.append(p)
@@ -171,9 +185,16 @@ class LiveForm(record('callable parameters description',
             pname = 'liveform'
         else:
             pname = 'subform'
-        return dictFillSlots(ctx.tag,
-                             dict(form=patterns[pname].fillSlots('inputs', inputs),
-                                  description=self._getDescription()))
+        return dictFillSlots(
+            tag,
+            dict(form=patterns[pname].fillSlots('inputs', inputs),
+                 description=self._getDescription()))
+    page.renderer(form)
+
+
+    def render_form(self, ctx, data):
+        return self.form(inevow.IRequest(ctx), ctx.tag)
+
 
     def invoke(self, formPostEmulator):
         """
@@ -183,6 +204,7 @@ class LiveForm(record('callable parameters description',
         cgi-module form post.
         """
         return self.callable(**self._coerced(formPostEmulator))
+    expose(invoke)
 
 
     def _coerced(self, received):
@@ -225,3 +247,31 @@ class LiveForm(record('callable parameters description',
                         coerced = parameter.coercer(inputValue)
                     result[parameter.name.encode('ascii')] = coerced
         return result
+
+
+
+class LiveFormFragment(_LiveFormMixin, athena.LiveFragment):
+    """
+    A live form. (Deprecated)
+
+    Create with a callable and a list of L{Parameter}s which describe the form
+    of the arguments which the callable will expect.
+
+    @ivar callable: a callable that you can call
+    @ivar parameters: a list of Parameter objects describing
+
+    @see LiveForm
+    """
+
+
+
+class LiveForm(_LiveFormMixin, athena.LiveElement):
+    """
+    A live form.
+
+    Create with a callable and a list of L{Parameter}s which describe the form
+    of the arguments which the callable will expect.
+
+    @ivar callable: a callable that you can call
+    @ivar parameters: a list of Parameter objects describing
+    """

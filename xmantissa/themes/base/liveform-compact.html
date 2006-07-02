@@ -4,7 +4,7 @@
   </nevow:invisible>
 
   <form nevow:pattern="liveform"
-    action="#" nevow:render="liveFragment"
+    action="#" nevow:render="liveElement"
     onsubmit="Mantissa.LiveForm.FormWidget.get(this).submit(); return false;">
 
     <table>
@@ -17,7 +17,7 @@
     </table>
   </form>
 
-  <table nevow:pattern="subform" nevow:render="liveFragment">
+  <table nevow:pattern="subform" nevow:render="liveElement">
     <nevow:slot name="inputs" />
   </table>
 

@@ -1,6 +1,9 @@
 # -*- test-case-name: xmantissa.test.test_scrolltable -*-
+
+from nevow.athena import LiveElement, expose
+
 from axiom.attributes import timestamp
-from nevow.athena import LiveFragment
+
 from xmantissa.ixmantissa import IWebTranslator, IColumn
 from xmantissa.tdb import AttributeColumn, Unsortable
 
@@ -24,24 +27,19 @@ class UnsortableColumn(AttributeColumn):
     def sortAttribute(self):
         return None
 
-class ScrollingFragment(LiveFragment):
+class ScrollingFragment(LiveElement):
     jsClass = u'Mantissa.ScrollTable.ScrollingWidget'
 
     title = ''
     live = 'athena'
     fragmentName = 'scroller'
 
-    iface = allowedMethods = dict(requestRowRange=True,
-                                  requestCurrentSize=True,
-                                  resort=True,
-                                  getTableMetadata=True,
-                                  performAction=True)
 
     def __init__(self, store, itemType, baseConstraint, columns,
                  defaultSortColumn=None, defaultSortAscending=True,
                  actions=(), *a, **kw):
 
-        LiveFragment.__init__(self, *a, **kw)
+        LiveElement.__init__(self, *a, **kw)
         self.store = store
         self.wt = IWebTranslator(self.store, None)
         self.itemType = itemType
@@ -72,6 +70,7 @@ class ScrollingFragment(LiveFragment):
 
     def requestCurrentSize(self):
         return self.store.query(self.itemType, self.baseConstraint).count()
+    expose(requestCurrentSize)
 
     def getTableMetadata(self):
         coltypes = {}
@@ -89,6 +88,7 @@ class ScrollingFragment(LiveFragment):
         return [self.columnNames, coltypes, self.requestCurrentSize(),
                 unicode(self.currentSortColumn.attrname,
                         'ascii'), self.isAscending]
+    expose(getTableMetadata)
 
     def resort(self, columnName):
         """
@@ -107,6 +107,7 @@ class ScrollingFragment(LiveFragment):
             self.currentSortColumn = newSortColumn
             self.isAscending = True
         return self.isAscending
+    expose(resort)
 
     def performQuery(self, rangeBegin, rangeEnd):
         self.currentRowRange = (rangeBegin, rangeEnd)
@@ -151,9 +152,11 @@ class ScrollingFragment(LiveFragment):
 
     def requestRowRange(self, rangeBegin, rangeEnd):
         return self.constructRows(self.performQuery(rangeBegin, rangeEnd))
+    expose(requestRowRange)
 
     def performAction(self, actionID, targetID):
         item = self.wt.fromWebID(targetID)
         for action in self.actions:
             if action.actionID == actionID:
                 return action.performOn(item)
+    expose(performAction)

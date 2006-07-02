@@ -15,6 +15,7 @@ from twisted.python.components import registerAdapter
 from twisted.internet import defer
 
 from nevow import inevow, athena
+from nevow.athena import expose
 
 from epsilon import extime
 
@@ -94,8 +95,6 @@ class AuthenticationFragment(athena.LiveFragment):
 
     jsClass = u'Mantissa.Authentication'
 
-    iface = allowedMethods = dict(cancel=True, changePassword=True)
-
     def __init__(self, original):
         self.store = original.store
         athena.LiveFragment.__init__(self, original)
@@ -121,6 +120,7 @@ class AuthenticationFragment(athena.LiveFragment):
         handler = 'Mantissa.Authentication.get(this).cancel(%r); return false'
         return ctx.tag(onclick=handler % (data['session'].sessionKey,))
 
+
     def changePassword(self, currentPassword, newPassword):
         try:
             self.original.changePassword(unicode(currentPassword), unicode(newPassword))
@@ -130,6 +130,8 @@ class AuthenticationFragment(athena.LiveFragment):
             raise InvalidPassword('Incorrect password!  Nothing changed.')
         else:
             return u'Password Changed!'
+    expose(changePassword)
+
 
     def cancel(self, uid):
         try:
@@ -138,6 +140,7 @@ class AuthenticationFragment(athena.LiveFragment):
             raise NoSuchSession('That session seems to have vanished.')
         else:
             return u'Session discontinued'
+    expose(cancel)
 
 
     def data_persistentSessions(self, ctx, data):

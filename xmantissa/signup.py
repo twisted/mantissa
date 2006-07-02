@@ -22,6 +22,7 @@ from nevow.rend import Page, NotFound
 from nevow.url import URL
 from nevow.inevow import IResource, ISession
 from nevow import inevow, tags, athena, loaders
+from nevow.athena import expose
 
 from xmantissa.ixmantissa import (
     IBenefactor, ISiteRootPlugin, IStaticShellContent, INavigableElement,
@@ -466,20 +467,29 @@ upgrade.registerUpgrader(freeTicketSignup4To5, 'free_signup', 4, 5)
 class ValidatingSignupForm(liveform.LiveForm):
     jsClass = u'Mantissa.Validate.SignupForm'
 
+    _parameterNames = [
+        'firstName',
+        'lastName',
+        'username',
+        'domain',
+        'password',
+        'emailAddress']
+
     def __init__(self, uis):
-        self.docFactory = getLoader("user-info-signup")
         self.userInfoSignup = uis
         super(ValidatingSignupForm, self).__init__(
             uis.createUser,
             [liveform.Parameter(pname, liveform.TEXT_INPUT, unicode)
              for pname in
-             'firstName lastName username domain password emailAddress'.split()])
+             self._parameterNames])
+        self.docFactory = getLoader("user-info-signup")
+
 
     def usernameAvailable(self, username, domain):
         return self.userInfoSignup.usernameAvailable(username, domain)
+    athena.expose(usernameAvailable)
 
-    athena.expose(usernameAvailable,
-                  liveform.LiveForm.invoke.im_func)
+
 
 class UserInfoSignup(Item, PrefixURLMixin):
     """
@@ -999,8 +1009,6 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
                 'createdOn': _signupTracker.createdOn.asHumanly()}
 
 
-    allowedMethods = iface = {'createSignup': True,
-                              'deleteSignup': True}
     def createSignup(self,
                      signupPrompt,
                      signupTuple,
@@ -1016,6 +1024,7 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
           emailTemplate,
           signupPrompt)
         return u'Great job.'
+    expose(createSignup)
 
     def deleteSignups(self, signups):
         """
@@ -1042,5 +1051,6 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
             for iface in signup.store.interfacesFor(signup):
                 signup.store.powerDown(signup, iface)
             signup.deleteFromStore()
+    expose(deleteSignups)
 
 registerAdapter(SignupFragment, SignupConfiguration, INavigableFragment)

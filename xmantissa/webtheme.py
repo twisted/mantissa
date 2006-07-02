@@ -7,8 +7,7 @@ from twisted.python import reflect
 from twisted.python.util import sibpath
 
 from nevow.loaders import xmlfile
-from nevow import tags
-from nevow import athena
+from nevow import inevow, tags, athena, page
 
 from xmantissa import ixmantissa
 from xmantissa.offering import getInstalledOfferings, getOfferings
@@ -109,14 +108,12 @@ class MantissaTheme(XHTMLDirectoryTheme):
                          href='/Mantissa/mantissa.css')
 
 
-class ThemedFragment(athena.LiveFragment):
+class _ThemedMixin:
     """
-    Subclass me to create a LiveFragment which supports automatic theming.
-
-    @ivar fragmentName: A short string naming the template from which the
-    docFactory for this fragment should be loaded.
-
+    Mixin for L{nevow.inevow.IRenderer} implementations which want to use the
+    theme system.
     """
+
     implements(ixmantissa.ITemplateNameResolver)
 
     fragmentName = 'no-fragment-name-specified'
@@ -132,8 +129,7 @@ class ThemedFragment(athena.LiveFragment):
         must call setFragmentParent to correct this before this fragment is
         rendered.
         """
-
-        super(ThemedFragment, self).__init__()
+        super(_ThemedMixin, self).__init__()
         if fragmentParent is not None:
             self.setFragmentParent(fragmentParent)
 
@@ -146,23 +142,50 @@ class ThemedFragment(athena.LiveFragment):
     def rend(self, context, data):
         """
         Automatically retrieve my C{docFactory} based on C{self.fragmentName}
-        before invoking L{athena.LiveFragment.rend}.
+        before invoking L{athena.LiveElement.rend}.
         """
         if self.docFactory is None:
             self.docFactory = self.getDocFactory(self.fragmentName)
-        return super(ThemedFragment, self).rend(context, data)
+        return super(_ThemedMixin, self).rend(context, data)
 
 
-    def render_pythonClass(self, ctx, data):
+    def pythonClass(self, request, tag):
         """
         This renderer is available on all themed fragments.  It returns the fully
         qualified python name of the class of the fragment being rendered.
         """
         return reflect.qual(self.__class__)
+    page.renderer(pythonClass)
+
+
+    def render_pythonClass(self, ctx, data):
+        return self.pythonClass(inevow.IRequest(ctx), ctx.tag)
 
 
     # ITemplateNameResolver
-
     def getDocFactory(self, fragmentName, default=None):
         f = getattr(self.page, "getDocFactory", getLoader)
         return f(fragmentName, default)
+
+
+
+class ThemedFragment(_ThemedMixin, athena.LiveFragment):
+    """
+    Subclass me to create a LiveFragment which supports automatic
+    theming. (Deprecated)
+
+    @ivar fragmentName: A short string naming the template from which the
+    docFactory for this fragment should be loaded.
+
+    @see ThemedElement
+    """
+
+
+
+class ThemedElement(_ThemedMixin, athena.LiveElement):
+    """
+    Subclass me to create a LiveElement which supports automatic theming.
+
+    @ivar fragmentName: A short string naming the template from which the
+    docFactory for this fragment should be loaded.
+    """

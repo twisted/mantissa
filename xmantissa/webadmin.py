@@ -11,6 +11,9 @@ from twisted.application.service import IService, Service
 from twisted.conch import manhole
 from twisted.cred.portal import IRealm
 
+from nevow.page import renderer
+from nevow.athena import expose
+
 from epsilon import extime
 
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
@@ -123,7 +126,7 @@ class LocalUserBrowser(Item):
 
 
 
-class UserInteractionFragment(webtheme.ThemedFragment):
+class UserInteractionFragment(webtheme.ThemedElement):
     """
     Contains two other user-interface elements which allow existing users to be
     browsed and new users to be created, respectively.
@@ -138,7 +141,7 @@ class UserInteractionFragment(webtheme.ThemedFragment):
         self.userBrowser = userBrowser
 
 
-    def render_userBrowser(self, ctx, data):
+    def userBrowser(self, request, tag):
         """
         Render a TDB of local users.
         """
@@ -146,9 +149,10 @@ class UserInteractionFragment(webtheme.ThemedFragment):
         f.docFactory = webtheme.getLoader(f.fragmentName)
         f.setFragmentParent(self)
         return f
+    renderer(userBrowser)
 
 
-    def render_userCreate(self, ctx, data):
+    def userCreate(self, request, tag):
         """
         Render a form for creating new users.
         """
@@ -171,6 +175,8 @@ class UserInteractionFragment(webtheme.ThemedFragment):
                     "password")])
         userCreator.setFragmentParent(self)
         return userCreator
+    renderer(userCreate)
+
 
     def createUser(self, localpart, domain, password=None):
         """
@@ -247,7 +253,6 @@ class LocalUserBrowserFragment(tdbview.TabularDataView):
             ]
         super(LocalUserBrowserFragment, self).__init__(tdm, views, actions)
 
-    allowedMethods = list(tdbview.TabularDataView.allowedMethods) + ['getActionFragment']
     def getActionFragment(self, targetID, action):
         loginMethod = self.itemFromTargetID(targetID)
         loginAccount = loginMethod.account
@@ -256,10 +261,10 @@ class LocalUserBrowserFragment(tdbview.TabularDataView):
             loginMethod.localpart + u'@' + loginMethod.domain,
             loginAccount,
             action)
+    expose(getActionFragment)
 
 
-
-class EndowDepriveFragment(webtheme.ThemedFragment):
+class EndowDepriveFragment(webtheme.ThemedElement):
     fragmentName = 'user-detail'
 
     def __init__(self, fragmentParent, username, loginAccount, which):
@@ -279,7 +284,7 @@ class EndowDepriveFragment(webtheme.ThemedFragment):
         subs.transact(endowall)
 
 
-    def render_benefactorForm(self, ctx, data):
+    def benefactorForm(self, request, tag):
         """
         Render a L{liveform.LiveForm} -- the main purpose of this fragment --
         which will allow the administrator to endow or deprive existing users
@@ -315,19 +320,19 @@ class EndowDepriveFragment(webtheme.ThemedFragment):
             self.which.capitalize() + u' ' + self.username)
         f.setFragmentParent(self)
         return f
+    renderer(benefactorForm)
 
 
 
-class AdminStatsFragment(athena.LiveFragment):
+class AdminStatsFragment(athena.LiveElement):
     implements(INavigableFragment)
 
     live = 'athena'
     jsClass = u'Mantissa.StatGraph.StatGraph'
     fragmentName = 'admin-stats'
-    allowedMethods = ['getGraphNames', 'addStat', 'removeStat', 'buildPie', 'setPiePeriod']
 
     def __init__(self, *a, **kw):
-        athena.LiveFragment.__init__(self, *a, **kw)
+        athena.LiveElement.__init__(self, *a, **kw)
         self.svc = None
         self.piePeriod = 60
         self.activeStats = []
@@ -377,18 +382,26 @@ class AdminStatsFragment(athena.LiveFragment):
         if not self.svc:
             return []
         return [(unicode(name), unicode(stats.statDescriptions[name])) for name in self.svc.statTypes]
+    expose(getGraphNames)
+
 
     def addStat(self, name):
         data = self.fetchLastHour(name)
         self.activeStats.append(name)
         return data
+    expose(addStat)
+
 
     def removeStat(self, name):
         self.activeStats.remove(name)
+    expose(removeStat)
+
 
     def setPiePeriod(self, period):
         "Set how much time the query-time pie chart should cover."
         self.piePeriod = int(period)
+    expose(setPiePeriod)
+
 
     def buildPie(self):
         "Called from javascript to produce the initial state of the query-time pie chart."
@@ -427,6 +440,7 @@ class AdminStatsFragment(athena.LiveFragment):
 
         self.queryStats = slices
         return self.pieSlices()
+    expose(buildPie)
 
     def pieSlices(self):
         data = self.queryStats.items()
@@ -466,33 +480,44 @@ class AdminStatsFragment(athena.LiveFragment):
     def _query(self, *a, **kw):
         return self.original.store.parent.query(*a, **kw)
 
-    def render_loginCount(self, ctx, data):
+    def loginCount(self, request, tag):
         for ls in self._query(userbase.LoginSystem):
             return ls.loginCount
+    renderer(loginCount)
 
-    def render_failedLoginCount(self, ctx, data):
+
+    def failedLoginCount(self, request, tag):
         for ls in self._query(userbase.LoginSystem):
             return ls.failedLogins
+    renderer(failedLoginCount)
 
-    def render_userCount(self, ctx, data):
+
+    def userCount(self, request, tag):
         count = 0
         for la in self._query(userbase.LoginAccount):
             count += 1
         return count
+    renderer(userCount)
 
-    def render_disabledUserCount(self, ctx, data):
+
+    def disabledUserCount(self, request, tag):
         count = 0
         for la in self._query(userbase.LoginAccount, userbase.LoginAccount.disabled != 0):
             count += 1
         return count
+    renderer(disabledUserCount)
 
-    def render_developerCount(self, ctx, data):
+
+    def developerCount(self, request, tag):
         for ds in self._query(DeveloperSite):
             return ds.developers
+    renderer(developerCount)
 
-    def render_administratorCount(self, ctx, data):
+
+    def administratorCount(self, request, tag):
         for ds in self._query(DeveloperSite):
             return ds.administrators
+    renderer(administratorCount)
 
 registerAdapter(AdminStatsFragment, AdminStatsApplication, INavigableFragment)
 
@@ -553,9 +578,9 @@ class REPL(athena.LiveFragment):
         self.callRemote('addOutputLine', unicode(output, 'ascii'))
 
 
-    allowedMethods = {'evaluateInputLine': True}
     def evaluateInputLine(self, inputLine):
         return self.interpreter.push(inputLine)
+    expose(evaluateInputLine)
 
 
 

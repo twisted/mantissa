@@ -321,7 +321,7 @@ class PrivateRootPage(Page, NavMixin):
         if fragment.docFactory is None:
             raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
 
-        if isinstance(fragment, athena.LiveFragment):
+        if isinstance(fragment, (athena.LiveFragment, athena.LiveElement)):
             pageClass = GenericNavigationAthenaPage
         else:
             pageClass = {False: GenericNavigationPage,

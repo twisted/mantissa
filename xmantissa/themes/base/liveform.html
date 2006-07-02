@@ -3,7 +3,7 @@
     <nevow:slot name="form" />
   </nevow:invisible>
 
-  <form action="#" nevow:render="liveFragment"
+  <form action="#" nevow:render="liveElement"
         onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
         nevow:pattern="liveform"
         style="position: relative"
@@ -52,7 +52,7 @@
     <nevow:invisible nevow:render="submitbutton" />
   </form>
 
-  <div nevow:pattern="subform" nevow:render="liveFragment">
+  <div nevow:pattern="subform" nevow:render="liveElement">
     <fieldset>
       <legend><nevow:slot name="description" /></legend>
       <nevow:slot name="inputs" />

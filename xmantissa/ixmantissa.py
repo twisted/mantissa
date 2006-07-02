@@ -298,21 +298,17 @@ class INavigableFragment(Interface):
     and registering a powerup for that as well, which allows users to navigate
     to this object.
 
-    The main thing that this interface requires is that the element passed in
-    be 'flattenable', meaning that it can be flattened as part of a Nevow stan
-    tree.  The easiest way to achieve this is to subclass
-    L{nevow.rend.Fragment}; hence the interface name.
+    The primary requirement of this interface is that providers of it also
+    provide L{nevow.inevow.IRenderer}.  The easiest way to achieve this is to
+    subclass L{nevow.page.Element}.
     """
 
     live = Attribute("""
-
     A boolean, telling us whether or not this fragment requires a LivePage to
     function properly.
-
     """)
 
     fragmentName = Attribute("""
-
     The name of this fragment; a string used to look up the template from the
     current theme(s).
 
@@ -320,13 +316,10 @@ class INavigableFragment(Interface):
     can set a docFactory.  While this will work, it's not generally
     recommended, because then your application's visual style will be
     inextricably welded to its front-end code.
-
     """)
 
     docFactory = Attribute("""
-
     Nevow-style docFactory object.  Must be set if fragmentName is not.
-
     """)
 
 
@@ -337,6 +330,7 @@ class INavigableFragment(Interface):
 
         May return None if nothing needs to be added there.
         """
+
 
     def locateChild(self, ctx, segments):
         """
@@ -354,6 +348,8 @@ class INavigableFragment(Interface):
         If you wish to delegate to normal child-resource handling, you must
         return rend.NotFound exactly, not a Deferred which fires it.)
         """
+
+
 
 class ITab(Interface):
     """

@@ -1,6 +1,7 @@
 from zope.interface import implements
 
 from nevow import tags, athena, flat, loaders
+from nevow.athena import expose
 
 from formless.annotate import nameToLabel
 
@@ -54,7 +55,7 @@ class EditableColumnView(ColumnViewBase):
     # custom getter/setter can be given as kwargs to override default
 
     def setter(self, item, value):
-        setattr(item, self.attributeID, coerced)
+        setattr(item, self.attributeID, value)
 
     def getter(self, item):
         return getattr(item, self.attributeID)
@@ -62,7 +63,6 @@ class EditableColumnView(ColumnViewBase):
 class EditableColumnField(athena.LiveFragment):
     """Renders the input field in the table cell to edit data in-place."""
 
-    allowedMethods = {'handleValueChange':True}
     docFactory = loaders.stan(
         tags.span(render=tags.directive('liveFragment'))[
             tags.span(render=tags.directive('field'))
@@ -83,6 +83,8 @@ class EditableColumnField(athena.LiveFragment):
 
     def handleValueChange(self, value):
         return self.original.setter(self.item, self.original.coercer(value))
+    expose(handleValueChange)
+
 
 
 class DateColumnView(ColumnViewBase):
@@ -274,39 +276,37 @@ class TabularDataView(athena.LiveFragment):
     def render_table(self, ctx, data):
         return self.constructTable()
 
-    iface = allowedMethods = {'getPageState': True,
-                              'nextPage': True,
-                              'prevPage': True,
-                              'firstPage': True,
-                              'lastPage': True,
-                              'performAction': True,
-                              'clickSort': True,
-                              'replaceTable': True}
     def replaceTable(self):
         # XXX TODO: the flatten here is encoding/decoding like 4 times; this
         # could be a lot faster.
         return unicode(flat.flatten(self.constructTable()), 'utf-8'), self.getPageState()
+    expose(replaceTable)
 
     def getPageState(self):
         tdm = self.original
         return (tdm.hasPrevPage(), tdm.hasNextPage(),
                 tdm.pageNumber, tdm.itemsPerPage, tdm.totalItems)
+    expose(getPageState)
 
     def nextPage(self):
         self.original.nextPage()
         return self.replaceTable()
+    expose(nextPage)
 
     def prevPage(self):
         self.original.prevPage()
         return self.replaceTable()
+    expose(prevPage)
 
     def firstPage(self):
         self.original.firstPage()
         return self.replaceTable()
+    expose(firstPage)
 
     def lastPage(self):
         self.original.lastPage()
         return self.replaceTable()
+    expose(lastPage)
 
     def itemFromTargetID(self, targetID):
         modelData = list(self.original.currentPage())
@@ -317,6 +317,7 @@ class TabularDataView(athena.LiveFragment):
         action = self.actions[actionID]
         result = action.performOn(target)
         return result, self.replaceTable()
+    expose(performAction)
 
     def clickSort(self, attributeID):
         if attributeID == self.original.currentSortColumn.attributeID:
@@ -325,6 +326,7 @@ class TabularDataView(athena.LiveFragment):
             self.original.resort(attributeID)
         self.original.firstPage()
         return self.replaceTable()
+    expose(clickSort)
 
     def head(self):
         return None

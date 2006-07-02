@@ -6,6 +6,7 @@ from twisted import plugin
 from twisted.python.components import registerAdapter
 
 from nevow import inevow, loaders, rend, athena
+from nevow.athena import expose
 
 from axiom import item, userbase, attributes, substore
 
@@ -160,16 +161,14 @@ class UninstalledOfferingFragment(athena.LiveFragment):
         self.offeringConfig = offeringConfig
         self.offeringPlugin = offeringPlugin
 
-    allowedMethods = {'install': True}
     def install(self, configuration):
         self.offeringConfig.installOffering(self.offeringPlugin, configuration)
-
+    expose(install)
 
 
 class OfferingConfigurationFragment(athena.LiveFragment):
     fragmentName = 'offering-configuration'
     live = 'athena'
-    allowedMethods = {}
 
 
     def __init__(self, *a, **kw):
