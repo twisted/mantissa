@@ -25,7 +25,7 @@ from xmantissa.fragmentutils import dictFillSlots
 
 from PIL import Image
 
-def makeThumbnail(infile, outfile, thumbSize=200, format='jpeg'):
+def makeThumbnail(infile, outfile, thumbSize=120, format='jpeg'):
     image = Image.open(infile)
     (width, height) = image.size
     scale = float(thumbSize) / max(max(width, height), thumbSize)
