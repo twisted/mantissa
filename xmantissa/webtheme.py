@@ -1,3 +1,4 @@
+# -*- test-case-name xmantissa.test.test_theme -*-
 
 import os, sys
 
@@ -108,15 +109,13 @@ class MantissaTheme(XHTMLDirectoryTheme):
                          href='/Mantissa/mantissa.css')
 
 
-class _ThemedMixin:
+class _ThemedMixin(object):
     """
     Mixin for L{nevow.inevow.IRenderer} implementations which want to use the
     theme system.
     """
 
     implements(ixmantissa.ITemplateNameResolver)
-
-    fragmentName = 'no-fragment-name-specified'
 
     def __init__(self, fragmentParent=None):
         """
@@ -179,6 +178,8 @@ class ThemedFragment(_ThemedMixin, athena.LiveFragment):
 
     @see ThemedElement
     """
+    fragmentName = 'fragment-no-fragment-name-specified'
+
 
 
 
@@ -189,3 +190,4 @@ class ThemedElement(_ThemedMixin, athena.LiveElement):
     @ivar fragmentName: A short string naming the template from which the
     docFactory for this fragment should be loaded.
     """
+    fragmentName = 'element-no-fragment-name-specified'

@@ -1,4 +1,4 @@
-# -*- test-case-name: xmantissa -*-
+# -*- test-case-name: xmantissa.test.test_admin -*-
 
 import operator, random, string, time
 
@@ -138,14 +138,14 @@ class UserInteractionFragment(webtheme.ThemedElement):
         @param userBrowser: a LocalUserBrowser instance
         """
         super(UserInteractionFragment, self).__init__()
-        self.userBrowser = userBrowser
+        self.browser = userBrowser
 
 
     def userBrowser(self, request, tag):
         """
         Render a TDB of local users.
         """
-        f = LocalUserBrowserFragment(self.userBrowser)
+        f = LocalUserBrowserFragment(self.browser)
         f.docFactory = webtheme.getLoader(f.fragmentName)
         f.setFragmentParent(self)
         return f
@@ -195,7 +195,7 @@ class UserInteractionFragment(webtheme.ThemedElement):
         @param password: The password to associate with the new account.  If
         C{None}, generate a new password automatically.
         """
-        loginSystem = self.userBrowser.store.parent.findUnique(userbase.LoginSystem)
+        loginSystem = self.browser.store.parent.findUnique(userbase.LoginSystem)
         if password is None:
             password = u''.join([random.choice(string.ascii_letters + string.digits) for i in xrange(8)])
         loginSystem.addAccount(localpart, domain, password)
