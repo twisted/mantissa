@@ -378,6 +378,15 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     def installOn(self, store):
         super(StatsService, self).installOn(store)
         store.powerUp(self, service.IService)
+        # XXX TODO: we should be able to extract and insert this app store, and
+        # currently we can't because there's no record of the fact that we're
+        # going to power up our store's parent.
+        if store.parent is not None:
+            # store.parent.powerUp(store.parent.getItemByID(store.idInParent), IService)
+            # XXX TODO: OMG where are the tests that are failing because
+            # nothing will ever start this service?  it seems like that should
+            # be tested behavior.
+            pass
         now = datetime.datetime.utcnow()
 
         try:

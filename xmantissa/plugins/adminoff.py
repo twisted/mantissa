@@ -5,8 +5,7 @@ adminOffering = offering.Offering(
     name = u'mantissa',
     description = u'Powerups for administrative control of a Mantissa server.',
     siteRequirements = [(None, webadmin.DeveloperSite),
-                        (iaxiom.IScheduler, scheduler.Scheduler),
-                        (None, substore.SubStoreStartupService)],
+                        (iaxiom.IScheduler, scheduler.Scheduler)],
     appPowerups = [scheduler.SubScheduler, stats.StatsService],
     benefactorFactories = [
         provisioning.BenefactorFactory(
