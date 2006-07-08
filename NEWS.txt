@@ -1,5 +1,15 @@
+0.5.6 (2006-07-05):
+  - People image thumbnails are smaller.
+  - Users are now sent to their private page after login.
+  - Use Nevow's new Element class instead of Fragment.
+  - Various unit test improvements and bugfixes.
+
+0.5.5 (2006-06-27):
+  - A new signup UI has been added.
+
 0.5.4 (2006-06-26):
   - An index has been added to the stats database to reduce startup time.
+
 0.5.3 (2006-06-23):
   - UI fixes: #1009, #1173, #1187
 
