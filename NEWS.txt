@@ -1,3 +1,6 @@
+0.5.7 (2006-07-08):
+  - Updated all templates to use Element instead of Fragment.
+
 0.5.6 (2006-07-05):
   - People image thumbnails are smaller.
   - Users are now sent to their private page after login.
