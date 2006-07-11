@@ -2,6 +2,51 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+/* person widget styles */
+
+.person-widget-right-edge {
+    border-right: solid 1px #FFCC99;
+}
+
+.person-widget-top-edge {
+    border-top: solid 1px #FFCC99;
+}
+
+.person-widget-bottom-edge {
+    border-bottom: solid 1px #FFCC99;
+}
+
+.person-widget-corner {
+    height: 1px;
+    width: 1px;
+}
+
+.person-widget-empty-corner {
+    width: 1px;
+    background-color: #FFCC99;
+}
+
+.person-widget-left-edge {
+    background-color: #FFCC99;
+}
+
+.person-widget-content {
+    padding: 3px;
+}
+
+.person-widget {
+    background-color: #FFF6ED;
+}
+
+.person-widget-corner img {
+    vertical-align: top;
+}
+
+.person-widget-row {
+    line-height: 0px;
+}
+
+
 .front-page-splash-logo {
     background-image: url(/Mantissa/images/divorg-large.png);
     width: 430px;

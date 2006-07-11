@@ -1,6 +1,35 @@
-<a nevow:render="person" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <img src="/Mantissa/images/person.png" border="0" />
-  <nevow:attr name="href"><nevow:slot name="detail-url" /></nevow:attr>
-  <nevow:slot name="name" />
-  <nevow:attr name="title"><nevow:slot name="contact-method" /></nevow:attr>
-</a>
+<table
+  nevow:render="person"
+  xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+  class="person-widget"
+  cellpadding="0"
+  cellspacing="0">
+  <tr class="person-widget-row">
+    <td class="person-widget-empty-corner" />
+    <td class="person-widget-top-edge" />
+    <td class="person-widget-corner">
+      <img src="/Mantissa/images/person-widget-tr-corner.png" />
+    </td>
+  </tr>
+  <tr>
+    <td class="person-widget-left-edge" />
+    <td class="person-widget-content">
+      <a>
+        <img border="0" style="vertical-align: middle">
+          <nevow:attr name="src"><nevow:slot name="mugshot-url" /></nevow:attr>
+        </img>
+        <nevow:attr name="href"><nevow:slot name="detail-url" /></nevow:attr>
+        <nevow:slot name="name" />
+        <nevow:attr name="title"><nevow:slot name="contact-method" /></nevow:attr>
+      </a>
+    </td>
+    <td class="person-widget-right-edge" />
+  </tr>
+  <tr class="person-widget-row">
+    <td class="person-widget-empty-corner" />
+    <td class="person-widget-bottom-edge" />
+    <td class="person-widget-corner">
+      <img src="/Mantissa/images/person-widget-br-corner.png" />
+    </td>
+  </tr>
+</table>

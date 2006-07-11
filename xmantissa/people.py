@@ -23,9 +23,13 @@ from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
-def makeThumbnail(infile, outfile, thumbSize=120, format='jpeg'):
+def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
+    assert Image is not None, 'you need PIL installed if you want to thumbnail things'
     image = Image.open(infile)
     (width, height) = image.size
     scale = float(thumbSize) / max(max(width, height), thumbSize)
@@ -441,10 +445,132 @@ class Mugshot(item.Item):
     """
     An image that is associated with a person
     """
-    type = attributes.text(allowNone=False) # content type
-    body = attributes.path(allowNone=False) # path to image data
+    schemaVersion = 2
 
-    person  = attributes.reference(allowNone=False)
+    type = attributes.text(doc="""
+    Content-type of image data
+    """, allowNone=False)
+
+    body = attributes.path(doc="""
+    Path to image data
+    """, allowNone=False)
+
+    smallerBody = attributes.path(doc="""
+    Path to smaller version of image data
+    """, allowNone=False)
+
+    person = attributes.reference(doc="""
+    L{Person} this mugshot is of
+    """, allowNone=False)
+
+    size = 120
+    smallerSize = 22
+
+    def fromFile(cls, person, infile, format):
+        """
+        Create a Mugshot item from an image file.
+
+        @param person: L{Person} instance (who the mugshot is of)
+        @param infile: C{file} (where the image data is)
+        @param format: C{unicode} (what format the image data is in)
+
+        @return: L{Mugshot} instance, in the same store as C{person}
+        """
+
+        inst = person.store.findUnique(cls, cls.person == person, default=None)
+
+        body = cls.makeThumbnail(infile, person, format)
+        infile.seek(0)
+        smallerBody = cls.makeThumbnail(infile, person, format, smaller=True)
+
+        ctype = 'image/' + format
+
+        if inst is None:
+            inst = cls(store=person.store,
+                       person=person,
+                       type=ctype,
+                       body=body,
+                       smallerBody=smallerBody)
+        else:
+            inst.body = body
+            inst.smallerBody = smallerBody
+            inst.type = ctype
+
+        return inst
+    fromFile = classmethod(fromFile)
+
+    def makeThumbnail(cls, infile, person, ctype, smaller=False):
+        """
+        Make a thumbnail of an image and store it on disk.
+
+        @param infile: C{file} (where the image data is)
+        @param person: L{Person} instance (who is this image of)
+        @param ctype: content-type of data in C{infile}
+        @param smaller: thumbnails are available in two sizes.
+                        if C{smaller} is true, then the thumbnail
+                        will be in the smaller of the two sizes.
+
+        @return: filesystem path of the new thumbnail
+        """
+
+
+        dirsegs = ['mugshots', str(person.storeID)]
+
+        if smaller:
+            dirsegs.insert(1, 'smaller')
+            size = cls.smallerSize
+        else:
+            size = cls.size
+
+        outfile = person.store.newFile(*dirsegs)
+        makeThumbnail(infile, outfile, size, ctype)
+        outfile.close()
+        return outfile.finalpath
+    makeThumbnail = classmethod(makeThumbnail)
+
+
+def mugshot1to2(old):
+    smallerBody = Mugshot.makeThumbnail(old.body.open(),
+                                        old.person,
+                                        old.type.split('/')[1],
+                                        smaller=True)
+
+    return old.upgradeVersion(Mugshot.typeName, 1, 2,
+                              type=old.type,
+                              body=old.body,
+                              person=old.person,
+                              smallerBody=smallerBody)
+
+
+registerUpgrader(mugshot1to2, Mugshot.typeName, 1, 2)
+
+class MugshotResource(rend.Page):
+    """
+    Web accessible resource that serves Mugshot images. Serves
+    a smaller mugshot if the final path segment is "smaller"
+    """
+    smaller = False
+
+    def __init__(self, mugshot):
+        """
+        @param mugshot: L{Mugshot}
+        """
+        self.mugshot = mugshot
+        rend.Page.__init__(self)
+
+    def locateChild(self, ctx, segments):
+        if segments == ('smaller',):
+            self.smaller = True
+            return (self, ())
+        return rend.NotFound
+
+    def renderHTTP(self, ctx):
+        if self.smaller:
+            path = self.mugshot.smallerBody
+        else:
+            path = self.mugshot.body
+
+        return static.File(path.path, str(self.mugshot.type))
 
 class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'person-detail'
@@ -467,32 +593,17 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def _gotMugshotFile(self, ctype, infile):
         (majortype, minortype) = ctype.split('/')
-        if majortype != 'image':
-            return
 
-        outfile = self.person.store.newFile('mugshots', str(self.person.storeID))
-        makeThumbnail(infile, outfile, format=minortype)
-        outfile.close()
-
-        ctype = unicode(ctype, 'ascii')
-        mugshot = self.person.store.findUnique(
-                        Mugshot, Mugshot.person == self.person, default=None)
-
-        if mugshot is None:
-            Mugshot(store=self.person.store,
-                    person=self.person,
-                    type=ctype,
-                    body=outfile.finalpath)
-        else:
-            mugshot.type = ctype
-            mugshot.body = outfile.finalpath
+        if majortype == 'image':
+            Mugshot.fromFile(self.person, infile, unicode(minortype, 'ascii'))
 
     def child_uploadMugshot(self, ctx):
         return MugshotUploadPage(self._gotMugshotFile, self.myURL)
 
     def child_mugshot(self, ctx):
-        mugshot = self.person.store.findUnique(Mugshot, Mugshot.person == self.person)
-        return static.File(mugshot.body.path, str(mugshot.type))
+        return MugshotResource(
+                    self.person.store.findUnique(
+                        Mugshot, Mugshot.person == self.person))
 
     def render_mugshotLink(self, ctx, data):
         self.mugshot = self.person.store.findUnique(
@@ -593,7 +704,17 @@ class PersonFragment(rend.Fragment):
     def render_person(self, ctx, data):
         detailURL = ixmantissa.IWebTranslator(self.person.store).linkTo(self.person.storeID)
 
+        mugshot = self.person.store.findUnique(Mugshot,
+                                               Mugshot.person == self.person,
+                                               default=None)
+        if mugshot is None:
+            mugshotURL = '/Mantissa/images/smaller-mugshot-placeholder.png'
+        else:
+            mugshotURL = ixmantissa.IWebTranslator(
+                            self.person.store).linkTo(self.person.storeID) + '/mugshot/smaller'
+
         name = self.person.getDisplayName()
         return dictFillSlots(ctx.tag, {'name': name,
                                        'detail-url': detailURL,
-                                       'contact-method': self.contactMethod or name})
+                                       'contact-method': self.contactMethod or name,
+                                       'mugshot-url': mugshotURL})

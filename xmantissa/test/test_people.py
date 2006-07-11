@@ -1,4 +1,4 @@
-
+from twisted.python.util import sibpath
 from twisted.trial import unittest
 
 from epsilon import extime
@@ -63,3 +63,34 @@ class PeopleTests(unittest.TestCase):
         rn = s.findUnique(people.RealName, people.RealName.person == person)
 
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
+
+    def testMugshot(self):
+        """
+        Create a Mugshot item, check that it thumbnails it's image correctly
+        """
+
+        try:
+            from PIL import Image
+        except ImportError:
+            raise unittest.SkipTest('PIL is not available')
+
+        s = store.Store(self.mktemp())
+
+        p = people.Person(store=s, name=u'Bob')
+
+        imgpath = sibpath(__file__, 'resources/square.png')
+        imgfile = file(imgpath)
+
+        m = people.Mugshot.fromFile(p, imgfile, u'png')
+
+        self.assertEqual(m.type, 'image/png')
+        self.assertIdentical(m.person,  p)
+
+        self.failUnless(m.body)
+        self.failUnless(m.smallerBody)
+
+        img = Image.open(m.body.open())
+        self.assertEqual(img.size, (m.size, m.size))
+
+        smallerimg = Image.open(m.smallerBody.open())
+        self.assertEqual(smallerimg.size, (m.smallerSize, m.smallerSize))
