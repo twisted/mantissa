@@ -86,7 +86,7 @@ Mantissa.LiveForm.MessageFader.methods(
      */
     function start(self) {
         // kick off the timer loop
-        return self.fadeIn().addCallback(function() { return self.fadeOut(); });
+        self.fadeIn().addCallback(function() { return self.fadeOut(); });
     });
 
 
