@@ -494,11 +494,13 @@ body {
 }
 
 .scroll-column-header, .scroll-cell, .sortable-scroll-column-header, .actions-column-header {
-    padding: 4px;
-    width: 250px;
     float: left;
-    border-right: solid 1px #000000;
     overflow: hidden;
+    padding: 4px;
+}
+
+.scrollc-column-header, .sortable-scroll-column-header {
+    text-align: center;
 }
 
 .sortable-scroll-column-header:hover {

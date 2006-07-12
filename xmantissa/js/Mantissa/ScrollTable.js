@@ -36,9 +36,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
                     self.columnTypes = metadata[1];
 
+                    self.setViewportHeight(rowCount);
                     self._createRowHeaders(columnNames);
                     self.setSortInfo(currentSort, isAscendingNow);
-                    self.setViewportHeight(rowCount);
 
                     // Go suuuper fast for the first request
 
@@ -246,7 +246,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             /* XXX HACK, actions break if the row is clickable */
             return MochiKit.DOM.DIV(attrs, cells);
         }
-        return MochiKit.DOM.A(
+        return MochiKit.DOM.DIV(
             {"class": "scroll-row",
              "style": "height:" + self._rowHeight + "px",
              "href": rowData["__id__"]},
