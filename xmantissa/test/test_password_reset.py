@@ -1,6 +1,7 @@
 from twisted.trial.unittest import TestCase
 from axiom.store import Store
 from axiom import userbase
+from epsilon.extime import Time
 from xmantissa.signup import PasswordReset, _PasswordResetAttempt
 
 class PasswordResetTestCase(TestCase):

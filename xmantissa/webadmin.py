@@ -228,6 +228,13 @@ class DepriveAction(_EndowDepriveActionBase):
     benefactorAction = 'deprive'
 
 
+class DateOrUnknownColumnView(tdbview.DateColumnView):
+
+    def stanFromValue(self, idx, item, value):
+        if value is None:
+            return 'Unknown'
+        else:
+            return value.asHumanly()
 
 class LocalUserBrowserFragment(tdbview.TabularDataView):
     jsClass = u'Mantissa.Admin.LocalUserBrowser'
@@ -247,7 +254,7 @@ class LocalUserBrowserFragment(tdbview.TabularDataView):
             tdbview.ColumnViewBase('localpart', typeHint='text'),
             tdbview.ColumnViewBase('domain', typeHint='text'),
             tdbview.ColumnViewBase('verified', typeHint='boolean'),
-            tdbview.DateColumnView('lastActivity')]
+            DateOrUnknownColumnView('lastActivity')]
 
         actions = [
             EndowAction('Endow', None, None),
