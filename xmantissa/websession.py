@@ -191,7 +191,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
             user = request.args.get('username')
             if user is not None:
                 lp, domain = creds.username.split(u'@', 1)
-                import pdb; pdb.set_trace()
                 self.portal.realm.updateLoginActivity(lp, domain, u'email')
                 # create a database session and associate it with this user
                 cookieValue = session.uid
