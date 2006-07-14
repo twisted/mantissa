@@ -135,6 +135,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         """
         guard.SessionWrapper.__init__(self, portal, **kw)
         self.store = store
+        self.portal = portal
         self.sessions = DBPassthrough(self)
         self.cookieKey = 'divmod-user-cookie'
         self.sessionLifetime = transientSessionLifetime
@@ -187,15 +188,17 @@ class PersistentSessionWrapper(guard.SessionWrapper):
             Create the persistent session, and associate it with the
             username. (XXX it doesn't work like this now)
             """
-
             user = request.args.get('username')
             if user is not None:
+                lp, domain = creds.username.split(u'@', 1)
+                self.portal.realm.updateLoginActivity(lp, domain, u'email')
                 # create a database session and associate it with this user
                 cookieValue = session.uid
                 if request.args.get('rememberMe'):
                     self.createSessionForKey(cookieValue, creds.username)
                     self.savorSessionCookie(request)
             return input
+
 
         return guard.SessionWrapper.login(self, request, session, creds, segments
                                           ).addCallback(cbLoginSuccess)

@@ -238,14 +238,16 @@ class LocalUserBrowserFragment(tdbview.TabularDataView):
             userbase.LoginMethod,
             [userbase.LoginMethod.localpart,
              userbase.LoginMethod.domain,
-             userbase.LoginMethod.verified],
+             userbase.LoginMethod.verified,
+             userbase.LoginMethod.lastActivity],
             baseComparison=(userbase.LoginMethod.domain != None),
             defaultSortColumn='domain', # XXX TODO (domain, localpart) sorting
             defaultSortAscending=True)
         views = [
             tdbview.ColumnViewBase('localpart', typeHint='text'),
             tdbview.ColumnViewBase('domain', typeHint='text'),
-            tdbview.ColumnViewBase('verified', typeHint='boolean')]
+            tdbview.ColumnViewBase('verified', typeHint='boolean'),
+            tdbview.DateColumnView('lastActivity')]
 
         actions = [
             EndowAction('Endow', None, None),
