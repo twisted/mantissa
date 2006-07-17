@@ -12,7 +12,8 @@ from nevow import inevow, rend, static, url
 
 from axiom import item, attributes, upgrade, userbase
 
-from xmantissa import ixmantissa, website, publicresource, websharing, offering
+from xmantissa import ixmantissa, website, publicresource, websharing, offering, webtheme
+
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
@@ -187,6 +188,9 @@ upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized',
 
 
 class OfferingsFragment(rend.Fragment):
+
+    preprocessors = [webtheme.rewriteDOMToRewriteURLs]
+
     def __init__(self, original):
         super(OfferingsFragment, self).__init__(original, docFactory=publicresource.getLoader('front-page'))
 

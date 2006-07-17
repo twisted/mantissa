@@ -1,6 +1,6 @@
 from nevow import rend, livepage, athena, tags, inevow
 
-from xmantissa.webtheme import getLoader, getInstalledThemes
+from xmantissa.webtheme import getLoader, getInstalledThemes, rewriteDOMToRewriteURLs
 
 class PublicPageMixin(object):
     fragment = None
@@ -60,14 +60,19 @@ class PublicPageMixin(object):
     def head(self):
         return None
 
-    def getHeadContent(self):
+    def getHeadContent(self, req):
+        website = inevow.IResource(self.store)
         for t in getInstalledThemes(self.store):
-            yield t.head()
+            yield t.head(req, website)
 
     def render_head(self, ctx, data):
-        return ctx.tag[filter(None, list(self.getHeadContent()) + [self.head()])]
+        req = inevow.IRequest(ctx)
+        return ctx.tag[filter(None, list(self.getHeadContent(req)) + [self.head()])]
 
 class PublicPage(PublicPageMixin, rend.Page):
+
+    preprocessors = [rewriteDOMToRewriteURLs]
+
     def __init__(self, original, store, fragment, staticContent, forUser):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
         self.store = store
