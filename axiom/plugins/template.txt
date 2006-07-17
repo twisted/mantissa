@@ -190,14 +190,11 @@ from xmantissa import webtheme
 from nevow import tags
 
 class _Project_Theme(webtheme.XHTMLDirectoryTheme):
-    def head(self, website):
-        root = website.cleartextRoot()
-        static = root.child('_Project_').child('static')
-        yield tags.link(
-            href=static.child('_project_.css'),
-            rel='stylesheet',
-            type='text/css')
-
+    def head(self):
+        yield tags.link(href='/_Project_/static/_project_.css',
+                        rel='stylesheet', type='text/css')
+        yield tags.script(src='/_Project_/static/_project_.js',
+                          type='text/javascript')
 
 ###file:_Project_/xmantissa/plugins/_project__theme.py
 from _project_._project__theme import _Project_Theme

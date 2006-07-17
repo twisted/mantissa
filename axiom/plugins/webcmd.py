@@ -1,4 +1,3 @@
-# -*- test-case-name: xmantissa.test.test_webcmd -*-
 
 import os
 import sys
@@ -22,18 +21,11 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
     description = 'Web.  Yay.'
 
     optParameters = [
-        ('port', 'p', None,
-         'TCP port over which to serve HTTP (empty string to disable)'),
-        ('secure-port', 's', None,
-         'TCP port over which to serve HTTPS (empty string to disable)'),
-        ('pem-file', 'f', None,
-         'Filename containing PEM-format private key and certificate '
-         '(empty string to disable; ignored if --secure-port is not '
-         'specified)'),
+        ('port', 'p', None, 'TCP port over which to serve HTTP (empty string to disable)'),
+        ('secure-port', 's', None, 'TCP port over which to serve HTTPS (empty string to disable)'),
+        ('pem-file', 'f', None, 'Filename containing PEM-format private key and certificate (empty string to disable; ignored if --secure-port is not specified)'),
         ('http-log', 'h', None,
          'Filename to which to log HTTP requests (empty string to disable)'),
-        ('hostname', 'H', None,
-         'Canonical hostname for this server (used in URL generation).'),
         ]
 
     def __init__(self, *a, **k):
@@ -71,12 +63,6 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
                     change['httpLog'] = self['http-log']
                 else:
                     change['httpLog'] = None
-
-            if self['hostname'] is not None:
-                if self['hostname']:
-                    change['hostname'] = self.decodeCommandLine(self['hostname'])
-                else:
-                    change['hostname'] = None
 
             # If HTTP or HTTPS is being configured, make sure there's
             # a WebSite with the right attribute values.
@@ -116,13 +102,12 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
         if webPath.startswith('/'):
             webPath = webPath[1:]
         self.staticPaths.append((webPath, os.path.abspath(filePath)))
-
+    opt_s = opt_static
 
     def opt_list(self):
         self.didSomething = 1
         s = self.parent.getStore()
         for ws in s.query(WebSite):
-            print 'The hostname is', ws.hostname or 'not set.'
             if ws.portNumber is not None:
                 print 'Configured to use HTTP port %d.' % (ws.portNumber,)
             if ws.securePortNumber is not None:

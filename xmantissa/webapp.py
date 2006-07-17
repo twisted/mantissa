@@ -5,11 +5,9 @@ integration of the extensible hierarchical navigation system defined in
 xmantissa.webnav
 """
 
-import os, sha
+import os
 
 from zope.interface import implements
-
-from twisted.python.filepath import FilePath
 
 from epsilon.structlike import record
 
@@ -20,9 +18,9 @@ from axiom import upgrade
 
 from nevow.rend import Page, NotFound
 from nevow import livepage, athena
-from nevow.inevow import IRequest, IResource, IQ
+from nevow.inevow import IResource, IQ
 from nevow import tags as t
-from nevow import url, static
+from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, StaticRedirect
@@ -195,17 +193,11 @@ class FragmentWrapperMixin:
             return ''
 
     def render_head(self, ctx, data):
-        req = IRequest(ctx)
-
-        userStore = self.webapp.store
-        siteStore = userStore.parent
-        website = IResource(siteStore)
-
         l = self.pageComponents.themes
         _reorderForPreference(l, self.webapp.preferredTheme)
         extras = []
         for theme in l:
-            extra = theme.head(req, website)
+            extra = theme.head()
             if extra is not None:
                 extras.append(extra)
         extra = self.fragment.head()
@@ -251,50 +243,22 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixi
         else:
             return handler(ctx, path, name)
 
-
-
-_moduleToHash = {}
-_hashToFile = {}
 class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
     def __init__(self, webapp, fragment, pageComponents):
-
-        userStore = webapp.store
-        siteStore = userStore.parent
-        self.website = IResource(siteStore)
-
+        root = url.URL.fromString('/').child('private').child('jsmodule')
         athena.LivePage.__init__(
             self,
             getattr(fragment, 'iface', None),
             fragment,
-            jsModuleRoot=None,
+            jsModuleRoot=root,
             transportRoot=url.root.child('live'),
             docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
-
-    def _setJSModuleRoot(self, ctx):
-        req = IRequest(ctx)
-        hostname = req.getHeader('host')
-        root = self.website.cleartextRoot(hostname)
-        if root is None:
-            root = url.URL.fromString('/')
-        self.jsModuleRoot = root.child('private').child('jsmodule')
-
-
-    def renderHTTP(self, ctx):
-        """
-        Capture the value of the C{Host} header for this request so that we can
-        generate URLs with it later on during the page render.
-        """
-        self._setJSModuleRoot(ctx)
-        return super(GenericNavigationAthenaPage, self).renderHTTP(ctx)
-
-
     def render_head(self, ctx, data):
         ctx.tag[t.invisible(render=t.directive("liveglue"))]
         return FragmentWrapperMixin.render_head(self, ctx, data)
-
 
     def render_introspectionWidget(self, ctx, data):
         if INSPECTROFY:
@@ -304,29 +268,6 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
         else:
             return ''
 
-
-    def getJSModuleURL(self, moduleName):
-        """
-        Retrieve an URL at which the given module can be found.
-
-        The default L{athena.LivePage} behavior is overridden here to give each
-        module a permanent, unique, totally cachable URL based on its named and
-        its contents.  This lets browser skip any requests for this module
-        after the first as long as it hasn't changed, and forces it to
-        re-request it as soon as it changes.
-        """
-        fp = FilePath(self.jsModules.mapping[moduleName])
-        lastHash, lastTime = _moduleToHash.get(moduleName, (None, 0))
-        if lastTime != fp.getmtime():
-            thisHash = sha.new(fp.open().read()).hexdigest()
-            _moduleToHash[moduleName] = (fp.getmtime(), thisHash)
-            _hashToFile[thisHash + "-" + moduleName] = fp.path
-        else:
-            thisHash = lastHash
-
-        return self.jsModuleRoot.child(thisHash + "-" + moduleName)
-
-
     def locateChild(self, ctx, segments):
         res = NotFound
         if hasattr(self.fragment, 'locateChild'):
@@ -334,28 +275,6 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
         if res is NotFound:
             res = super(GenericNavigationAthenaPage, self).locateChild(ctx, segments)
         return res
-
-
-
-class HashedJSModuleNames(athena.JSModules):
-    """
-    An Athena module-serving resource which handles hashed names instead of
-    regular module names.
-    """
-    def resourceFactory(self, fileName):
-        """
-        Retrieve an L{inevow.IResource} to render the contents of the given
-        file.
-
-        Override the default behavior to return a resource which can be cached
-        for a long dang time.
-        """
-        return static.Data(
-            file(fileName).read(),
-            'text/javascript',
-            expires=(60 * 60 * 24 * 365 * 5))
-
-
 
 class PrivateRootPage(Page, NavMixin):
     addSlash = True
@@ -383,10 +302,7 @@ class PrivateRootPage(Page, NavMixin):
         return ctx.tag['Private Root Page (You Should Not See This)']
 
     def child_jsmodule(self, ctx):
-        """
-        Retrieve a resource with JavaScript modules as child resources.
-        """
-        return HashedJSModuleNames(_hashToFile)
+        return athena.JSModules(athena.jsDeps.mapping)
 
     def childFactory(self, ctx, name):
         o = self.webapp.fromWebID(name)
