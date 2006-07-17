@@ -1,3 +1,4 @@
+# -*- test-case-name: xmantissa.test.test_website -*-
 
 """
 
@@ -10,7 +11,7 @@ command-line 'axiomatic' program using the 'web' subcommand.
 
 """
 
-import warnings
+import socket, warnings
 
 try:
     from OpenSSL import SSL
@@ -349,10 +350,15 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     """
 
     typeName = 'mantissa_web_powerup'
-    schemaVersion = 3
+    schemaVersion = 4
 
     hitCount = integer(default=0)
     installedOn = reference()
+
+    hostname = text(doc="""
+    The primary hostname by which this website will be accessible.  If set to
+    C{None}, a guess will be made using L{socket.getfqdn}.
+    """, default=None)
 
     portNumber = integer(default=0)
     securePortNumber = integer(default=0)
@@ -374,6 +380,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         self.port = None
         self.securePort = None
 
+
     def installOn(self, other):
         super(WebSite, self).installOn(other)
         other.powerUp(self, inevow.IResource)
@@ -381,6 +388,50 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
             other.powerUp(self, IService)
             if self.parent is None:
                 self.setServiceParent(other)
+
+
+    def _root(self, scheme, hostname, portNumber, standardPort):
+        # TODO - real unicode support (but punycode is so bad)
+        if not portNumber:
+            return None
+
+        if hostname is None:
+            if self.hostname is None:
+                hostname = socket.getfqdn()
+            else:
+                hostname = self.hostname.encode('ascii')
+        else:
+            hostname = hostname.split(':')[0].encode('ascii')
+
+        if portNumber == standardPort:
+            return URL(scheme, hostname, [''])
+        else:
+            return URL(scheme, '%s:%d' % (hostname, portNumber), [''])
+
+
+    def cleartextRoot(self, hostname=None):
+        """
+        Return a string representing the HTTP URL which is at the root of this
+        site.
+
+        @param hostname: An optional unicode string which, if specified, will
+        be used as the hostname in the resulting URL, regardless of the
+        C{hostname} attribute of this item.
+        """
+        return self._root('http', hostname, self.portNumber, 80)
+
+
+    def encryptedRoot(self, hostname=None):
+        """
+        Return a string representing the HTTPS URL which is at the root of this
+        site.
+
+        @param hostname: An optional unicode string which, if specified, will
+        be used as the hostname in the resulting URL, regardless of the
+        C{hostname} attribute of this item.
+        """
+        return self._root('https', hostname, self.securePortNumber, 443)
+
 
     def child_by(self, ctx):
         from xmantissa.websharing import UserIndexPage
@@ -475,3 +526,20 @@ def upgradeWebSite2to3(oldSite):
         staticMistake.deleteFromStore()
     return newSite
 upgrade.registerUpgrader(upgradeWebSite2to3, 'mantissa_web_powerup', 2, 3)
+
+
+def upgradeWebsite3to4(oldSite):
+    """
+    Add a C{None} hostname attribute.
+    """
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', 3, 4,
+        installedOn=oldSite.installedOn,
+        portNumber=oldSite.portNumber,
+        securePortNumber=oldSite.securePortNumber,
+        certificateFile=oldSite.certificateFile,
+        httpLog=oldSite.httpLog,
+        hitCount=oldSite.hitCount,
+        hostname=None)
+    return newSite
+upgrade.registerUpgrader(upgradeWebsite3to4, 'mantissa_web_powerup', 3, 4)
