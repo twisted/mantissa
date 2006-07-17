@@ -1,3 +1,7 @@
+0.5.8 (2006-07-14):
+  - Updates to mugshot code.
+  - Bugfixes in LiveForm javascript.
+
 0.5.7 (2006-07-08):
   - Updated all templates to use Element instead of Fragment.
 
