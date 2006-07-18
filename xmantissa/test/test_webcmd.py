@@ -8,6 +8,7 @@ from twisted.trial.unittest import TestCase
 from axiom.plugins import webcmd
 
 from axiom.store import Store
+from axiom.test.util import CommandStubMixin
 
 from xmantissa.website import WebSite
 
@@ -32,15 +33,6 @@ def _captureStandardOutput(f, *a, **k):
         if se.args[0]:
             raise
     return io.getvalue()
-
-
-class CommandStubMixin:
-    """
-    Pretend to be the parent command for a subcommand.
-    """
-    def getStore(self):
-        # fake out "parent" implementation for stuff.
-        return self.store
 
 
 class TestIdempotentListing(CommandStubMixin, TestCase):
