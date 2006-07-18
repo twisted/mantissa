@@ -27,7 +27,7 @@ from nevow import url, static
 from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, StaticRedirect
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
-from xmantissa.webnav import getTabs
+from xmantissa.webnav import getTabs, getSelectedTab, setTabURLs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.offering import getInstalledOfferings
@@ -62,6 +62,7 @@ class NavMixin(object):
     def __init__(self, webapp, pageComponents):
         self.webapp = webapp
         self.pageComponents = pageComponents
+        setTabURLs(self.pageComponents.navigation, webapp)
 
     def getDocFactory(self, fragmentName, default=None):
         return self.webapp.getDocFactory(fragmentName, default)
@@ -69,23 +70,14 @@ class NavMixin(object):
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
 
-    def _markTabs(self, url, tabs):
-        for tab in tabs:
-            if tab.linkURL is None:
-                tab.linkURL = self.webapp.linkTo(tab.storeID)
-            if tab.linkURL[1:] == url.path:
-                tab.selected = True
-            else:
-                tab.selected = False
-
-            self._markTabs(url, tab.children)
-
     def render_appNavigation(self, ctx, data):
-        self._markTabs(url.URL.fromContext(ctx), self.pageComponents.navigation)
+        selectedTab = getSelectedTab(self.pageComponents.navigation,
+                                     url.URL.fromContext(ctx))
+
         getp = IQ(self.docFactory).onePattern
 
         for tab in self.pageComponents.navigation:
-            if tab.selected or True in (c.selected for c in tab.children):
+            if tab == selectedTab or selectedTab in tab.children:
                 p = 'selected-app-tab'
                 contentp = 'selected-tab-contents'
             else:
@@ -98,7 +90,6 @@ class NavMixin(object):
                      'tab-contents': getp(contentp)})
 
     def render_navigation(self, ctx, data):
-        self._markTabs(url.URL.fromContext(ctx), self.pageComponents.navigation)
         getp = IQ(self.docFactory).onePattern
 
         def fillSlots(tabs):
@@ -329,10 +320,21 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
 
     def locateChild(self, ctx, segments):
         res = NotFound
+
         if hasattr(self.fragment, 'locateChild'):
             res = self.fragment.locateChild(ctx, segments)
+
+        if res is NotFound:
+            try:
+                self.webapp.fromWebID(segments[0])
+            except TypeError:
+                pass
+            else:
+                res = (self.webapp.createResource(), segments)
+
         if res is NotFound:
             res = super(GenericNavigationAthenaPage, self).locateChild(ctx, segments)
+
         return res
 
 
@@ -521,6 +523,13 @@ class PrivateApplication(Item, PrefixURLMixin):
     def linkTo(self, obj):
         # currently obj must be a storeID, but other types might come eventually
         return '/%s/%s' % (self.prefixURL, storeIDToWebID(self.privateKey, obj))
+
+    def linkToWithActiveTab(self, childItem, parentItem):
+        """
+        Return a URL which will point to the web facet of C{childItem},
+        with the selected nav tab being the one that represents C{parentItem}
+        """
+        return self.linkTo(parentItem.storeID) + '/' + self.toWebID(childItem)
 
     def linkFrom(self, webid):
         return webIDToStoreID(self.privateKey, webid)

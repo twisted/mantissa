@@ -23,6 +23,7 @@ class FragmentWrappingTestCase(TestCase):
     def test_childLookup(self):
         s = Store(self.mktemp())
         website.WebSite(store=s).installOn(s)
+        s.parent = s
 
         ss = SubStore.createNew(s, ['child', 'lookup'])
         ss = ss.open()
@@ -38,7 +39,7 @@ class FragmentWrappingTestCase(TestCase):
         navpage = webapp.GenericNavigationAthenaPage(
                         privapp,
                         TestFragment(),
-                        None)
+                        privapp.getPageComponents())
 
         navpage.factory = factory()
 
