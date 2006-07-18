@@ -12,7 +12,7 @@ from nevow import rend, athena, inevow, static, url
 from nevow.flat import flatten
 from nevow.athena import expose
 
-from epsilon import extime, descriptor
+from epsilon import extime
 
 from axiom import item, attributes
 from axiom.upgrade import registerUpgrader
@@ -119,16 +119,6 @@ class Organizer(item.Item, item.InstallableMixin):
     schemaVersion = 1
 
     installedOn = attributes.reference()
-    _webTranslator = attributes.inmemory()
-
-    def activate(self):
-        self._webTranslator = None
-
-    class webTranslator(descriptor.attribute):
-        def get(self):
-            if self._webTranslator is None:
-                self._webTranslator = ixmantissa.IWebTranslator(self.store)
-            return self._webTranslator
 
     def installOn(self, other):
         super(Organizer, self).installOn(other)
@@ -171,16 +161,8 @@ class Organizer(item.Item, item.InstallableMixin):
             for p
             in self.powerupsFor(ixmantissa.IOrganizerPlugin))
 
-    def linkToPerson(self, person):
-        """
-        @param person: L{Person} instance
-        @return: string url at which C{person} will be rendered
-        """
-        return (self.webTranslator.linkTo(self.storeID) +
-                '/' + self.webTranslator.toWebID(person))
-
     def getTabs(self):
-        ourURL = self.webTranslator.linkTo(self.storeID)
+        ourURL = ixmantissa.IWebTranslator(self.store).linkTo(self.storeID)
         children = [webnav.Tab('All', self.storeID, 0.1)]
 
         letters = iter(uppercase)
@@ -199,26 +181,27 @@ class PersonNameColumn(UnsortableColumn):
     def extractValue(self, model, item):
         return item.getDisplayName()
 
-class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
+class OrganizerFragment(athena.LiveFragment):
     fragmentName = 'people-organizer'
     live = 'athena'
     title = 'People'
     jsClass = 'Mantissa.People.Organizer'
 
+    prefs = None
+    baseComparison = None
+
     def __init__(self, original):
-        self.wt = original.webTranslator
+        self.prefs = ixmantissa.IPreferenceAggregator(original.store)
         athena.LiveFragment.__init__(self, original)
 
-    def _createPeopleScrollTable(self, baseComparison):
+    def _createPeopleTDB(self, baseComparison):
         f = ScrollingFragment(
                 self.original.store,
                 Person,
                 baseComparison,
                 [PersonNameColumn(None, 'name'), Person.created],
                 defaultSortColumn=Person.name)
-        # use linkToPerson() to make item links so that rows point to
-        # a version of the person URL that'll highlight the people tab
-        f.linkToItem = lambda item: unicode(self.original.linkToPerson(item), 'ascii')
+
         f.setFragmentParent(self)
         f.docFactory = webtheme.getLoader(f.fragmentName)
         return f
@@ -236,7 +219,8 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def render_peopleTable(self, ctx, data):
         comparison = self._getBaseComparison(ctx)
-        return self._createPeopleScrollTable(comparison)
+        self.peopleTDB = self._createPeopleTDB(comparison)
+        return ctx.tag[self.peopleTDB]
 
     def head(self):
         return None
@@ -605,7 +589,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
         self.personFragments = list(ixmantissa.IPersonFragment(p)
                                         for p in self.organizer.peoplePlugins(person))
 
-        self.myURL = self.organizer.linkToPerson(person)
+        self.myURL = ixmantissa.IWebTranslator(person.store).linkTo(person.storeID)
 
     def _gotMugshotFile(self, ctype, infile):
         (majortype, minortype) = ctype.split('/')
@@ -718,7 +702,7 @@ class PersonFragment(rend.Fragment):
         self.contactMethod = contactMethod
 
     def render_person(self, ctx, data):
-        detailURL = self.person.organizer.linkToPerson(self.person)
+        detailURL = ixmantissa.IWebTranslator(self.person.store).linkTo(self.person.storeID)
 
         mugshot = self.person.store.findUnique(Mugshot,
                                                Mugshot.person == self.person,
@@ -726,7 +710,8 @@ class PersonFragment(rend.Fragment):
         if mugshot is None:
             mugshotURL = '/Mantissa/images/smaller-mugshot-placeholder.png'
         else:
-            mugshotURL = detailURL + '/mugshot/smaller'
+            mugshotURL = ixmantissa.IWebTranslator(
+                            self.person.store).linkTo(self.person.storeID) + '/mugshot/smaller'
 
         name = self.person.getDisplayName()
         return dictFillSlots(ctx.tag, {'name': name,

@@ -6,7 +6,6 @@ from epsilon import extime
 from axiom import store
 
 from xmantissa import people
-from xmantissa.webapp import PrivateApplication
 
 class PeopleTests(unittest.TestCase):
     def testPersonCreation(self):
@@ -95,19 +94,3 @@ class PeopleTests(unittest.TestCase):
 
         smallerimg = Image.open(m.smallerBody.open())
         self.assertEqual(smallerimg.size, (m.smallerSize, m.smallerSize))
-
-    def testLinkToPerson(self):
-        s = store.Store()
-
-        privapp = PrivateApplication(store=s)
-        privapp.installOn(s)
-
-        o = people.Organizer(store=s)
-        o.installOn(s)
-
-        p = people.Person(store=s)
-
-        self.assertEqual(o.linkToPerson(p),
-                         (privapp.linkTo(o.storeID)
-                             + '/'
-                             + privapp.toWebID(p)))
