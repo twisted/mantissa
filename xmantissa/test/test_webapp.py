@@ -23,6 +23,7 @@ class FragmentWrappingTestCase(TestCase):
     def test_childLookup(self):
         s = Store(self.mktemp())
         website.WebSite(store=s).installOn(s)
+        s.parent = s
 
         ss = SubStore.createNew(s, ['child', 'lookup'])
         ss = ss.open()
@@ -38,7 +39,7 @@ class FragmentWrappingTestCase(TestCase):
         navpage = webapp.GenericNavigationAthenaPage(
                         privapp,
                         TestFragment(),
-                        None)
+                        privapp.getPageComponents())
 
         navpage.factory = factory()
 
@@ -69,8 +70,10 @@ class AthenaNavigationTestCase(TestCase):
         object which will serve up JavaScript modules.
         """
         s = Store()
+        s.parent = s
         a = webapp.PrivateApplication(store=s)
-        p = webapp.PrivateRootPage(a, None)
+        a.installOn(s)
+        p = webapp.PrivateRootPage(a, a.getPageComponents())
         resource, segments = p.locateChild(None, ('jsmodule',))
         self.failUnless(isinstance(resource, webapp.HashedJSModuleNames))
         self.assertEquals(segments, ())

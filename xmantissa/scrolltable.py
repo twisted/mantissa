@@ -125,13 +125,27 @@ class ScrollingFragment(LiveElement):
             self.currentRowSet.append(item)
         return self.currentRowSet
 
+    def linkToItem(self, item):
+        """
+        Return a URL that the row for C{item} should link to.
+        If an L{xmantissa.ixmantissa.IWebTranslator} is available
+        in C{self.store}, then the link will point to the item's
+        web facet.  A value of None indicates that the row should
+        not be a link.
+
+        @return: C{unicode} URL
+        """
+        if self.wt is not None:
+            return unicode(self.wt.toWebID(item), 'ascii')
+
     def constructRows(self, items):
         rows = []
         for item in items:
             row = dict((colname, col.extractValue(self, item))
                             for (colname, col) in self.columns.iteritems())
-            if self.wt is not None:
-                row[u'__id__'] = unicode(self.wt.toWebID(item), 'ascii')
+            link = self.linkToItem(item)
+            if link is not None:
+                row[u'__id__'] = link
             rows.append(row)
 
         if 0 < len(self.actions):
