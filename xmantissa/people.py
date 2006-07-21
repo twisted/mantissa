@@ -691,6 +691,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
                 self.person.store,
                 ExtractWrapper,
                 (ExtractWrapper.timestamp,),
+                ExtractWrapper.person == self.person,
                 itemsPerPage=10,
                 defaultSortAscending=False)
 
