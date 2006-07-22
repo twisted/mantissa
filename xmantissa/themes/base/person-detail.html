@@ -4,8 +4,8 @@
     Loading...
   </div>
 
-  <div nevow:pattern="extract-chiclet" class="extract-chiclet">
-    <a href="#" onclick="Mantissa.People.PersonDetail.get(this).toggleExtractPod(this); return false"
+  <div nevow:pattern="extract-chiclet" class="extract-chiclet"
+    ><a href="#" onclick="Mantissa.People.PersonDetail.get(this).toggleExtractPod(this); return false"
       ><nevow:slot name="type" /></a>
   </div>
 
@@ -79,9 +79,9 @@
     <span class="person-name"><nevow:invisible nevow:render="personName" /></span>
   </div>
   <div class="person-detail">
-    <table cellpadding="0" cellspacing="0">
+    <table cellpadding="0" cellspacing="0" style="margin-right: 16px">
       <tr valign="top">
-        <td class="person-detail-left-block">
+        <td class="person-detail-left-block" style="width: 40%">
           <table nevow:render="contactInfoSummary" class="contact-info-summary" cellpadding="0" cellspacing="0">
             <tr class="contact-header">
               <td colspan="2" />
@@ -119,8 +119,9 @@
                 </form>
               </td>
             </tr>
-
           </table>
+        </td>
+        <td style="width: 100%">
           <nevow:invisible nevow:render="organizerPlugins" />
           <div class="extract-pod-container" />
         </td>

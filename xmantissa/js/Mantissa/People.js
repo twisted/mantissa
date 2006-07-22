@@ -39,6 +39,15 @@ Mantissa.People.PersonDetail.methods(
                                         "class", "extract-pod-container");
         self.loadingPodDialog = self.firstNodeByAttribute(
                                         "class", "loading-pod");
+        self.activePod = null;
+        var chiclets = self.nodesByAttribute("class", "extract-chiclet");
+        var chicletsByType = {};
+        for(var i = 0; i < chiclets.length; i++) {
+            chicletsByType[chiclets[i].firstChild.firstChild.nodeValue] = chiclets[i];
+        }
+        self.chicletsByType = chicletsByType;
+        self.activePodChiclet = null;
+
     },
 
     function toggleExtractPod(self, node) {
@@ -49,16 +58,27 @@ Mantissa.People.PersonDetail.methods(
 
         if(node.style.backgroundColor == "red") {
             node.style.backgroundColor = "";
+            self.activePodChiclet = null;
         } else {
             node.style.backgroundColor = "red";
+            if(self.activePodChiclet) {
+                self.activePodChiclet.style.backgroundColor = "";
+            }
+            self.activePodChiclet = node;
         }
 
         if(type in self.extractPods) {
+            var activePod;
             if(self.extractPods[type].style.display == "none") {
                 self.extractPods[type].style.display = "";
+                activePod = self.extractPods[type];
             } else {
                 self.extractPods[type].style.display = "none";
             }
+            if(self.activePod) {
+                self.activePod.style.display = "none";
+            }
+            self.activePod = activePod;
             return;
         }
         self.waitingOn = type;
@@ -67,6 +87,10 @@ Mantissa.People.PersonDetail.methods(
         D.addCallback(
             function(html) {
                 var e = MochiKit.DOM.DIV({"class": type + "-extract-pod"});
+                if(self.activePod) {
+                    self.activePod.style.display = "none";
+                }
+                self.activePod = e;
                 self.extractPodContainer.appendChild(e);
                 Divmod.Runtime.theRuntime.setNodeContent(e,
                     '<div xmlns="http://www.w3.org/1999/xhtml">' + html + '</div>');
