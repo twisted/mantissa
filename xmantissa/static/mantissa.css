@@ -272,7 +272,7 @@ body {
 
 .person-fragment {
     border-spacing: 0px;
-    margin: 4px;
+    background-color: #FFFFFF;
 }
 
 .person-fragment .footer-row {
@@ -327,6 +327,7 @@ body {
 
 .person-detail {
     padding-left: 50px;
+    margin-top: 4px;
 }
 
 .contact-type-icon {
@@ -343,7 +344,6 @@ body {
 
 .contact-info-summary {
     border: solid 1px #FFE8D9;
-    margin: 0px 4px 4px 4px;
     color: #666666;
 }
 
@@ -937,3 +937,28 @@ li.installing {
     margin-top: 1px;
     cursor: wait;
 }
+
+.blur {
+    background: transparent url(/Mantissa/images/shadow1.png);
+    color: inherit;
+    margin-left: 4px;
+    margin-top: 4px;
+}
+
+.shadow {
+    background: transparent url(/Mantissa/images/shadow2.png);
+    color: inherit;
+}
+
+.shadow, .shadow-box-content {
+    position: relative;
+    bottom: 2px;
+    right: 2px;
+}
+
+.shadow-box-content {
+    background-color: #FFFFFF;
+    color: #000000;
+    border: 1px solid #000000;
+}
+

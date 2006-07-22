@@ -59,23 +59,23 @@
     </td>
   </tr>
 
-  <table class="person-fragment" nevow:pattern="person-fragment" cellpadding="0" cellspacing="0">
-    <tr class="header-row" valign="top">
-      <td class="image-cell"><img class="left-image" src="/Mantissa/images/person-fragment-tl-corner.png" /></td>
-      <td class="title-cell"><span><nevow:slot name="title" /></span></td>
-      <td class="image-cell"><img class="right-image" src="/Mantissa/images/person-fragment-tr-corner.png" /></td>
-    </tr>
-    <tr class="fragment-row">
-      <td colspan="3" class="fragment-cell">
-        <nevow:slot name="fragment" />
-      </td>
-    </tr>
-    <tr class="footer-row">
-      <td class="image-cell"><img class="left-image" src="/Mantissa/images/person-fragment-bl-corner.png" /></td>
-      <td class="stretch-cell" />
-      <td class="image-cell"><img class="right-image" src="/Mantissa/images/person-fragment-br-corner.png" /></td>
-    </tr>
-  </table>
+  <div class="blur" nevow:pattern="person-fragment" style="margin-bottom: 8px">
+    <div class="shadow">
+      <table class="person-fragment shadow-box-content" cellpadding="0" cellspacing="0" style="width: 100%">
+        <tr class="header-row" valign="top">
+          <td class="title-cell"><span><nevow:slot name="title" /></span></td>
+        </tr>
+        <tr class="fragment-row">
+          <td class="fragment-cell">
+            <nevow:slot name="fragment" />
+          </td>
+        </tr>
+        <tr class="footer-row">
+          <td class="stretch-cell" />
+        </tr>
+      </table>
+    </div>
+  </div>
 
   <div class="person-menu-bar">
     <div class="extract-chiclets-container"><nevow:invisible nevow:render="extractChiclets" /></div>
@@ -86,46 +86,50 @@
     <table cellpadding="0" cellspacing="0" style="margin-right: 16px">
       <tr valign="top">
         <td class="person-detail-left-block" style="width: 40%">
-          <table nevow:render="contactInfoSummary" class="contact-info-summary" cellpadding="0" cellspacing="0">
-            <tr class="contact-header">
-              <td colspan="2" />
-            </tr>
-            <tr valign="top">
-              <td class="mugshot-container">
-                <img class="mugshot">
-                  <nevow:attr name="src">
-                    <nevow:invisible nevow:render="mugshotLink" />
-                  </nevow:attr>
-                </img>
-              </td>
-              <td>
-                <table cellpadding="0" cellspacing="0">
-                  <nevow:slot name="sections" />
+          <div class="blur">
+            <div class="shadow">
+                <table nevow:render="contactInfoSummary" class="contact-info-summary shadow-box-content" cellpadding="0" cellspacing="0">
+                  <tr class="contact-header">
+                    <td colspan="2" />
+                  </tr>
+                  <tr valign="top">
+                    <td class="mugshot-container">
+                      <img class="mugshot">
+                        <nevow:attr name="src">
+                          <nevow:invisible nevow:render="mugshotLink" />
+                        </nevow:attr>
+                      </img>
+                    </td>
+                    <td>
+                      <table cellpadding="0" cellspacing="0">
+                        <nevow:slot name="sections" />
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="text-align: center">
+                      <a href="#"
+                        onclick="Mantissa.People.PersonDetail.get(this).toggleEditMugshotForm(); return false"
+                        class="mugshot-change-link"
+                        >Change...</a>
+                    </td>
+                    <td>
+                      <form enctype="multipart/form-data" method="POST"
+                        name="mugshot" class="mugshot-form"
+                        style="visibility: hidden">
+                        <nevow:attr name="action">
+                          <nevow:invisible nevow:render="mugshotFormAction" />
+                        </nevow:attr>
+                        <input type="file" name="uploaddata" />
+                        <input type="submit" name="upload" value="Upload" />
+                      </form>
+                    </td>
+                  </tr>
                 </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="text-align: center">
-                <a href="#"
-                  onclick="Mantissa.People.PersonDetail.get(this).toggleEditMugshotForm(); return false"
-                  class="mugshot-change-link"
-                  >Change...</a>
-              </td>
-              <td>
-                <form enctype="multipart/form-data" method="POST"
-                  name="mugshot" class="mugshot-form"
-                  style="visibility: hidden">
-                  <nevow:attr name="action">
-                    <nevow:invisible nevow:render="mugshotFormAction" />
-                  </nevow:attr>
-                  <input type="file" name="uploaddata" />
-                  <input type="submit" name="upload" value="Upload" />
-                </form>
-              </td>
-            </tr>
-          </table>
+            </div>
+          </div>
         </td>
-        <td style="width: 100%">
+        <td style="width: 100%; padding-left: 4px">
           <nevow:invisible nevow:render="organizerPlugins" />
           <div class="extract-pod-container" />
         </td>
