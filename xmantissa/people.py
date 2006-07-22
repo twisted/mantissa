@@ -649,15 +649,24 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def getExtractPod(self, etype):
         iq = inevow.IQ(self.docFactory)
-        extractRowPattern = iq.patternGenerator('extract-row')
-        items = self.person.getExtractWrappers(etype, 5)
+
+        tdm = TabularDataModel(
+                self.person.store,
+                ExtractWrapper,
+                (ExtractWrapper.timestamp,),
+                ExtractWrapper.person == self.person,
+                itemsPerPage=5,
+                defaultSortAscending=False)
+
+        f = TabularDataView(tdm, (ExtractWrapperColumnView('extract'),))
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        f.setFragmentParent(self)
 
         p = dictFillSlots(
              iq.onePattern('person-fragment'),
                 dict(title=etype,
-                     fragment=(extractRowPattern.fillSlots(
-                                'extract', inevow.IRenderer(i.extract))
-                                for i in items)))
+                     fragment=f))
+
         return unicode(flatten(p), 'utf-8')
 
     expose(getExtractPod)
