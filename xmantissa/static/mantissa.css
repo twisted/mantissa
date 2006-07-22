@@ -8,6 +8,17 @@ body {
     border-right: solid 1px #FFCC99;
 }
 
+.loading-pod {
+    position: fixed;
+    z-index: 99;
+    background-color: #CCCCCC;
+    opacity: 0.6;
+    text-align: center;
+    height: 100%;
+    width: 100%;
+    font-size: 60px;
+}
+
 .person-widget-top-edge {
     border-top: solid 1px #FFCC99;
 }

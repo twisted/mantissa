@@ -37,15 +37,22 @@ Mantissa.People.PersonDetail.methods(
         self.extractPods = {};
         self.extractPodContainer = self.firstNodeByAttribute(
                                         "class", "extract-pod-container");
+        self.loadingPodDialog = self.firstNodeByAttribute(
+                                        "class", "loading-pod");
     },
 
     function toggleExtractPod(self, node) {
         var type = node.firstChild.nodeValue;
+        if(type == self.waitingOn) {
+            return;
+        }
+
         if(node.style.backgroundColor == "red") {
             node.style.backgroundColor = "";
         } else {
             node.style.backgroundColor = "red";
         }
+
         if(type in self.extractPods) {
             if(self.extractPods[type].style.display == "none") {
                 self.extractPods[type].style.display = "";
@@ -54,6 +61,8 @@ Mantissa.People.PersonDetail.methods(
             }
             return;
         }
+        self.waitingOn = type;
+        self.loadingPodDialog.style.display = "";
         var D = self.callRemote("getExtractPod", type);
         D.addCallback(
             function(html) {
@@ -62,6 +71,10 @@ Mantissa.People.PersonDetail.methods(
                 Divmod.Runtime.theRuntime.setNodeContent(e,
                     '<div xmlns="http://www.w3.org/1999/xhtml">' + html + '</div>');
                 self.extractPods[type] = e;
+                self.waitingOn = null;
+                setTimeout(function() {
+                    self.loadingPodDialog.style.display = "none";
+                }, 50);
             });
     },
 
