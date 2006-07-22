@@ -1,7 +1,7 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveFragment">
 
   <div nevow:pattern="extract-chiclet" class="extract-chiclet">
-    <a href="#" onclick="Mantissa.People.PersonDetail.get(this).loadExtractChiclet(this); return false"
+    <a href="#" onclick="Mantissa.People.PersonDetail.get(this).toggleExtractPod(this); return false"
       ><nevow:slot name="type" /></a>
   </div>
 
@@ -57,11 +57,9 @@
       <td class="title-cell"><span><nevow:slot name="title" /></span></td>
       <td class="image-cell"><img class="right-image" src="/Mantissa/images/person-fragment-tr-corner.png" /></td>
     </tr>
-    <tr class="fragment-row" valign="top">
+    <tr class="fragment-row">
       <td colspan="3" class="fragment-cell">
-        <div class="fragment-container">
-          <nevow:slot name="fragment" />
-        </div>
+        <nevow:slot name="fragment" />
       </td>
     </tr>
     <tr class="footer-row">
@@ -120,6 +118,7 @@
 
           </table>
           <nevow:invisible nevow:render="organizerPlugins" />
+          <div class="extract-pod-container" />
         </td>
         <td style="width: 40%">
           <table cellspacing="0" cellpadding="0" style="width: 95%">

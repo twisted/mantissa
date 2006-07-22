@@ -301,8 +301,13 @@ body {
     left: 1px;
 }
 
-.person-fragment .fragment-row > td, .person-fragment .header-row > td {
+.person-fragment .header-row > td {
     background-color: #D9F0F7;
+}
+
+.fragment-cell {
+    border-left: solid 1px #D9F0F7;
+    border-right: solid 1px #D9F0F7;
 }
 
 .person-detail {

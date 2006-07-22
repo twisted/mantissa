@@ -8,7 +8,7 @@ from zope.interface import implements
 
 from twisted.python import components
 
-from nevow import rend, athena, inevow, static, url
+from nevow import rend, athena, inevow, static, url, tags
 from nevow.flat import flatten
 from nevow.athena import expose
 
@@ -97,9 +97,11 @@ class Person(item.Item):
                               timestamp=timestamp,
                               person=self)
 
-    def getExtractWrappers(self, n):
+    def getExtractWrappers(self, etype, n):
         return self.store.query(ExtractWrapper,
-                                ExtractWrapper.person == self,
+                                attributes.AND(
+                                    ExtractWrapper.person == self,
+                                    ExtractWrapper.extractType == etype),
                                 sort=ExtractWrapper.timestamp.desc,
                                 limit=n)
 
@@ -644,6 +646,17 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
         pattern = inevow.IQ(self.docFactory).patternGenerator('extract-chiclet')
         for etype in self.person.getUniqueExtractTypes():
             yield pattern.fillSlots('type', etype)
+
+    def getExtractPod(self, etype):
+        pat = inevow.IQ(self.docFactory).patternGenerator('person-fragment')
+        items = self.person.getExtractWrappers(etype, 5)
+
+        p = dictFillSlots(
+             pat, dict(title=etype,
+                       fragment=(tags.div[inevow.IRenderer(i.extract)] for i in items)))
+        return unicode(flatten(p), 'utf-8')
+
+    expose(getExtractPod)
 
     def editContactInfoItem(self, typeName, oldValue, newValue):
         for (cls, attr) in self.contactInfoItemTypes:

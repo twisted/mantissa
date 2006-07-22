@@ -34,6 +34,30 @@ Mantissa.People.PersonDetail.methods(
     function __init__(self, node) {
         self._nodeCache = {};
         Mantissa.People.PersonDetail.upcall(self, "__init__", node);
+        self.extractPods = {};
+        self.extractPodContainer = self.firstNodeByAttribute(
+                                        "class", "extract-pod-container");
+    },
+
+    function toggleExtractPod(self, node) {
+        var type = node.firstChild.nodeValue;
+        if(type in self.extractPods) {
+            if(self.extractPods[type].style.display == "none") {
+                self.extractPods[type].style.display = "";
+            } else {
+                self.extractPods[type].style.display = "none";
+            }
+            return;
+        }
+        var D = self.callRemote("getExtractPod", type);
+        D.addCallback(
+            function(html) {
+                var e = MochiKit.DOM.DIV({"class": type + "-extract-pod"});
+                self.extractPodContainer.appendChild(e);
+                Divmod.Runtime.theRuntime.setNodeContent(e,
+                    '<div xmlns="http://www.w3.org/1999/xhtml">' + html + '</div>');
+                self.extractPods[type] = e;
+            });
     },
 
     function _getEnclosingRow(self, node) {
