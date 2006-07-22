@@ -212,20 +212,25 @@ body {
 }
 
 .person-menu-bar {
-    background-color: #FFE8D9;
-    padding: 8px 0px 8px 84px;
+    padding: 4px 0px 4px 84px;
+    background-color: #FFF3E6;
+    background-image: url(/Mantissa/images/person-menubar-bg.png);
+    background-position: bottom left;
+    background-repeat: repeat-x;
 }
 
 .extract-chiclet {
     float: left;
-    padding: 6px;
+    padding: 4px 6px 4px 6px;
     margin-left: 8px;
-    background-color: #0099CC;
-    border: solid 2px #CACACA;
+    border-top: solid 2px #CACACA;
+    border-left: solid 2px #CACACA;
+    background-color: #FFF0E1;
 }
 
 .extract-chiclet a:link, .extract-chiclet a:visited {
-    color: #FFFFFF;
+    color: #FF9933;
+    font-weight: bold;
 }
 
 .extract-chiclets-container {
@@ -273,6 +278,7 @@ body {
 .person-fragment {
     border-spacing: 0px;
     background-color: #FFFFFF;
+    border: solid 1px #7FCCE5;
 }
 
 .person-fragment .footer-row {
@@ -286,6 +292,7 @@ body {
 }
 
 .person-fragment .header-row .title-cell {
+    border-bottom: solid 1px #7FCCE5;
     width: 100%;
 }
 
@@ -343,13 +350,20 @@ body {
 }
 
 .contact-info-summary {
-    border: solid 1px #FFE8D9;
+    border: solid 1px #FFCC99;
     color: #666666;
 }
 
-.contact-info-summary .contact-header {
-    height: 20px;
-    background-color: #FFF7F2;
+.contact-header {
+    height: 23px;
+    background-color: #FFF3E6;
+    background-image: url(/Mantissa/images/contact-info-summary-header-bg.png);
+    background-position: bottom left;
+    background-repeat: repeat-x;
+}
+
+.contact-header > td {
+    border-bottom: solid 1px #FFCC99;
 }
 
 #search-button {
@@ -959,6 +973,5 @@ li.installing {
 .shadow-box-content {
     background-color: #FFFFFF;
     color: #000000;
-    border: 1px solid #000000;
 }
 
