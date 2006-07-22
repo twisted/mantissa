@@ -56,13 +56,13 @@ Mantissa.People.PersonDetail.methods(
             return;
         }
 
-        if(node.style.backgroundColor == "red") {
-            node.style.backgroundColor = "";
+        if(node.parentNode.className == "selected-extract-chiclet") {
+            node.parentNode.className = "extract-chiclet";
             self.activePodChiclet = null;
         } else {
-            node.style.backgroundColor = "red";
+            node.parentNode.className = "selected-extract-chiclet";
             if(self.activePodChiclet) {
-                self.activePodChiclet.style.backgroundColor = "";
+                self.activePodChiclet.parentNode.className = "extract-chiclet";
             }
             self.activePodChiclet = node;
         }

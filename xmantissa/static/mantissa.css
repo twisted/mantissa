@@ -217,20 +217,35 @@ body {
     background-image: url(/Mantissa/images/person-menubar-bg.png);
     background-position: bottom left;
     background-repeat: repeat-x;
+    border-bottom: solid 1px #FFCC99;
+    margin-bottom: 16px;
 }
 
-.extract-chiclet {
+.selected-extract-chiclet, .extract-chiclet {
     float: left;
     padding: 4px 6px 4px 6px;
     margin-left: 8px;
+    background-color: #FFF0E1;
+}
+
+.selected-extract-chiclet {
     border-top: solid 2px #CACACA;
     border-left: solid 2px #CACACA;
-    background-color: #FFF0E1;
+    border-right: solid 1px #CACACA;
+    border-bottom: solid 1px #CACACA;
+}
+
+.extract-chiclet {
+    border-top: solid 1px #CACACA;
+    border-left: solid 1px #CACACA;
+    margin-left: 9px;
+    margin-top: 1px;
+    border-right: solid 2px #CACACA;
+    border-bottom: solid 2px #CACACA;
 }
 
 .extract-chiclet a:link, .extract-chiclet a:visited {
     color: #FF9933;
-    font-weight: bold;
 }
 
 .extract-chiclets-container {
@@ -308,7 +323,6 @@ body {
 
 .stretch-cell {
     width: 100%;
-    border-bottom: solid 1px #D9F0F7;
 }
 
 .header-row .image-cell > img {
