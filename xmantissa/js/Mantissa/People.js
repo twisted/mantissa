@@ -41,6 +41,11 @@ Mantissa.People.PersonDetail.methods(
 
     function toggleExtractPod(self, node) {
         var type = node.firstChild.nodeValue;
+        if(node.style.backgroundColor == "red") {
+            node.style.backgroundColor = "";
+        } else {
+            node.style.backgroundColor = "red";
+        }
         if(type in self.extractPods) {
             if(self.extractPods[type].style.display == "none") {
                 self.extractPods[type].style.display = "";
