@@ -8,6 +8,14 @@ body {
     border-right: solid 1px #FFCC99;
 }
 
+.fragment-cell .tdb th {
+    display: none;
+}
+
+.fragment-cell .tdb {
+    width: 100%;
+}
+
 .loading-pod {
     position: fixed;
     z-index: 99;
@@ -649,10 +657,10 @@ input.change-password {
  * control-table used in "my account" because the tdb cells we want to
  * accentuate are in the first row, rather than the first column */
 
-    .tdb-action-result {
-        white-space: nowrap;
-        color: #04a700;
-        font-weight: bold;
+.tdb-action-result {
+    white-space: nowrap;
+    color: #04a700;
+    font-weight: bold;
 }
 
 .tdb-clickable-header {
