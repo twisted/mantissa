@@ -316,6 +316,10 @@ body {
     background-color: #D9F0F7;
 }
 
+.extract-row {
+    border-top: solid 1px #D9F0F7;
+}
+
 .fragment-cell {
     border-left: solid 1px #D9F0F7;
     border-right: solid 1px #D9F0F7;

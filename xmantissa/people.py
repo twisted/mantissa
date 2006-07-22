@@ -648,12 +648,16 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
             yield pattern.fillSlots('type', etype)
 
     def getExtractPod(self, etype):
-        pat = inevow.IQ(self.docFactory).patternGenerator('person-fragment')
+        iq = inevow.IQ(self.docFactory)
+        extractRowPattern = iq.patternGenerator('extract-row')
         items = self.person.getExtractWrappers(etype, 5)
 
         p = dictFillSlots(
-             pat, dict(title=etype,
-                       fragment=(tags.div[inevow.IRenderer(i.extract)] for i in items)))
+             iq.onePattern('person-fragment'),
+                dict(title=etype,
+                     fragment=(extractRowPattern.fillSlots(
+                                'extract', inevow.IRenderer(i.extract))
+                                for i in items)))
         return unicode(flatten(p), 'utf-8')
 
     expose(getExtractPod)
