@@ -84,7 +84,7 @@ class Person(item.Item):
         for email in self.store.query(EmailAddress, EmailAddress.person == self):
             return email.address
 
-    def registerExtract(self, extract, timestamp=None):
+    def registerExtract(self, extract, etype, timestamp=None):
         """
         @param extract: some Item that implements L{inevow.IRenderer}
         """
@@ -93,6 +93,7 @@ class Person(item.Item):
 
         return ExtractWrapper(store=self.store,
                               extract=extract,
+                              extractType=etype,
                               timestamp=timestamp,
                               person=self)
 
@@ -102,11 +103,19 @@ class Person(item.Item):
                                 sort=ExtractWrapper.timestamp.desc,
                                 limit=n)
 
+    def getUniqueExtractTypes(self):
+        query = self.store.query(ExtractWrapper,
+                                 ExtractWrapper.person == self)
+        return query.getColumn('extractType').distinct()
+
 class ExtractWrapper(item.Item):
-    extract = attributes.reference(whenDeleted=attributes.reference.CASCADE)
+    extract = attributes.reference(
+                whenDeleted=attributes.reference.CASCADE)
+    extractType = attributes.text(indexed=True)
     timestamp = attributes.timestamp(indexed=True)
-    person = attributes.reference(reftype=Person,
-                                  whenDeleted=attributes.reference.CASCADE)
+    person = attributes.reference(
+                reftype=Person,
+                whenDeleted=attributes.reference.CASCADE)
 
 class Organizer(item.Item, item.InstallableMixin):
     """
@@ -630,6 +639,11 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def render_mugshotFormAction(self, ctx, data):
         return self.myURL + '/uploadMugshot'
+
+    def render_extractChiclets(self, ctx, data):
+        pattern = inevow.IQ(self.docFactory).patternGenerator('extract-chiclet')
+        for etype in self.person.getUniqueExtractTypes():
+            yield pattern.fillSlots('type', etype)
 
     def editContactInfoItem(self, typeName, oldValue, newValue):
         for (cls, attr) in self.contactInfoItemTypes:

@@ -200,9 +200,29 @@ body {
     width: 100%;
 }
 
-.person-name-container {
+.person-menu-bar {
     background-color: #FFE8D9;
     padding: 8px 0px 8px 84px;
+}
+
+.extract-chiclet {
+    float: left;
+    padding: 6px;
+    margin-left: 8px;
+    background-color: #0099CC;
+    border: solid 2px #CACACA;
+}
+
+.extract-chiclet a:link, .extract-chiclet a:visited {
+    color: #FFFFFF;
+}
+
+.extract-chiclets-container {
+    margin-right: 14px;
+    float: right;
+}
+
+.person-name {
     font-size: 1.7em;
     color: #666666;
 }
