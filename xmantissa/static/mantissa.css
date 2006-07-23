@@ -8,6 +8,10 @@ body {
     border-right: solid 1px #FFCC99;
 }
 
+.fragment-cell .tdb-navigation-panel img {
+    padding: 4px 2px 0px 2px;
+}
+
 .fragment-cell .tdb th {
     display: none;
 }
