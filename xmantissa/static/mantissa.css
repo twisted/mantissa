@@ -12,8 +12,15 @@ body {
     display: none;
 }
 
+.fragment-cell .tdb tbody td {
+    background-color: #FFFFFF;
+    border-bottom: solid 1px #0099CC;
+    border-right: solid 1px #0099CC;
+}
+
 .fragment-cell .tdb {
     width: 100%;
+    border-color: #0099CC;
 }
 
 .loading-pod {
@@ -957,9 +964,9 @@ a.childsellink {
 /* These three li styles are for the admin site offering page.  They
 give installed offerings a different look from uninstalled offerings,
 including a visual hint that uninstalled offerings are clickable. */
-    li.installed {
-        border: solid 1px green;
-        margin-top: 1px;
+li.installed {
+    border: solid 1px green;
+    margin-top: 1px;
 }
 
 li.uninstalled {
