@@ -51,6 +51,8 @@ Mantissa.People.PersonDetail.methods(
     },
 
     function toggleExtractPod(self, node) {
+        node.blur();
+
         var type = node.firstChild.nodeValue;
         if(type == self.waitingOn) {
             return;
@@ -96,9 +98,7 @@ Mantissa.People.PersonDetail.methods(
                     '<div xmlns="http://www.w3.org/1999/xhtml">' + html + '</div>');
                 self.extractPods[type] = e;
                 self.waitingOn = null;
-                setTimeout(function() {
-                    self.loadingPodDialog.style.display = "none";
-                }, 50);
+                self.loadingPodDialog.style.display = "none";
             });
     },
 
