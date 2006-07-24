@@ -680,7 +680,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
                             attributes.AND(
                                 getattr(cls, attr) == oldValue,
                                 cls.person == self.person))
-                setattr(item, attr, newValue)
+                setattr(item, attr, newValue.strip())
                 break
     expose(editContactInfoItem)
 
@@ -689,7 +689,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
             if typeName == cls.__name__:
                 cls(person=self.person,
                     store=self.person.store,
-                    **{attr: value})
+                    **{attr: value.strip()})
                 p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
                 return unicode(flatten(p.fillSlots('value', value)), 'utf-8')
     expose(createContactInfoItem)
