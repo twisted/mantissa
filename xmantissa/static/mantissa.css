@@ -378,6 +378,10 @@ body {
     margin: 4px;
 }
 
+.contact-info-item {
+    white-space: nowrap;
+}
+
 .contact-info-items {
     padding-right: 4px;
 }
