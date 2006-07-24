@@ -23,6 +23,7 @@ body {
 }
 
 .fragment-cell .tdb {
+    width: 100%;
     border-color: #0099CC;
 }
 
