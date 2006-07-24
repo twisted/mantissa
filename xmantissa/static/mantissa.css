@@ -19,12 +19,13 @@ body {
 .fragment-cell .tdb tbody td {
     background-color: #FFFFFF;
     border-bottom: solid 1px #0099CC;
-    border-right: solid 1px #0099CC;
+    border-right: none;
 }
 
 .fragment-cell .tdb {
     width: 100%;
     border-color: #0099CC;
+    border: none;
 }
 
 .loading-pod {
