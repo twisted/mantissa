@@ -1,5 +1,6 @@
 // import Mantissa
 // import Mantissa.ScrollTable
+// import Quotient.LightBox
 
 Mantissa.People.Organizer = Nevow.Athena.Widget.subclass('Mantissa.People.Organizer');
 Mantissa.People.Organizer.methods(
@@ -98,6 +99,7 @@ Mantissa.People.PersonDetail.methods(
                     '<div xmlns="http://www.w3.org/1999/xhtml">' + html + '</div>');
                 self.extractPods[type] = e;
                 self.waitingOn = null;
+                initLightbox();
                 self.loadingPodDialog.style.display = "none";
             });
     },
