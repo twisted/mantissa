@@ -18,7 +18,7 @@ from axiom import item, attributes
 from axiom.upgrade import registerUpgrader
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
-from xmantissa.tdbview import TabularDataView, ColumnViewBase
+from xmantissa.tdbview import TabularDataView, ColumnViewBase, DateColumnView
 from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
@@ -210,6 +210,14 @@ class PersonNameColumn(UnsortableColumn):
     def extractValue(self, model, item):
         return item.getDisplayName()
 
+class PersonNameColumnView(ColumnViewBase):
+    def stanFromValue(self, idx, item, value):
+        return item.getDisplayName()
+
+class EmailAddressColumnView(ColumnViewBase):
+    def stanFromValue(self, idx, item, value):
+        return item.getEmailAddress()
+
 class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'people-organizer'
     live = 'athena'
@@ -247,7 +255,32 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def render_peopleTable(self, ctx, data):
         comparison = self._getBaseComparison(ctx)
-        return self._createPeopleScrollTable(comparison)
+
+        tdm = TabularDataModel(
+                self.original.store,
+                Person,
+                (Person.name, Person.created),
+                comparison,
+                itemsPerPage=10,
+                defaultSortAscending=False)
+
+        cols = (PersonNameColumnView('name'),
+                EmailAddressColumnView('email'),
+                DateColumnView('created'))
+
+        wt = ixmantissa.IWebTranslator(self.original.store)
+
+        def onclick(idx, item, value):
+            return 'document.location = %r' % (wt.linkTo(item.storeID))
+
+        for c in cols:
+            c.onclick = onclick
+
+        f = TabularDataView(tdm, cols)
+
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        f.setFragmentParent(self)
+        return f
 
     def head(self):
         return None
