@@ -218,6 +218,13 @@ class EmailAddressColumnView(ColumnViewBase):
     def stanFromValue(self, idx, item, value):
         return item.getEmailAddress()
 
+class PhoneNumberColumnView(ColumnViewBase):
+    def stanFromValue(self, idx, item, value):
+        blah = item.store.findFirst(PhoneNumber, PhoneNumber.person == item, default=None)
+        if blah is not None:
+            return blah.number
+        return u'None'
+
 class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'people-organizer'
     live = 'athena'
@@ -261,12 +268,12 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
                 Person,
                 (Person.name, Person.created),
                 comparison,
-                itemsPerPage=10,
+                itemsPerPage=100,
                 defaultSortAscending=False)
 
         cols = (PersonNameColumnView('name'),
                 EmailAddressColumnView('email'),
-                DateColumnView('created'))
+                PhoneNumberColumnView('phone', displayName='Phone Number'))
 
         wt = ixmantissa.IWebTranslator(self.original.store)
 
@@ -276,8 +283,18 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         for c in cols:
             c.onclick = onclick
 
-        f = TabularDataView(tdm, cols)
+        class Fuck(TabularDataView):
+            def constructRows(self, modelData):
+                def key(r):
+                    for d in modelData:
+                        item = d['__item__']
+                        name = item.getDisplayName()
+                        d['name'] = name
+                        return name.split()[-1]
+                modelData.sort(key=key)
+                return TabularDataView.constructRows(self, modelData)
 
+        f = Fuck(tdm, cols)
         f.docFactory = webtheme.getLoader(f.fragmentName)
         f.setFragmentParent(self)
         return f
