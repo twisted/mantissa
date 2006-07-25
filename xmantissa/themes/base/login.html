@@ -1,27 +1,41 @@
 <form method="post" name="loginForm" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
   <nevow:attr name="action"><nevow:slot name="login-action" /></nevow:attr>
 
-  <table>
-    <tr>
-      <td>Username:</td>
-      <td><input type="text" name="username" /></td>
-    </tr>
-    <tr>
-      <td>Password:</td>
-      <td><input type="password" name="password" /></td>
-    </tr>
-    <tr>
-      <td>Remember Me</td>
-      <td><input type="checkbox" name="rememberMe" /></td>
-    </tr>
-    <tr>
-      <td colspan="2" align="right">
-        <input type="submit" value="Log In" />
+  <table style="height: 100%; width: 100%">
+    <tr valign="center">
+      <td align="center" >
+        <div style="width: 430px; height: 222px; background-image: url(/Mantissa/images/login-bg.png); text-align: left">
+          <table style="margin-top: 50px; margin-left: 15px">
+            <tr>
+              <td>Username:</td>
+              <td><input type="text" name="username" /></td>
+            </tr>
+            <tr>
+              <td>Password:</td>
+              <td><input type="password" name="password" /></td>
+            </tr>
+            <tr>
+              <td>Remember Me</td>
+              <td><input type="checkbox" name="rememberMe" /></td>
+            </tr>
+            <tr>
+              <td colspan="2" align="right">
+                <a href="#" onclick="document.forms['loginForm'].submit();">
+                  <img src="/Mantissa/images/login-button.png" border="0" />
+                </a>
+                <input type="submit" style="display: none" />
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2">
+                <nevow:slot name="error" />
+              </td>
+            </tr>
+          </table>
+        </div>
       </td>
     </tr>
   </table>
-
-  <nevow:slot name="error" />
 
   <div nevow:pattern="error" style="padding-top: 5px">
     <span style="color: red">Login Failure:</span> <i><nevow:slot name="error" /></i>
