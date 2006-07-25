@@ -406,16 +406,29 @@ body {
 }
 
 .contact-info-summary {
-    border: solid 1px #FFCC99;
     color: #666666;
 }
 
 .contact-header {
+    background-color: #FFF3E6;
+    border-top: solid 1px #FFCC99;
+}
+
+.contact-header-2 {
     height: 23px;
     background-color: #FFF3E6;
     background-image: url(/Mantissa/images/contact-info-summary-header-bg.png);
     background-position: bottom left;
     background-repeat: repeat-x;
+    border-bottom: solid 1px #FFCC99;
+}
+
+.contact-header-tl-corner {
+    background-color: #FFF3E6;
+}
+
+.contact-header-tr-corner {
+    background-color: #FFF3E6;
 }
 
 .contact-header > td {

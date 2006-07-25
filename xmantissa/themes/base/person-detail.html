@@ -92,41 +92,61 @@
           <table nevow:render="contactInfoSummary"
             class="contact-info-summary shadow-box-content"
             cellpadding="0" cellspacing="0" style="width: 100%">
-              <tr class="contact-header">
-                <td colspan="2" />
+              <tr style="line-height: 0px" valign="top">
+                <td class="contact-header-tl-corner"><img src="/Mantissa/images/contact-info-tl-corner.png" /></td>
+                <td class="contact-header" />
+                <td class="contact-header-tr-corner"><img src="/Mantissa/images/contact-info-tr-corner.png" /></td>
+              </tr>
+              <tr style="line-height: 0px" valign="top">
+                <td style="border-left: solid 1px #FFCC99" class="contact-header-2" />
+                <td class="contact-header-2" />
+                <td style="border-right: solid 1px #FFCC99" class="contact-header-2" />
               </tr>
               <tr valign="top">
-                <td class="mugshot-container">
-                  <img class="mugshot">
-                    <nevow:attr name="src">
-                      <nevow:invisible nevow:render="mugshotLink" />
-                    </nevow:attr>
-                  </img>
-                </td>
-                <td style="padding-top: 4px">
-                  <table cellpadding="0" cellspacing="0">
-                    <nevow:slot name="sections" />
+                <td style="border-left: solid 1px #FFCC99" />
+                <td style="width: 100%">
+                  <table>
+                    <tr>
+                      <td class="mugshot-container">
+                        <img class="mugshot">
+                          <nevow:attr name="src">
+                            <nevow:invisible nevow:render="mugshotLink" />
+                          </nevow:attr>
+                        </img>
+                      </td>
+                      <td style="padding-top: 4px">
+                        <table cellpadding="0" cellspacing="0">
+                          <nevow:slot name="sections" />
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center">
+                        <a href="#"
+                          onclick="Mantissa.People.PersonDetail.get(this).toggleEditMugshotForm(); return false"
+                          class="mugshot-change-link"
+                          >Change...</a>
+                      </td>
+                      <td>
+                        <form enctype="multipart/form-data" method="POST"
+                          name="mugshot" class="mugshot-form"
+                          style="visibility: hidden">
+                          <nevow:attr name="action">
+                            <nevow:invisible nevow:render="mugshotFormAction" />
+                          </nevow:attr>
+                          <input type="file" name="uploaddata" />
+                          <input type="submit" name="upload" value="Upload" />
+                        </form>
+                      </td>
+                    </tr>
                   </table>
                 </td>
+                <td style="border-right: solid 1px #FFCC99" />
               </tr>
-              <tr>
-                <td style="text-align: center">
-                  <a href="#"
-                    onclick="Mantissa.People.PersonDetail.get(this).toggleEditMugshotForm(); return false"
-                    class="mugshot-change-link"
-                    >Change...</a>
-                </td>
-                <td>
-                  <form enctype="multipart/form-data" method="POST"
-                    name="mugshot" class="mugshot-form"
-                    style="visibility: hidden">
-                    <nevow:attr name="action">
-                      <nevow:invisible nevow:render="mugshotFormAction" />
-                    </nevow:attr>
-                    <input type="file" name="uploaddata" />
-                    <input type="submit" name="upload" value="Upload" />
-                  </form>
-                </td>
+              <tr style="line-height: 0px">
+                <td><img src="/Mantissa/images/contact-info-bl-corner.png" /></td>
+                <td style="border-bottom: solid 1px #FFCC99" />
+                <td><img src="/Mantissa/images/contact-info-br-corner.png" /></td>
               </tr>
             </table>
         </td>
