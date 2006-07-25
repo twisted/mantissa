@@ -2,6 +2,25 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+.person-bullshit .tdb {
+    border-color: #FFCC99;
+}
+
+.person-bullshit .tdb td {
+    border-right: solid 1px #FFCC99;
+    border-bottom: solid 1px #FFCC99;
+    background-color: #FFF6ED;
+    background-image: url(/Mantissa/images/organizer-row-bg.png);
+    background-position: bottom left;
+    background-repeat: repeat-x;
+}
+
+.person-bullshit .tdb th {
+    background-color: #FFEBD6;
+    border-right: solid 1px #FFCC99;
+    border-bottom: solid 1px #FFCC99;
+}
+
 /* person widget styles */
 
 .person-widget-right-edge {
