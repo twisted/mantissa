@@ -4,6 +4,7 @@ from zope.interface import implements
 from twisted.trial import unittest
 
 from axiom import iaxiom, store, batch, item, attributes
+from axiom.scheduler import Scheduler
 
 from xmantissa import ixmantissa, fulltext
 
@@ -84,6 +85,7 @@ class IndexerTestsMixin:
         self.dbdir = self.mktemp()
         self.path = u'index'
         self.store = store.Store(self.dbdir)
+        Scheduler(store=self.store).installOn(self.store)
         self.indexer = self.createIndexer()
 
 
