@@ -344,18 +344,45 @@ body {
     font-weight: bold;
 }
 
-.person-fragment .header-row .title-cell {
-    width: 100%;
+.person-fragment .title-cell {
+    background-color: #D9F0F7;
+    font-size: 1.2em;
+    border-bottom: solid 1px #7FCCE5;
+    height: 21px;
+}
+
+.fxyz {
+    line-height: 0px;
+}
+
+.fxyz img {
+    vertical-align: top;
+}
+
+.pod-left-edge {
+    border-left: solid 1px #7FCCE5;
+    background-color: #D9F0F7;
+    border-bottom: solid 1px #7FCCE5;
+}
+
+.pod-right-edge {
+    border-right: solid 1px #7FCCE5;
+    background-color: #D9F0F7;
+    border-bottom: solid 1px #7FCCE5;
 }
 
 .person-fragment .header-row .title-cell span {
     margin-left: 8px;
 }
 
-.header-row .image-cell > img {
-    vertical-align: top;
-    position: relative;
-    top: -1px;
+.header-row .image-cell  {
+    line-height: 0px;
+    width: 3px;
+}
+
+.top-stretch {
+    border-top: solid 1px #7FCCE5;
+    background-color: #D9F0F7;
 }
 
 .stretch-cell {
@@ -363,16 +390,11 @@ body {
     border-bottom: solid 1px #D9F0F7;
 }
 
-.header-row .image-cell > img {
-    left: -1px;
-}
-
-.header-row .image-cell > img.right-image {
-    left: 1px;
-}
-
 .person-fragment .header-row > td {
-    background-color: #D9F0F7;
+}
+
+.person-fragment .image-cell > img {
+    vertical-align: top;
 }
 
 .extract-row {
@@ -380,8 +402,8 @@ body {
 }
 
 .fragment-cell {
-    border-left: solid 1px #D9F0F7;
-    border-right: solid 1px #D9F0F7;
+    border-left: solid 1px #7FCCE5;
+    border-right: solid 1px #7FCCE5;
 }
 
 .person-detail {
