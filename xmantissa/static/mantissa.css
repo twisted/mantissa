@@ -484,86 +484,28 @@ body {
     margin-left: 8px;
 }
 
-.tab-button {
-    margin-bottom: 2px;
+.selected-tab-button .tab-text-cell-blue, .tab-button:hover .tab-text-cell-blue {
+    background-image: url(/Mantissa/images/blue-tab.png);
 }
 
-.selected-tab-button {
-    border-bottom: solid 1px #0099CC;
+.selected-tab-button .tab-text-cell-orange, .tab-button:hover .tab-text-cell-orange {
+    background-image: url(/Mantissa/images/orange-tab.png);
 }
 
-.tab-button-row {
-    line-height: 0px;
-}
-
-.selected-tab-button .tab-tl-corner, .selected-tab-button .tab-tr-corner {
-    width: 3px;
-    height: 3px;
-}
-
-.tab-corner {
-    vertical-align: top;
-}
-
-.tab-top-edge {
-    height: 3px;
-}
-
-.tab-text-cell {
-    color: #FFFFFF;
-    padding: 0px 4px 0px 4px;
-    font-size: 1.3em;
-}
-
-.tab-text-cell > div {
-    margin-bottom: 2px;
-}
-
-.selected-tab-button .tab-text-row {
-    background-image: url(/Mantissa/images/tab-bg.png);
-    background-color: #77C9E3;
-    background-repeat: repeat-x;
-}
-
-.tab-text-row {
+.tab-text-cell-blue, .tab-text-cell-orange {
+    font-size: 1.1em;
+    height: 26px;
     text-align: center;
+    color: #FFFFFF;
+    font-weight: bold;
 }
 
-.selected-tab-button .tab-top-edge {
-    background-image: url(/Mantissa/images/tab-top-edge.png);
-    background-repeat: repeat-x;
+.tab-text-cell-blue {
+    width: 61px;
 }
 
-.tab-button:hover .tab-top-edge {
-    border-bottom: solid 1px #323232;
-}
-
-.tab-button:hover .tab-left-edge {
-    background-color: #323232;
-}
-
-.tab-left-edge, .tab-right-edge {
-    width: 1px;
-}
-
-.tab-bottom-edge {
-    height: 1px;
-}
-
-.tab-button:hover .tab-right-edge, .tab-button:hover .tab-bottom-edge {
-    background-color: #505050;
-}
-
-.tab-button:hover .tab-text-cell {
-    background-color: #484848;
-}
-
-.selected-tab-button .tab-tl-corner {
-    background-image: url(/Mantissa/images/tab-tl-corner.png);
-}
-
-.selected-tab-button .tab-tr-corner {
-    background-image: url(/Mantissa/images/tab-tr-corner.png);
+.tab-text-cell-orange {
+    width: 73px;
 }
 
 .scroll-header-container {

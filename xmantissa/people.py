@@ -204,7 +204,7 @@ class Organizer(item.Item, item.InstallableMixin):
             children.append(webnav.Tab(chars, None, 0.0, linkURL=linkURL))
 
         return [webnav.Tab('People', self.storeID, 0.5,
-                           authoritative=True, children=children)]
+                           authoritative=True, children=children, color='orange')]
 
 class PersonNameColumn(UnsortableColumn):
     def extractValue(self, model, item):
@@ -359,7 +359,7 @@ class AddPerson(item.Item, item.InstallableMixin):
         other.powerUp(self, ixmantissa.INavigableElement)
 
     def getTabs(self):
-        return [webnav.Tab('People', self.storeID, 0.0, children=[
+        return [webnav.Tab('People', self.storeID, 0.0, color='orange', children=[
                     webnav.Tab('Add Person', self.storeID, 0.2)],
                            authoritative=False)]
 

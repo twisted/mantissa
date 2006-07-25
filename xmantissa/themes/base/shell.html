@@ -32,38 +32,19 @@
     <nevow:slot name="kids" />
   </ul>
 
-  <table nevow:pattern="selected-tab-contents" cellpadding="0" cellspacing="0">
-    <tr class="tab-button-row">
-      <td class="tab-tl-corner" />
-      <td class="tab-top-edge" />
-      <td class="tab-tr-corner" />
-    </tr>
+  <table nevow:pattern="tab-contents-blue" cellpadding="0" cellspacing="0">
     <tr class="tab-text-row">
-      <td />
-      <td class="tab-text-cell">
+      <td class="tab-text-cell-blue">
         <div><nevow:slot name="name" /></div>
       </td>
-      <td />
     </tr>
   </table>
 
-  <table nevow:pattern="tab-contents" cellpadding="0" cellspacing="0">
-    <tr class="tab-button-row">
-      <td class="tab-tl-corner" />
-      <td class="tab-top-edge" />
-      <td class="tab-tr-corner" />
-    </tr>
+  <table nevow:pattern="tab-contents-orange" cellpadding="0" cellspacing="0">
     <tr class="tab-text-row">
-      <td class="tab-left-edge" />
-      <td class="tab-text-cell">
-        <nevow:slot name="name" />
+      <td class="tab-text-cell-orange">
+        <div><nevow:slot name="name" /></div>
       </td>
-      <td class="tab-right-edge" />
-    </tr>
-    <tr class="tab-button-row">
-      <td class="tab-bl-corner" />
-      <td class="tab-bottom-edge" />
-      <td class="tab-br-corner" />
     </tr>
   </table>
 

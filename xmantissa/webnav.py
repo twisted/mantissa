@@ -13,8 +13,8 @@ class TabMisconfiguration(Exception):
             "Inconsistent tab item factory information",
             info, tab)
 
-TabInfo = record('priority storeID children linkURL authoritative',
-                 authoritative=None)
+TabInfo = record('priority storeID children linkURL authoritative color',
+                 authoritative=None, color='blue')
 
 class Tab(object):
     """Represent part or all of the layout of a single navigation tab.
@@ -39,13 +39,14 @@ class Tab(object):
     _item = None
     implements(ITab)
 
-    def __init__(self, name, storeID, priority, children=(), authoritative=True, linkURL=None):
+    def __init__(self, name, storeID, priority, children=(), authoritative=True, linkURL=None, color='blue'):
         self.name = name
         self.storeID = storeID
         self.priority = priority
         self.children = tuple(children)
         self.authoritative = authoritative
         self.linkURL = linkURL
+        self.color = color
 
     def __repr__(self):
         return '<%s%s %r/%0.3f %r [%r]>' % (self.authoritative and '*' or '',
@@ -99,7 +100,8 @@ def getTabs(navElements):
                     priority=tab.priority,
                     storeID=tab.storeID,
                     children=list(tab.children),
-                    linkURL=tab.linkURL)
+                    linkURL=tab.linkURL,
+                    color=tab.color)
             else:
                 info = primary[tab.name]
 
@@ -123,7 +125,7 @@ def getTabs(navElements):
         info.children.sort(key=key)
 
         resultTabs.append(
-            Tab(name, info.storeID, info.priority, info.children))
+            Tab(name, info.storeID, info.priority, info.children, color=info.color))
 
     resultTabs.sort(key=key)
 

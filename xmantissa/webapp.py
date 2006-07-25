@@ -79,10 +79,10 @@ class NavMixin(object):
         for tab in self.pageComponents.navigation:
             if tab == selectedTab or selectedTab in tab.children:
                 p = 'selected-app-tab'
-                contentp = 'selected-tab-contents'
+                contentp = 'tab-contents-' + tab.color
             else:
                 p = 'app-tab'
-                contentp = 'tab-contents'
+                contentp = 'tab-contents-' + tab.color
 
             yield dictFillSlots(getp(p),
                     {'name': tab.name,
