@@ -1,3 +1,25 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveFragment" style="margin-top: 20px">
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveFragment">
+  <div style="border-bottom: solid 1px #FF9933; background-color: #FFCC99" cellpadding="0" cellspacing="0">
+    <table style="width: 100%">
+      <tr valign="center">
+        <td>
+          <img src="/Mantissa/images/people-back.png" />
+        </td>
+        <td>
+          <img src="/Mantissa/images/people-filter.png" />
+        </td>
+        <td align="right" style="width: 100%">
+          <img src="/Mantissa/images/people-buttons.png" />
+        </td>
+        <td align="right" style="white-space: nowrap; padding-right: 4px">
+          <input type="text" /> <input type="submit" value="Find People" />
+        </td>
+      </tr>
+    </table>
+  </div>
+  <div style="background-color: #FFEBD6; border-bottom: solid 1px #FFCC99; padding: 4px 0px 4px 4px; margin-bottom: 13px">
+    <span class="person-name">All People</span>
+  </div>
+
   <nevow:invisible nevow:render="peopleTable" />
 </div>
