@@ -130,7 +130,7 @@ def extractWrapper1To2(old):
     for (typename, type) in extractTypes.iteritems():
         if new.extract.__class__ is type:
             new.extractType = typename
-            return
+            return new
     new.extractType = u'Images'
     return new
 
