@@ -111,6 +111,8 @@ class Person(item.Item):
         return query.getColumn('extractType').distinct()
 
 class ExtractWrapper(item.Item):
+    schemaVersion = 2
+
     extract = attributes.reference(
                 whenDeleted=attributes.reference.CASCADE)
     extractType = attributes.text(indexed=True)
@@ -118,6 +120,21 @@ class ExtractWrapper(item.Item):
     person = attributes.reference(
                 reftype=Person,
                 whenDeleted=attributes.reference.CASCADE)
+
+def extractWrapper1To2(old):
+    from xquotient.extract import extractTypes
+    new = old.upgradeVersion(old.typeName, 1, 2,
+                             extract=old.extract,
+                             timestamp=old.timestamp,
+                             person=old.person)
+    for (typename, type) in extractTypes.iteritems():
+        if new.extract.__class__ is type:
+            new.extractType = typename
+            return
+    new.extractType = u'Images'
+    return new
+
+registerUpgrader(extractWrapper1To2, ExtractWrapper.typeName, 1, 2)
 
 class Organizer(item.Item, item.InstallableMixin):
     """
