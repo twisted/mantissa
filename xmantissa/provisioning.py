@@ -25,3 +25,6 @@ class BenefactorFactory(object):
 
     def instantiate(self, **kw):
         return self.benefactorClass(**kw)
+
+    def __repr__(self):
+        return '<BenefactorFactory %r>' % (self.name,)
