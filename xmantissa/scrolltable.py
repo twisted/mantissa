@@ -174,7 +174,7 @@ class Scrollable(object):
 
 
     def requestCurrentSize(self):
-        return len(self)
+        return self.performCount()
     expose(requestCurrentSize)
 
 
