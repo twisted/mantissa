@@ -27,24 +27,27 @@ class UnsortableColumn(AttributeColumn):
     def sortAttribute(self):
         return None
 
-class ScrollingFragment(LiveElement):
-    jsClass = u'Mantissa.ScrollTable.ScrollingWidget'
+class Scrollable(object):
+    """
+    Mixin for "model" implementations of an in-browser scrollable list of
+    elements.
 
-    title = ''
-    live = 'athena'
-    fragmentName = 'scroller'
+    @ivar webTranslator: A L{IWebTranslator} provider for resolving and
+    creating web links for items.
 
+    @ivar columns: A mapping of attribute identifiers to L{IColumn}
+    providers.
 
-    def __init__(self, store, itemType, baseConstraint, columns,
-                 defaultSortColumn=None, defaultSortAscending=True,
-                 actions=(), *a, **kw):
+    @ivar columnNames: A list of attribute identifiers.
 
-        LiveElement.__init__(self, *a, **kw)
-        self.store = store
-        self.wt = IWebTranslator(self.store, None)
-        self.itemType = itemType
-        self.baseConstraint = baseConstraint
+    @ivar isAscending: A boolean indicating the current order of the sort.
 
+    @ivar currentSortColumn: A L{axiom.attributes.SQLAttribute} representing
+    the current sort key.
+    """
+    def __init__(self, webTranslator, columns, defaultSortColumn,
+                 defaultSortAscending, actions):
+        self.webTranslator = webTranslator
         self.columns = {}
         self.columnNames = []
         for col in columns:
@@ -63,16 +66,45 @@ class ScrollingFragment(LiveElement):
 
         self.currentSortColumn = defaultSortColumn
         self.isAscending = defaultSortAscending
-        self.currentRowSet = None
-        self.currentRowRange = None
-
         self.actions = actions
 
-    def requestCurrentSize(self):
-        return self.store.query(self.itemType, self.baseConstraint).count()
-    expose(requestCurrentSize)
 
+    # Override these two in a subclass
+    def performCount(self):
+        """
+        Override this in a subclass.
+
+        @rtype: C{int}
+        @return: The total number of elements in this scrollable.
+        """
+        raise NotImplementedError()
+
+
+    def performQuery(self, rangeBegin, rangeEnd):
+        """
+        Override this in a subclass.
+
+        @rtype: C{list}
+        @return: Elements from C{rangeBegin} to C{rangeEnd} of the
+        underlying data set, as ordered by the value of
+        C{currentSortColumn} sort column in the order indicated by
+        C{isAscending}.
+        """
+        raise NotImplementedError()
+
+
+    # The rest takes care of responding to requests from the client.
     def getTableMetadata(self):
+        """
+        Retrieve a description of the various properties of this scrolltable.
+
+        @return: A sequence containing 5 elements.  They are, in order, a
+        list of the names of the columns present, a mapping of column names
+        to two-tuples of their type and a boolean indicating their
+        sortability, the total number of rows in the scrolltable, the name
+        of the default sort column, and a boolean indicating whether or not
+        the current sort order is ascending.
+        """
         coltypes = {}
         for (colname, column) in self.columns.iteritems():
             sortable = column.sortAttribute() is not None
@@ -81,14 +113,15 @@ class ScrollingFragment(LiveElement):
                 coltype = unicode(coltype, 'ascii')
             coltypes[colname] = (coltype, sortable)
 
-        if 0 < len(self.actions):
+        if self.actions:
             coltypes[u'actions'] = (u'actions', False)
             self.columnNames.append(u'actions')
 
         return [self.columnNames, coltypes, self.requestCurrentSize(),
-                unicode(self.currentSortColumn.attrname,
-                        'ascii'), self.isAscending]
+                unicode(self.currentSortColumn.attrname, 'ascii'),
+                self.isAscending]
     expose(getTableMetadata)
+
 
     def resort(self, columnName):
         """
@@ -109,21 +142,14 @@ class ScrollingFragment(LiveElement):
         return self.isAscending
     expose(resort)
 
-    def performQuery(self, rangeBegin, rangeEnd):
-        self.currentRowRange = (rangeBegin, rangeEnd)
 
-        if self.isAscending:
-            sort = self.currentSortColumn.ascending
-        else:
-            sort = self.currentSortColumn.descending
-        self.currentRowSet = []
-        for item in self.store.query(self.itemType,
-                                     self.baseConstraint,
-                                     offset=rangeBegin,
-                                     limit=rangeEnd-rangeBegin,
-                                     sort=sort):
-            self.currentRowSet.append(item)
-        return self.currentRowSet
+    def performAction(self, actionID, targetID):
+        item = self.webTranslator.fromWebID(targetID)
+        for action in self.actions:
+            if action.actionID == actionID:
+                return action.performOn(item)
+    expose(performAction)
+
 
     def linkToItem(self, item):
         """
@@ -135,8 +161,31 @@ class ScrollingFragment(LiveElement):
 
         @return: C{unicode} URL
         """
-        if self.wt is not None:
-            return unicode(self.wt.toWebID(item), 'ascii')
+        if self.webTranslator is not None:
+            return unicode(self.webTranslator.toWebID(item), 'ascii')
+
+
+    def requestRowRange(self, rangeBegin, rangeEnd):
+        """
+        Retrieve display data for the given range of rows.
+        """
+        return self.constructRows(self.performQuery(rangeBegin, rangeEnd))
+    expose(requestRowRange)
+
+
+    def requestCurrentSize(self):
+        return len(self)
+    expose(requestCurrentSize)
+
+
+
+class ScrollableView(object):
+    """
+    Mixin for structuring model data in the way expected by
+    Mantissa.ScrollTable.ScrollingWidget.
+    """
+    jsClass = u'Mantissa.ScrollTable.ScrollingWidget'
+    fragmentName = 'scroller'
 
     def constructRows(self, items):
         rows = []
@@ -148,7 +197,7 @@ class ScrollingFragment(LiveElement):
                 row[u'__id__'] = link
             rows.append(row)
 
-        if 0 < len(self.actions):
+        if self.actions:
             for (item, row) in zip(items, rows):
                 row[u'actions'] = []
                 for action in self.actions:
@@ -164,13 +213,92 @@ class ScrollingFragment(LiveElement):
 
         return rows
 
-    def requestRowRange(self, rangeBegin, rangeEnd):
-        return self.constructRows(self.performQuery(rangeBegin, rangeEnd))
-    expose(requestRowRange)
 
-    def performAction(self, actionID, targetID):
-        item = self.wt.fromWebID(targetID)
-        for action in self.actions:
-            if action.actionID == actionID:
-                return action.performOn(item)
-    expose(performAction)
+
+class ItemQueryScrollingFragment(Scrollable, ScrollableView, LiveElement):
+    currentRowRange = None
+    currentRowSet = None
+
+    def __init__(self, store, itemType, baseConstraint, columns,
+                 defaultSortColumn=None, defaultSortAscending=True,
+                 actions=(), *a, **kw):
+
+        Scrollable.__init__(self, IWebTranslator(store, None), columns,
+                            defaultSortColumn, defaultSortAscending, actions)
+        LiveElement.__init__(self, *a, **kw)
+        self.store = store
+        self.itemType = itemType
+        self.baseConstraint = baseConstraint
+
+
+    def performCount(self):
+        return self.store.query(self.itemType, self.baseConstraint).count()
+
+
+    def performQuery(self, rangeBegin, rangeEnd):
+        self.currentRowRange = (rangeBegin, rangeEnd)
+
+        if self.isAscending:
+            sort = self.currentSortColumn.ascending
+        else:
+            sort = self.currentSortColumn.descending
+        self.currentRowSet = []
+        for item in self.store.query(self.itemType,
+                                     self.baseConstraint,
+                                     offset=rangeBegin,
+                                     limit=rangeEnd-rangeBegin,
+                                     sort=sort):
+            self.currentRowSet.append(item)
+        return self.currentRowSet
+ScrollingFragment = ItemQueryScrollingFragment
+
+
+
+class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
+    """
+    Scrolltable implementation backed by any Python L{axiom.item.Item}
+    sequence.
+    """
+    def __init__(self, store, elements, columns, defaultSortColumn=None,
+                 defaultSortAscending=True, actions=(), *a, **kw):
+        Scrollable.__init__(self, IWebTranslator(store, None), columns,
+                            defaultSortColumn, defaultSortAscending, actions)
+
+        LiveElement.__init__(self, *a, **kw)
+        self.store = store
+        self.elements = elements
+
+
+    def performCount(self):
+        return len(self.elements)
+
+
+    def performQuery(self, rangeBegin, rangeEnd):
+        step = 1
+        if not self.isAscending:
+            # The ranges are from the end, not the beginning.
+            rangeBegin = max(0, len(self.elements) - rangeBegin - 1)
+
+            # Python is so very very confusing:
+            # s[1:0:-1] == []
+            # s[1:None:-1] == [s[0]]
+            # s[1:-1:-1] == some crazy thing you don't even want to know
+            rangeEnd = max(-1, len(self.elements) - rangeEnd - 1)
+            if rangeEnd == -1:
+                rangeEnd = None
+            step = -1
+        return self.elements[rangeBegin:rangeEnd:step]
+
+
+
+class StoreIDSequenceScrollingFragment(SequenceScrollingFragment):
+    """
+    Scrolltable implementation like L{SequenceScrollingFragment} but which is
+    backed by a sequence of Item storeID values rather than Items themselves.
+    """
+    def performQuery(self, rangeBegin, rangeEnd):
+        return map(
+            self.store.getItemByID,
+            super(
+                StoreIDSequenceScrollingFragment,
+                self).performQuery(rangeBegin, rangeEnd))

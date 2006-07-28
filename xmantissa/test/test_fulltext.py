@@ -13,10 +13,10 @@ class IndexableThing(item.Item):
     implements(ixmantissa.IFulltextIndexable)
 
     _uniqueIdentifier = attributes.text()
-    _textParts = attributes.inmemory()
-    _valueParts = attributes.inmemory()
-    _keywordParts = attributes.inmemory()
 
+    _textParts = attributes.inmemory()
+    _keywordParts = attributes.inmemory()
+    _documentType = attributes.inmemory()
 
     def uniqueIdentifier(self):
         return self._uniqueIdentifier
@@ -26,12 +26,12 @@ class IndexableThing(item.Item):
         return self._textParts
 
 
-    def valueParts(self):
-        return self._valueParts
-
-
     def keywordParts(self):
         return self._keywordParts
+
+
+    def documentType(self):
+        return self._documentType
 
 
 
@@ -122,18 +122,41 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(secondSource.added, [(self.indexer, iaxiom.REMOTE)])
 
 
+    def test_emptySearch(self):
+        """
+        Test that a search with no term and no keywords returns an empty result
+        set.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier=u'7',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier=u'21',
+                _textParts=[u'cherry', u'drosophila melanogaster'],
+                _keywordParts={}))
+        writer.close()
+
+        reader  = self.openReadIndex()
+        results = list(reader.search(u'', {}))
+        self.assertEquals(results, [])
+
+
     def testSimpleSerializedUsage(self):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'7',
-            _textParts=[u'apple', u'banana'],
-            _valueParts={},
-            _keywordParts={}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'7',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'21',
-            _textParts=[u'cherry', u'drosophila melanogaster'],
-            _valueParts={},
-            _keywordParts={}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'21',
+                _textParts=[u'cherry', u'drosophila melanogaster'],
+                _keywordParts={}))
         writer.close()
 
         reader = self.openReadIndex()
@@ -159,10 +182,10 @@ class FulltextTestsMixin(IndexerTestsMixin):
     def testWriteReadWriteRead(self):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'1',
-            _textParts=[u'apple', u'banana'],
-            _valueParts={},
-            _keywordParts={}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'1',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
         writer.close()
 
         reader = self.openReadIndex()
@@ -174,10 +197,10 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'2',
-            _textParts=[u'cherry', 'drosophila melanogaster'],
-            _valueParts={},
-            _keywordParts={}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'2',
+                _textParts=[u'cherry', 'drosophila melanogaster'],
+                _keywordParts={}))
         writer.close()
 
         reader = self.openReadIndex()
@@ -207,17 +230,52 @@ class FulltextTestsMixin(IndexerTestsMixin):
         """
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'50',
-            _textParts=[u'apple', u'banana'],
-            _valueParts={},
-            _keywordParts={u'subject': u'fruit'}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'50',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={u'subject': u'fruit'}))
         writer.close()
 
         reader = self.openReadIndex()
-        self.assertEquals(list(reader.search(u'fruit')), [])
-        self.assertEquals(list(reader.search(u'apple')), [50])
-        self.assertEquals(list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
-        self.assertEquals(list(reader.search(u'', {u'subject': u'fruit'})), [50])
+        self.assertEquals(
+            list(reader.search(u'fruit')), [])
+        self.assertEquals(
+            list(reader.search(u'apple')), [50])
+        self.assertEquals(
+            list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'subject': u'fruit'})), [50])
+
+
+    def test_typeRestriction(self):
+        """
+        Test that the type of an IFulltextIndexable is automatically found when
+        indexing and searching for items of a particular type limits the
+        results appropriately.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'first',
+                _uniqueIdentifier=u'1',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
+        writer.add(IndexableThing(
+                _documentType=u'second',
+                _uniqueIdentifier=u'2',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
+        writer.close()
+
+        reader = self.openReadIndex()
+        self.assertEquals(
+            list(reader.search(u'apple', {'documentType': u'first'})),
+            [1])
+        self.assertEquals(
+            list(reader.search(u'apple', {'documentType': u'second'})),
+            [2])
+        self.assertEquals(
+            list(reader.search(u'apple', {'documentType': u'three'})),
+            [])
 
 
     def testKeywordTokenization(self):
@@ -226,19 +284,25 @@ class FulltextTestsMixin(IndexerTestsMixin):
         """
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'50',
-            _textParts=[u'apple', u'banana'],
-            _valueParts={},
-            _keywordParts={u'subject': u'list of fruit things'}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'50',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={u'subject': u'list of fruit things'}))
         writer.close()
 
         reader = self.openReadIndex()
-        self.assertEquals(list(reader.search(u'fruit')), [])
-        self.assertEquals(list(reader.search(u'apple')), [50])
-        self.assertEquals(list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
-        self.assertEquals(list(reader.search(u'', {u'subject': u'fruit'})), [50])
-        self.assertEquals(list(reader.search(u'', {u'subject': u'list'})), [50])
-        self.assertEquals(list(reader.search(u'', {u'subject': u'things'})), [50])
+        self.assertEquals(
+            list(reader.search(u'fruit')), [])
+        self.assertEquals(
+            list(reader.search(u'apple')), [50])
+        self.assertEquals(
+            list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'subject': u'fruit'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'subject': u'list'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'subject': u'things'})), [50])
 
 
 
@@ -265,14 +329,14 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
 
         things = [
             IndexableThing(store=self.store,
+                           _documentType=u'thing',
                            _uniqueIdentifier=u'100',
                            _textParts=[u'apple', u'banana'],
-                           _valueParts={},
                            _keywordParts={}),
             IndexableThing(store=self.store,
+                           _documentType=u'thing',
                            _uniqueIdentifier=u'200',
                            _textParts=[u'cherry'],
-                           _valueParts={},
                            _keywordParts={})]
 
         for i in xrange(len(things)):
@@ -283,9 +347,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         # Sanity check - make sure both items come back from a search before
         # going on with the real core of the test.
         reader = self.openReadIndex()
-        self.assertEquals(reader.search(u'apple'), [100])
-        self.assertEquals(reader.search(u'cherry'), [200])
-        self.assertEquals(reader.search(u'drosophila'), [])
+        self.assertEquals(list(reader.search(u'apple')), [100])
+        self.assertEquals(list(reader.search(u'cherry')), [200])
+        self.assertEquals(list(reader.search(u'drosophila')), [])
         reader.close()
 
         self.corruptIndex()
@@ -293,9 +357,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
 
         things.append(
             IndexableThing(store=self.store,
+                           _documentType=u'thing',
                            _uniqueIdentifier=u'300',
                            _textParts=[u'drosophila', u'melanogaster'],
-                           _valueParts={},
                            _keywordParts={}))
 
         # Step it once so that it notices the index has been corrupted.
@@ -305,9 +369,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         # At this point, the index should have been deleted, so any search
         # should turn up no results.
         reader = self.openReadIndex()
-        self.assertEquals(reader.search(u'apple'), [])
-        self.assertEquals(reader.search(u'cherry'), [])
-        self.assertEquals(reader.search(u'drosophila'), [])
+        self.assertEquals(list(reader.search(u'apple')), [])
+        self.assertEquals(list(reader.search(u'cherry')), [])
+        self.assertEquals(list(reader.search(u'drosophila')), [])
         reader.close()
 
         self.indexer.resume()
@@ -319,9 +383,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         self.indexer.suspend()
 
         reader = self.openReadIndex()
-        self.assertEquals(reader.search(u'apple'), [100])
-        self.assertEquals(reader.search(u'cherry'), [200])
-        self.assertEquals(reader.search(u'drosophila'), [300])
+        self.assertEquals(list(reader.search(u'apple')), [100])
+        self.assertEquals(list(reader.search(u'cherry')), [200])
+        self.assertEquals(list(reader.search(u'drosophila')), [300])
         reader.close()
 
 
@@ -386,10 +450,10 @@ class PyLuceneCorruptionRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryM
         """
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'10',
-            _textParts=[u'apple', u'banana'],
-            _valueParts={},
-            _keywordParts={}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'10',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
         writer.close()
         self.corruptIndex()
         self.assertRaises(fulltext.IndexCorrupt, self.openWriteIndex)
@@ -404,10 +468,10 @@ class PyLuceneCorruptionRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryM
         """
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
-            _uniqueIdentifier=u'10',
-            _textParts=[u'apple', u'banana'],
-            _valueParts={},
-            _keywordParts={}))
+                _documentType=u'thing',
+                _uniqueIdentifier=u'10',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
         writer.close()
         self.corruptIndex()
         self.assertRaises(fulltext.IndexCorrupt, self.openReadIndex)
@@ -427,3 +491,22 @@ class PyLuceneLockedRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin
         failure.
         """
         self.corruptedIndexes.append(self.openWriteIndex())
+
+
+
+class PyLuceneObjectLifetimeTestCase(unittest.TestCase):
+    def test_hitsWrapperClosesIndex(self):
+        """
+        Test that when L{_PyLuceneHitsWrapper} is GC'd, the index which backs
+        its C{Hits} object gets closed.
+        """
+        class TestIndex(object):
+            closed = False
+            def close(self):
+                self.closed = True
+
+        index = TestIndex()
+        wrapper = fulltext._PyLuceneHitsWrapper(index, None)
+        self.failIf(index.closed)
+        del wrapper
+        self.failUnless(index.closed)

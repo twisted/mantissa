@@ -2,6 +2,8 @@
 
 from __future__ import division
 
+import time
+
 from zope.interface import implements
 
 from twisted.internet import defer
@@ -10,6 +12,7 @@ from twisted.python import log, components
 from nevow import inevow, athena
 
 from axiom import attributes, item
+from axiom.upgrade import registerDeletionUpgrader
 
 from xmantissa import ixmantissa
 
@@ -22,18 +25,16 @@ class SearchResult(item.Item):
     to display and sort them, but they are deleted when they get kind of
     oldish.
 
-    XXX TODO - These should be kept in a temporary table or an in-memory
-    database or something.
+    These are no longer used.  The upgrader to version 2 unconditionally
+    deletes them.
     """
+    schemaVersion = 2
 
-    indexedItem = attributes.reference(doc="""
-    An item which was found by a search.  This is adaptable to
-    L{IFulltextIndexable}.
-    """, allowNone=False, whenDeleted=attributes.reference.CASCADE)
+    indexedItem = attributes.reference()
 
-    identifier = attributes.integer(doc="""
-    An identifier unique to the search in which this result was found.
-    """, allowNone=False, indexed=True)
+    identifier = attributes.integer()
+
+registerDeletionUpgrader(SearchResult, 1, 2)
 
 
 
@@ -141,7 +142,7 @@ class AggregateSearchResults(athena.LiveFragment):
         if term is None:
             return ''
         term, keywords = parseSearchTerm(term)
-        d = self.aggregator.search(term, keywords, 1000, 0)
+        d = self.aggregator.search(term, keywords, None, None)
         def gotSearchResultFragments(fragments):
             for f in fragments:
                 f.setFragmentParent(self)
@@ -150,44 +151,3 @@ class AggregateSearchResults(athena.LiveFragment):
         return d
 
 components.registerAdapter(AggregateSearchResults, SearchAggregator, ixmantissa.INavigableFragment)
-
-
-class SearchProviderMixin:
-    """
-    Helper class for search providers which wish to be able to query the
-    database for the results of a search.  This class just provides a method
-    which subclasses can call which will put the results of a search into a
-    bunch of L{SearchResult} items.
-
-    @ivar store: The axiom Store in which to create the SearchResults.
-    @ivar indexer: The B{real} L{ISearchProvider} with which to perform the
-    search.
-
-    XXX TODO - Put the SearchResults into an in-memory database or something
-    """
-    implements(ixmantissa.ISearchProvider)
-
-    def storeSearchResults(self, results):
-        s = self.store
-        def transacted(results):
-            # Pick a new identifier for this particular set of search results.
-            identifier = s.query(SearchResult).getColumn("identifier").max(default=0) + 1
-
-            # Delete the temporary, in-database search results for all previous
-            # searches save the most recent ten.
-            s.query(SearchResult, SearchResult.identifier < (identifier - 10)).deleteFromStore()
-            for r in results:
-                SearchResult(store=s, identifier=identifier, indexedItem=s.getItemByID(r))
-            return identifier
-        return s.transact(transacted, results)
-
-
-    def search(self, term, keywords, count, offset):
-        d = self.indexer.search(term, keywords, count, offset)
-        d.addCallback(self.storeSearchResults)
-        d.addCallback(self.wrapSearchResults)
-        return d
-
-
-    def wrapSearchResults(self, searchIdentifier):
-        raise NotImplementedError("Implement wrapSearchResults in subclasses.")

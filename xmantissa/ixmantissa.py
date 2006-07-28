@@ -133,8 +133,34 @@ class IFulltextIndexable(Interface):
     """
     Something which can be indexed for later search.
     """
+    def uniqueIdentifier():
+        """
+        @return: a C{str} uniquely identifying this item.
+        """
+
+
     def textParts():
-        pass
+        """
+        @return: an iterable of unicode strings to be indexed as the text of
+        this item.
+        """
+
+
+    def keywordParts():
+        """
+        @return: a C{dict} mapping C{str} to C{unicode} of additional
+        metadata.  It will be possible to search on these fields using
+        L{ISearchAggregator.search}.
+        """
+
+
+    def documentType():
+        """
+        @return: a C{str} uniquely identifying the type of this item.  Like
+        the return value of L{keywordParts}, it will be possible to search
+        for this using the C{"documentType"} key in the C{keywords} argument
+        to L{ISearchAggregator.search}.
+        """
 
 
 

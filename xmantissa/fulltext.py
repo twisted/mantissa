@@ -4,12 +4,14 @@
 General functionality re-usable by various concrete fulltext indexing systems.
 """
 
-import atexit, os
+import atexit, os, time, weakref
 
 from zope.interface import implements
 
 from twisted.python import log, reflect
 from twisted.internet import defer
+
+from epsilon.structlike import record
 
 from axiom import item, attributes, iaxiom, batch
 from axiom.upgrade import registerUpgrader
@@ -161,33 +163,34 @@ class RemoteIndexer(item.InstallableMixin):
 
     # ISearchProvider
     def search(self, aString, keywords=None, count=None, offset=None, retry=3):
+        ident = "%s/%d" % (self.store, self.storeID)
         b = iaxiom.IBatchService(self.store)
         if VERBOSE:
-            log.msg("%s/%d issueing suspend" % (self.store, self.storeID))
+            log.msg("%s issuing suspend" % (ident,))
         d = b.suspend(self.storeID)
 
         def reallySearch(ign):
             if VERBOSE:
-                log.msg("%s/%d getting reader index" % (self.store, self.storeID))
+                log.msg("%s getting reader index" % (ident,))
             idx = self.openReadIndex()
-            try:
+
+            if VERBOSE:
+                log.msg("%s searching for %s" % (ident, aString))
+            results = idx.search(aString.encode('utf-8'), keywords)
+            if VERBOSE:
+                log.msg("%s found %d results" % (ident, len(results)))
+            if count is not None and offset is not None:
+                results = results[offset:offset + count]
                 if VERBOSE:
-                    log.msg("%s/%d searching for %s" % (self.store, self.storeID, aString))
-                results = list(idx.search(aString.encode('utf-8'), keywords))
-                if VERBOSE:
-                    log.msg("%s/%d found %d results" % (self.store, self.storeID, len(results)))
-                if count is not None and offset is not None:
-                    results = results[offset:offset + count]
-                    if VERBOSE:
-                        log.msg("%s/%d sliced from %s to %s, leaving %d results" % (self.store, self.storeID, offset, offset + count, len(results)))
-                return results
-            finally:
-                idx.close()
+                    log.msg("%s sliced from %s to %s, leaving %d results" % (
+                            ident, offset, offset + count, len(results)))
+            return results
+
         d.addCallback(reallySearch)
 
         def resumeIndexing(results):
             if VERBOSE:
-                log.msg("%s/%s issueing resume" % (self.store, self.storeID))
+                log.msg("%s issuing resume" % (ident,))
             b.resume(self.storeID).addErrback(log.err)
             return results
         d.addBoth(resumeIndexing)
@@ -199,7 +202,8 @@ class RemoteIndexer(item.InstallableMixin):
                 log.msg("Re-issuing search")
                 return self.search(aString, keywords, count, offset, retry=retry-1)
             else:
-                log.msg("Wow, lots of failures searching.  Giving up and returning (probably wrong!) no results to user.")
+                log.msg("Wow, lots of failures searching.  Giving up and "
+                        "returning (probably wrong!) no results to user.")
                 return []
         d.addErrback(searchFailed)
         return d
@@ -236,7 +240,7 @@ class _HypeIndex(object):
 
 class HypeIndexer(RemoteIndexer, item.Item):
 
-    schemaVersion = 2
+    schemaVersion = 3
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
@@ -301,7 +305,7 @@ class _XapianIndex(object):
 
 class XapianIndexer(RemoteIndexer, item.Item):
 
-    schemaVersion = 2
+    schemaVersion = 3
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
@@ -326,6 +330,45 @@ try:
 except ImportError:
     PyLucene = None
 
+
+_hitsWrapperWeakrefs = weakref.WeakKeyDictionary()
+
+class _PyLuceneHitsWrapper(record('index hits')):
+    """
+    Container for a C{Hits} instance and the L{_PyLuceneIndex} from which it
+    came.  This gives the C{Hits} instance a sequence-like interface and when a
+    _PyLuceneHitsWrapper is garbage collected, it closes the L{_PyLuceneIndex}
+    it has a reference to.
+    """
+    def __init__(self, *a, **kw):
+        super(_PyLuceneHitsWrapper, self).__init__(*a, **kw)
+
+        def close(ref, index=self.index):
+            log.msg("Hits wrapper expiring, closing index.")
+            index.close()
+        _hitsWrapperWeakrefs[self] = weakref.ref(self, close)
+
+
+    def __len__(self):
+        return len(self.hits)
+
+
+    def __getitem__(self, index):
+        """
+        Retrieve the storeID field of the requested hit, converting it to an
+        integer before returning it.  This handles integer indexes as well as
+        slices.
+        """
+        if isinstance(index, slice):
+            start = min(index.start, len(self) - 1)
+            stop = min(index.stop, len(self) - 1)
+            return [self[i] for i in xrange(start, stop, index.step)]
+        if index >= len(self.hits):
+            raise IndexError(index)
+        return int(self.hits[index]['storeID'])
+
+
+
 class _PyLuceneIndex(object):
     def __init__(self, fsdir, index, analyzer):
         self.fsdir = fsdir
@@ -338,7 +381,10 @@ class _PyLuceneIndex(object):
         doc = PyLucene.Document()
         for part in message.textParts():
             doc.add(
-                PyLucene.Field.Text('text', part.encode('utf-8')))
+                PyLucene.Field('text',
+                               part.encode('utf-8'),
+                               PyLucene.Field.Store.NO,
+                               PyLucene.Field.Index.TOKENIZED))
         doc.add(
             PyLucene.Field('storeID',
                            message.uniqueIdentifier(),
@@ -351,22 +397,29 @@ class _PyLuceneIndex(object):
                 PyLucene.Field(k, v,
                                PyLucene.Field.Store.YES,
                                PyLucene.Field.Index.TOKENIZED))
+        doc.add(
+            PyLucene.Field('documentType', message.documentType(),
+                           PyLucene.Field.Store.YES,
+                           PyLucene.Field.Index.TOKENIZED))
 
         self.index.addDocument(doc)
 
 
     def search(self, phrase, keywords=None):
+        if not phrase and not keywords:
+            return []
+
         # XXX Colons in phrase will screw stuff up.  Can they be quoted or
         # escaped somehow?  Probably by using a different QueryParser.
         if keywords:
             fieldPhrase = u' '.join(u':'.join((k, v)) for (k, v) in keywords.iteritems())
             if phrase:
-                phrase = phrase + u' ' + fieldPhrase
+                phrase = phrase + u' AND ' + fieldPhrase
             else:
                 phrase = fieldPhrase
         query = PyLucene.QueryParser.parse(phrase, 'text', self.analyzer)
         hits = self.index.search(query)
-        return [int(h.get('storeID')) for (n, h) in hits]
+        return _PyLuceneHitsWrapper(self, hits)
 
 
     closed = False
@@ -396,7 +449,7 @@ atexit.register(_closeIndexes)
 
 class PyLuceneIndexer(RemoteIndexer, item.Item):
 
-    schemaVersion = 2
+    schemaVersion = 3
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
@@ -499,10 +552,37 @@ def remoteIndexer1to2(oldIndexer):
 
     return newIndexer
 
+def remoteIndexer2to3(oldIndexer):
+    """
+    The documentType keyword was added to all indexable items.  Indexes need to
+    be regenerated for this to take effect.  Also, PyLucene no longer stores
+    the text of messages it indexes, so deleting and re-creating the indexes
+    will make them much smaller.
+    """
+    newIndexer = oldIndexer.upgradeVersion(
+        oldIndexer.typeName, 2, 3,
+        indexCount=oldIndexer.indexCount,
+        installedOn=oldIndexer.installedOn,
+        indexDirectory=oldIndexer.indexDirectory)
+    newIndexer.reset()
+    return newIndexer
+
+
 for cls in [HypeIndexer, XapianIndexer, PyLuceneIndexer]:
+    item.declareLegacyItem(
+        cls.typeName, 2,
+        dict(indexCount=attributes.integer(),
+             installedOn=attributes.reference(),
+             indexDirectory=attributes.text()))
+
     registerUpgrader(
         remoteIndexer1to2,
         item.normalize(reflect.qual(cls)),
         1,
         2)
+    registerUpgrader(
+        remoteIndexer2to3,
+        item.normalize(reflect.qual(cls)),
+        2,
+        3)
 del cls
