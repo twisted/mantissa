@@ -14,6 +14,10 @@
 
 // --------------------------------------------------------------------
 // Check required components
+// import MochiKit.Base
+// import MochiKit.DOM
+// import MochiKit.Color
+// import MochiKit.Format
 // --------------------------------------------------------------------
 
 try {    

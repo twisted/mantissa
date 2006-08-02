@@ -1,4 +1,7 @@
 // import MochiKit
+// import MochiKit.Base
+// import MochiKit.Iter
+// import MochiKit.DOM
 // import PlotKit.Base
 // import PlotKit.Layout
 // import PlotKit.Canvas

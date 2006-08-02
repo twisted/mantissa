@@ -167,7 +167,7 @@ Mantissa.LiveForm.FormWidget.methods(
         // not sure where to squirrel that away right now, and I only need
         // this one string.  Feel free to fix.
         return Nevow.Athena.getAttribute(
-            self.node, Nevow.Athena.XMLNS_URI, 'athena', 'formname');
+            self.node, 'formname', Nevow.Athena.XMLNS_URI, 'athena');
     },
 
     /**

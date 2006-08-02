@@ -1,4 +1,8 @@
 // import Mantissa
+// import MochiKit
+// import MochiKit.Base
+// import MochiKit.Iter
+// import MochiKit.DOM
 
 Mantissa.Preferences = Nevow.Athena.Widget.subclass("Mantissa.Preferences");
 

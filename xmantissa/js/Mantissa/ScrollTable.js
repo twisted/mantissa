@@ -1,4 +1,8 @@
 // import Mantissa
+// import MochiKit
+// import MochiKit.Base
+// import MochiKit.Iter
+// import MochiKit.DOM
 
 Mantissa.ScrollTable.ScrollingWidget = Nevow.Athena.Widget.subclass('Mantissa.ScrollTable.ScrollingWidget');
 
