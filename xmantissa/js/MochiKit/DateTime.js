@@ -8,6 +8,8 @@ See <http://mochikit.com/> for documentation, downloads, license, etc.
 
 ***/
 
+// import MochiKit.Base
+
 if (typeof(dojo) != 'undefined') {
     dojo.provide('MochiKit.DateTime');
 }

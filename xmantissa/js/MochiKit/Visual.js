@@ -8,6 +8,10 @@ See <http://mochikit.com/> for documentation, downloads, license, etc.
 
 ***/
 
+// import MochiKit.Base
+// import MochiKit.DOM
+// import MochiKit.Color
+
 if (typeof(dojo) != 'undefined') {
     dojo.provide('MochiKit.Visual');
     dojo.require('MochiKit.Base');

@@ -7,6 +7,10 @@ See <http://mochikit.com/> for documentation, downloads, license, etc.
 (c) 2005 Bob Ippolito.  All rights Reserved.
 
 ***/
+
+// import MochiKit.Base
+// import MochiKit.Logging
+
 if (typeof(dojo) != 'undefined') {
     dojo.provide('MochiKit.LoggingPane');
     dojo.require('MochiKit.Logging');

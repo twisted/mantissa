@@ -1,3 +1,6 @@
+
+// import MochiKit
+
 if (typeof(MochiKit) == "undefined") {
     var MochiKit = {};
 }
