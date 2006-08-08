@@ -259,9 +259,10 @@ class PublicFrontPage(publicresource.PublicPage):
     def renderHTTP(self, ctx):
         if self.username:
             self.original.publicViews += 1
+            return url.URL.fromContext(ctx).click('/').child('private')
         else:
             self.original.privateViews += 1
-        return publicresource.PublicPage.renderHTTP(self, ctx)
+            return publicresource.PublicPage.renderHTTP(self, ctx)
 
 class FrontPage(item.Item, website.PrefixURLMixin):
     """
