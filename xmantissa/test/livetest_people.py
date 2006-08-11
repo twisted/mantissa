@@ -19,15 +19,18 @@ class AddPersonTestBase(people.AddPersonFragment):
 
         super(AddPersonTestBase, self).__init__()
 
-        self.docFactory = loaders.stan(
-                tags.div(render=tags.directive('liveTest'))[
-                    tags.invisible(render=tags.directive('addPersonForm'))])
+
+    def getWidgetDocument(self):
+        return tags.invisible(render=tags.directive('addPersonForm'))
+
 
     def mangleDefaults(self, params):
         pass
 
+
     def checkResult(self):
         pass
+
 
     def addPerson(self, *a, **k):
         try:
@@ -39,11 +42,14 @@ class AddPersonTestBase(people.AddPersonFragment):
 
         self.checkResult()
 
+
     def render_addPersonForm(self, ctx, data):
         liveform = super(AddPersonTestBase, self).render_addPersonForm(ctx, data)
         params = dict((p.name, p) for p in liveform.parameters)
         self.mangleDefaults(params)
         return liveform
+
+
 
 class NoNickOrFirstLastNames(AddPersonTestBase, TestCase):
     def checkResult(self):
@@ -51,10 +57,13 @@ class NoNickOrFirstLastNames(AddPersonTestBase, TestCase):
         for cls in (people.Person, people.EmailAddress):
             self.assertEqual(self.store.count(cls), 0)
 
+
+
 class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
     def mangleDefaults(self, params):
         params['firstname'].default = u'FIRSTNAME'
         params['lastname'].default = u'LASTNAME'
+
 
     def checkResult(self):
         self.assertEqual(self.exc_info, None)
@@ -73,9 +82,12 @@ class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
 
         self.assertEqual(self.store.count(people.EmailAddress), 0)
 
+
+
 class OnlyNick(AddPersonTestBase, TestCase):
     def mangleDefaults(self, params):
         params['nickname'].default = u'everybody'
+
 
     def checkResult(self):
         self.assertEqual(self.exc_info, None)
@@ -88,9 +100,12 @@ class OnlyNick(AddPersonTestBase, TestCase):
         self.assertEqual(self.store.count(people.EmailAddress), 0)
         self.assertEqual(self.store.count(people.RealName), 0)
 
+
+
 class OnlyEmailAddress(AddPersonTestBase, TestCase):
     def mangleDefaults(self, params):
         params['email'].default = u'bob@the.internet'
+
 
     def checkResult(self):
         self.assertEqual(self.exc_info[0], ValueError)
@@ -98,10 +113,13 @@ class OnlyEmailAddress(AddPersonTestBase, TestCase):
         for cls in (people.Person, people.RealName, people.EmailAddress):
             self.assertEqual(self.store.count(cls), 0)
 
+
+
 class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
     def mangleDefaults(self, params):
         params['nickname'].default = u'NICK!!!'
         params['email'].default = u'a@b.c'
+
 
     def checkResult(self):
         self.assertEqual(self.exc_info, None)
@@ -119,14 +137,12 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
 
         self.assertEqual(self.store.count(people.RealName), 0)
 
+
+
 class PersonDetailTestCase(TestCase):
     jsClass = u'Mantissa.Test.PersonDetail'
 
-    docFactory = loaders.stan(tags.div[
-                    tags.div(render=tags.directive('liveTest'))[
-                        tags.div(render=tags.directive('personDetail'))]])
-
-    def render_personDetail(self, ctx, data):
+    def getWidgetDocument(self):
         s = Store()
 
         PrivateApplication(store=s).installOn(s)

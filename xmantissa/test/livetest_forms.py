@@ -8,14 +8,7 @@ from xmantissa import liveform
 class TextInput(testcase.TestCase):
     jsClass = u'Mantissa.Test.Forms'
 
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('hello_form'))])
-
-    def submit(self, argument):
-        self.assertEquals(argument, u'hello world')
-
-    def render_hello_form(self, ctx, data):
+    def getWidgetDocument(self):
         f = liveform.LiveForm(
             self.submit,
             [liveform.Parameter('argument',
@@ -24,20 +17,22 @@ class TextInput(testcase.TestCase):
                                 'A text input field: ',
                                 u'hello world')])
         f.setFragmentParent(self)
-        return ctx.tag[f]
+        return f
+
+
+    def submit(self, argument):
+        self.assertEquals(argument, u'hello world')
+
 
 
 class MultiTextInput(testcase.TestCase):
     jsClass = u'Mantissa.Test.Forms'
 
-    docFactory = loaders.stan(
-            tags.div(render=tags.directive('liveTest'))[
-                tags.invisible(render=tags.directive('multiForm'))])
-
     def submit(self, sequence):
         self.assertEquals(sequence, [1, 2, 3, 4])
 
-    def render_multiForm(self, ctx, data):
+
+    def getWidgetDocument(self):
         f = liveform.LiveForm(
                 self.submit,
                 (liveform.ListParameter('sequence',
@@ -46,15 +41,12 @@ class MultiTextInput(testcase.TestCase):
                                         'A bunch of text inputs: ',
                                         (1, 2, 3, 4)),))
         f.setFragmentParent(self)
-        return ctx.tag[f]
+        return f
+
+
 
 class TextArea(testcase.TestCase):
     jsClass = u'Mantissa.Test.TextArea'
-
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('textarea_form'))])
-
 
     defaultText = textwrap.dedent(u"""
     Come hither, sir.
@@ -70,7 +62,7 @@ class TextArea(testcase.TestCase):
             self.defaultText)
 
 
-    def render_textarea_form(self, ctx, data):
+    def getWidgetDocument(self):
         f = liveform.LiveForm(
             self.submit,
             [liveform.Parameter('argument',
@@ -79,20 +71,18 @@ class TextArea(testcase.TestCase):
                                 'A text area: ',
                                 self.defaultText)])
         f.setFragmentParent(self)
-        return ctx.tag[f]
+        return f
+
 
 
 class Select(testcase.TestCase):
     jsClass = u'Mantissa.Test.Select'
 
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('select_form'))])
-
     def submit(self, argument):
         self.assertEquals(argument, u"apples")
 
-    def render_select_form(self, ctx, data):
+
+    def getWidgetDocument(self):
         # XXX No support for rendering these yet!
         f = liveform.LiveForm(
             self.submit,
@@ -103,20 +93,18 @@ class Select(testcase.TestCase):
                 tags.option(value="oranges")["oranges"]],
             tags.input(type='submit', render=tags.directive('submitbutton'))])
         f.setFragmentParent(self)
-        return ctx.tag[f]
+        return f
+
 
 
 class Choice(testcase.TestCase):
     jsClass = u'Mantissa.Test.Choice'
 
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('choice_form'))])
-
     def submit(self, argument):
         self.assertEquals(argument, 2)
 
-    def render_choice_form(self, ctx, data):
+
+    def getWidgetDocument(self):
         f = liveform.LiveForm(
             self.submit,
             [liveform.ChoiceParameter('argument',
@@ -124,21 +112,19 @@ class Choice(testcase.TestCase):
                  ('Two', 2, True),
                  ('Three', 3, False)])])
         f.setFragmentParent(self)
-        return ctx.tag[f]
+        return f
+
 
 
 class ChoiceMultiple(testcase.TestCase):
     jsClass = u'Mantissa.Test.ChoiceMultiple'
 
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('choice_form'))])
-
     def submit(self, argument):
         self.assertIn(1, argument)
         self.assertIn(3, argument)
 
-    def render_choice_form(self, ctx, data):
+
+    def getWidgetDocument(self):
         f = liveform.LiveForm(
             self.submit,
             [liveform.ChoiceParameter('argument',
@@ -147,7 +133,8 @@ class ChoiceMultiple(testcase.TestCase):
                  ('Three', 3, True)],
                 "Choosing mulitples from a list.", True)])
         f.setFragmentParent(self)
-        return ctx.tag[f]
+        return f
+
 
 
 SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
@@ -156,19 +143,17 @@ SPECIAL = object() # guaranteed to fuck up JSON if it ever gets there by
 class Traverse(testcase.TestCase):
     jsClass = u'Mantissa.Test.Traverse'
 
-    docFactory = loaders.stan(
-        tags.div(render=tags.directive('liveTest'))[
-            tags.invisible(render=tags.directive('hello_form'))])
-
     def submit(self, argument, group):
         self.assertEquals(argument, u'hello world')
         self.assertEquals(group, SPECIAL)
+
 
     def paramfilter(self, param1):
         self.assertEquals(param1, u'goodbye world')
         return SPECIAL
 
-    def render_hello_form(self, ctx, data):
+
+    def getWidgetDocument(self):
         f = liveform.LiveForm(
             self.submit,
             [liveform.Parameter('argument',
@@ -187,5 +172,5 @@ class Traverse(testcase.TestCase):
                                                     u'goodbye world')]),
                                 'A form input group: ',
                                 )])
-        f.page = self.page
-        return ctx.tag[f]
+        f.setFragmentParent(self)
+        return f

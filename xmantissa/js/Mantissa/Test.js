@@ -5,13 +5,13 @@
 
 Mantissa.Test.Forms = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Forms');
 Mantissa.Test.Forms.methods(
-    function run(self) {
+    function test_formSubmission(self) {
         return self.childWidgets[0].submit();
     });
 
 Mantissa.Test.StatsTest = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.StatsTest');
 Mantissa.Test.StatsTest.methods(
-    function run(self) {
+    function test_statsGraph(self) {
         return self.callRemote('run');
     });
 
@@ -68,7 +68,7 @@ Mantissa.Test.ScrollTable.methods(
         self._preTestDeferred = new Divmod.Defer.Deferred();
     },
 
-    function run(self) {
+    function test_scrolling(self) {
         var assertRowCount = function(n) {
             var rows = self.scroller.nodesByAttribute("class", "scroll-row");
             var cell;
@@ -177,7 +177,7 @@ Mantissa.Test.PersonDetail.methods(
             });
     },
 
-    function run(self) {
+    function test_people(self) {
         self.personDetail = Nevow.Athena.Widget.get(
                                 Nevow.Athena.FirstNodeByAttribute(
                                     self.node,
