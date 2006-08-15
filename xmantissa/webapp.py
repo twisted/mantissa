@@ -311,11 +311,11 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
         if lastTime != fp.getmtime():
             thisHash = sha.new(fp.open().read()).hexdigest()
             _moduleToHash[moduleName] = (fp.getmtime(), thisHash)
-            _hashToFile[thisHash + "-" + moduleName] = fp.path
+            _hashToFile[thisHash] = fp.path
         else:
             thisHash = lastHash
 
-        return self.jsModuleRoot.child(thisHash + "-" + moduleName)
+        return self.jsModuleRoot.child(thisHash).child(moduleName)
 
 
     def locateChild(self, ctx, segments):
