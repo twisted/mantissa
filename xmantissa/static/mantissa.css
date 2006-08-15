@@ -347,9 +347,7 @@ body {
 
 .tab-link {
     font-size: 1.2em;
-    padding: 2px 2px 2px 4px;
     display: block;
-
     /* hack to force this element to "have layout" on IE */
     zoom: 1;
 }
@@ -420,8 +418,8 @@ body {
 
 .tab-text-cell {
     color: #FFFFFF;
-    padding: 0px 4px 0px 4px;
-    font-size: 1.3em;
+    padding: 2px 4px 0px 4px;
+    font-size: 1.4em;
 }
 
 .tab-text-cell > div {
