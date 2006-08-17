@@ -1,3 +1,11 @@
+0.5.11 (2006-08-14):
+  - the URL / now redirects to /private for authenticated users.
+  - The view and model portions of ScrollableFragment have been factored
+    into separate classes.
+  - The fulltext indexer no longer stores the text parts of the documentss it
+    indexes. Additionally, it tags each document with its type.
+  - MochiKit is now included, since Nevow doesn't bundle it anymore.
+
 0.5.10 (2006-07-18):
   - A facility for making URLs that will display the web facet of an item
     while showing some other tab as being selected has been added, and is
