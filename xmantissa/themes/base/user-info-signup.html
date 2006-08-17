@@ -48,141 +48,144 @@
     class="failure-message">
   </div>
 
-  <center>
-    <table cellpadding="0" cellspacing="0" style="margin-top: 20px">
-      <tr class="signup-header">
-        <td class="signup-header-left-block">
-          <div>Signup</div>
-        </td>
-        <td class="signup-header-stretcher"></td>
-        <td class="signup-header-right-block">
-          <img src="/Mantissa/images/signup-header-right-block.png" />
-        </td>
-      </tr>
-      <tr class="signup-body-container">
-        <td colspan="3">
-          <table cellpadding="0" cellspacing="0" style="width: 100%">
-            <tr class="signup-body">
-              <td class="signup-body-left-edge">&#160;</td>
-              <td>
-                <table cellpadding="0" cellspacing="0" style="width: 100%">
-                  <tr>
-                    <td class="signup-body-content">
-                      <table>
-                        <tr>
-                          <td class="label">First Name</td>
-                          <td class="verified-field">
-                            <input
-                              type="text"
-                              name="firstName"
-                              onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
-                              return false"
-                              />
+  <table cellpadding="0" cellspacing="0" style="margin-top: 20px" align="center" class="user-info-signup-table"
+    ><tr class="signup-header"
+      ><td class="signup-header-left-block"
+        ><div class="signup-header-title"
+          >Signup</div></td><td
+        class="signup-header-stretcher"
+        ></td><td class="signup-header-right-block" align="right"
+        ><img
+        src="/Mantissa/images/signup-header-right-block.png" /></td></tr>
+    <tr class="signup-body-container">
+      <td colspan="3">
+        <table cellpadding="0" cellspacing="0" style="width: 100%">
+          <tr class="signup-body">
+            <td class="signup-body-left-edge">&#160;</td>
+            <td>
+              <table cellpadding="0" cellspacing="0" style="width: 100%">
+                <tr>
+                  <td class="signup-body-content">
+                    <table>
+                      <tr>
+                        <td class="label">First Name</td>
+                        <td class="verified-field">
+                          <input
+                            type="text"
+                            name="firstName"
+                            class="text-input"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
+                            return false"
+                            />
 
-                            <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td class="label">Last Name</td>
-                          <td class="verified-field">
-                            <input
-                              type="text"
-                              name="lastName"
-                              onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
-                              return false"
-                              />
+                          <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="label">Last Name</td>
+                        <td class="verified-field">
+                          <input
+                            type="text"
+                            name="lastName"
+                            class="text-input"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
+                            return false"
+                            />
 
-                            <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td class="label">User Name</td>
-                          <td class="verified-field">
-                            <input
-                              type="text"
-                              name="username"
-                              onkeyup="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this);
-                              return false"
-                              onfocus="Nevow.Athena.Widget.get(this).defaultUsername(this)"
-                              />
+                          <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="label">User Name</td>
+                        <td class="verified-field">
+                          <input
+                            type="text"
+                            name="username"
+                            class="text-input"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this);
+                            return false"
+                            onfocus="Nevow.Athena.Widget.get(this).defaultUsername(this)"
+                            />
 
-                            <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td class="label">Password</td>
-                          <td class="verified-field">
-                            <input
-                              type="password"
-                              name="password"
-                              onkeyup="Nevow.Athena.Widget.get(this).verifyStrongPassword(this);
-                              return false"
-                              />
+                          <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="label">Password</td>
+                        <td class="verified-field">
+                          <input
+                            type="password"
+                            name="password"
+                            class="password-input"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyStrongPassword(this);
+                            return false"
+                            />
 
-                            <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td class="label">Confirm Password</td>
-                          <td class="verified-field">
-                            <input
-                              type="password"
-                              name="confirmPassword"
-                              onkeyup="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this);
-                              return false"
-                              />
+                          <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="label">Confirm Password</td>
+                        <td class="verified-field">
+                          <input
+                            type="password"
+                            name="confirmPassword"
+                            class="password-input"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this);
+                            return false"
+                            />
 
-                            <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td class="label">Email Address</td>
-                          <td class="verified-field">
-                            <input
-                              type="text"
-                              name="emailAddress"
-                              onkeyup="Nevow.Athena.Widget.get(this).verifyValidEmail(this);
-                              return false"
-                              />
+                          <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="label">Email Address</td>
+                        <td class="verified-field">
+                          <input
+                            type="text"
+                            name="emailAddress"
+                            class="text-input"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyValidEmail(this);
+                            return false"
+                            />
 
-                            <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td />
-                          <td class="signup-body-button-container">
-                            <input type="submit"
-                              class="create-account"
-                              name="__submit__"
-                              value="Create Account"
-                              disabled="true" />
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-              <td class="signup-body-right-edge">&#160;</td>
-            </tr>
-            <tr valign="top" class="signup-footer-container">
-              <td colspan="3">
-                <table cellpadding="0" cellspacing="0">
-                  <tr class="signup-footer">
-                    <td class="signup-footer-left-corner">
-                      <img src="/Mantissa/images/signup-footer-left-corner.png" />
-                    </td>
-                    <td class="signup-footer-bottom-edge" />
-                    <td class="signup-footer-right-corner">
-                      <img src="/Mantissa/images/signup-footer-right-corner.png" />
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </center>
+                          <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td />
+                        <td class="signup-body-button-container">
+                          <input type="submit"
+                            class="create-account"
+                            name="__submit__"
+                            value="Create Account"
+                            disabled="true" />
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td class="signup-body-right-edge">&#160;</td>
+          </tr>
+          <tr valign="top" class="signup-footer-container">
+            <td colspan="3">
+              <table cellpadding="0" cellspacing="0">
+                <tr class="signup-footer">
+                  <td class="signup-footer-left-corner">
+                    <img src="/Mantissa/images/signup-footer-left-corner.png" />
+                  </td>
+                  <td class="signup-footer-bottom-edge" />
+                  <td class="signup-footer-right-corner">
+                    <img src="/Mantissa/images/signup-footer-right-corner.png" />
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </form>

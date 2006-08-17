@@ -20,9 +20,8 @@
   </div>
 
   <tr nevow:pattern="contact-info-section" valign="top">
-    <nevow:attr name="class">
-      <nevow:slot name="type" />
-    </nevow:attr>
+    <nevow:attr name="class"
+      ><nevow:slot name="type" /></nevow:attr>
     <td align="center">
       <img class="contact-type-icon">
         <nevow:attr name="src">
@@ -52,7 +51,7 @@
       <td class="title-cell"><span><nevow:slot name="title" /></span></td>
       <td class="image-cell"><img class="right-image" src="/Mantissa/images/person-fragment-tr-corner.png" /></td>
     </tr>
-    <tr class="fragment-row" valign="top">
+    <tr class="fragment-middle-row" valign="top">
       <td colspan="3" class="fragment-cell">
         <div class="fragment-container">
           <nevow:slot name="fragment" />
@@ -61,7 +60,7 @@
     </tr>
     <tr class="footer-row">
       <td class="image-cell"><img class="left-image" src="/Mantissa/images/person-fragment-bl-corner.png" /></td>
-      <td class="stretch-cell" />
+      <td class="stretch-cell">&#160;</td>
       <td class="image-cell"><img class="right-image" src="/Mantissa/images/person-fragment-br-corner.png" /></td>
     </tr>
   </table>

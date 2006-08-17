@@ -2,31 +2,39 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+.scrolltable-widget-node {
+    border: solid 1px black;
+}
+
 /* person widget styles */
+
+.person-widget-left-edge {
+    border-left: solid 1px #FFCC99;
+    font-size: 0px;
+}
 
 .person-widget-right-edge {
     border-right: solid 1px #FFCC99;
+    font-size: 0px;
 }
 
 .person-widget-top-edge {
     border-top: solid 1px #FFCC99;
+    font-size: 0px;
 }
 
 .person-widget-bottom-edge {
     border-bottom: solid 1px #FFCC99;
+    font-size: 0px;
 }
 
 .person-widget-corner {
-    height: 1px;
-    width: 1px;
+    height: 2px;
+    width: 2px;
 }
 
 .person-widget-empty-corner {
-    width: 1px;
-    background-color: #FFCC99;
-}
-
-.person-widget-left-edge {
+    width: 2px;
     background-color: #FFCC99;
 }
 
@@ -44,6 +52,7 @@ body {
 
 .person-widget-row {
     line-height: 0px;
+    font-size: 0px;
 }
 
 
@@ -55,6 +64,11 @@ body {
 
 .shell-content {
     height: 100%;
+}
+
+.user-info-signup-table input.text-input,
+.user-info-signup-table input.password-input {
+    width: 15em;
 }
 
 .signup-header-stretcher {
@@ -70,7 +84,7 @@ body {
     line-height: normal;
 }
 
-.signup-header-left-block > div {
+.signup-header-title {
     margin-left: 16px;
     margin-bottom: 4px;
     color: #FFFFFF;
@@ -116,6 +130,10 @@ body {
 
 .signup-body, .signup-header, .signup-header-container, .signup-footer, .signup-footer-container {
     line-height: 0px;
+}
+
+.signup-footer-container {
+    font-size: 0px;
 }
 
 .signup-footer-left-corner, .signup-footer-right-corner {
@@ -173,7 +191,7 @@ body {
 .summary-body-container .tdb {
     white-space: normal;
     border: none;
-    margin: none;
+    margin: 0px;
 }
 
 .summary-body-container .tdb th {
@@ -182,7 +200,7 @@ body {
 
 .summary-body-container .tdb > tbody > tr > td {
     background: none;
-    padding: none;
+    padding: 0px;
     padding: 2px 0px 2px 0px;
     border-bottom: dashed 1px #FF6600;
     border-right: none;
@@ -207,7 +225,7 @@ body {
     color: #666666;
 }
 
-.fragment-row .fragment-container {
+.fragment-middle-row .fragment-container {
     background-color: #FFFFFF;
 }
 
@@ -235,7 +253,11 @@ body {
     padding: 0px 1px 0px 1px;
 }
 
-.person-name-container > img {
+.fragment-cell td {
+    white-space: nowrap;
+}
+
+.person-name-container img {
     vertical-align: middle;
 }
 
@@ -246,6 +268,7 @@ body {
 
 .person-fragment .footer-row {
     line-height: 0px;
+    font-size: 0px;
 }
 
 .header-row {
@@ -262,7 +285,7 @@ body {
     margin-left: 8px;
 }
 
-.header-row .image-cell > img {
+.header-row .left-image, .right-image {
     vertical-align: top;
     position: relative;
     top: -1px;
@@ -273,15 +296,15 @@ body {
     border-bottom: solid 1px #D9F0F7;
 }
 
-.header-row .image-cell > img {
+.header-row .image-cell .left-image {
     left: -1px;
 }
 
-.header-row .image-cell > img.right-image {
+.header-row .image-cell .right-image {
     left: 1px;
 }
 
-.person-fragment .fragment-row > td, .person-fragment .header-row > td {
+.person-fragment .header-row td, .fragment-cell {
     background-color: #D9F0F7;
 }
 
@@ -331,6 +354,14 @@ body {
     white-space: nowrap;
 }
 
+#divmod-menu li {
+    display: inline;
+}
+
+#divmod-menu a {
+    padding: 2px 2px 2px 4px;
+}
+
 /* make sure the menu displays below the icon on IE, not next to it */
 .divmod-menu-icon {
     width: 50px;
@@ -341,8 +372,10 @@ body {
 .menu-separator {
     height: 2px;
     background-image: url(/Mantissa/images/menu-separator.png);
-    padding: 1px 0px 1px 0px;
     background-repeat: repeat-x;
+    font-size: 0px;
+    padding: 1px 0px 1px 0px;
+    width: 100%;
 }
 
 .tab-link {
@@ -374,6 +407,7 @@ body {
 
 .search-container {
     height: 100%;
+    vertical-align: middle;
 }
 
 .search-container .username {
@@ -388,6 +422,7 @@ body {
 
 .tab-button, .selected-tab-button {
     float: left;
+    display: block;
     margin-left: 8px;
 }
 
@@ -422,8 +457,12 @@ body {
     font-size: 1.4em;
 }
 
-.tab-text-cell > div {
+.tab-text-cell div {
     margin-bottom: 2px;
+}
+
+.tab-text-cell a, .tab-text-cell a:visited {
+    color: #FFFFFF;
 }
 
 .selected-tab-button .tab-text-row {
@@ -579,10 +618,10 @@ input.change-password {
  * control-table used in "my account" because the tdb cells we want to
  * accentuate are in the first row, rather than the first column */
 
-    .tdb-action-result {
-        white-space: nowrap;
-        color: #04a700;
-        font-weight: bold;
+.tdb-action-result {
+    white-space: nowrap;
+    color: #04a700;
+    font-weight: bold;
 }
 
 .tdb-clickable-header {
@@ -658,9 +697,6 @@ table.control-table > tbody > tr > td {
 
 #search-form {
     padding: 6px;
-}
-
-#search-form-container {
     position: absolute;
     z-index: 99;
     background-color: #999999;
@@ -704,6 +740,15 @@ input[type=submit] {
 }
 
 input[type=password], input[type=text] {
+    border: 1px solid #999999;
+    border-top-color: #CCCCCC;
+    border-left-color: #CCCCCC;
+    padding: 0.25em;
+    background-color: #FFFFFF;
+    color: #333333;
+}
+
+input.password-input, input.text-input {
     border: 1px solid #999999;
     border-top-color: #CCCCCC;
     border-left-color: #CCCCCC;

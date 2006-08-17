@@ -146,16 +146,14 @@ Mantissa.Validate.SignupForm.methods(
     },
     function _findStatusElement(self, inputnode) {
         var fieldgroup = inputnode.parentNode;
-        while (fieldgroup.getAttribute("class") != "verified-field") {
+        while (fieldgroup.className != "verified-field") {
             fieldgroup = fieldgroup.parentNode;
         }
         var theNodes = fieldgroup.childNodes;
         for (var maybeStatusNodeIdx in theNodes) {
             var maybeStatusNode = theNodes[maybeStatusNodeIdx];
-            if (typeof maybeStatusNode.getAttribute != 'undefined') {
-                if (maybeStatusNode.getAttribute("class") == "verify-status") {
-                    return maybeStatusNode;
-                }
+            if (maybeStatusNode.className == "verify-status") {
+                return maybeStatusNode;
             }
         }
     },
@@ -168,3 +166,4 @@ Mantissa.Validate.SignupForm.methods(
         inputs['domain'] = [self.domain];
         return inputs;
     });
+

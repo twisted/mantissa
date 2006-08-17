@@ -7,15 +7,13 @@
     ><img src="/Mantissa/images/search-button-unselected.png" border="0" />
   </a>
 
-  <a nevow:pattern="app-tab" class="tab-button">
-    <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+  <div nevow:pattern="app-tab" class="tab-button">
     <nevow:slot name="tab-contents" />
-  </a>
+  </div>
 
-  <a nevow:pattern="selected-app-tab" class="selected-tab-button">
-    <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+  <div nevow:pattern="selected-app-tab" class="selected-tab-button">
     <nevow:slot name="tab-contents" />
-  </a>
+  </div>
 
   <li nevow:pattern="tab">
     <a class="tab-link"
@@ -41,7 +39,13 @@
     <tr class="tab-text-row">
       <td />
       <td class="tab-text-cell">
-        <div><nevow:slot name="name" /></div>
+	      <div>
+          <a onmouseover="MantissaShell.tabHover(this)"
+            onmouseout="MantissaShell.tabUnhover(this)">
+            <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+            <nevow:slot name="name" />
+          </a>
+        </div>
       </td>
       <td />
     </tr>
@@ -56,7 +60,11 @@
     <tr class="tab-text-row">
       <td class="tab-left-edge" />
       <td class="tab-text-cell">
-        <nevow:slot name="name" />
+	<a onmouseover="MantissaShell.tabHover(this)"
+	  onmouseout="MantissaShell.tabUnhover(this)">
+	  <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+	  <nevow:slot name="name" />
+	</a>
       </td>
       <td class="tab-right-edge" />
     </tr>
@@ -79,21 +87,17 @@
         <tr valign="bottom">
           <td class="divmod-menu-container"
             onclick="MantissaShell.menuClick(this);">
-	    <div class="divmod-menu-icon" onmouseover="MantissaShell.menuButtonHover()" />
+            <div class="divmod-menu-icon" onmouseover="MantissaShell.menuButtonHover()" />
             <ul id="divmod-menu" style="display: none">
               <nevow:invisible nevow:render="navigation" />
-              <li>
-                <div class="menu-separator" />
-              </li>
+              <li><div class="menu-separator" /></li>
               <li class="tab">
                 <a class="tab-link">
                   <nevow:attr name="href" nevow:data="settingsLink" nevow:render="data" />
                   Settings
                 </a>
               </li>
-              <li>
-                <div class="menu-separator" />
-              </li>
+              <li><div class="menu-separator" /></li>
               <li class="tab">
                 <a class="tab-link" href="/__logout__">Logout</a>
               </li>
@@ -125,23 +129,21 @@
       <tfoot />
     </table>
 
-    <div id="search-form-container" style="display: none">
-      <form id="search-form" nevow:render="searchFormAction">
-        <nevow:attr name="action"><nevow:slot name="form-action" /></nevow:attr>
-        <table>
-          <tr valign="center">
-            <td>
-              <input name="term" class="search-text" type="text" />
-            </td>
-            <td>
-              <a href="#" onclick="document.forms['search-form'].submit(); return false">
-                <img src="/Mantissa/images/search-button-small.png" border="0" />
-              </a>
-            </td>
-          </tr>
-        </table>
-      </form>
-    </div>
+    <form id="search-form" nevow:render="searchFormAction" style="display: none">
+      <nevow:attr name="action"><nevow:slot name="form-action" /></nevow:attr>
+      <table>
+        <tr valign="center">
+          <td>
+            <input name="term" class="search-text" type="text" />
+          </td>
+          <td>
+            <a href="#" onclick="document.forms['search-form'].submit(); return false">
+              <img src="/Mantissa/images/search-button-small.png" border="0" />
+            </a>
+          </td>
+        </tr>
+      </table>
+    </form>
 
     <div class="private-fragment-content" nevow:render="content" />
 

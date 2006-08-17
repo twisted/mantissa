@@ -58,8 +58,8 @@ class TextArea(testcase.TestCase):
 
     def submit(self, argument):
         self.assertEquals(
-            argument,
-            self.defaultText)
+            argument.replace('\r\n', '\n'),
+            self.defaultText.replace('\r\n', '\n'))
 
 
     def getWidgetDocument(self):

@@ -81,7 +81,12 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollContent.style.height = height + (self._rowHeight * rowCount) + "px";
     },
 
-    function _getSomeRows(self, scrollingDown) {
+    /**
+     * This method is responsible for returning the height of the scroll
+     * viewport in pixels.  The result is used to calculate the number of
+     * rows needed to fill the screen.
+     */
+    function getScrollViewportHeight(self) {
         var scrollViewportHeight = Divmod.Runtime.theRuntime.getElementSize(self._scrollViewport).h;
         if(!scrollViewportHeight) {
             scrollViewportHeight = parseInt(self._scrollViewport.style.height);
@@ -89,6 +94,11 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         if(!scrollViewportHeight) {
             scrollViewportHeight = 400;
         }
+        return scrollViewportHeight;
+    },
+
+    function _getSomeRows(self, scrollingDown) {
+        var scrollViewportHeight = self.getScrollViewportHeight();
         var desiredRowCount = Math.ceil(scrollViewportHeight / self._rowHeight);
         var firstRow = Math.floor(self._scrollViewport.scrollTop / self._rowHeight);
         var requestNeeded = false;

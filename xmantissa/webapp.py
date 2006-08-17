@@ -86,8 +86,7 @@ class NavMixin(object):
 
             yield dictFillSlots(getp(p),
                     {'name': tab.name,
-                     'href': tab.linkURL,
-                     'tab-contents': getp(contentp)})
+                     'tab-contents': getp(contentp).fillSlots('href', tab.linkURL)})
 
     def render_navigation(self, ctx, data):
         getp = IQ(self.docFactory).onePattern

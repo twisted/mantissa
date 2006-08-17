@@ -65,7 +65,7 @@ MantissaShell.menuClick = function(node) {
 
 /**
  * Called when a top level tab is hovered over.
- * This makes the tab's submenu visibile, if there is one.
+ * This makes the tab's submenu visible, if there is one.
  *
  * We use JS for this because we want the submenu to appear directly to
  * the right of the parent item when hovered over, but we don't want to
@@ -79,7 +79,7 @@ MantissaShell.tabHover = function(node) {
     }
 
     if(!subtabs.style.left) {
-        subtabs.style.left = node.clientWidth + "px";
+        subtabs.style.left = node.parentNode.parentNode.clientWidth + "px";
         subtabs.style.marginTop = -node.clientHeight + "px";
     }
     subtabs.style.display = "";
@@ -110,7 +110,7 @@ MantissaShell.searchButtonClicked = function(node) {
     node.blur();
 
     var imgstate, color;
-    var sfcont = document.getElementById("search-form-container");
+    var sfcont = document.getElementById("search-form");
 
     if(!sfcont.style.right) {
         sfcont.style.right = sfcont.clientWidth + "px";
