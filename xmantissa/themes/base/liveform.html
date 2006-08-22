@@ -52,6 +52,15 @@
     <nevow:invisible nevow:render="submitbutton" />
   </form>
 
+  <div nevow:pattern="description" class="liveform-param-description">
+    <nevow:slot name="description" />
+  </div>
+
+  <nevow:invisible nevow:pattern="parameter-input">
+    <nevow:slot name="input" />
+    <nevow:slot name="description" />
+  </nevow:invisible>
+
   <div nevow:pattern="subform" nevow:render="liveElement">
     <fieldset>
       <legend><nevow:slot name="description" /></legend>
@@ -60,12 +69,12 @@
   </div>
 
   <div nevow:pattern="text-input-container">
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
     <nevow:slot name="input" />
   </div>
 
   <div nevow:pattern="choice-input-container">
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
     <select>
       <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
       <nevow:slot name="options" />
@@ -73,7 +82,7 @@
   </div>
 
   <div nevow:pattern="multi-choice-input-container">
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
     <select multiple="multiple">
       <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
       <nevow:slot name="options" />
@@ -91,25 +100,25 @@
   </option>
 
   <div nevow:pattern="multi-text-input-container">
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
     <nevow:slot name="inputs" />
   </div>
 
   <div nevow:pattern="password-input-container">
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
     <nevow:slot name="input" />
   </div>
 
   <!-- Note that any whitespace in the textarea tag will appear in the
        output, and so none should be included, if at all possible. -->
   <div nevow:pattern="textarea-input-container">
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
     <textarea><nevow:attr name="name"><nevow:slot name="name" /></nevow:attr><nevow:slot name="value" /></textarea>
   </div>
 
   <div nevow:pattern="radio-input-container">
     <nevow:slot name="input" />
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
   </div>
 
   <div nevow:pattern="form-input-container">
@@ -118,7 +127,7 @@
 
   <div nevow:pattern="checkbox-input-container">
     <nevow:slot name="input" />
-    <nevow:slot name="description" />
+    <nevow:slot name="label" />
   </div>
 
   <input nevow:pattern="input">
