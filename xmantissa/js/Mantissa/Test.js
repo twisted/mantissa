@@ -15,6 +15,49 @@ Mantissa.Test.StatsTest.methods(
         return self.callRemote('run');
     });
 
+Mantissa.Test.UserInfoSignup = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.UserInfoSignup');
+Mantissa.Test.UserInfoSignup.methods(
+    function test_signup(self) {
+        // Ensure that filling out the signup form in a strange order
+        // doesn't prevent it from being submittable.
+        var f = self.childWidgets[0];
+        var button = f.nodeByAttribute("name", "__submit__");
+        f.node.firstName.focus();
+        f.node.firstName.value = "Fred";
+        f.node.firstName.onkeyup();
+        f.node.lastName.focus();
+        f.node.lastName.value = "Foobar";
+        f.node.lastName.onkeyup();
+        f.node.username.focus();
+        // this is the onkeyup for the username field --
+        // doing this by hand to get at the deferred
+        Nevow.Athena.Widget.get(f.node.username).verifyUsernameAvailable(
+            f.node.username).addCallback(function(x) {
+                    f.node.password.focus();
+                    f.node.password.value = "x";
+                    f.node.password.onkeyup();
+                    f.node.confirmPassword.focus();
+                    f.node.confirmPassword.value = "foobaz";
+                    f.node.confirmPassword.onkeyup();
+                    // The password is invalid and there's no email address.
+                    // The form shouldn't be submittable.
+                    self.assertEquals(f.submitButton.disabled, true);
+                    f.node.emailAddress.focus();
+                    f.node.emailAddress.value = "fred@example.com";
+                    f.node.emailAddress.onkeyup();
+                    // The password is still invalid, so still not ready
+                    self.assertEquals(f.submitButton.disabled, true);
+                    f.node.password.value = "foobaz";
+                    f.node.password.onkeyup();
+                    // Gotta visit the confirm-password field again to
+                    // get it to realize everything is OK now
+                    f.node.confirmPassword.onkeyup();
+                    // The password is now valid and all the fields are filled.
+                    // It should be ready to submit.
+                    self.assertEquals(f.submitButton.disabled, false);
+                });
+    });
+
 Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass('Mantissa.Test.TextArea');
 
 Mantissa.Test.Select = Mantissa.Test.Forms.subclass('Mantissa.Test.Select');

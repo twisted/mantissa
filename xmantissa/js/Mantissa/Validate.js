@@ -14,6 +14,7 @@
 Mantissa.Validate.SignupForm = Mantissa.LiveForm.FormWidget.subclass(
     "Mantissa.Validate.SignupForm");
 
+
 Mantissa.Validate.SignupForm.methods(
     function __init__(self, node) {
         Mantissa.Validate.SignupForm.upcall(self, '__init__', node);
@@ -65,21 +66,27 @@ Mantissa.Validate.SignupForm.methods(
     },
     function verifyUsernameAvailable(self, inputnode) {
         var username = inputnode.value;
-        self.callRemote("usernameAvailable",username, self.domain).addCallback(
+        return self.callRemote("usernameAvailable",username, self.domain).addCallback(
             function (result) {
                 self.verifyInput(inputnode, result);
             });
     },
+    function passwordIsStrong(self, passwd) {
+      return passwd.length > 4;
+    },
+
     function verifyStrongPassword(self, inputnode) {
         self.verifyInput(
             inputnode,
-            inputnode.value.length > 4);
+            self.passwordIsStrong(inputnode.value));
     },
     function verifyPasswordsMatch(self, inputnode) {
-        self.verifyInput(
-            inputnode,
-            (self.testedInputs['password']) &&
-            (inputnode.value === self.passwordInput.value));
+        if (self.passwordIsStrong(self.passwordInput.value)) {
+            self.verifyInput(
+                inputnode,
+                (self.testedInputs['password']) &&
+                (inputnode.value === self.passwordInput.value));
+        }
     },
     function verifyValidEmail(self, inputnode) {
         var cond = null;
