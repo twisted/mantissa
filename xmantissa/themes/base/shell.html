@@ -37,7 +37,7 @@
       <td class="tab-tr-corner" />
     </tr>
     <tr class="tab-text-row">
-      <td />
+      <td class="tab-left-edge" />
       <td class="tab-text-cell">
 	      <div>
           <a onmouseover="MantissaShell.tabHover(this)"
@@ -47,7 +47,7 @@
           </a>
         </div>
       </td>
-      <td />
+      <td class="tab-right-edge" />
     </tr>
   </table>
 
@@ -60,11 +60,11 @@
     <tr class="tab-text-row">
       <td class="tab-left-edge" />
       <td class="tab-text-cell">
-	<a onmouseover="MantissaShell.tabHover(this)"
-	  onmouseout="MantissaShell.tabUnhover(this)">
-	  <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
-	  <nevow:slot name="name" />
-	</a>
+        <a onmouseover="MantissaShell.tabHover(this)"
+          onmouseout="MantissaShell.tabUnhover(this)">
+          <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+          <nevow:slot name="name" />
+        </a>
       </td>
       <td class="tab-right-edge" />
     </tr>
