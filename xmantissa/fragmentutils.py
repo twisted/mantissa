@@ -33,8 +33,7 @@ class FragmentCollector(athena.LiveFragment):
 
         tabs = []
         for frag in collect:
-            if frag.docFactory is None:
-                frag.docFactory = translator.getDocFactory(frag.fragmentName, None)
+            frag.docFactory = translator.getDocFactory(frag.fragmentName, None)
             tabs.append((frag.title, frag))
         self.tabs = tabs
 

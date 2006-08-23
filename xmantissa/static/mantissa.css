@@ -2,11 +2,6 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
-.liveform-param-description {
-    padding-left: 4px;
-    font-style: italic;
-}
-
 .scrolltable-widget-node {
     border: solid 1px black;
 }
@@ -769,15 +764,6 @@ input[type=password], input[type=text] {
     padding: 0.25em;
     background-color: #FFFFFF;
     color: #333333;
-}
-
-button {
-    border: 3px double #999999;
-    border-top-color: #CCCCCC;
-    border-left-color: #CCCCCC;
-    background-color: #FFFFFF;
-    color: #333333;
-    font-weight: bold;
 }
 
 input.password-input, input.text-input {

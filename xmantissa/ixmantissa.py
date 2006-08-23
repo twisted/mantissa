@@ -50,9 +50,9 @@ class IPreferenceAggregator(Interface):
     Allows convenient retrieval of individual preferences
     """
 
-    def getPreferenceCollections():
+    def getPreference(key):
         """
-        Return a list of all installed L{IPreferenceCollection}s
+        Return the preference associated with "key"
         """
 
     def getPreferenceValue(key):
@@ -471,31 +471,29 @@ class IQ2QService(Interface):
 
 class IPreferenceCollection(Interface):
     """
-    I am an item that groups preferences into logical chunks.
+    I group per-application preference/settings stuff.
     """
+
+    applicationName = Attribute("""
+    The name of the application these settings are for.""")
 
     def getPreferences():
         """
-        Returns a mapping of preference-name->preference-value.
+        Returns a mapping of key->preference for all preferences
+        that belong to this application.  'key' is a string,
+        'preference' is an xmantissa.prefs.Preference instance
+        """
+
+    def setPreferenceValue(pref, value):
+        """
+        Update and persist the value of the given preference.
         """
 
     def getSections():
         """
-        Returns a sequence of INavigableFragments or None. These fragments
-        will be displayed alongside preferences under this collections's
-        settings group.
-        """
-
-    def getPreferenceAttributes():
-        """
-        Returns a sequence of L{xmantissa.liveform.Parameter} instances - one
-        for each preference.  The names of the parameters should correspond
-        to the attribute names of the preference attributes on this item.
-        """
-
-    def getTabs():
-        """
-        Like L{ixmantissa.INavigableElement.getTabs}, but for preference tabs
+        Return a sequence of INavigableFragments or None.
+        These fragments will be displayed alongside
+        preferences under this application's settings group
         """
 
 class ITemporalEvent(Interface):

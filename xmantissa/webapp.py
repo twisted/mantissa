@@ -35,6 +35,7 @@ from xmantissa.offering import getInstalledOfferings
 from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
     ISiteRootPlugin, IWebTranslator, ISearchAggregator, IStaticShellContent
 
+from xmantissa.settings import Settings
 from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
 from xmantissa.search import SearchAggregator
@@ -495,6 +496,7 @@ class PrivateApplication(Item, PrefixURLMixin):
         findOrCreate(AuthenticationApplication)
         findOrCreate(PreferenceAggregator).installOn(other)
         findOrCreate(DefaultPreferenceCollection).installOn(other)
+        findOrCreate(Settings).installOn(other)
         findOrCreate(SearchAggregator).installOn(other)
 
     def getPageComponents(self):
@@ -505,7 +507,7 @@ class PrivateApplication(Item, PrefixURLMixin):
         return _PageComponents(navigation,
                                searchAggregator,
                                staticShellContent,
-                               self.installedOn.findFirst(PreferenceAggregator),
+                               self.installedOn.findFirst(Settings),
                                getInstalledThemes(self.store.parent))
 
     def createResource(self):

@@ -360,7 +360,7 @@ freeTicketSignupConfiguration = [
                        liveform.TEXT_INPUT,
                        unicode,
                        u'The web location at which users will be able to request tickets.',
-                       default=u'signup')]
+                       u'signup')]
 
 class FreeTicketSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
@@ -948,17 +948,17 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
                                 liveform.TEXT_INPUT,
                                 unicode,
                                 u'Email Subject',
-                                default='Welcome to a Generic Axiom Application!'),
+                                'Welcome to a Generic Axiom Application!'),
              liveform.Parameter('blurb',
                                 liveform.TEXTAREA_INPUT,
                                 unicode,
                                 u'Blurb',
-                                default=''),
+                                ''),
              liveform.Parameter('linktext',
                                 liveform.TEXT_INPUT,
                                 unicode,
                                 u'Link Text',
-                                default="Click here to claim your 'generic axiom application' account")],
+                                "Click here to claim your 'generic axiom application' account")],
              description='Email Template')
         emailTemplateConfiguration.docFactory = getLoader('liveform-compact')
 
@@ -982,7 +982,7 @@ class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
                                 liveform.TEXT_INPUT,
                                 unicode,
                                 u'Descriptive, user-facing prompt for this signup',
-                                default=u'Sign Up'),
+                                u'Sign Up'),
              liveform.Parameter('benefactorFactoryConfigurations',
                                 liveform.FORM_INPUT,
                                 benefactorFactoryConfigurations,

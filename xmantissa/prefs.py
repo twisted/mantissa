@@ -6,224 +6,308 @@ from zope.interface import implements
 
 from twisted.python.components import registerAdapter
 
-from nevow import athena, tags, loaders, inevow
-from nevow.taglibrary import tabbedPane
-from nevow.page import renderer
+from nevow import athena
+from nevow.athena import expose
 
 from axiom.item import Item, InstallableMixin
-from axiom import attributes, upgrade
+from axiom import attributes, upgrade, userbase
 
-from xmantissa.webtheme import getLoader
-from xmantissa.liveform import ChoiceParameter, LiveForm
-from xmantissa import webnav, ixmantissa
-from xmantissa.webgestalt import AuthenticationApplication
+from xmantissa.fragmentutils import PatternDictionary
 
-class PreferenceCollectionMixin:
-    """
-    Convenience mixin for L{xmantissa.ixmantissa.IPreferenceCollection}
-    implementors.  Provides only the C{getPreferences} method.
-    """
+from xmantissa.ixmantissa import (IPreferenceCollection,
+                                  INavigableFragment,
+                                  IPreferenceAggregator)
 
-    def getPreferences(self):
-        # this is basically a hack so that PreferenceAggregator can
-        # continue work in a similar way
-        d = {}
-        for param in self.getPreferenceParameters():
-            d[param.name] = getattr(self, param.name)
-        return d
-
-class DefaultPreferenceCollection(Item, InstallableMixin, PreferenceCollectionMixin):
-    """
-    Badly named L{xmantissa.ixmantissa.IPreferenceCollection} which
-    encapsulates basic preferences that are useful to Mantissa in
-    various places, and probably to Mantissa-based applications as well.
-    """
-
-    implements(ixmantissa.IPreferenceCollection)
+class DefaultPreferenceCollection(Item, InstallableMixin):
+    implements(IPreferenceCollection)
 
     typeName = 'mantissa_default_preference_collection'
     schemaVersion = 2
 
-    installedOn = attributes.reference()
+    applicationName = 'Mantissa'
 
+    installedOn = attributes.reference()
     itemsPerPage = attributes.integer(default=10)
     timezone = attributes.text(default=u'US/Eastern')
 
+    _cachedPrefs = attributes.inmemory()
+
     def installOn(self, other):
         super(DefaultPreferenceCollection, self).installOn(other)
-        other.powerUp(self, ixmantissa.IPreferenceCollection)
+        other.powerUp(self, IPreferenceCollection)
 
-    def getPreferenceParameters(self):
-        return (ChoiceParameter(
-                    'timezone',
-                    list((c, unicode(c, 'ascii'), c == self.timezone) for c
-                            in pytz.common_timezones),
-                    'Timezone'),
-                ChoiceParameter(
-                    'itemsPerPage',
-                    list((c, c, c == self.itemsPerPage) for c in (10, 20, 30)),
-                    'Items Per Page'))
+    def activate(self):
+        ipp = _ItemsPerPage(self.itemsPerPage, self, (10, 20, 30))
+        tz = _TimezonePreference(self.timezone, self)
+
+
+        localparts = list(self.store.query(
+            userbase.LoginMethod,
+            userbase.LoginMethod.internal == True,
+            limit=1).getColumn("localpart"))
+        if localparts:
+            localpart = localparts[0]
+        else:
+            localpart = None
+
+        lp = _LocalpartPreference(localpart, self)
+
+        self._cachedPrefs = {'itemsPerPage': ipp,
+                             'timezone': tz,
+                             'localpart': lp}
+
+    def getPreferences(self):
+        return self._cachedPrefs
+
+
+    def _localpartSet(self, value):
+        # Create a LoginMethod to actually hold this information.  This
+        # "preference" can only be set once, so only one LoginMethod will be
+        # created in this way.
+        siteStore = self.store.parent
+        hostname = userbase.getDomainNames(siteStore)[0]
+
+        loginAccount = self.store.findUnique(userbase.LoginAccount)
+        loginAccount.addLoginMethod(
+            localpart=value,
+            internal=True,
+            protocol=userbase.ANY_PROTOCOL,
+            verified=True,
+            domain=hostname)
+
+
+    def setPreferenceValue(self, pref, value):
+        pref.value = value
+        if pref.key == "localpart":
+            self._localpartSet(value)
+        else:
+            setattr(self, pref.key, value)
+
 
     def getSections(self):
-        authapp = self.store.findUnique(AuthenticationApplication, default=None)
-        if authapp is None:
-            return None
-        return (authapp,)
-
-    def getTabs(self):
-        return (webnav.Tab('General', self.storeID, 1.0, authoritative=True),)
+        return None
 
 
-upgrade.registerAttributeCopyingUpgrader(DefaultPreferenceCollection, 1, 2)
 
+def defaultPreferenceCollection1To2(old):
+    from xmantissa.settings import Settings
+    Settings(store=old.store).installOn(old.store)
+    return old.upgradeVersion('mantissa_default_preference_collection', 1, 2,
+                              installedOn=old.installedOn,
+                              itemsPerPage=old.itemsPerPage,
+                              timezone=u'US/Eastern')
 
-class PreferenceCollectionLiveForm(LiveForm):
-    """
-    L{xmantissa.liveform.LiveForm} subclass which switches
-    the docfactory, the jsClass, and overrides the submit
-    button renderer.
-    """
-    jsClass = 'Mantissa.Preferences.PrefCollectionLiveForm'
+upgrade.registerUpgrader(defaultPreferenceCollection1To2,
+                         'mantissa_default_preference_collection',
+                         1, 2)
 
-    def __init__(self, *a, **k):
-        super(PreferenceCollectionLiveForm, self).__init__(*a, **k)
-        self.docFactory = getLoader('liveform-compact')
+class PreferenceValidationError(Exception):
+    pass
 
-    def submitbutton(self, request, tag):
-        return tags.input(type='submit', name='__submit__', value='Save')
-    renderer(submitbutton)
-
-
-class PreferenceCollectionFragment(athena.LiveElement):
-    """
-    L{inevow.IRenderer} adapter for L{xmantissa.ixmantissa.IPreferenceCollection}.
-    """
-    docFactory = loaders.stan(tags.directive('fragments'))
-    liveFormClass = PreferenceCollectionLiveForm
-
-    def __init__(self, collection):
-        super(PreferenceCollectionFragment, self).__init__()
+class Preference(object):
+    def __init__(self, key, value, name, collection, description):
+        self.key = key
+        self.value = value
+        self.name = name
         self.collection = collection
+        self.description = description
 
-    def fragments(self, req, tag):
-        """
-        Render our preference collection, any child preference
-        collections we discover by looking at self.tab.children,
-        and any fragments returned by its C{getSections} method.
+    def choices(self):
+        raise NotImplementedError
 
-        Subtabs and C{getSections} fragments are rendered as fieldsets
-        inside the parent preference collection's tab.
-        """
-        f = self._collectionToLiveform()
-        if f is not None:
-            yield tags.fieldset[tags.legend[self.tab.name], f]
+    def displayToValue(self, display):
+        raise NotImplementedError
 
-        for t in self.tab.children:
-            f = inevow.IRenderer(
-                    self.collection.store.getItemByID(t.storeID))
-            f.tab = t
-            if hasattr(f, 'setFragmentParent'):
-                f.setFragmentParent(self)
-            yield f
+    def valueToDisplay(self, value):
+        raise NotImplementedError
 
-        for f in self.collection.getSections() or ():
-            f = ixmantissa.INavigableFragment(f)
-            f.setFragmentParent(self)
-            f.docFactory = getLoader(f.fragmentName)
-            yield tags.fieldset[tags.legend[f.title], f]
-    renderer(fragments)
+    def settable(self):
+        return True
 
-    def _collectionToLiveform(self):
-        params = self.collection.getPreferenceParameters()
-        if not params:
-            return None
-        f = self.liveFormClass(
-                lambda **k: self._savePrefs(params, k),
-                params,
-                description=self.tab.name)
-        f.setFragmentParent(self)
-        return f
+class MultipleChoicePreference(Preference):
+    """base class for multiple choice preferences that have simple mappings
+       between internal values and display values."""
 
-    def _savePrefs(self, params, values):
-        for (k, v) in values.iteritems():
-            setattr(self.collection, k, v)
-        return self._collectionToLiveform()
+    def __init__(self, key, value, name, collection, description, valueToDisplay):
+        init = super(MultipleChoicePreference, self).__init__
+        init(key, value, name, collection, description)
 
-# IRenderer(IPreferenceCollection)
-#   -> PreferenceCollectionFragment, unless an adapter is registered for a
-# specific IPreferenceCollection implementor
-registerAdapter(PreferenceCollectionFragment,
-                ixmantissa.IPreferenceCollection,
-                inevow.IRenderer)
+        self._valueToDisplay = valueToDisplay
+        self._displayToValue = dict((v, k) for (k, v) in valueToDisplay.iteritems())
+        assert len(valueToDisplay) == len(self._displayToValue)
+
+    def choices(self):
+        return self._valueToDisplay.iterkeys()
+
+    def displayToValue(self, display):
+        try:
+            return self._displayToValue[display]
+        except KeyError:
+            raise PreferenceValidationError, 'bad value: %r' % display
+
+    def valueToDisplay(self, value):
+        return self._valueToDisplay[value]
+
+class _ItemsPerPage(MultipleChoicePreference):
+    def __init__(self, value, collection, choices):
+        desc = 'Show this many items per page (for search results)'
+        super(_ItemsPerPage, self).__init__('itemsPerPage', value, 'Items Per Page',
+                                            collection, desc,
+                                            dict((c, str(c)) for c in choices))
+
+class _TimezonePreference(Preference):
+    def __init__(self, value, collection):
+        super(_TimezonePreference, self).__init__('timezone', value, 'Timezone',
+                                                  collection, 'Your current timezone')
+
+    def choices(self):
+        return pytz.common_timezones
+
+    def displayToValue(self, display):
+        return unicode(display)
+
+    def valueToDisplay(self, value):
+        return str(value)
+
+
+
+class _LocalpartPreference(Preference):
+    """
+    Allow the one-time configuration of a local address for an account.
+
+    This will be an address beneath a domain which is hosted by this server.
+    It is intended as the outward-facing contact address for protocols such as
+    Q2Q, SIP, and SMTP.
+
+    XXX TODO - At some point, this should also support selection of a domain,
+    since a Mantissa server may host multiple domains.
+    """
+    def __init__(self, value, collection):
+        Preference.__init__(self, 'localpart', value, 'Localpart', collection,
+                            'Localpart')
+
+
+    def choices(self):
+        return None
+
+
+    def displayToValue(self, display):
+        value = unicode(display)
+        store = self.collection.store.parent
+
+        # XXX This enforces uniqueness across all domains.  We really want to
+        # enforce uniqueness within each domain.
+        existing = store.query(
+            userbase.LoginMethod,
+            attributes.AND(userbase.LoginMethod.localpart == value,
+                           userbase.LoginMethod.internal == True),
+            limit=1).count()
+
+        if existing:
+            raise PreferenceValidationError('Localpart is not unique')
+        return value
+
+
+    def valueToDisplay(self, value):
+        if value is None:
+            return 'Not Set'
+        return value
+
+
+    def settable(self):
+        # localpart can only be set once - so we'll only allow the user to set
+        # it when the current value is None.
+        return self.value is None
+
+
 
 class PreferenceAggregator(Item, InstallableMixin):
-    """
-    L{xmantissa.ixmantissa.IPreferenceAggregator} implementor,
-    which provides access to the values of preferences by name
-    """
-    implements(ixmantissa.IPreferenceAggregator)
+    implements(IPreferenceAggregator)
 
     schemaVersion = 1
     typeName = 'preference_aggregator'
 
-    _collections = attributes.inmemory()
+    _prefMap = attributes.inmemory()
     installedOn = attributes.reference()
 
     def installOn(self, other):
         super(PreferenceAggregator, self).installOn(other)
-        other.powerUp(self, ixmantissa.IPreferenceAggregator)
+        other.powerUp(self, IPreferenceAggregator)
 
     def activate(self):
-        self._collections = None
+        self._prefMap = None
 
     # IPreferenceAggregator
-    def getPreferenceCollections(self):
-        if self._collections is None:
-            self._collections = list(self.store.powerupsFor(ixmantissa.IPreferenceCollection))
-        return self._collections
+    def getPreference(self, key):
+        if self._prefMap is None:
+            # prefMap is a dictionary of {key:preference}, across all
+            # preference collections
+            prefMap = dict()
+            for prefColl in self.installedOn.powerupsFor(IPreferenceCollection):
+                prefMap.update(prefColl.getPreferences())
+            self._prefMap = prefMap
+
+        # will raise KeyError if no collection holds this key
+        return self._prefMap[key]
 
     def getPreferenceValue(self, key):
-        for collection in self.getPreferenceCollections():
-            for (_key, value) in collection.getPreferences().iteritems():
-                if _key == key:
-                    return value
+        return self.getPreference(key).value
 
+# FIXME this thing *really* needs to use liveform
 
-class PreferenceEditor(athena.LiveElement):
-    """
-    L{xmantissa.ixmantissa.INavigableFragment} adapter for
-    L{xmantissa.prefs.PreferenceAggregator}.  Responsible for
-    rendering all installed L{xmantissa.ixmantissa.IPreferenceCollection}s
-    """
-    implements(ixmantissa.INavigableFragment)
-    title = 'Preferences'
+class PreferenceEditor(athena.LiveFragment):
+    implements(INavigableFragment)
+
     fragmentName = 'preference-editor'
+    title = 'Preferences'
+    live = 'athena'
+    jsClass = u'Mantissa.Preferences'
 
-    def __init__(self, aggregator):
-        self.aggregator = aggregator
-        super(PreferenceEditor, self).__init__()
+    prefs = None
+    aggregator = None
 
-    def tabbedPane(self, req, tag):
-        """
-        Render a tabbed pane tab for each top-level
-        L{xmantissa.ixmantissa.IPreferenceCollection} tab
-        """
-        navigation = webnav.getTabs(self.aggregator.getPreferenceCollections())
-        pages = list()
-        for tab in navigation:
-            f = inevow.IRenderer(
-                    self.aggregator.store.getItemByID(tab.storeID))
-            f.tab = tab
-            if hasattr(f, 'setFragmentParent'):
-                f.setFragmentParent(self)
-            pages.append((tab.name, f))
+    def serializePrefs(self):
+        for pref in self.prefs:
+            value = pref.valueToDisplay(pref.value)
 
-        f = tabbedPane.TabbedPaneFragment(pages, name='preference-editor')
-        f.setFragmentParent(self)
-        return f
-    renderer(tabbedPane)
+            prefmap = dict(name=str(pref.name), key=str(pref.key), value=value)
+
+            if pref.settable():
+                pname = 'preference'
+            else:
+                pname = 'unsettable-preference'
+
+            itemPattern = self.patterns[pname](data=prefmap)
+
+            choices = pref.choices()
+
+            if choices is not None:
+                choices = list(dict(choice=pref.valueToDisplay(c))
+                                    for c in choices)
+
+                subPattern = self.patterns['multiple-choice-edit']
+                subPattern = subPattern(data=dict(value=value, choices=choices))
+            else:
+                subPattern = self.patterns['edit']
+                subPattern = subPattern.fillSlots('value', value)
+
+            yield itemPattern.fillSlots('edit-widget', subPattern)
+
+    def savePref(self, key, value):
+        pref = self.aggregator.getPreference(key)
+        value = pref.displayToValue(value)
+        pref.collection.setPreferenceValue(pref, value)
+    expose(savePref)
+
+    def data_preferences(self, ctx, data):
+        self.patterns = PatternDictionary(self.docFactory)
+        self.aggregator = IPreferenceAggregator(self.original.store)
+        self.prefs = self.original.getPreferences().values()
+
+        return self.patterns['preference-collection'].fillSlots(
+                    'preferences', self.serializePrefs())
 
     def head(self):
-        return tabbedPane.tabbedPaneGlue.inlineCSS
+        return None
 
-registerAdapter(PreferenceEditor, PreferenceAggregator, ixmantissa.INavigableFragment)
+registerAdapter(PreferenceEditor, PreferenceAggregator, INavigableFragment)

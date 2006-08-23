@@ -15,7 +15,7 @@ class TextInput(testcase.TestCase):
                                 liveform.TEXT_INPUT,
                                 unicode,
                                 'A text input field: ',
-                                default=u'hello world')])
+                                u'hello world')])
         f.setFragmentParent(self)
         return f
 
@@ -39,7 +39,7 @@ class MultiTextInput(testcase.TestCase):
                                         int,
                                         4,
                                         'A bunch of text inputs: ',
-                                        defaults=(1, 2, 3, 4)),))
+                                        (1, 2, 3, 4)),))
         f.setFragmentParent(self)
         return f
 
@@ -69,7 +69,7 @@ class TextArea(testcase.TestCase):
                                 liveform.TEXTAREA_INPUT,
                                 unicode,
                                 'A text area: ',
-                                default=self.defaultText)])
+                                self.defaultText)])
         f.setFragmentParent(self)
         return f
 
@@ -131,8 +131,7 @@ class ChoiceMultiple(testcase.TestCase):
                 [('One', 1, True),
                  ('Two', 2, False),
                  ('Three', 3, True)],
-                "Choosing mulitples from a list.",
-                multiple=True)])
+                "Choosing mulitples from a list.", True)])
         f.setFragmentParent(self)
         return f
 
@@ -161,7 +160,7 @@ class Traverse(testcase.TestCase):
                                 liveform.TEXT_INPUT,
                                 unicode,
                                 'A text input field: ',
-                                default=u'hello world'),
+                                u'hello world'),
              liveform.Parameter('group',
                                 liveform.FORM_INPUT,
                                 liveform.LiveForm(self.paramfilter,
@@ -170,7 +169,7 @@ class Traverse(testcase.TestCase):
                                                     liveform.TEXT_INPUT,
                                                     unicode,
                                                     'Another input field: ',
-                                                    default=u'goodbye world')]),
+                                                    u'goodbye world')]),
                                 'A form input group: ',
                                 )])
         f.setFragmentParent(self)
