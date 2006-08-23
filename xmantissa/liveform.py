@@ -12,14 +12,16 @@ from nevow.athena import expose
 from xmantissa import webtheme
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 
-class Parameter(record('name type coercer description default',
+class Parameter(record('name type coercer label description default',
+                       label=None,
                        description=None,
                        default=None)):
     pass
 
 MULTI_TEXT_INPUT = 'multi-text'
 
-class ListParameter(record('name coercer count description defaults',
+class ListParameter(record('name coercer count label description defaults',
+                    label=None,
                     description=None,
                     defaults=None)):
 
@@ -28,9 +30,10 @@ class ListParameter(record('name coercer count description defaults',
 CHOICE_INPUT = 'choice'
 MULTI_CHOICE_INPUT = 'multi-choice'
 
-class ChoiceParameter(record('name choices description multiple',
-                    description="",
-                    multiple=False)):
+class ChoiceParameter(record('name choices label description multiple',
+                      label=None,
+                      description="",
+                      multiple=False)):
     """
     A choice parameter, represented by a <select> element in HTML.
 
@@ -132,7 +135,7 @@ class _LiveFormMixin(record('callable parameters description',
                 subForm.setFragmentParent(self)
                 p = p.fillSlots('input', subForm)
             elif parameter.type == TEXTAREA_INPUT:
-                p = dictFillSlots(p, dict(description=parameter.description,
+                p = dictFillSlots(p, dict(label=parameter.label,
                                           name=parameter.name,
                                           value=parameter.default or ''))
             elif parameter.type == MULTI_TEXT_INPUT:
@@ -144,8 +147,9 @@ class _LiveFormMixin(record('callable parameters description',
                                              type='text',
                                              value=parameter.defaults[i])))
 
-                p = dictFillSlots(p, dict(description=parameter.description,
+                p = dictFillSlots(p, dict(label=parameter.label or parameter.name,
                                           inputs=subInputs))
+
             elif parameter.type in (CHOICE_INPUT, MULTI_CHOICE_INPUT):
                 selectedOptionPattern = patterns['selected-option']
                 unselectedOptionPattern = patterns['unselected-option']
@@ -158,7 +162,7 @@ class _LiveFormMixin(record('callable parameters description',
                     options.append(dictFillSlots(
                             pattern, dict(code=index, text=text)))
                 p = dictFillSlots(p, dict(name=parameter.name,
-                                          description=parameter.description,
+                                          label=parameter.label or parameter.name,
                                           options=options))
             else:
                 if parameter.default is not None:
@@ -172,14 +176,23 @@ class _LiveFormMixin(record('callable parameters description',
                     inputPattern = 'input'
 
                 p = dictFillSlots(
-                    p, dict(description=parameter.description,
+                    p, dict(label=parameter.label or parameter.name,
                             input=dictFillSlots(patterns[inputPattern],
                                                 dict(name=parameter.name,
                                                      type=parameter.type,
                                                      value=value))))
 
             p(**{'class' : 'liveform_'+parameter.name})
-            inputs.append(p)
+
+            if parameter.description:
+                description = patterns['description'].fillSlots(
+                                   'description', parameter.description)
+            else:
+                description = ''
+
+            inputs.append(dictFillSlots(
+                patterns['parameter-input'],
+                dict(input=p, description=description)))
 
         if self.subFormName is None:
             pname = 'liveform'
