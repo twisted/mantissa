@@ -4,6 +4,7 @@ from twisted.python.reflect import qual
 
 from nevow.athena import LivePage
 from nevow.loaders import stan
+from nevow.stan import Tag
 from nevow.tags import (
     html, head, body, div, span, img, script, link, invisible, directive)
 from nevow.context import WovenContext
@@ -11,6 +12,7 @@ from nevow.testutil import FakeRequest
 from nevow.flat import flatten
 from nevow.inevow import IRequest
 from nevow.page import renderer
+from nevow.test.test_rend import req as makeRequest
 
 from axiom.store import Store
 from axiom.substore import SubStore
@@ -21,6 +23,14 @@ from xmantissa.webtheme import (
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
+
+def testHead(theme):
+    """
+    Check that the head method of the given them doesn't explode.
+    @param theme: probably an L{xmantissa.webtheme.XHTMLDirectoryTheme}
+    """
+    s = Store()
+    flatten(theme.head(makeRequest(), WebSite(store=s, portNumber=80)))
 
 class WebThemeTestCase(TestCase):
     def _render(self, element):
@@ -357,4 +367,5 @@ class WebThemeTestCase(TestCase):
         d.addCallback(rendered)
         return d
 
-
+    def test_head(self):
+        testHead(MantissaTheme(''))
