@@ -74,8 +74,8 @@
                             type="text"
                             name="firstName"
                             class="text-input"
-                            onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
-                            return false"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
+                            onblur="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -88,8 +88,8 @@
                             type="text"
                             name="lastName"
                             class="text-input"
-                            onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this);
-                            return false"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
+                            onblur="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -102,8 +102,8 @@
                             type="text"
                             name="username"
                             class="text-input"
-                            onkeyup="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this);
-                            return false"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this)"
+                            onblur="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this)"
                             onfocus="Nevow.Athena.Widget.get(this).defaultUsername(this)"
                             />
 
@@ -117,8 +117,8 @@
                             type="password"
                             name="password"
                             class="password-input"
-                            onkeyup="Nevow.Athena.Widget.get(this).verifyStrongPassword(this);
-                            return false"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyStrongPassword(this)"
+                            onblur="Nevow.Athena.Widget.get(this).verifyStrongPassword(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -131,8 +131,8 @@
                             type="password"
                             name="confirmPassword"
                             class="password-input"
-                            onkeyup="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this);
-                            return false"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this)"
+                            onblur="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -145,8 +145,8 @@
                             type="text"
                             name="emailAddress"
                             class="text-input"
-                            onkeyup="Nevow.Athena.Widget.get(this).verifyValidEmail(this);
-                            return false"
+                            onkeyup="Nevow.Athena.Widget.get(this).verifyValidEmail(this)"
+                            onblur="Nevow.Athena.Widget.get(this).verifyValidEmail(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
