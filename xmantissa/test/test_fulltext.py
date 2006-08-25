@@ -431,6 +431,33 @@ class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.
         writer.close()
         self.failUnless(writer.closed, "Writer should have stayed closed.")
 
+    def testResultSlicing(self):
+        """
+        Test that the wrapper object return by the pylucene index correctly
+        handles slices
+        """
+
+        writer = self.openWriteIndex()
+        identifiers = range(20)
+        for i in identifiers:
+            writer.add(IndexableThing(
+                        _documentType=u'thing',
+                        _uniqueIdentifier=unicode(i),
+                        _textParts=[u'e'],
+                        _keywordParts={}))
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        results = reader.search(u'e')
+
+        self.assertEquals(list(results), identifiers)
+        self.assertEquals(results[0:None:2], identifiers[0:None:2])
+        self.assertEquals(results[0:5:1], identifiers[0:5:1])
+        self.assertEquals(results[15:0:-1], identifiers[15:0:-1])
+        self.assertEquals(results[15:None:-1], identifiers[15:None:-1])
+        self.assertEquals(results[0:24:2], identifiers[0:24:2])
+        self.assertEquals(results[24:None:-1], identifiers[24:None:-1])
 
 
 class PyLuceneCorruptionRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin, unittest.TestCase):

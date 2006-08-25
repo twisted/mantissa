@@ -361,7 +361,13 @@ class _PyLuceneHitsWrapper(record('index hits')):
         """
         if isinstance(index, slice):
             start = min(index.start, len(self) - 1)
-            stop = min(index.stop, len(self) - 1)
+            if index.stop is None:
+                if index.step == -1:
+                    stop = -1
+                else:
+                    stop = len(self) - 1
+            else:
+                stop = min(index.stop, len(self) - 1)
             return [self[i] for i in xrange(start, stop, index.step)]
         if index >= len(self.hits):
             raise IndexError(index)
