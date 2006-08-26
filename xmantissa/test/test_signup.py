@@ -119,7 +119,7 @@ class SignupCreationTestCase(unittest.TestCase):
             offeringName=u"mantissa",
             application=None)
 
-    def createFreeSignup(self, itemClass):
+    def createFreeSignup(self, itemClass, url=u'signup', prompt=u'Sign Up!'):
         """
 
         A utility method to ensure that the same arguments are always used to
@@ -132,11 +132,11 @@ class SignupCreationTestCase(unittest.TestCase):
         return self.sc.createSignup(
             u'testuser@localhost',
             itemClass,
-            {'prefixURL': u'signup'},
+            {'prefixURL': url},
             {adminoff.adminOffering.benefactorFactories[0]: {},
              provisioning.BenefactorFactory(u'blah', u'blah',
                                             lambda **kw: self.ftb): {}},
-            u'', u'')
+            u'Blank Email Template', prompt)
 
     def testCreateFreeSignups(self):
         self._installTestOffering()
@@ -168,4 +168,20 @@ class SignupCreationTestCase(unittest.TestCase):
         self.assertEquals(self.ftb.endowed, 1)
 
 
-
+    def test_freeSignupsList(self):
+        """
+        Test that if we produce 3 different publicly accessible signups, we get
+        information about all of them back.
+        """
+        for i, signupMechanismPlugin in enumerate(
+            [free_signup.freeTicket,
+             free_signup.freeTicketPassword,
+             free_signup.userInfo]):
+            self.createFreeSignup(signupMechanismPlugin.itemClass,
+                                  url=u'signup%d' % (i+1,),
+                                  prompt=u"Sign Up %d" % (i+1,))
+        x = list(signup._getPublicSignupInfo(self.store))
+        x.sort()
+        self.assertEquals(x, [(u'Sign Up 1', u'/signup1'),
+                              (u'Sign Up 2', u'/signup2'),
+                              (u'Sign Up 3', u'/signup3')])

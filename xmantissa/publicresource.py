@@ -17,7 +17,13 @@ class PublicPageMixin(object):
         return ctx.tag[self.title]
 
     def render_username(self, ctx, data):
-        from xmantissa.signup import FreeTicketSignup
+        # there is a circular import here which should probably be avoidable,
+        # since we don't actually need signup links on the signup page.  on the
+        # other hand, maybe we want to eventually put those there for
+        # consistency.  for now, this import is easiest, and although it's a
+        # "friend" API, which I dislike, it doesn't seem to cause any real
+        # problems...  -glyph
+        from xmantissa.signup import _getPublicSignupInfo
 
         if self.username is not None:
             return ctx.tag.fillSlots('username', self.username)
@@ -27,10 +33,10 @@ class PublicPageMixin(object):
         loginLinks = IQ.onePattern('login-links')
 
         signups = []
-        for signup in self.store.query(FreeTicketSignup):
+        for (prompt, url) in _getPublicSignupInfo(self.store):
             signups.append(signupPattern.fillSlots(
-                                'prompt', signup.prompt).fillSlots(
-                                'url', '/' + signup.prefixURL))
+                    'prompt', prompt).fillSlots(
+                    'url', url))
 
         return ctx.tag.clear()[loginLinks.fillSlots('signups', signups)]
 
