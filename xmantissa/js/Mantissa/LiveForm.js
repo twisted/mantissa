@@ -221,9 +221,10 @@ Mantissa.LiveForm.FormWidget.methods(
                             }
                             pushOneValue(aNode.name, aValue);
                         } else if (aNode.tagName.toLowerCase() == 'textarea') {
-                            // It's also an input, just not an input
-                            // input.
-                            var aValue = aNode.value;
+                            /* It's also an input, just not an input input.
+                             * Replace CRLF with LF so line-endings are
+                             * uniform across operating systems */
+                            var aValue = aNode.value.replace(/\r\n/g, "\n");
                             pushOneValue(aNode.name, aValue);
                         } else if (aNode.tagName.toLowerCase() == 'select') {
                             if (aNode.type == 'select-one') {
