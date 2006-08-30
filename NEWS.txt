@@ -1,3 +1,10 @@
+0.5.12 (2006-08-22):
+  - Better IE support.
+  - A bug in the user-info signup page that could render the form 
+    unsubmittable was fixed.
+  - Simpler preferences API.
+  - Shinier tabs.
+
 0.5.11 (2006-08-14):
   - the URL / now redirects to /private for authenticated users.
   - The view and model portions of ScrollableFragment have been factored
