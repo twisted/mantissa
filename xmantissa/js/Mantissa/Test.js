@@ -58,6 +58,10 @@ Mantissa.Test.UserInfoSignup.methods(
                 });
     });
 
+Mantissa.Test.Text = Mantissa.Test.Forms.subclass('Mantissa.Test.Text');
+
+Mantissa.Test.MultiText = Mantissa.Test.Forms.subclass('Mantissa.Test.MultiText');
+
 Mantissa.Test.TextArea = Mantissa.Test.Forms.subclass('Mantissa.Test.TextArea');
 
 Mantissa.Test.Select = Mantissa.Test.Forms.subclass('Mantissa.Test.Select');
@@ -68,11 +72,483 @@ Mantissa.Test.Choice = Mantissa.Test.Forms.subclass('Mantissa.Test.Choice');
 
 Mantissa.Test.Traverse = Mantissa.Test.Forms.subclass('Mantissa.Test.Traverse');
 
-Mantissa.Test.People = Mantissa.Test.Forms.subclass('Mantissa.Test.People');
+Mantissa.Test.NoNickOrFirstLastNames = Mantissa.Test.Forms.subclass('Mantissa.Test.NoNickOrFirstLastNames');
+Mantissa.Test.NoNickButFirstLastNames = Mantissa.Test.Forms.subclass('Mantissa.Test.NoNickButFirstLastNames');
+Mantissa.Test.OnlyNick = Mantissa.Test.Forms.subclass('Mantissa.Test.OnlyNick');
+Mantissa.Test.OnlyEmailAddress = Mantissa.Test.Forms.subclass('Mantissa.Test.OnlyEmailAddress');
+Mantissa.Test.NickNameAndEmailAddress = Mantissa.Test.Forms.subclass('Mantissa.Test.NickNameAndEmailAddress');
+
+Mantissa.Test.ScrollTableModelTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableModelTestCase');
+Mantissa.Test.ScrollTableModelTestCase.methods(
+    /**
+     * Create a ScrollModel to run tests against.
+     *
+     * For now, setUp is /not/ a fixture provided by the harness. Each test
+     * method invokes it explicitly.
+     */
+    function setUp(self) {
+        self.model = Mantissa.ScrollTable.ScrollModel();
+    },
+
+    /**
+     * Test that new rows can be added to a ScrollModel.
+     */
+    function test_setRowData(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+
+        self.assertEqual(self.model.getRowData(0).__id__, 'a');
+        self.assertEqual(self.model.getRowData(1).__id__, 'b');
+
+        /*
+         * Negative updates must be rejected.
+         */
+        var error = self.assertThrows(
+            Error,
+            function() { self.model.setRowData(-1, {__id__: 'c'}); });
+        self.assertEqual(
+            error.message,
+            "Specified index out of bounds in setRowData.");
+    },
+
+    /**
+     * Test that the correct number of rows is returned by
+     * L{ScrollModel.rowCount}.
+     */
+    function test_rowCount(self) {
+        self.setUp();
+
+        self.assertEqual(self.model.rowCount(), 0);
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.assertEqual(self.model.rowCount(), 1);
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+        self.assertEqual(self.model.rowCount(), 2);
+    },
+
+    /**
+     * Test that the index of a particular row can be found with its webID
+     * using L{ScrollModel.findIndex}.
+     */
+    function test_findIndex(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+
+        self.assertEqual(self.model.findIndex('a'), 0);
+        self.assertEqual(self.model.findIndex('b'), 1);
+
+        var error = self.assertThrows(
+            Error,
+            function() { self.model.findIndex('c'); });
+        self.assertEqual(
+            "Specified webID not found.",
+            error.message);
+    },
+
+    /**
+     * Test that the data associated with a particular row can be discovered by
+     * that row's index in the model using L{ScrollModel.getRowData}.
+     */
+    function test_getRowData(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+
+        self.assertEqual(self.model.getRowData(0).foo, 'bar');
+        self.assertEqual(self.model.getRowData(1).baz, 'quux');
+
+        var error;
+
+        error = self.assertThrows(
+            Error,
+            function() { self.model.getRowData(-1); });
+        self.assertEqual(
+            error.message,
+            "Specified index out of bounds in getRowData.");
+
+        error = self.assertThrows(
+            Error,
+            function() { self.model.getRowData(2); });
+        self.assertEqual(
+            error.message,
+            "Specified index out of bounds in getRowData.");
+
+        /*
+         * The array is sparse, so valid indexes might not be
+         * populated.  Requesting these should return undefined rather
+         * than throwing an error.
+         */
+        self.model.setRowData(3, {__id__: 'd'});
+
+        self.assertEqual(self.model.getRowData(2), undefined);
+    },
+
+    /**
+     * Test that the data associated with a particular webID can be discovered
+     * from that webID using L{ScrollModel.findRowData}.
+     */
+    function test_findRowData(self) {
+        self.setUp();
+
+        /*
+         * XXX This should populate the model's rows using a public API
+         * of some sort.
+         */
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+
+        self.assertEqual(self.model.findRowData('a').foo, 'bar');
+        self.assertEqual(self.model.findRowData('b').baz, 'quux');
+
+        var error = self.assertThrows(
+            Error,
+            function() { self.model.findRowData('c'); });
+        self.assertEqual(
+            error.message,
+            "Specified webID not found.");
+    },
+
+    /**
+     * Test that we can advance through a model's rows with
+     * L{ScrollModel.findNextRow}.
+     */
+    function test_findNextRow(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+        self.model.setRowData(2, {__id__: 'c', red: 'green'});
+        self.model.setRowData(3, {__id__: 'd', blue: 'yellow'});
+        self.model.setRowData(4, {__id__: 'e', white: 'black'});
+        self.model.setRowData(5, {__id__: 'f', brown: 'puce'});
+
+        /*
+         * We should be able to advance without a predicate
+         */
+        self.assertEqual(self.model.findNextRow('a'), 'b');
+        self.assertEqual(self.model.findNextRow('b'), 'c');
+
+        /*
+         * Going off the end should result in a null result.
+         */
+        self.assertEqual(self.model.findNextRow('f'), null);
+
+        /*
+         * A predicate should be able to cause rows to be skipped.
+         */
+        self.assertEqual(
+            self.model.findNextRow(
+                'a',
+                function(idx, row, node) {
+                    if (row.__id__ == 'b') {
+                        return false;
+                    }
+                    return true;
+                }),
+            'c');
+    },
+
+    /**
+     * Like L{test_findNextRow}, but for L{ScrollModel.findPrevRow}.
+     */
+    function test_findPrevRow(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+        self.model.setRowData(2, {__id__: 'c', red: 'green'});
+        self.model.setRowData(3, {__id__: 'd', blue: 'yellow'});
+        self.model.setRowData(4, {__id__: 'e', white: 'black'});
+        self.model.setRowData(5, {__id__: 'f', brown: 'puce'});
+
+        /*
+         * We should be able to regress without a predicate
+         */
+        self.assertEqual(self.model.findPrevRow('f'), 'e');
+        self.assertEqual(self.model.findPrevRow('e'), 'd');
+
+        /*
+         * Going off the beginning should result in a null result.
+         */
+        self.assertEqual(self.model.findPrevRow('a'), null);
+
+        /*
+         * A predicate should be able to cause rows to be skipped.
+         */
+        self.assertEqual(
+            self.model.findPrevRow(
+                'f',
+                function(idx, row, node) {
+                    if (row.__id__ == 'e') {
+                        return false;
+                    }
+                    return true;
+                }),
+            'd');
+    },
+
+    /**
+     * Test that rows can be removed from the model and that the model remains
+     * in a consistent state.
+     */
+    function test_removeRowFromMiddle(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+        self.model.setRowData(2, {__id__: 'c', red: 'green'});
+        self.model.setRowData(3, {__id__: 'd', blue: 'yellow'});
+        self.model.setRowData(4, {__id__: 'e', white: 'black'});
+        self.model.setRowData(5, {__id__: 'f', brown: 'puce'});
+
+        /*
+         * Remove something from the middle and make sure only
+         * everything after it gets shuffled.
+         */
+        self.model.removeRow('c');
+
+        /*
+         * Things before it should have been left alone.
+         */
+        self.assertEqual(self.model.getRowData(0).__id__, 'a');
+        self.assertEqual(self.model.getRowData(1).__id__, 'b');
+
+        /*
+         * It should be missing and things after it should have been
+         * moved down one index.
+         */
+        self.assertEqual(self.model.getRowData(2).__id__, 'd');
+        self.assertEqual(self.model.getRowData(3).__id__, 'e');
+        self.assertEqual(self.model.getRowData(4).__id__, 'f');
+
+        /*
+         * There should be nothing at the previous last index, either.
+         */
+        var error;
+
+        error = self.assertThrows(
+            Error,
+            function() { self.model.getRowData(5); });
+        self.assertEqual(
+            error.message,
+            "Specified index out of bounds in getRowData.");
+
+        /*
+         * Count should have decreased by one as well.
+         */
+        self.assertEqual(self.model.rowCount(), 5);
+
+        /*
+         * Finding indexes from web IDs should reflect the new state as well.
+         */
+        self.assertEqual(self.model.findIndex('a'), 0);
+        self.assertEqual(self.model.findIndex('b'), 1);
+        self.assertEqual(self.model.findIndex('d'), 2);
+        self.assertEqual(self.model.findIndex('e'), 3);
+        self.assertEqual(self.model.findIndex('f'), 4);
+
+        /*
+         * And the removed row should not be discoverable that way.
+         */
+        error = self.assertThrows(
+            Error,
+            function() { self.model.findIndex('c'); });
+        self.assertEqual(
+            error.message,
+            "Specified webID not found.");
+    },
+
+    /**
+     * Test that rows can be removed from the end of the model and that the
+     * model remains in a consistent state.
+     */
+    function test_removeRowFromEnd(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.setRowData(1, {__id__: 'b', baz: 'quux'});
+        self.model.setRowData(2, {__id__: 'c', red: 'green'});
+
+        /*
+         * Remove something from the middle and make sure only
+         * everything after it gets shuffled.
+         */
+        self.model.removeRow('c');
+
+        /*
+         * Things before it should have been left alone.
+         */
+        self.assertEqual(self.model.getRowData(0).__id__, 'a');
+        self.assertEqual(self.model.getRowData(1).__id__, 'b');
+
+        /*
+         * There should be nothing at the previous last index, either.
+         */
+        var error;
+        error = self.assertThrows(
+            Error,
+            function() { self.model.getRowData(2); });
+        self.assertEqual(
+            error.message,
+            "Specified index out of bounds in getRowData.");
+
+        /*
+         * Count should have decreased by one as well.
+         */
+        self.assertEqual(self.model.rowCount(), 2);
+
+        /*
+         * Finding indexes from web IDs should reflect the new state as well.
+         */
+        self.assertEqual(self.model.findIndex('a'), 0);
+        self.assertEqual(self.model.findIndex('b'), 1);
+
+        /*
+         * And the removed row should not be discoverable that way.
+         */
+        error = self.assertThrows(
+            Error,
+            function() { self.model.findIndex('c'); });
+        self.assertEqual(
+            error.message,
+            "Specified webID not found.");
+    },
+
+    /**
+     * Test that removeRow returns an object with index and row properties
+     * which refer to the appropriate objects.
+     */
+    function test_removeRowReturnValue(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+
+        var result = self.model.removeRow('a');
+        self.assertEqual(result.index, 0);
+        self.assertEqual(result.row.__id__, 'a');
+        self.assertEqual(result.row.foo, 'bar');
+    },
+
+    /**
+     * Test that the empty method gets rid of all the rows.
+     */
+    function test_empty(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
+        self.model.empty();
+        self.assertEqual(self.model.rowCount(), 0);
+
+        var error;
+
+        error = self.assertThrows(
+            Error,
+            function() { self.model.getRowData(0); });
+        self.assertEqual(
+            error.message,
+            "Specified index out of bounds in getRowData.");
+
+        error = self.assertThrows(
+            Error,
+            function() { self.model.findIndex('a'); });
+        self.assertEqual(
+            error.message,
+            "Specified webID not found.");
+    }
+    );
+
+
+/**
+ * Yeaarg.  Do some buggy crap that happens to accidentally work.  Athena
+ * really needs this feature.
+ *
+ * This probably returns the C{Nevow.Athena.Widget} instance which was buried
+ * somewhere inside the XHTML string passed in.
+ *
+ * @param node: A scratch node which should already be part of the document and
+ * should probably be visible.
+ *
+ * @param widgetMarkup: An XHTML string which is the result of flattening a
+ * LiveFragment or LiveElement.
+ *
+ */
+Mantissa.Test.addChildWidgetFromMarkup = function addChildWidgetFromMarkup(node, widgetMarkup, widgetClass) {
+    var container = document.createElement('span');
+    node.appendChild(container);
+    Divmod.Runtime.theRuntime.setNodeContent(container, widgetMarkup);
+    var widgetNode = Divmod.Runtime.theRuntime.nodeByAttribute(
+        container, 'athena:class', widgetClass);
+    var w = Nevow.Athena.Widget.get(widgetNode);
+    node.removeChild(container);
+    return w;
+};
+
+
+Mantissa.Test.ScrollTableViewTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableViewTestCase');
+Mantissa.Test.ScrollTableViewTestCase.methods(
+    /**
+     * Retrieve a ScrollingWidget from the server to use for the running test
+     * method.
+     */
+    function setUp(self, testMethodName) {
+        var result = self.callRemote('getScrollingWidget', testMethodName);
+        result.addCallback(
+            function(widgetMarkup) {
+                return Mantissa.Test.addChildWidgetFromMarkup(
+                    self.node, widgetMarkup,
+                    'Mantissa.ScrollTable.ScrollingWidget');
+            });
+        result.addCallback(
+            function(widget) {
+                self.scrollingWidget = widget;
+                self.node.appendChild(widget.node);
+                return widget.initializationDeferred;
+            });
+        return result;
+    },
+
+    /**
+     * Test that a ScrollingWidget has a model with some rows after its
+     * initialization Deferred fires.
+     */
+    function test_initialize(self) {
+        return self.setUp('initialize').addCallback(function() {
+                self.assertEqual(self.scrollingWidget.model.rowCount(), 10);
+            });
+    },
+
+    /**
+     * Test that the scrolltable can have its elements completely dropped and
+     * reloaded from the server with the L{ScrollingWidget.emptyAndRefill}
+     * method.
+     */
+    function test_emptyAndRefill(self) {
+        var result = self.setUp('emptyAndRefill');
+        result.addCallback(function() {
+                /*
+                 * Tell the server to lose some rows so that we will be able to
+                 * notice emptyAndRefill() actually did something.
+                 */
+                return self.callRemote('changeRowCount', 'emptyAndRefill', 5);
+            });
+        result.addCallback(function() {
+                return self.scrollingWidget.emptyAndRefill();
+            });
+        result.addCallback(function() {
+                self.assertEqual(self.scrollingWidget.model.rowCount(), 5);
+            });
+        return result;
+    }
+    );
+
+
 
 Mantissa.Test.TestableScrollTable = Mantissa.ScrollTable.ScrollingWidget.subclass(
                                         'Mantissa.Test.TestableScrollTable');
-
 Mantissa.Test.TestableScrollTable.methods(
     function __init__(self, node) {
         Mantissa.Test.TestableScrollTable.upcall(self, "__init__", node);
@@ -103,47 +579,6 @@ Mantissa.Test.TestableScrollTable.methods(
         self._scrollViewport.scrollTop += rows * self._rowHeight;
     });
 
-Mantissa.Test.ScrollTable = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Scrolltable');
-
-Mantissa.Test.ScrollTable.methods(
-    function __init__(self, node) {
-        Mantissa.Test.ScrollTable.upcall(self, "__init__", node);
-        self._preTestDeferred = new Divmod.Defer.Deferred();
-    },
-
-    function test_scrolling(self) {
-        var assertRowCount = function(n) {
-            var rows = self.scroller.nodesByAttribute("class", "scroll-row");
-            var cell;
-            for(var i = 0; i < rows.length; i++) {
-                cell = Nevow.Athena.FirstNodeByAttribute(rows[i], "class", "scroll-cell");
-                self.assertEquals(cell.firstChild.nodeValue, parseInt(i));
-            }
-            self.assertEquals(i, n);
-        }
-        return self._preTestDeferred.addCallback(
-            function(requestedRowCount) {
-                self.assertEquals(requestedRowCount, 10);
-                assertRowCount(10);
-
-                var scrollDeferred = Divmod.Defer.Deferred();
-
-                scrollDeferred.addCallback(
-                    function(requestedRowCount) {
-                        /* but check a full screenful was requested */
-                        self.assertEquals(requestedRowCount, 10);
-                        assertRowCount(20);
-                    });
-
-                /* only scroll half a screenful */
-                self.scroller.scrollBy(5, scrollDeferred);
-                return scrollDeferred;
-            });
-    },
-
-    function actuallyRunTests(self, n) {
-        self._preTestDeferred.callback(n);
-    });
 
 Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
 Mantissa.Test.PersonDetail.methods(

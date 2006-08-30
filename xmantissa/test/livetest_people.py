@@ -10,7 +10,7 @@ from xmantissa.webtheme import getLoader
 from xmantissa.webapp import PrivateApplication
 
 class AddPersonTestBase(people.AddPersonFragment):
-    jsClass = u'Mantissa.Test.People'
+    jsClass = None
 
     def __init__(self):
         self.store = Store()
@@ -52,6 +52,8 @@ class AddPersonTestBase(people.AddPersonFragment):
 
 
 class NoNickOrFirstLastNames(AddPersonTestBase, TestCase):
+    jsClass = u'Mantissa.Test.NoNickOrFirstLastNames'
+
     def checkResult(self):
         self.assertEqual(self.exc_info[0], ValueError)
         for cls in (people.Person, people.EmailAddress):
@@ -60,6 +62,8 @@ class NoNickOrFirstLastNames(AddPersonTestBase, TestCase):
 
 
 class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
+    jsClass = u'Mantissa.Test.NoNickButFirstLastNames'
+
     def mangleDefaults(self, params):
         params['firstname'].default = u'FIRSTNAME'
         params['lastname'].default = u'LASTNAME'
@@ -85,6 +89,8 @@ class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
 
 
 class OnlyNick(AddPersonTestBase, TestCase):
+    jsClass = u'Mantissa.Test.OnlyNick'
+
     def mangleDefaults(self, params):
         params['nickname'].default = u'everybody'
 
@@ -103,6 +109,8 @@ class OnlyNick(AddPersonTestBase, TestCase):
 
 
 class OnlyEmailAddress(AddPersonTestBase, TestCase):
+    jsClass = u'Mantissa.Test.OnlyEmailAddress'
+
     def mangleDefaults(self, params):
         params['email'].default = u'bob@the.internet'
 
@@ -116,6 +124,8 @@ class OnlyEmailAddress(AddPersonTestBase, TestCase):
 
 
 class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
+    jsClass = u'Mantissa.Test.NickNameAndEmailAddress'
+
     def mangleDefaults(self, params):
         params['nickname'].default = u'NICK!!!'
         params['email'].default = u'a@b.c'

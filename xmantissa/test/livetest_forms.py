@@ -6,7 +6,7 @@ from nevow.livetrial import testcase
 from xmantissa import liveform
 
 class TextInput(testcase.TestCase):
-    jsClass = u'Mantissa.Test.Forms'
+    jsClass = u'Mantissa.Test.Text'
 
     def getWidgetDocument(self):
         f = liveform.LiveForm(
@@ -26,7 +26,7 @@ class TextInput(testcase.TestCase):
 
 
 class MultiTextInput(testcase.TestCase):
-    jsClass = u'Mantissa.Test.Forms'
+    jsClass = u'Mantissa.Test.MultiText'
 
     def submit(self, sequence):
         self.assertEquals(sequence, [1, 2, 3, 4])

@@ -1,29 +1,56 @@
 from nevow import loaders, tags
-from nevow.livetrial import testcase
+from nevow.athena import expose
+from nevow.livetrial.testcase import TestCase
 
 from axiom.item import Item
 from axiom.store import Store
 from axiom.attributes import integer
 
-from xmantissa.scrolltable import ScrollingFragment
+from xmantissa.scrolltable import SequenceScrollingFragment, ScrollingFragment
 from xmantissa.webtheme import getLoader
 
 
-class ItemItem(Item):
+class ScrollElement(Item):
+    """
+    Dummy item used to populate scrolltables for the scrolltable tests.
+    """
     column = integer()
 
 
 
-class ScrollTableTestCase(testcase.TestCase):
-    jsClass = u'Mantissa.Test.ScrollTable'
+class ScrollTableModelTestCase(TestCase):
+    """
+    Tests for the scrolltable's model class.
+    """
+    jsClass = u'Mantissa.Test.ScrollTableModelTestCase'
 
-    def getWidgetDocument(self):
-        s = Store()
-        for i in xrange(25):
-            ItemItem(store=s, column=i)
 
-        sf = ScrollingFragment(s, ItemItem, None, (ItemItem.column,))
-        sf.jsClass = 'Mantissa.Test.TestableScrollTable'
-        sf.setFragmentParent(self)
-        sf.docFactory = getLoader(sf.fragmentName)
-        return sf
+
+class ScrollTableWidgetTestCase(TestCase):
+    """
+    Tests for the scrolltable's view class.
+    """
+    jsClass = u'Mantissa.Test.ScrollTableViewTestCase'
+
+
+    def __init__(self):
+        TestCase.__init__(self)
+        self.perTestData = {}
+
+
+    def getScrollingWidget(self, key):
+        store = Store()
+        elements = [ScrollElement(store=store) for i in range(10)]
+        columns = [ScrollElement.column]
+        f = SequenceScrollingFragment(store, elements, columns)
+        f.docFactory = getLoader(f.fragmentName)
+        f.setFragmentParent(self)
+        self.perTestData[key] = (store, elements, f)
+        return f
+    expose(getScrollingWidget)
+
+
+    def changeRowCount(self, key, n):
+        store, elements, fragment = self.perTestData[key]
+        elements[:] = [ScrollElement(store=store) for i in range(n)]
+    expose(changeRowCount)
