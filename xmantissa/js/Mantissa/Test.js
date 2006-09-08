@@ -149,6 +149,18 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
     },
 
     /**
+     * Test that an array of indices which actually have row data can be
+     * retrieved from the ScrollModel.
+     */
+    function test_getRowIndices(self) {
+        self.setUp();
+
+        self.model.setRowData(0, {__id__: 'a'});
+        self.model.setRowData(3, {__id__: 'b'});
+        self.assertArraysEqual(self.model.getRowIndices(), [0, 3]);
+    },
+
+    /**
      * Test that the data associated with a particular row can be discovered by
      * that row's index in the model using L{ScrollModel.getRowData}.
      */
@@ -309,7 +321,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
          * Remove something from the middle and make sure only
          * everything after it gets shuffled.
          */
-        self.model.removeRow('c');
+        self.model.removeRow(2);
 
         /*
          * Things before it should have been left alone.
@@ -377,7 +389,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
          * Remove something from the middle and make sure only
          * everything after it gets shuffled.
          */
-        self.model.removeRow('c');
+        self.model.removeRow(2);
 
         /*
          * Things before it should have been left alone.
@@ -427,10 +439,9 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
 
         self.model.setRowData(0, {__id__: 'a', foo: 'bar'});
 
-        var result = self.model.removeRow('a');
-        self.assertEqual(result.index, 0);
-        self.assertEqual(result.row.__id__, 'a');
-        self.assertEqual(result.row.foo, 'bar');
+        var row = self.model.removeRow(0);
+        self.assertEqual(row.__id__, 'a');
+        self.assertEqual(row.foo, 'bar');
     },
 
     /**
@@ -522,6 +533,21 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
     },
 
     /**
+     * Test that the scrolled method returns a Deferred which fires when some
+     * rows have been requested from the server, perhaps.
+     */
+    function test_scrolled(self) {
+        var result = self.setUp('scrolled');
+        result.addCallback(
+            function(ignored) {
+                var scrolled = self.scrollingWidget.scrolled();
+                self.failUnless(scrolled instanceof Divmod.Defer.Deferred);
+                return scrolled;
+            });
+        return result;
+    },
+
+    /**
      * Test that the scrolltable can have its elements completely dropped and
      * reloaded from the server with the L{ScrollingWidget.emptyAndRefill}
      * method.
@@ -540,6 +566,30 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
             });
         result.addCallback(function() {
                 self.assertEqual(self.scrollingWidget.model.rowCount(), 5);
+            });
+        return result;
+    },
+
+    /**
+     * Test that removing a row from a ScrollingWidget removes it from the
+     * underlying model and removes the display nodes associated with it from
+     * the document.  The nodes of rows after the removed row should also have
+     * their position adjusted to fill the gap.
+     */
+    function test_removeRow(self) {
+        var result = self.setUp('removeRow');
+        result.addCallback(function() {
+                var firstRow = self.scrollingWidget.model.getRowData(0);
+                var nextRow = self.scrollingWidget.model.getRowData(2);
+                var removedRow = self.scrollingWidget.removeRow(1);
+                var movedRow = self.scrollingWidget.model.getRowData(1);
+
+                self.assertEqual(nextRow.__id__, movedRow.__id__);
+                self.assertEqual(removedRow.__node__.parentNode, null);
+
+                self.assertEqual(
+                    parseInt(firstRow.__node__.style.top) + self.scrollingWidget._rowHeight,
+                    parseInt(movedRow.__node__.style.top));
             });
         return result;
     }

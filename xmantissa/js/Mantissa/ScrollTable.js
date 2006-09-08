@@ -41,10 +41,26 @@ Mantissa.ScrollTable.ScrollModel.methods(
      * @param index: The index of the row for which to set the data.
      *
      * @type data: The data to associate with the row.
+     *
+     * @throw Error: Thrown if the row's index is less than zero.
+     * @throw Error: Thrown if the row data's __id__ property is not a string.
      */
     function setRowData(self, index, data) {
         if (index < 0) {
             throw Error("Specified index out of bounds in setRowData.");
+        }
+        /*
+         * XXX I hate `typeof'.  It is an abomination.  Why the hell is
+         *
+         *  typeof '' == 'string'
+         *
+         * but not
+         *
+         *  '' instanceof String?"
+         *
+         */
+        if (typeof data.__id__ != 'string') {
+            throw Error("Specified row data has invalid __id__ property.");
         }
         self._rows[index] = data;
     },
@@ -67,6 +83,13 @@ Mantissa.ScrollTable.ScrollModel.methods(
             return undefined;
         }
         return self._rows[index];
+    },
+
+    /**
+     * Retrieve an array of indices for which local data is available.
+     */
+    function getRowIndices(self) {
+        return Divmod.dir(self._rows);
     },
 
     /**
@@ -131,17 +154,13 @@ Mantissa.ScrollTable.ScrollModel.methods(
     /**
      * Remove a particular row from the scrolltable.
      *
-     * @type webID: string
-     * @param webID: The webID of the row to remove.
+     * @type webID: integer
+     * @param webID: The index of the row to remove.
      *
-     * @return: An object with two properties: C{index}, which refers to the
-     * index at which the removed row, and C{row}, which refers to the row data
-     * which was removed.
+     * @return: The row data which was removed.
      */
-    function removeRow(self, webID) {
-        var index = self.findIndex(webID);
-        var row = self._rows.splice(index, 1);
-        return {index: index, row: row[0]};
+    function removeRow(self, index) {
+        return self._rows.splice(index, 1)[0];
     },
 
     /**
@@ -168,6 +187,12 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollContent = self.nodeByAttribute("class", "scroll-content");
         self._scrollViewport = self.nodeByAttribute('class', 'scroll-viewport');
         self._headerRow = self.nodeByAttribute('class', 'scroll-header-row');
+
+        /*
+         * A list of Deferreds which have been returned from the L{scrolled}
+         * method and have yet to be fired.
+         */
+        self._scrollDeferreds = [];
 
         self.model = null;
         self.initializationDeferred = self.initialize();
@@ -247,6 +272,40 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                     }
                 }
             });
+    },
+
+    /**
+     * Remove the indicated row's data from the model and remove its DOM nodes
+     * from the document.
+     *
+     * @type index: integer
+     * @param index: The index of the row to remove.
+     *
+     * @return: The row data for the removed row.
+     */
+    function removeRow(self, index) {
+        var rowData = self.model.removeRow(index);
+        rowData.__node__.parentNode.removeChild(rowData.__node__);
+
+        /*
+         * We removed a node from the scroll area, so its overall height is
+         * different.  Compute the new height.
+         */
+        self.adjustViewportHeight(-1);
+
+        /*
+         * Shift the display of all the rows after it down.
+         */
+        var indices = self.model.getRowIndices();
+        var row;
+        for (var i = 0; i < indices.length; ++i) {
+            if (indices[i] >= index) {
+                row = self.model.getRowData(indices[i]);
+                row.__node__.style.top = (
+                    parseInt(row.__node__.style.top) - self._rowHeight) + "px";
+            }
+        }
+        return rowData;
     },
 
     /**
@@ -814,6 +873,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * otherwise.  Defaults to true.
      */
     function scrolled(self, /* optional */ proposedTimeout, scrollingDown) {
+        var result = Divmod.Defer.Deferred();
+        self._scrollDeferreds.push(result);
+
         if (proposedTimeout === undefined) {
             proposedTimeout = 250;
         }
@@ -822,11 +884,12 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         }
         if (self._requestWaiting) {
             self._moreAfterRequest = true;
-            return;
+            return result;
         }
         if (self._rowTimeout !== null) {
             clearTimeout(self._rowTimeout);
         }
+
         self._rowTimeout = setTimeout(
             function () {
                 self._rowTimeout = null;
@@ -838,12 +901,20 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                         if (self._moreAfterRequest) {
                             self._moreAfterRequest = false;
                             self.scrolled();
+                        } else {
+                            var scrollDeferreds = self._scrollDeferreds;
+                            self._scrollDeferreds = [];
+                            for (var i = 0; i < scrollDeferreds.length; ++i) {
+                                scrollDeferreds[i].callback(null);
+                            }
                         }
                         self.cbRowsFetched(self.nonEmptyRowCount() - rowCount);
+
                         return rslt;
                     });
             },
             proposedTimeout);
+        return result;
     },
 
     /**

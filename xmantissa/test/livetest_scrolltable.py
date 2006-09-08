@@ -8,6 +8,7 @@ from axiom.attributes import integer
 
 from xmantissa.scrolltable import SequenceScrollingFragment, ScrollingFragment
 from xmantissa.webtheme import getLoader
+from xmantissa.webapp import PrivateApplication
 
 
 class ScrollElement(Item):
@@ -40,6 +41,7 @@ class ScrollTableWidgetTestCase(TestCase):
 
     def getScrollingWidget(self, key):
         store = Store()
+        PrivateApplication(store=store).installOn(store)
         elements = [ScrollElement(store=store) for i in range(10)]
         columns = [ScrollElement.column]
         f = SequenceScrollingFragment(store, elements, columns)
