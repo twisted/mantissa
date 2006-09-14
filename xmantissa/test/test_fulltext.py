@@ -238,7 +238,9 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEquals(
-            list(reader.search(u'fruit')), [])
+            list(reader.search(u'airplane')), [])
+        self.assertEquals(
+            list(reader.search(u'fruit')), [50])
         self.assertEquals(
             list(reader.search(u'apple')), [50])
         self.assertEquals(
@@ -292,7 +294,9 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEquals(
-            list(reader.search(u'fruit')), [])
+            list(reader.search(u'pear')), [])
+        self.assertEquals(
+            list(reader.search(u'fruit')), [50])
         self.assertEquals(
             list(reader.search(u'apple')), [50])
         self.assertEquals(
@@ -304,6 +308,82 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(
             list(reader.search(u'', {u'subject': u'things'})), [50])
 
+
+    def testKeywordCombination(self):
+        """
+        Multiple keyword searches should be AND'ed
+        """
+        writer = self.openWriteIndex()
+        def makeIndexable(uniqueIdentifier, **k):
+            writer.add(IndexableThing(
+                         _documentType=u'thing',
+                         _uniqueIdentifier=unicode(uniqueIdentifier),
+                         _textParts=[],
+                         _keywordParts=dict((unicode(k), unicode(v))
+                                                for (k, v) in k.iteritems())))
+
+        makeIndexable(50, name='john', car='honda')
+        makeIndexable(51, name='john', car='mercedes')
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        self.assertEquals(
+            list(reader.search(u'', {u'car': u'honda'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'car': u'mercedes'})), [51])
+        self.assertEquals(
+            list(reader.search(u'', {u'name': u'john'})), [50, 51])
+        self.assertEquals(
+            list(reader.search(u'', {u'name': u'john', u'car': u'honda'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'name': u'john', u'car': u'mercedes'})), [51])
+
+
+    def testKeywordValuesInPhrase(self):
+        """
+        Keyword values should return results when included in the main phrase
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                    _documentType=u'thing',
+                    _uniqueIdentifier=u'50',
+                    _textParts=[u'my name is jack'],
+                    _keywordParts={u'car': u'honda'}))
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        self.assertEquals(
+            list(reader.search(u'honda', {})), [50])
+        self.assertEquals(
+            list(reader.search(u'jack', {})), [50])
+        self.assertEquals(
+            list(reader.search(u'honda', {u'car': u'honda'})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'car': u'jack'})), [])
+
+    def testDigitSearch(self):
+        """
+        Should get results if we search for digits that appear in indexed
+        documents
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                    _documentType=u'thing',
+                    _uniqueIdentifier=u'50',
+                    _textParts=[u'123 456'],
+                    _keywordParts={u'foo': u'x12'}))
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        self.assertEquals(
+            list(reader.search(u'123', {})), [50])
+        self.assertEquals(
+            list(reader.search(u'456', {})), [50])
+        self.assertEquals(
+            list(reader.search(u'', {u'foo': u'x12'})), [50])
 
 
 class CorruptionRecoveryMixin(IndexerTestsMixin):

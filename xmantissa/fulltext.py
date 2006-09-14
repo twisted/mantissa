@@ -385,28 +385,29 @@ class _PyLuceneIndex(object):
 
     def add(self, message):
         doc = PyLucene.Document()
-        for part in message.textParts():
+
+        for (k, v) in message.keywordParts().iteritems():
+            for k in (k, 'text'):
+                doc.add(
+                    PyLucene.Field(k, v,
+                                PyLucene.Field.Store.YES,
+                                PyLucene.Field.Index.TOKENIZED))
+        doc.add(
+            PyLucene.Field('documentType', message.documentType(),
+                           PyLucene.Field.Store.YES,
+                           PyLucene.Field.Index.TOKENIZED))
+
+        for text in message.textParts():
             doc.add(
-                PyLucene.Field('text',
-                               part.encode('utf-8'),
-                               PyLucene.Field.Store.NO,
-                               PyLucene.Field.Index.TOKENIZED))
+                PyLucene.Field('text', text.encode('utf-8'),
+                            PyLucene.Field.Store.NO,
+                            PyLucene.Field.Index.TOKENIZED))
         doc.add(
             PyLucene.Field('storeID',
                            message.uniqueIdentifier(),
                            PyLucene.Field.Store.YES,
                            PyLucene.Field.Index.UN_TOKENIZED))
         # Deprecated. use Field(name, value, Field.Store.YES, Field.Index.UN_TOKENIZED) instead
-
-        for (k, v) in message.keywordParts().iteritems():
-            doc.add(
-                PyLucene.Field(k, v,
-                               PyLucene.Field.Store.YES,
-                               PyLucene.Field.Index.TOKENIZED))
-        doc.add(
-            PyLucene.Field('documentType', message.documentType(),
-                           PyLucene.Field.Store.YES,
-                           PyLucene.Field.Index.TOKENIZED))
 
         self.index.addDocument(doc)
 
@@ -420,10 +421,14 @@ class _PyLuceneIndex(object):
         if keywords:
             fieldPhrase = u' '.join(u':'.join((k, v)) for (k, v) in keywords.iteritems())
             if phrase:
-                phrase = phrase + u' AND ' + fieldPhrase
+                phrase = phrase + u' ' + fieldPhrase
             else:
                 phrase = fieldPhrase
-        query = PyLucene.QueryParser.parse(phrase, 'text', self.analyzer)
+
+        qp = PyLucene.QueryParser('text', self.analyzer)
+        qp.setDefaultOperator(qp.Operator.AND)
+        query = qp.parseQuery(phrase)
+
         hits = self.index.search(query)
         return _PyLuceneHitsWrapper(self, hits)
 
@@ -483,7 +488,7 @@ class PyLuceneIndexer(RemoteIndexer, item.Item):
 
 
     def _analyzer(self):
-        return PyLucene.SimpleAnalyzer()
+        return PyLucene.StandardAnalyzer([])
 
 
     if PyLucene is None:
