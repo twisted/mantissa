@@ -714,7 +714,6 @@ Mantissa.Test.PersonDetail.methods(
 
         var phoneSections = self.contactInfoSectionsFromSectionName("PhoneNumber");
         var emailSections = self.contactInfoSectionsFromSectionName("EmailAddress");
-
         var D = self.changeAndSaveItemWithValue(phoneSections, "434-5030", "555-1212");
 
         D.addCallback(
@@ -724,8 +723,13 @@ Mantissa.Test.PersonDetail.methods(
         }).addCallback(
             function() {
                 return self.addItemToSection("PhoneNumber", "123-4567");
+        }).addCallback(
+            function() {
+                return self.addItemToSection("PostalAddress", "123 Main St.\nByteville, Hexas\n0xFFFF");
+        }).addCallback(
+            function() {
+                return self.addItemToSection("Notes", "Internet hooray");
         });
-
         return D;
     });
 

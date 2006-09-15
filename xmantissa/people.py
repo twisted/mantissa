@@ -335,6 +335,19 @@ registerUpgrader(phoneNumber1to2,
                  'mantissa_organizer_addressbook_phonenumber',
                  1, 2)
 
+class PostalAddress(item.Item):
+    typeName = 'mantissa_organizer_addressbook_postaladdress'
+
+    address = attributes.text(allowNone=False)
+    person = attributes.reference(allowNone=False)
+
+class Notes(item.Item):
+    typeName = 'mantissa_organizer_addressbook_notes'
+
+    notes = attributes.text(allowNone=False)
+    person = attributes.reference(allowNone=False)
+
+
 class AddPerson(item.Item, item.InstallableMixin):
     implements(ixmantissa.INavigableElement)
 
@@ -669,7 +682,10 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
         return ctx.tag[self.person.getDisplayName()]
 
     contactInfoItemTypes = ((PhoneNumber, 'number'),
-                            (EmailAddress, 'address'))
+                            (EmailAddress, 'address'),
+                            (PostalAddress, 'address'),
+                            (Notes, 'notes')
+                            )
 
     def render_contactInfoSummary(self, ctx, data):
         iq = inevow.IQ(self.docFactory)
