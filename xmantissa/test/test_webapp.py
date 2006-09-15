@@ -1,15 +1,61 @@
+
+from zope.interface import implements
+
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
+from axiom.item import Item
+from axiom.attributes import integer
 from axiom.substore import SubStore
 
 from nevow.athena import LiveFragment
 from nevow import rend
 from nevow.rend import WovenContext
 from nevow.testutil import FakeRequest
-from nevow.inevow import IRequest
+from nevow.inevow import IRequest, IResource
 
 from xmantissa import website, webapp
+
+
+class FakeResourceItem(Item):
+    unused = integer()
+    implements(IResource)
+
+class WebIDLocationTest(TestCase):
+
+    def setUp(self):
+        store = Store(self.mktemp())
+        ss = SubStore.createNew(store, ['test']).open()
+        self.pa = webapp.PrivateApplication(store=ss)
+        self.pa.installOn(ss)
+
+
+    def test_suchWebID(self):
+        """
+        Verify that retrieving a webID gives the correct resource.
+        """
+        i = FakeResourceItem(store=self.pa.store)
+        wid = self.pa.toWebID(i)
+        ctx = FakeRequest()
+        self.assertEqual(self.pa.createResource().locateChild(ctx, [wid]),
+                         (i, []))
+
+
+    def test_noSuchWebID(self):
+        """
+        Verify that non-existent private URLs generate 'not found' responses.
+        """
+        ctx = FakeRequest()
+        for segments in [
+            # something that looks like a valid webID
+            ['0000000000000000'],
+            # something that doesn't
+            ["nothing-here"],
+            # more than one segment
+            ["two", "segments"]]:
+            self.assertEqual(self.pa.createResource().locateChild(ctx, segments),
+                             rend.NotFound)
+
 
 class TestFragment(LiveFragment):
     def locateChild(self, ctx, segs):

@@ -1,3 +1,5 @@
+# -*- test-case-name: xmantissa.test.test_webapp -*-
+
 """
 This module is the basis for Mantissa-based web applications.  It provides
 several basic pluggable application-level features, most notably Powerup-based
@@ -51,6 +53,10 @@ def _reorderForPreference(themeList, preferredThemeName):
             themeList.insert(0,t)
             return
 
+class _WebIDFormatException(TypeError):
+    """
+    An inbound web ID was not formatted as expected.
+    """
 
 class NavMixin(object):
 
@@ -389,7 +395,10 @@ class PrivateRootPage(Page, NavMixin):
         return HashedJSModuleNames(_hashToFile)
 
     def childFactory(self, ctx, name):
-        o = self.webapp.fromWebID(name)
+        try:
+            o = self.webapp.fromWebID(name)
+        except _WebIDFormatException:
+            return None
         if o is None:
             return None
         res = IResource(o, None)
@@ -531,8 +540,16 @@ class PrivateApplication(Item, PrefixURLMixin):
     def linkFrom(self, webid):
         return webIDToStoreID(self.privateKey, webid)
 
-    def fromWebID(self, webid):
-        return self.store.getItemByID(self.linkFrom(webid))
+    def fromWebID(self, webID):
+        storeID = self.linkFrom(webID)
+        if storeID is None:
+            # This is not a very good interface, but I don't want to change the
+            # calling code right now as I'm neither confident in its test
+            # coverage nor looking to go on a test-writing rampage through this
+            # code for a minor fix.
+            raise _WebIDFormatException("%r didn't look like a webID" % (webID,))
+        webitem = self.store.getItemByID(storeID, None)
+        return webitem
 
     def toWebID(self, item):
         return storeIDToWebID(self.privateKey, item.storeID)

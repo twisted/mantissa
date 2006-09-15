@@ -261,7 +261,7 @@ class IWebTranslator(Interface):
         """
         @param webID: A string that identifies an item through this translator.
 
-        @return: an Item.
+        @return: an Item, or None if no Item is found.
         """
 
     def toWebID(item):
