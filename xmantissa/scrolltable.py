@@ -193,8 +193,9 @@ class ScrollableView(object):
             row = dict((colname, col.extractValue(self, item))
                             for (colname, col) in self.columns.iteritems())
             link = self.linkToItem(item)
-            if link is not None:
-                row[u'__id__'] = link
+            if link is None:
+                link = unicode(item.storeID) # eh
+            row[u'__id__'] = link
             rows.append(row)
 
         if self.actions:
