@@ -526,14 +526,14 @@ body {
     background-color: #76C8E3;
     background-repeat: repeat-x;
     background-image: url(/Mantissa/images/tab-left-edge.png);
-    width: 8px;
+    width: 17px;
 }
 
 .selected-tab-button .tab-right-edge {
     background-color: #76C8E3;
     background-repeat: repeat-x;
     background-image: url(/Mantissa/images/tab-right-edge.png);
-    width: 8px;
+    width: 17px;
 }
 
 .selected-tab-button .tab-tl-corner {
