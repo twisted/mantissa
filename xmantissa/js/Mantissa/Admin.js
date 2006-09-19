@@ -30,15 +30,24 @@ Mantissa.Admin.LocalUserBrowser.methods(
      * clicked user from the server and dumps it into a node (created for this
      * purpose, on demand).  Removes the existing content of that node if
      * there is any.
+     *
+     * XXX - Can't use an index here - must use a unique, stable identifier.
      */
     function updateUserDetail(self, node, idx, event, action) {
-        var d = self.callRemote('getActionFragment', idx, action);
-        d.addCallback(function(result) {
-            var n = self._getUserDetailElement();
-            Divmod.Runtime.theRuntime.setNodeContent(n, result);
-        });
-        d.addErrback(function(err) {
-            alert(err);
-        });
+        self._updateUserDetail(idx, action);
         return false;
+    },
+
+    function _updateUserDetail(self, index, action) {
+        var d = self.callRemote('getActionFragment', index, action);
+        d.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        d.addCallback(
+            function(widget) {
+                var n = self._getUserDetailElement();
+                n.appendChild(widget.node);
+            });
+        return d
     });

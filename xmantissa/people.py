@@ -203,7 +203,7 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'people-organizer'
     live = 'athena'
     title = 'People'
-    jsClass = 'Mantissa.People.Organizer'
+    jsClass = u'Mantissa.People.Organizer'
 
     def __init__(self, original):
         self.wt = original.webTranslator
@@ -604,7 +604,7 @@ class MugshotResource(rend.Page):
 class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'person-detail'
     live = 'athena'
-    jsClass = 'Mantissa.People.PersonDetail'
+    jsClass = u'Mantissa.People.PersonDetail'
 
     def __init__(self, person):
         athena.LiveFragment.__init__(self, person)

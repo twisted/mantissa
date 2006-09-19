@@ -10,7 +10,7 @@ class GeneralPrefs(TestCase):
     Test case which renders L{xmantissa.ixmantissa.DefaultPreferenceCollection}
     and ensures that values changed client-side are correctly persisted
     """
-    jsClass = 'Mantissa.Test.GeneralPrefs'
+    jsClass = u'Mantissa.Test.GeneralPrefs'
 
     def getWidgetDocument(self):
         s = Store()

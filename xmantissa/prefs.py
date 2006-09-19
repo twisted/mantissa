@@ -83,7 +83,7 @@ class PreferenceCollectionLiveForm(LiveForm):
     the docfactory, the jsClass, and overrides the submit
     button renderer.
     """
-    jsClass = 'Mantissa.Preferences.PrefCollectionLiveForm'
+    jsClass = u'Mantissa.Preferences.PrefCollectionLiveForm'
 
     def __init__(self, *a, **k):
         super(PreferenceCollectionLiveForm, self).__init__(*a, **k)

@@ -1,7 +1,10 @@
 
-// import Mantissa
 // import Nevow.Athena.Test
+
+// import Mantissa
 // import Mantissa.ScrollTable
+// import Mantissa.Admin
+
 
 Mantissa.Test.Forms = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.Forms');
 Mantissa.Test.Forms.methods(
@@ -141,11 +144,10 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
         self.assertEqual(self.model.findIndex('b'), 1);
 
         var error = self.assertThrows(
-            Error,
+            Mantissa.ScrollTable.NoSuchWebID,
             function() { self.model.findIndex('c'); });
-        self.assertEqual(
-            "Specified webID not found.",
-            error.message);
+        self.assertEqual('c', error.webID);
+        self.assertEqual(error.toString(), 'WebID c not found');
     },
 
     /**
@@ -217,11 +219,9 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
         self.assertEqual(self.model.findRowData('b').baz, 'quux');
 
         var error = self.assertThrows(
-            Error,
+            Mantissa.ScrollTable.NoSuchWebID,
             function() { self.model.findRowData('c'); });
-        self.assertEqual(
-            error.message,
-            "Specified webID not found.");
+        self.assertEqual(error.webID, 'c');
     },
 
     /**
@@ -367,11 +367,9 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
          * And the removed row should not be discoverable that way.
          */
         error = self.assertThrows(
-            Error,
+            Mantissa.ScrollTable.NoSuchWebID,
             function() { self.model.findIndex('c'); });
-        self.assertEqual(
-            error.message,
-            "Specified webID not found.");
+        self.assertEqual(error.webID, 'c');
     },
 
     /**
@@ -423,11 +421,9 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
          * And the removed row should not be discoverable that way.
          */
         error = self.assertThrows(
-            Error,
+            Mantissa.ScrollTable.NoSuchWebID,
             function() { self.model.findIndex('c'); });
-        self.assertEqual(
-            error.message,
-            "Specified webID not found.");
+        self.assertEqual(error.webID, 'c');
     },
 
     /**
@@ -464,39 +460,12 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
             "Specified index out of bounds in getRowData.");
 
         error = self.assertThrows(
-            Error,
+            Mantissa.ScrollTable.NoSuchWebID,
             function() { self.model.findIndex('a'); });
-        self.assertEqual(
-            error.message,
-            "Specified webID not found.");
+        self.assertEqual(error.webID, 'a');
+
     }
     );
-
-
-/**
- * Yeaarg.  Do some buggy crap that happens to accidentally work.  Athena
- * really needs this feature.
- *
- * This probably returns the C{Nevow.Athena.Widget} instance which was buried
- * somewhere inside the XHTML string passed in.
- *
- * @param node: A scratch node which should already be part of the document and
- * should probably be visible.
- *
- * @param widgetMarkup: An XHTML string which is the result of flattening a
- * LiveFragment or LiveElement.
- *
- */
-Mantissa.Test.addChildWidgetFromMarkup = function addChildWidgetFromMarkup(node, widgetMarkup, widgetClass) {
-    var container = document.createElement('span');
-    node.appendChild(container);
-    Divmod.Runtime.theRuntime.setNodeContent(container, widgetMarkup);
-    var widgetNode = Divmod.Runtime.theRuntime.nodeByAttribute(
-        container, 'athena:class', widgetClass);
-    var w = Nevow.Athena.Widget.get(widgetNode);
-    node.removeChild(container);
-    return w;
-};
 
 
 Mantissa.Test.ScrollTableViewTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableViewTestCase');
@@ -508,10 +477,8 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
     function setUp(self, testMethodName) {
         var result = self.callRemote('getScrollingWidget', testMethodName);
         result.addCallback(
-            function(widgetMarkup) {
-                return Mantissa.Test.addChildWidgetFromMarkup(
-                    self.node, widgetMarkup,
-                    'Mantissa.ScrollTable.ScrollingWidget');
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
             });
         result.addCallback(
             function(widget) {
@@ -776,4 +743,58 @@ Mantissa.Test.GeneralPrefs.methods(
             function() {
                 return self.callRemote("checkPersisted", itemsPerPageValue, timezoneValue);
             });
+    });
+
+
+Mantissa.Test.UserBrowserTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.UserBrowserTestCase');
+Mantissa.Test.UserBrowserTestCase.methods(
+    /**
+     * Retrieve a LocalUserBrowser from the server and add it as a child to
+     * ourself.  Return a Deferred which fires when this has been completed.
+     */
+    function setUp(self) {
+        var result = self.callRemote('getUserBrowser');
+        result.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.userBrowser = widget;
+            });
+        return result;
+    },
+
+    function _endowDepriveFormTest(self, action) {
+        var result = self.setUp();
+        result.addCallback(
+            function(ignored) {
+                return self.userBrowser._updateUserDetail(0, 'action');
+            });
+        result.addCallback(
+            function(ignored) {
+                var childWidgets = self.userBrowser.childWidgets;
+                var fragment = childWidgets[childWidgets.length - 1];
+                childWidgets = fragment.childWidgets;
+                var form = childWidgets[childWidgets.length - 1];
+                self.failUnless(form instanceof Mantissa.LiveForm.FormWidget);
+
+            });
+        return result;
+    },
+
+    /**
+     * Test that an endow form can be summoned by acting on a row in the user
+     * browser.
+     */
+    function test_endowFormCreation(self) {
+        return self._endowDepriveFormTest('endow');
+    },
+
+    /**
+     * Similar to L{test_depriveFormCreation}, but for the deprive form rather
+     * than the endow form.
+     */
+    function test_depriveFormCreation(self) {
+        return self._endowDepriveFormTest('deprive');
     });

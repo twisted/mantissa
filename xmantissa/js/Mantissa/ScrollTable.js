@@ -4,6 +4,18 @@
 // import MochiKit.Iter
 // import MochiKit.DOM
 
+
+Mantissa.ScrollTable.NoSuchWebID = Divmod.Error.subclass("Mantissa.ScrollTable.NoSuchWebID");
+Mantissa.ScrollTable.NoSuchWebID.methods(
+    function __init__(self, webID) {
+        self.webID = webID;
+    },
+
+    function toString(self) {
+        return "WebID " + self.webID + " not found";
+    });
+
+
 Mantissa.ScrollTable.ScrollModel = Divmod.Class.subclass('Mantissa.ScrollTable.ScrollModel');
 Mantissa.ScrollTable.ScrollModel.methods(
     function __init__(self) {
@@ -24,6 +36,9 @@ Mantissa.ScrollTable.ScrollModel.methods(
      * @type webID: string
      *
      * @rtype: integer
+     *
+     * @throw NoSuchWebID: Thrown if the given webID corresponds to no row in
+     * the model.
      */
     function findIndex(self, webID) {
         for (var i = 0; i < self._rows.length; i++) {
@@ -31,7 +46,7 @@ Mantissa.ScrollTable.ScrollModel.methods(
                 return i;
             }
         }
-        throw Error("Specified webID not found.");
+        throw Mantissa.ScrollTable.NoSuchWebID(webID);
     },
 
     /**
@@ -47,7 +62,7 @@ Mantissa.ScrollTable.ScrollModel.methods(
      */
     function setRowData(self, index, data) {
         if (index < 0) {
-            throw Error("Specified index out of bounds in setRowData.");
+            throw new Error("Specified index out of bounds in setRowData.");
         }
         /*
          * XXX I hate `typeof'.  It is an abomination.  Why the hell is
@@ -60,7 +75,7 @@ Mantissa.ScrollTable.ScrollModel.methods(
          *
          */
         if (typeof data.__id__ != 'string') {
-            throw Error("Specified row data has invalid __id__ property.");
+            throw new Error("Specified row data has invalid __id__ property.");
         }
         self._rows[index] = data;
     },
@@ -198,6 +213,28 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self.initializationDeferred = self.initialize();
     },
 
+    /**
+     * Retrieve the structural definition of this table.
+     *
+     * @return: A Deferred which fires with an array with five elements.  They
+     * are::
+     *
+     *    An array of strings naming the columns in this table.
+     *
+     *    An array of two-arrays giving the type and sortability of the columns
+     *    in this table.
+     *
+     *    An integer giving the number of rows in this table.
+     *
+     *    A string giving the name of the column by which the table is
+     *    currently ordered.
+     *
+     *    A boolean indicating whether the ordering is currently ascending
+     *    (true) or descending (false).
+     */
+    function getTableMetadata(self) {
+        return self.callRemote("getTableMetadata");
+    },
 
     /**
      * Create a ScrollModel and then populate it with an initial set of rows.
@@ -207,7 +244,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
          * XXX - Make table metadata into arguments to __init__ to save a
          * round-trip.
          */
-        return self.callRemote("getTableMetadata").addCallback(
+        return self.getTableMetadata().addCallback(
             function(values) {
                 var result = Divmod.objectify(
                     ["columnNames", "columnTypes", "rowCount", "currentSort", "isAscendingNow"],
