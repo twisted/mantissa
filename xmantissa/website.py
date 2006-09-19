@@ -380,7 +380,6 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         self.port = None
         self.securePort = None
 
-
     def installOn(self, other):
         super(WebSite, self).installOn(other)
         other.powerUp(self, inevow.IResource)
@@ -442,6 +441,10 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         return UserIndexPage(ls)
 
     child_users = child_by
+
+    def child_resetPassword(self, ctx):
+        from xmantissa.signup import PasswordResetResource
+        return PasswordResetResource(self.store)
 
     def privilegedStartService(self):
         if SSL is None and self.securePortNumber is not None:

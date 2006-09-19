@@ -1,6 +1,6 @@
 From: %(from)s
 To: %(to)s
-Subject: PASSWORD RESET
+Subject: Password reset request
 Date: %%(date)s
 Message-ID: %(message-id)s
 Content-Type: text/html
@@ -9,9 +9,9 @@ MIME-Version: 1.0
 
 <html>
 <head>
-<title>PASSWORD RESET</title>
+<title>Password reset request</title>
 </head>
 <body>
-<a href="%(link)s">Click Here</a>
+<a href="%(link)s">Click here to reset your password</a>
 </body>
 </html>

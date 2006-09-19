@@ -14,7 +14,7 @@ from twisted import plugin
 from epsilon import extime
 
 from axiom.item import Item, InstallableMixin, transacted, declareLegacyItem
-from axiom.attributes import integer, reference, text, timestamp, inmemory, AND
+from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase, upgrade
 
@@ -43,12 +43,14 @@ class PasswordResetResource(Page):
 
     attempt = None
 
-    def __init__(self, original):
-        Page.__init__(self, original, docFactory=getLoader('reset'))
+    def __init__(self, store):
+        Page.__init__(self, None, docFactory=getLoader('reset'))
+        self.store = store
+        self.loginSystem = store.findUnique(userbase.LoginSystem, default=None)
 
     def locateChild(self, ctx, segments):
         if len(segments) == 1:
-            attempt = self.original.attemptByKey(unicode(segments[0]))
+            attempt = self.attemptByKey(unicode(segments[0]))
             if attempt is not None:
                 self.attempt = attempt
                 return (self, ())
@@ -60,23 +62,29 @@ class PasswordResetResource(Page):
         if req.method == 'POST':
             if 'username' in req.args:
                 user = unicode(req.args['username'][0], 'ascii')
-
-                att = self.original.newAttemptForUser(user)
-                if self.original.accountByAddress(user) is not None:
-                    self._sendEmail(ctx, att)
-                else:
-                    # do we want to disclose this to the user?
-                    pass
+                self.handleRequestForUser(user)
                 self.docFactory = loaders.stan(tags.h1['Check your email'])
             else:
                 (password,) = req.args['password1']
-                self.original.resetPassword(self.attempt, unicode(password))
+                self.resetPassword(self.attempt, unicode(password))
                 self.docFactory = loaders.stan(tags.h1['Password reset, you can now ',
                                                        tags.a(href='/login')['Login']])
         elif self.attempt:
             self.docFactory = getLoader('reset-step-two')
 
         return Page.renderHTTP(self, ctx)
+
+    def handleRequestForUser(self, username):
+        """
+        User C{username} wants to reset their password.  Create an attempt
+        item, and send them an email if the username is valid
+        """
+        att = self.newAttemptForUser(user)
+        if self.accountByAddress(user) is not None:
+            self._sendEmail(ctx, att)
+        else:
+            # do we want to disclose this to the user?
+            pass
 
     def _sendEmail(self, ctx, attempt):
         url = URL.fromContext(ctx)
@@ -92,38 +100,9 @@ class PasswordResetResource(Page):
                  'to': attempt.username,
                  'date': rfc822.formatdate(),
                  'message-id': smtp.messageid(),
-                 'link': 'http://%s:%s/%s/%s' % (host, port, self.original.prefixURL, attempt.key)}
+                 'link': 'http://%s:%s/resetPassword/%s' % (host, port, attempt.key)}
 
         _sendEmail('reset@' + host, attempt.username, body)
-
-class _PasswordResetAttempt(Item):
-    """
-    I represent as as-yet incomplete attempt at password reset
-    """
-
-    typeName = 'password_reset_attempt'
-    schemaVersion = 1
-
-    key = text()
-    username = text()
-    timestamp = timestamp()
-
-class PasswordReset(Item, PrefixURLMixin):
-    typeName = 'password_reset'
-    schemaVersion = 1
-
-    sessioned = False
-    sessionless = True
-
-    prefixURL = 'reset-password'
-    installedOn = reference()
-    loginSystem = inmemory()
-
-    def activate(self):
-        self.loginSystem = self.store.findUnique(userbase.LoginSystem, default=None)
-
-    def createResource(self):
-        return PasswordResetResource(self)
 
     def attemptByKey(self, key):
         """
@@ -173,6 +152,42 @@ class PasswordReset(Item, PrefixURLMixin):
             ).deleteFromStore()
 
         attempt.deleteFromStore()
+
+
+class _PasswordResetAttempt(Item):
+    """
+    I represent as as-yet incomplete attempt at password reset
+    """
+
+    typeName = 'password_reset_attempt'
+    schemaVersion = 1
+
+    key = text()
+    username = text()
+    timestamp = timestamp()
+
+class PasswordReset(Item):
+    """
+    I was an item that contained some of the model functionality of
+    L{PasswordResetResource}, but now I am just a shell item (see
+    L{passwordReset1to2}) and my functionality has been moved to
+    L{PasswordResetResource}.
+    """
+    typeName = 'password_reset'
+    schemaVersion = 2
+
+    installedOn = reference()
+
+def passwordReset1to2(old):
+    """
+    Power down and delete the item
+    """
+    new = old.upgradeVersion(old.typeName, 1, 2, installedOn=None)
+    for iface in new.store.interfacesFor(new):
+        new.store.powerDown(new, iface)
+    new.deleteFromStore()
+
+upgrade.registerUpgrader(passwordReset1to2, 'password_reset', 1, 2)
 
 class NoSuchFactory(Exception):
     """
@@ -457,8 +472,6 @@ declareLegacyItem(typeName='free_signup',
                                   prompt=text()))
 
 def freeTicketSignup4To5(old):
-    PasswordReset(store=old.store).installOn(old.store)
-
     return old.upgradeVersion('free_signup', 4, 5,
                               prefixURL=old.prefixURL,
                               booth=old.booth,

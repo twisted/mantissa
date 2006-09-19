@@ -2,6 +2,11 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+.forgot-password:visited, .forgot-password:link {
+    font-weight: bold;
+    color: #B894DB;
+}
+
 .liveform-param-description {
     padding-left: 4px;
     font-style: italic;
