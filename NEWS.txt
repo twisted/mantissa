@@ -1,3 +1,8 @@
+0.5.14 (2006-09-12):
+  - ScrollTable has been refactored; more methods return Deferreds, and an API
+    for removing rows has been added.
+  - UI improvements and bugfixes.
+
 0.5.13 (2006-08-30):
   - Signup editor now allows deletion of signup pages.
   - Various UI and bug fixes.
