@@ -1,3 +1,9 @@
+0.5.15 (2006-09-20):
+  - Fulltext indexer doesn't use stopwords now, and adds all other fields
+    to the 'text' part of the document also.
+  - added PostalAddress and Nots fields to Person.
+  - Login form now links to password reset.
+
 0.5.14 (2006-09-12):
   - ScrollTable has been refactored; more methods return Deferreds, and an API
     for removing rows has been added.
