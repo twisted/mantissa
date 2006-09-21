@@ -385,26 +385,31 @@ class _PyLuceneIndex(object):
 
     def add(self, message):
         doc = PyLucene.Document()
+        for part in message.textParts():
+            doc.add(
+                PyLucene.Field('text',
+                               part.encode('utf-8'),
+                               PyLucene.Field.Store.NO,
+                               PyLucene.Field.Index.TOKENIZED))
 
         for (k, v) in message.keywordParts().iteritems():
-            for k in (k, 'text'):
-                doc.add(
-                    PyLucene.Field(k, v,
-                                PyLucene.Field.Store.YES,
-                                PyLucene.Field.Index.TOKENIZED))
+            doc.add(
+                PyLucene.Field(k, v,
+                            PyLucene.Field.Store.YES,
+                            PyLucene.Field.Index.TOKENIZED))
         doc.add(
             PyLucene.Field('documentType', message.documentType(),
                            PyLucene.Field.Store.YES,
                            PyLucene.Field.Index.TOKENIZED))
 
-        for text in message.textParts():
-            doc.add(
-                PyLucene.Field('text', text.encode('utf-8'),
-                            PyLucene.Field.Store.NO,
-                            PyLucene.Field.Index.TOKENIZED))
         doc.add(
             PyLucene.Field('storeID',
                            message.uniqueIdentifier(),
+                           PyLucene.Field.Store.YES,
+                           PyLucene.Field.Index.UN_TOKENIZED))
+        doc.add(
+            PyLucene.Field('sortKey',
+                           message.sortKey(),
                            PyLucene.Field.Store.YES,
                            PyLucene.Field.Index.UN_TOKENIZED))
         # Deprecated. use Field(name, value, Field.Store.YES, Field.Index.UN_TOKENIZED) instead
@@ -429,7 +434,15 @@ class _PyLuceneIndex(object):
         qp.setDefaultOperator(qp.Operator.AND)
         query = qp.parseQuery(phrase)
 
-        hits = self.index.search(query)
+        sort = PyLucene.Sort(PyLucene.SortField('sortKey', False))
+
+        try:
+            hits = self.index.search(query, sort)
+        except PyLucene.JavaError, err:
+            if 'no terms in field sortKey' in str(err):
+                hits = []
+            else:
+                raise
         return _PyLuceneHitsWrapper(self, hits)
 
 
@@ -460,7 +473,7 @@ atexit.register(_closeIndexes)
 
 class PyLuceneIndexer(RemoteIndexer, item.Item):
 
-    schemaVersion = 3
+    schemaVersion = 4
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
@@ -575,16 +588,21 @@ def remoteIndexer2to3(oldIndexer):
         indexCount=oldIndexer.indexCount,
         installedOn=oldIndexer.installedOn,
         indexDirectory=oldIndexer.indexDirectory)
-    newIndexer.reset()
+    # the 3->4 upgrader for PyLuceneIndexer calls reset(), so don't do it
+    # here.  also, it won't work because it's a DummyItem
+    if oldIndexer.typeName != PyLuceneIndexer.typeName:
+        newIndexer.reset()
     return newIndexer
 
 
+def _declareLegacyIndexerItem(typeClass, version):
+    item.declareLegacyItem(typeClass.typeName, version,
+                           dict(indexCount=attributes.integer(),
+                                installedOn=attributes.reference(),
+                                indexDirectory=attributes.text()))
+
 for cls in [HypeIndexer, XapianIndexer, PyLuceneIndexer]:
-    item.declareLegacyItem(
-        cls.typeName, 2,
-        dict(indexCount=attributes.integer(),
-             installedOn=attributes.reference(),
-             indexDirectory=attributes.text()))
+    _declareLegacyIndexerItem(cls, 2)
 
     registerUpgrader(
         remoteIndexer1to2,
@@ -597,3 +615,18 @@ for cls in [HypeIndexer, XapianIndexer, PyLuceneIndexer]:
         2,
         3)
 del cls
+
+_declareLegacyIndexerItem(PyLuceneIndexer, 3)
+
+def pyLuceneIndexer3to4(old):
+    """
+    Copy attributes, reset index due to sorting changes
+    """
+    new = old.upgradeVersion(PyLuceneIndexer.typeName, 3, 4,
+                             indexCount=old.indexCount,
+                             installedOn=old.installedOn,
+                             indexDirectory=old.indexDirectory)
+    new.reset()
+    return new
+
+registerUpgrader(pyLuceneIndexer3to4, PyLuceneIndexer.typeName, 3, 4)

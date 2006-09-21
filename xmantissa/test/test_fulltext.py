@@ -34,6 +34,10 @@ class IndexableThing(item.Item):
         return self._documentType
 
 
+    def sortKey(self):
+        return self.uniqueIdentifier()
+
+
 
 class FakeMessageSource(item.Item):
     """
@@ -240,7 +244,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(
             list(reader.search(u'airplane')), [])
         self.assertEquals(
-            list(reader.search(u'fruit')), [50])
+            list(reader.search(u'fruit')), [])
         self.assertEquals(
             list(reader.search(u'apple')), [50])
         self.assertEquals(
@@ -296,7 +300,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(
             list(reader.search(u'pear')), [])
         self.assertEquals(
-            list(reader.search(u'fruit')), [50])
+            list(reader.search(u'fruit')), [])
         self.assertEquals(
             list(reader.search(u'apple')), [50])
         self.assertEquals(
@@ -355,11 +359,11 @@ class FulltextTestsMixin(IndexerTestsMixin):
         reader = self.openReadIndex()
 
         self.assertEquals(
-            list(reader.search(u'honda', {})), [50])
+            list(reader.search(u'honda', {})), [])
         self.assertEquals(
             list(reader.search(u'jack', {})), [50])
         self.assertEquals(
-            list(reader.search(u'honda', {u'car': u'honda'})), [50])
+            list(reader.search(u'', {u'car': u'honda'})), [50])
         self.assertEquals(
             list(reader.search(u'', {u'car': u'jack'})), [])
 
@@ -384,6 +388,28 @@ class FulltextTestsMixin(IndexerTestsMixin):
             list(reader.search(u'456', {})), [50])
         self.assertEquals(
             list(reader.search(u'', {u'foo': u'x12'})), [50])
+
+    def testSorting(self):
+        """
+        Index some stuff with out of order sort keys and ensure that
+        they come back ordered by sort key.
+        """
+
+        writer = self.openWriteIndex()
+        keys = (5, 20, 6, 127, 2)
+
+        for k in keys:
+            writer.add(IndexableThing(
+                    _documentType=u'thing',
+                    _uniqueIdentifier=unicode(k),
+                    _textParts=[u'ok'],
+                    _keywordParts={}))
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        self.assertEquals(list(reader.search(u'ok')),
+                          list(sorted(keys)))
 
 
 class CorruptionRecoveryMixin(IndexerTestsMixin):

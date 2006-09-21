@@ -30,6 +30,12 @@ class Message(object):
             return {u'foo': "A Keyword"}
 
 
+    def documentType(self):
+        return u'message'
+
+
+    def sortKey(self):
+        return u''
 
 def main():
     s = store.Store("lucene.axiom")

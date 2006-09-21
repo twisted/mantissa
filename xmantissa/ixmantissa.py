@@ -163,6 +163,13 @@ class IFulltextIndexable(Interface):
         """
 
 
+    def sortKey():
+        """
+        @return: A unicode string that will be used as the key when sorting
+        search results comprised of items of this type.
+        """
+
+
 
 class IStaticShellContent(Interface):
     """
