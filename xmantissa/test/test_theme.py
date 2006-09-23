@@ -8,11 +8,10 @@ from nevow.stan import Tag
 from nevow.tags import (
     html, head, body, div, span, img, script, link, invisible, directive)
 from nevow.context import WovenContext
-from nevow.testutil import FakeRequest
+from nevow.testutil import FakeRequest, AccumulatingFakeRequest as makeRequest
 from nevow.flat import flatten
 from nevow.inevow import IRequest
 from nevow.page import renderer
-from nevow.test.test_rend import req as makeRequest
 
 from axiom.store import Store
 from axiom.substore import SubStore
