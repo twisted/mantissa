@@ -175,7 +175,11 @@ Mantissa.ScrollTable.ScrollModel.methods(
      * Retrieve an array of indices for which local data is available.
      */
     function getRowIndices(self) {
-        return Divmod.dir(self._rows);
+        var indices = Divmod.dir(self._rows);
+        for (var i = 0; i < indices.length; ++i) {
+            indices[i] = parseInt(indices[i]);
+        }
+        return indices;
     },
 
     /**
