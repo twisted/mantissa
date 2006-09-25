@@ -1,20 +1,41 @@
 
 // import Divmod.Runtime
 
-// import Mantissa.TDB
+// import Mantissa.ScrollTable
 // import Mantissa.LiveForm
 
 Mantissa.Admin = {};
 
 /**
- * Special TDB with support for retrieving additional detailed information
+ * Trivial L{Mantissa.ScrollTable.Action} subclass which sets a handler that
+ * calls L{Mantissa.Admin.LocalUserBrowser.updateUserDetail} on the instance
+ * that the action was activated in.
+ */
+Mantissa.Admin.EndowDepriveAction = Mantissa.ScrollTable.Action.subclass(
+                                        'Mantissa.Admin.EndowDepriveAction');
+Mantissa.Admin.EndowDepriveAction.methods(
+    function __init__(self, name, displayName) {
+        Mantissa.Admin.EndowDepriveAction.upcall(
+            self, "__init__", name, displayName,
+            function(localUserBrowser, row, result) {
+                return localUserBrowser.updateUserDetail(result);
+            });
+    });
+
+/**
+ * Scrolltable with support for retrieving additional detailed information
  * about particular users from the server and displaying it on the page
  * someplace.
- *
- * XXX TODO: Replace this with a scrolltable.
  */
-Mantissa.Admin.LocalUserBrowser = Mantissa.TDB.Controller.subclass('Mantissa.Admin.LocalUserBrowser');
+Mantissa.Admin.LocalUserBrowser = Mantissa.ScrollTable.ScrollingWidget.subclass('Mantissa.Admin.LocalUserBrowser');
 Mantissa.Admin.LocalUserBrowser.methods(
+    function __init__(self, node) {
+        self.actions = [Mantissa.Admin.EndowDepriveAction("endow", "Endow"),
+                        Mantissa.Admin.EndowDepriveAction("deprive", "Deprive")];
+
+        Mantissa.Admin.LocalUserBrowser.upcall(self, "__init__", node);
+    },
+
     function _getUserDetailElement(self) {
         if (self._userDetailElement == undefined) {
             var n = document.createElement('div');
@@ -26,28 +47,19 @@ Mantissa.Admin.LocalUserBrowser.methods(
     },
 
     /**
-     * Called by a TDB action click handler.  Retrieves information about the
-     * clicked user from the server and dumps it into a node (created for this
-     * purpose, on demand).  Removes the existing content of that node if
-     * there is any.
-     *
-     * XXX - Can't use an index here - must use a unique, stable identifier.
+     * Called by L{Mantissa.Admin.EndowDepriveAction}.  Retrieves information
+     * about the clicked user from the server and dumps it into a node
+     * (created for this purpose, on demand).  Removes the existing content of
+     * that node if there is any.
      */
-    function updateUserDetail(self, node, idx, event, action) {
-        self._updateUserDetail(idx, action);
-        return false;
-    },
-
-    function _updateUserDetail(self, index, action) {
-        var d = self.callRemote('getActionFragment', index, action);
-        d.addCallback(
-            function(widgetInfo) {
-                return self.addChildWidgetFromWidgetInfo(widgetInfo);
-            });
-        d.addCallback(
+    function updateUserDetail(self, result) {
+        var D = self.addChildWidgetFromWidgetInfo(result);
+        return D.addCallback(
             function(widget) {
                 var n = self._getUserDetailElement();
+                while(0 < n.childNodes.length) {
+                    n.removeChild(n.firstChild);
+                }
                 n.appendChild(widget.node);
             });
-        return d
     });

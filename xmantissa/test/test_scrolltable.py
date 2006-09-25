@@ -55,9 +55,11 @@ class ScrollTestMixin(object):
 
 class ItemQueryScrollingFragmentTestCase(ScrollTestMixin, unittest.TestCase):
     def getScrollFragment(self):
-        return ScrollingFragment(
+        sf = ScrollingFragment(
             self.store, DataThunk, DataThunk.a > 4,
             [DataThunk.b, DataThunk.c], DataThunk.a)
+        sf.linkToItem = lambda ign: None
+        return sf
 
 
     def testGetTwoChunks(self):

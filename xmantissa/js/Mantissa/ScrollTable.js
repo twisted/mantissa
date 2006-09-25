@@ -16,6 +16,77 @@ Mantissa.ScrollTable.NoSuchWebID.methods(
     });
 
 
+Mantissa.ScrollTable.Action = Divmod.Class.subclass('Mantissa.ScrollTable.Action');
+/**
+ * An action that can be performed on a scrolltable row.
+ * (Currently on a single scrolltable row at a time).
+ *
+ * @ivar name: internal name for this action.  this will be used server-side
+ *             to look up the action method.
+ *
+ * @ivar displayName: external name for this action.
+ *
+ * @ivar handler: optional.  function that will be called when the remote
+ *                method successfully returns.  it will be passed the
+ *                L{ScrollingWidget} the row was clicked in, the row that was
+ *                clicked (a mapping of column names to values) and the result
+ *                of the remote call that was made.  if not set, no action
+ *                will be taken
+ *
+ * @ivar icon: optional.  if set, then it will be used for the src attribute of
+ *             an <IMG> element that will get placed inside the action link,
+ *             instead of C{name}.
+ */
+Mantissa.ScrollTable.Action.methods(
+    function __init__(self, name, displayName, handler/*=undefined*/, icon/*=undefined*/) {
+        self.name = name;
+        self.displayName = displayName;
+        self.handler = handler;
+        self.icon = icon;
+    },
+
+    /**
+     * Called by onclick handler created in L{toNode}.
+     * Responsible for calling remote method, and dispatching the result to
+     * C{self.handler}, if one is set.
+     *
+     * Arguments are the same as L{toNode}
+     *
+     * @rtype: L{Divmod.Defer.Deferred}
+     */
+    function enact(self, scrollingWidget, row) {
+        var D = scrollingWidget.callRemote(
+                    "performAction", self.name, row.__id__);
+        return D.addCallback(
+                function(result) {
+                    if(self.handler) {
+                        return self.handler(scrollingWidget, row, result);
+                    }
+                });
+    },
+
+    /**
+     * Called by L{Mantissa.ScrollTable.ScrollingWidget}.
+     * Responsible for turning this action into a link node.
+     *
+     * @param scrollingWidget: L{Mantissa.ScrollTable.ScrollingWidget}
+     * @param row: L{Object} mapping column names to column values of the row
+     *             that this action will act on when clicked
+     */
+    function toNode(self, scrollingWidget, row) {
+        var onclick = function() {
+            self.enact(scrollingWidget, row);
+            return false;
+        }
+        var linkBody;
+        if(self.icon) {
+            linkBody = MochiKit.DOM.IMG({border: 0, src: self.icon});
+        } else {
+            linkBody = self.displayName;
+        }
+        return MochiKit.DOM.A({onclick: onclick, href: "#"}, linkBody);
+    });
+
 Mantissa.ScrollTable.ScrollModel = Divmod.Class.subclass('Mantissa.ScrollTable.ScrollModel');
 Mantissa.ScrollTable.ScrollModel.methods(
     function __init__(self) {
@@ -251,6 +322,11 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                     values);
 
                 self.columnTypes = result.columnTypes;
+
+                var columnNames = result.columnNames;
+                if(self.actions && 0 < self.actions.length) {
+                    columnNames.push("actions");
+                }
 
                 self._rowHeight = self._getRowHeight();
                 self._columnOffsets = self._getColumnOffsets(result.columnNames);
@@ -566,17 +642,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * Override this to set a custom onclick for this action.
-     *
-     * XXX - Actually, don't override this, because it is going to be removed.
-     *
-     * XXX - And anyway, how could you have overridden it, none of its
-     * parameters are documented.
-     */
-    function clickEventForAction(self, actionID, rowData) {
-    },
-
-    /**
      * Remove all rows from scrolltable, as well as our cache of
      * fetched/unfetched rows, scroll the table to the top, and
      * refill it.
@@ -610,23 +675,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * Tell the server to perform an action on an item.
-     *
-     * @type actionID: string
-     * @param actionID: Which action to perform.
-     *
-     * @type webID: string
-     * @param webID: The webID of the item on which to perform the action.
-     */
-    function performAction(self, actionID, webID) {
-        var result = self.callRemote("performAction", actionID, webID);
-        result.addCallback(function(ignored) {
-                self.emptyAndRefill();
-            });
-        return result;
-    },
-
-    /**
      * Make a node with some event handlers to perform actions on the row
      * specified by C{rowData}.
      *
@@ -635,33 +683,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * @return: A DOM node.
      */
     function _makeActionsCells(self, rowData) {
-        var icon, actionID, onclick, content;
         var actions = [];
-
-        var makeOnClick = function(actionID) {
-            return function(event) {
-                self.performAction(actionID, rowData["__id__"]);
-                return false;
-            }
+        for(var i = 0; i < self.actions.length; i++) {
+            actions.push(self.actions[i].toNode(self, rowData));
         }
-        var actionData = rowData["actions"];
-        for(var i = 0; i < actionData.length; i++) {
-            icon = actionData[i]["iconURL"];
-            actionID = actionData[i]["actionID"];
-            onclick = self.clickEventForAction(actionID, rowData);
-
-            if(!onclick) {
-                onclick = makeOnClick(actionID);
-            }
-
-            if(icon) {
-                content = MochiKit.DOM.IMG({"src": icon, "border": 0});
-            } else { content = actionID; }
-
-            actions.push(MochiKit.DOM.A({"href": "#",
-                                         "onclick": onclick}, content));
-        }
-
         var attrs = {"class": "scroll-cell"};
         if(self.columnWidths && "actions" in self.columnWidths) {
             attrs["style"] = "width:" + self.columnWidths["actions"];
@@ -686,11 +711,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             if(!(colName in self._columnOffsets) || self.skipColumn(colName)) {
                 continue;
             }
-            if(colName == "actions") {
-                cells.push([colName, self._makeActionsCells(rowData)]);
-            } else {
-                cells.push([colName, self.makeCellElement(colName, rowData)]);
-            }
+            cells.push([colName, self.makeCellElement(colName, rowData)]);
+        }
+        if(self.actions && 0 < self.actions.length) {
+            cells.push(["actions", self._makeActionsCells(rowData)]);
         }
 
         cells = cells.sort(
@@ -789,6 +813,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
         var headerNodes = [];
         var sortable, attrs;
+
         for (var i = 0; i < columnNames.length; i++ ) {
             if(self.skipColumn(columnNames[i])) {
                 continue;
@@ -803,28 +828,31 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 displayName = capitalize(columnName);
             }
 
-            sortable = self.columnTypes[columnName][1];
             attrs = {"class": "scroll-column-header"};
-            if(columnName == "actions") {
-                attrs["class"] = "actions-column-header";
-            }
+
             if(self.columnWidths && columnName in self.columnWidths) {
                 attrs["style"] = "width:" + self.columnWidths[columnName];
             }
-            if(sortable) {
-                attrs["class"] = "sortable-" + attrs["class"];
-                /*
-                 * Bind the current value of columnName instead of just closing
-                 * over it, since we're mutating the local variable in a loop.
-                 */
-                attrs["onclick"] = (function(whichColumn) {
-                        return function() {
-                            /* XXX real-time feedback, ugh */
-                            self.resort(whichColumn);
-                        }
-                    })(columnName);
-            }
 
+            if(columnName == "actions") {
+                attrs["class"] = "actions-column-header";
+            } else {
+                sortable = self.columnTypes[columnName][1];
+
+                if(sortable) {
+                    attrs["class"] = "sortable-" + attrs["class"];
+                    /*
+                    * Bind the current value of columnName instead of just closing
+                    * over it, since we're mutating the local variable in a loop.
+                    */
+                    attrs["onclick"] = (function(whichColumn) {
+                            return function() {
+                                /* XXX real-time feedback, ugh */
+                                self.resort(whichColumn);
+                            }
+                        })(columnName);
+                }
+            }
 
             var headerNode = MochiKit.DOM.DIV(attrs, displayName);
             headerNodes.push(headerNode);

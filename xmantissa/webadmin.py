@@ -21,7 +21,8 @@ from axiom.item import Item
 from axiom import userbase
 from axiom.batch import BatchManholePowerup
 
-from xmantissa import webtheme, liveform, webnav, tdb, tdbview, offering, signup, stats
+from xmantissa import webtheme, liveform, webnav, tdbview, offering, signup, stats
+from xmantissa.scrolltable import ScrollingFragment
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
@@ -204,64 +205,41 @@ registerAdapter(UserInteractionFragment, LocalUserBrowser, INavigableFragment)
 
 
 
-class _EndowDepriveActionBase(tdbview.Action):
-    clickFmt = ("return Nevow.Athena.Widget.get(this"
-                ").updateUserDetail(this, %d, event, %r);")
-
-    def toLinkStan(self, idx, loginMethod):
-        return T.a(href='#',
-                   style="padding-right: 5px;",
-                   onclick=self.clickFmt % (idx, self.benefactorAction))[
-            self.benefactorAction]
-
-    def actionable(self, item):
-        return True
-
-
-
-class EndowAction(_EndowDepriveActionBase):
-    benefactorAction = 'endow'
-
-
-
-class DepriveAction(_EndowDepriveActionBase):
-    benefactorAction = 'deprive'
-
-
-
-class LocalUserBrowserFragment(tdbview.TabularDataView):
+class LocalUserBrowserFragment(ScrollingFragment):
     jsClass = u'Mantissa.Admin.LocalUserBrowser'
 
     def __init__(self, userBrowser):
-        tdm = tdb.TabularDataModel(
-            userBrowser.store.parent,
-            userbase.LoginMethod,
-            [userbase.LoginMethod.localpart,
-             userbase.LoginMethod.domain,
-             userbase.LoginMethod.verified],
-            baseComparison=(userbase.LoginMethod.domain != None),
-            defaultSortColumn='domain', # XXX TODO (domain, localpart) sorting
-            defaultSortAscending=True)
-        views = [
-            tdbview.ColumnViewBase('localpart', typeHint='text'),
-            tdbview.ColumnViewBase('domain', typeHint='text'),
-            tdbview.ColumnViewBase('verified', typeHint='boolean')]
+        ScrollingFragment.__init__(self, userBrowser.store.parent,
+                                   userbase.LoginMethod,
+                                   userbase.LoginMethod.domain != None,
+                                   (userbase.LoginMethod.localpart,
+                                    userbase.LoginMethod.domain,
+                                    userbase.LoginMethod.verified),
+                                   defaultSortColumn=userbase.LoginMethod.domain,
+                                   defaultSortAscending=True)
 
-        actions = [
-            EndowAction('Endow', None, None),
-            DepriveAction('Deprive', None, None),
-            ]
-        super(LocalUserBrowserFragment, self).__init__(tdm, views, actions)
+    def linkToItem(self, item):
+        # no IWebTranslator.  better ideas?
+        # will (localpart, domain, protocol) always be unique?
+        return unicode(item.storeID)
 
-    def getActionFragment(self, targetID, action):
-        loginMethod = self.itemFromTargetID(targetID)
+    def itemFromLink(self, link):
+        return self.store.getItemByID(int(link))
+
+    def _getActionFragment(self, loginMethod, action):
         loginAccount = loginMethod.account
         return EndowDepriveFragment(
             self,
             loginMethod.localpart + u'@' + loginMethod.domain,
             loginAccount,
             action)
-    expose(getActionFragment)
+
+    def action_endow(self, loginMethod):
+        return self._getActionFragment(loginMethod, 'endow')
+
+    def action_deprive(self, loginMethod):
+        return self._getActionFragment(loginMethod, 'deprive')
+
 
 
 class EndowDepriveFragment(webtheme.ThemedElement):

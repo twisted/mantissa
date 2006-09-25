@@ -46,7 +46,7 @@ class Scrollable(object):
     the current sort key.
     """
     def __init__(self, webTranslator, columns, defaultSortColumn,
-                 defaultSortAscending, actions):
+                 defaultSortAscending):
         self.webTranslator = webTranslator
         self.columns = {}
         self.columnNames = []
@@ -66,7 +66,6 @@ class Scrollable(object):
 
         self.currentSortColumn = defaultSortColumn
         self.isAscending = defaultSortAscending
-        self.actions = actions
 
 
     # Override these two in a subclass
@@ -113,10 +112,6 @@ class Scrollable(object):
                 coltype = unicode(coltype, 'ascii')
             coltypes[colname] = (coltype, sortable)
 
-        if self.actions:
-            coltypes[u'actions'] = (u'actions', False)
-            self.columnNames.append(u'actions')
-
         return [self.columnNames, coltypes, self.requestCurrentSize(),
                 unicode(self.currentSortColumn.attrname, 'ascii'),
                 self.isAscending]
@@ -143,26 +138,23 @@ class Scrollable(object):
     expose(resort)
 
 
-    def performAction(self, actionID, targetID):
-        item = self.webTranslator.fromWebID(targetID)
-        for action in self.actions:
-            if action.actionID == actionID:
-                return action.performOn(item)
-    expose(performAction)
-
-
     def linkToItem(self, item):
         """
-        Return a URL that the row for C{item} should link to.
-        If an L{xmantissa.ixmantissa.IWebTranslator} is available
-        in C{self.store}, then the link will point to the item's
-        web facet.  A value of None indicates that the row should
-        not be a link.
+        Return a URL that the row for C{item} should link to, by asking the
+        L{xmantissa.ixmantissa.IWebTranslator} in C{self.store}
 
         @return: C{unicode} URL
         """
-        if self.webTranslator is not None:
-            return unicode(self.webTranslator.toWebID(item), 'ascii')
+        return unicode(self.webTranslator.toWebID(item), 'ascii')
+
+
+    def itemFromLink(self, link):
+        """
+        Inverse of L{linkToItem}.
+
+        @rtype: L{axiom.item.Item}
+        """
+        return self.webTranslator.fromWebID(link)
 
 
     def requestRowRange(self, rangeBegin, rangeEnd):
@@ -177,6 +169,12 @@ class Scrollable(object):
         return self.performCount()
     expose(requestCurrentSize)
 
+
+    def performAction(self, name, rowID):
+        method = getattr(self, 'action_' + name)
+        item = self.itemFromLink(rowID)
+        return method(item)
+    expose(performAction)
 
 
 class ScrollableView(object):
@@ -197,20 +195,6 @@ class ScrollableView(object):
                 row[u'__id__'] = link
             rows.append(row)
 
-        if self.actions:
-            for (item, row) in zip(items, rows):
-                row[u'actions'] = []
-                for action in self.actions:
-                    if action.actionable(item):
-                        if action.iconURL is not None:
-                            iconURL = unicode(action.iconURL, 'ascii')
-                        else:
-                            iconURL = None
-
-                        row['actions'].append(
-                                {u'actionID': unicode(action.actionID, 'ascii'),
-                                 u'iconURL': iconURL})
-
         return rows
 
 
@@ -221,10 +205,10 @@ class ItemQueryScrollingFragment(Scrollable, ScrollableView, LiveElement):
 
     def __init__(self, store, itemType, baseConstraint, columns,
                  defaultSortColumn=None, defaultSortAscending=True,
-                 actions=(), *a, **kw):
+                 *a, **kw):
 
         Scrollable.__init__(self, IWebTranslator(store, None), columns,
-                            defaultSortColumn, defaultSortAscending, actions)
+                            defaultSortColumn, defaultSortAscending)
         LiveElement.__init__(self, *a, **kw)
         self.store = store
         self.itemType = itemType
@@ -260,9 +244,9 @@ class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
     sequence.
     """
     def __init__(self, store, elements, columns, defaultSortColumn=None,
-                 defaultSortAscending=True, actions=(), *a, **kw):
+                 defaultSortAscending=True, *a, **kw):
         Scrollable.__init__(self, IWebTranslator(store, None), columns,
-                            defaultSortColumn, defaultSortAscending, actions)
+                            defaultSortColumn, defaultSortAscending)
 
         LiveElement.__init__(self, *a, **kw)
         self.store = store

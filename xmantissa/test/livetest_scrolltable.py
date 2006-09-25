@@ -56,3 +56,23 @@ class ScrollTableWidgetTestCase(TestCase):
         store, elements, fragment = self.perTestData[key]
         elements[:] = [ScrollElement(store=store) for i in range(n)]
     expose(changeRowCount)
+
+class ScrollTableActionsTestCase(ScrollTableWidgetTestCase):
+    """
+    Tests for scrolltable actions
+    """
+    jsClass = u'Mantissa.Test.ScrollTableActionsTestCase'
+
+    def getScrollingWidget(self, key):
+        f = ScrollTableWidgetTestCase.getScrollingWidget(self, key)
+        f.jsClass = u'Mantissa.Test.ScrollTableWithActions'
+
+        # close over "key" because actions can't supply additional
+        # arguments, and there isn't a use case outside of this test
+        def action_delete(scrollElement):
+            elements = self.perTestData[key][1]
+            elements.remove(scrollElement)
+
+        f.action_delete = action_delete
+        return f
+    expose(getScrollingWidget)

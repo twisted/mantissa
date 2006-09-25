@@ -468,8 +468,8 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
     );
 
 
-Mantissa.Test.ScrollTableViewTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableViewTestCase');
-Mantissa.Test.ScrollTableViewTestCase.methods(
+Mantissa.Test.ScrollTableViewTestBase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableViewTestBase');
+Mantissa.Test.ScrollTableViewTestBase.methods(
     /**
      * Retrieve a ScrollingWidget from the server to use for the running test
      * method.
@@ -487,8 +487,10 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
                 return widget.initializationDeferred;
             });
         return result;
-    },
+    });
 
+Mantissa.Test.ScrollTableViewTestCase = Mantissa.Test.ScrollTableViewTestBase.subclass('Mantissa.Test.ScrollTableViewTestCase');
+Mantissa.Test.ScrollTableViewTestCase.methods(
     /**
      * Test that a ScrollingWidget has a model with some rows after its
      * initialization Deferred fires.
@@ -564,38 +566,63 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
 
 
 
-Mantissa.Test.TestableScrollTable = Mantissa.ScrollTable.ScrollingWidget.subclass(
-                                        'Mantissa.Test.TestableScrollTable');
-Mantissa.Test.TestableScrollTable.methods(
+Mantissa.Test.ScrollTableWithActions = Mantissa.ScrollTable.ScrollingWidget.subclass('Mantissa.Test.ScrollTableWithActions');
+/**
+ * L{Mantissa.ScrollTable.ScrollingWidget} subclass with a single action
+ */
+Mantissa.Test.ScrollTableWithActions.methods(
     function __init__(self, node) {
-        Mantissa.Test.TestableScrollTable.upcall(self, "__init__", node);
-        self._rowHeight = 20;
-        self._scrollViewport.style.height = "200px";
-        self._rows = [];
-        self._firstRowFetch = true;
-    },
-
-    function cbRowsFetched(self, n) {
-        if(self._firstRowFetch) {
-            self._firstRowFetch = false;
-            self.widgetParent.scroller = self;
-            self.widgetParent.actuallyRunTests(n);
-        /* if n == 0, then nothing was actually requested, so it's fine */
-        } else if(0 < n) {
-            if(!self._pendingScrollDeferred) {
-                self.widgetParent.fail('extraneous row request');
-            }
-            self._pendingScrollDeferred.callback(n);
-            self._pendingScrollDeferred = null;
-        }
-    },
-
-    function scrollBy(self, rows, deferred) {
-        self._pendingScrollDeferred = deferred;
-        /* changing scrollTop will call the onscroll handler */
-        self._scrollViewport.scrollTop += rows * self._rowHeight;
+        /* make an action whose handler refreshes the scrolltable */
+        self.deleteAction = Mantissa.ScrollTable.Action(
+                                "delete", "Delete",
+                                function(scrollingWidget, row, result) {
+                                    return scrollingWidget.emptyAndRefill();
+                                });
+        self.actions = [self.deleteAction];
+        Mantissa.Test.ScrollTableWithActions.upcall(self, "__init__", node);
     });
 
+Mantissa.Test.ScrollTableActionsTestCase = Mantissa.Test.ScrollTableViewTestBase.subclass('Mantissa.Test.ScrollTableActionsTestCase');
+/**
+ * Test scrolltable actions
+ */
+Mantissa.Test.ScrollTableActionsTestCase.methods(
+    /**
+     * Test that the node created by L{Mantissa.ScrollTable.Action.toNode}
+     * looks reasonably correct
+     */
+    function test_actionNode(self) {
+        return self.setUp('actionNode').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+                var node = scroller.deleteAction.toNode(
+                                scroller, scroller.model.getRowData(0));
+                self.failUnless(node.onclick);
+                self.assertEqual(node.firstChild.nodeValue,
+                                 scroller.deleteAction.displayName);
+            });
+    },
+
+    /**
+     * Test that remote actions do what they're supposed to
+     */
+    function test_actions(self) {
+        return self.setUp('actions').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+                var rowData = scroller.model.getRowData(0);
+                var D = scroller.deleteAction.enact(scroller, rowData);
+                return D.addCallback(
+                    function() {
+                        self.assertThrows(
+                            Mantissa.ScrollTable.NoSuchWebID,
+                            function() {
+                                alert(scroller.model.findIndex(rowData.__id__));
+                            });
+
+                    });
+            });
+    });
 
 Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
 Mantissa.Test.PersonDetail.methods(
