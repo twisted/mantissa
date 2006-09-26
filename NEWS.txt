@@ -1,3 +1,9 @@
+0.5.16 (2006-09-26):
+  - Signup form now generates valid email localparts for usernames, and
+    doesn't allow invalid usernames to be submitted.
+  - Client-side actions API added for scroltables.
+  - Searching fixes; indexed items can now control how they're sorted.
+
 0.5.15 (2006-09-20):
   - Fulltext indexer doesn't use stopwords now, and adds all other fields
     to the 'text' part of the document also.
