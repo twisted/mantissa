@@ -25,40 +25,65 @@ Mantissa.Test.UserInfoSignup.methods(
         // doesn't prevent it from being submittable.
         var f = self.childWidgets[0];
         var button = f.nodeByAttribute("name", "__submit__");
-        f.node.firstName.focus();
         f.node.firstName.value = "Fred";
         f.node.firstName.onkeyup();
-        f.node.lastName.focus();
+        f.node.firstName.onblur();
         f.node.lastName.value = "Foobar";
         f.node.lastName.onkeyup();
-        f.node.username.focus();
+        f.node.lastName.onblur();
+        f.node.username.onfocus();
         // this is the onkeyup for the username field --
         // doing this by hand to get at the deferred
-        Nevow.Athena.Widget.get(f.node.username).verifyUsernameAvailable(
+        return Nevow.Athena.Widget.get(f.node.username).verifyUsernameAvailable(
             f.node.username).addCallback(function(x) {
-                    f.node.password.focus();
                     f.node.password.value = "x";
                     f.node.password.onkeyup();
-                    f.node.confirmPassword.focus();
+                    f.node.password.onblur();
                     f.node.confirmPassword.value = "foobaz";
                     f.node.confirmPassword.onkeyup();
+                    f.node.confirmPassword.onblur();
                     // The password is invalid and there's no email address.
                     // The form shouldn't be submittable.
                     self.assertEquals(f.submitButton.disabled, true);
-                    f.node.emailAddress.focus();
                     f.node.emailAddress.value = "fred@example.com";
                     f.node.emailAddress.onkeyup();
+                    f.node.emailAddress.onblur();
                     // The password is still invalid, so still not ready
                     self.assertEquals(f.submitButton.disabled, true);
                     f.node.password.value = "foobaz";
                     f.node.password.onkeyup();
-                    // Gotta visit the confirm-password field again to
-                    // get it to realize everything is OK now
-                    f.node.confirmPassword.onkeyup();
+                    f.node.password.onblur();
+
+                    /*
+                     * XXX - I think this is a bug.  You shouldn't have to
+                     * revisit the confirm field if the value just entered into
+                     * the password field already matches it.
+                     */
+                    f.node.confirmPassword.onblur();
+
                     // The password is now valid and all the fields are filled.
                     // It should be ready to submit.
                     self.assertEquals(f.submitButton.disabled, false);
                 });
+    });
+Mantissa.Test.SignupLocalpartValidation = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.SignupLocalpartValidation');
+Mantissa.Test.SignupLocalpartValidation.methods(
+    /*
+     * Ensure that the username is a valid email localpart, even if
+     * the firstname and lastname it's generated from contain invalid
+     * characters.
+     */
+    function test_validLocalpart(self) {
+        var f = self.childWidgets[0];
+        var button = f.nodeByAttribute("name", "__submit__");
+        f.node.firstName.value = "Fred@Home";
+        f.node.firstName.onkeyup();
+        f.node.firstName.onblur();
+        f.node.lastName.value = "Foo bar";
+        f.node.lastName.onkeyup();
+        f.node.lastName.onblur();
+        f.node.username.onfocus();
+	self.assertEquals(f.node.username.value, "fred_home.foo_bar");
     });
 
 Mantissa.Test.Text = Mantissa.Test.Forms.subclass('Mantissa.Test.Text');

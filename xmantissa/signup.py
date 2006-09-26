@@ -34,6 +34,8 @@ from xmantissa.webapp import PrivateApplication
 from xmantissa.offering import getInstalledOfferings
 from xmantissa import plugins, liveform
 from xmantissa.websession import PersistentSession
+from xmantissa.smtp import parseAddress
+from xmantissa.error import ArgumentError
 
 class PasswordResetResource(Page):
     """
@@ -540,6 +542,13 @@ class UserInfoSignup(Item, PrefixURLMixin):
         Check to see if a username is available for the user to select.
         """
         if len(username) < 2:
+            return False
+        for char in "[ ,:;<>@()!\"'%&\\|\t\b":
+            if char in username:
+                return False
+        try:
+            parseAddress("<%s@%s>" % (username, domain))
+        except ArgumentError:
             return False
         return not bool(self.store.query(userbase.LoginMethod,
                                          AND(userbase.LoginMethod.localpart == username,

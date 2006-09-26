@@ -131,8 +131,16 @@ class UnguardedWrapper(SiteRootMixin):
         self.guardedRoot = guardedRoot
 
     def locateChild(self, ctx, segments):
+        request = inevow.IRequest(ctx)
         if segments[0] == 'login':
-            return LoginPage(self, self.installedOn), segments[1:]
+
+            if not request.isSecure():
+                url = URL.fromContext(ctx)
+                newurl = url.secure(port=inevow.IResource(
+                    self.installedOn).securePort.getHost().port)
+                return newurl.click("/login"), ()
+            else:
+                return LoginPage(self, self.installedOn), segments[1:]
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x
