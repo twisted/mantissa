@@ -168,16 +168,6 @@ class SignupCreationTestCase(unittest.TestCase):
         self.assertEquals(self.ftb.endowed, 1)
 
 
-    def testUserInfoSignupValidation(self):
-        """
-        Ensure that invalid characters aren't allowed in usernames.
-        """
-        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
-        self.assertEquals(signup.usernameAvailable(u'foo bar', u'localhost'),
-                          False)
-        self.assertEquals(signup.usernameAvailable(u'foo@bar', u'localhost'),
-                          False)
-
     def test_freeSignupsList(self):
         """
         Test that if we produce 3 different publicly accessible signups, we get

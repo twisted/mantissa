@@ -11,7 +11,7 @@ from axiom.attributes import AND
 from xmantissa import website, webadmin, publicweb, stats
 
 from epsilon.asplode import splode
-from epsilon.scripts import certcreate
+
 
 def gtpswd(prompt, confirmPassword):
     """
@@ -66,24 +66,12 @@ class Mantissa(axiomatic.AxiomaticCommand):
         s.transact(self.installAdmin, s, adminUser, adminPassword)
 
     def installSite(self, s, publicURL):
-        certPath = s.dbdir.child("server.pem")
-        if not certPath.exists():
-            certcreate.main(['--filename', certPath.path])
         # Install a user database so that people can log in.
         s.findOrCreate(userbase.LoginSystem).installOn(s)
 
         # Install an HTTP server and root resource so we have some way
         # to access it through the web: point it at port 8080.
-        s.findOrCreate(website.WebSite, lambda ws: (setattr(ws,
-                                                            'portNumber',
-                                                            8080),
-                                                    setattr(ws,
-                                                            'securePortNumber',
-                                                            8443),
-                                                    setattr(ws,
-                                                            'certificateFile',
-                                                            certPath.path))
-                       ).installOn(s)
+        s.findOrCreate(website.WebSite, lambda ws: setattr(ws, 'portNumber', 8080)).installOn(s)
 
         # Install static resources required for DeveloperApplication
         # below.  This is installed 'sessionlessly', meaning for

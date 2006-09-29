@@ -3,10 +3,10 @@ import socket
 
 from twisted.trial import unittest
 from twisted.application import service
-from twisted.web import http, client
+from twisted.web import http
 
 from nevow.flat import flatten
-from nevow.testutil import FakeRequest
+
 from epsilon.scripts import certcreate
 
 from axiom import store, userbase
@@ -185,21 +185,3 @@ class WebSiteTestCase(unittest.TestCase):
 
         self.assertEqual(ws.port, None)
         self.failIfEqual(ws.securePort, None)
-
-
-
-    def testOnlySecureLogin(self):
-        certfile = self.mktemp()
-        certcreate.main(['--filename', certfile])
-
-        ws = website.WebSite(store=self.store,
-                             portNumber=0,
-                             securePortNumber=0,
-                             certificateFile=certfile)
-        ws.installOn(self.store)
-
-        portNum = ws.port.getHost().port
-        securePortNum = ws.securePort.getHost().port
-
-        url, _ = ws.site.resource.locateChild(FakeRequest(), "login")
-        self.assertEquals(url.scheme, "https")
