@@ -48,12 +48,23 @@ Mantissa.Validate.SignupForm.methods(
         });
         return d;
     },
-
+    function mangleToLocalpart(self, txt) {
+        /**
+         * Replace any character not allowed in an email localpart
+         * with an underscore.
+         */
+        return txt.replace(/[ !%&\(\),:;<>\\\|@]/g, '_').toLowerCase();
+    },
     function defaultUsername(self, inputnode) {
+        /**
+         * Create a username based on the first and last names entered.
+         */
         if (inputnode.value.length == 0) {
-            inputnode.value = (self.nodeByAttribute("name", "firstName").value.toLowerCase()
-                               + '.' +
-                               self.nodeByAttribute("name", "lastName").value.toLowerCase());
+            inputnode.value = (self.mangleToLocalpart(
+                              self.nodeByAttribute("name", "firstName").value)
+                              + '.' +
+                              self.mangleToLocalpart(
+                              self.nodeByAttribute("name", "lastName").value));
         }
     },
     function verifyNotEmpty(self, inputnode) {
