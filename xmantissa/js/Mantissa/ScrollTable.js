@@ -609,8 +609,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * @return: The object to put into the DOM for this value.
      */
     function massageColumnValue(self, columnName, columnType, columnValue) {
+        var tzoff = (new Date()).getTimezoneOffset() * 60;
         if(columnType == 'timestamp') {
-            return self.formatDate(new Date(columnValue * 1000));
+            return self.formatDate(new Date((columnValue - tzoff) * 1000));
         }
 	if(columnValue ==  null) {
             return '';
