@@ -53,3 +53,29 @@ class PreferencesTestCase(TestCase):
         coll.preferredWidget = u'Bar'
 
         self.assertEqual(agg.getPreferenceValue('preferredWidget'), 'Bar')
+
+
+    def testGetPreferences(self):
+        """
+        Test that L{prefs.PreferenceCollectionMixin.getPreferences} works
+        """
+        class TrivialPreferenceCollection(prefs.PreferenceCollectionMixin):
+            foo = 'bar'
+            def getPreferenceParameters(self):
+                return (liveform.Parameter('foo', liveform.TEXT_INPUT, str),)
+
+        self.assertEqual(TrivialPreferenceCollection().getPreferences(),
+                         {'foo': 'bar'})
+
+
+    def testGetPreferencesNone(self):
+        """
+        Test that L{prefs.PreferenceCollectionMixin.getPreferences} does the
+        right thing when the preference collection returns None from
+        C{getPreferenceParameters}
+        """
+        class TrivialPreferenceCollection(prefs.PreferenceCollectionMixin):
+            def getPreferenceParameters(self):
+                return None
+
+        self.assertEqual(TrivialPreferenceCollection().getPreferences(), {})

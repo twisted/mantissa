@@ -28,7 +28,7 @@ class PreferenceCollectionMixin:
         # this is basically a hack so that PreferenceAggregator can
         # continue work in a similar way
         d = {}
-        for param in self.getPreferenceParameters():
+        for param in self.getPreferenceParameters() or ():
             d[param.name] = getattr(self, param.name)
         return d
 
