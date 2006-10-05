@@ -1,11 +1,31 @@
-from nevow import rend, livepage, athena, tags, inevow
+from nevow import rend, livepage, athena, tags, inevow, url
 
 from xmantissa.webtheme import getLoader, getInstalledThemes, rewriteDOMToRewriteURLs
 
 class PublicPageMixin(object):
+    """
+    Mixin for use by C{Page} or C{LivePage} subclasses that are
+    visible to unauthenticated clients.
+
+    @ivar needsSecure: whether this page requires SSL to be rendered.
+    """
     fragment = None
     title = ''
     username = None
+    needsSecure = False
+
+    def renderHTTP(self, ctx):
+        """
+        Issue a redirect to an HTTPS URL for this resource if one
+        exists and the page demands it.
+        """
+        req = inevow.IRequest(ctx)
+        securePort = inevow.IResource(self.store).securePort
+        if self.needsSecure and not req.isSecure() and securePort is not None:
+            return url.URL.fromContext(
+                ctx).secure(port=securePort.getHost().port)
+        else:
+            return super(PublicPageMixin, self).renderHTTP(ctx)
 
     def render_navigation(self, ctx, data):
         return ""

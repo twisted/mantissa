@@ -530,10 +530,12 @@ class UserInfoSignup(Item, PrefixURLMixin):
     prefixURL = text(allowNone=False)
 
     def createResource(self):
-        return PublicAthenaLivePage(
+        page = PublicAthenaLivePage(
             self.store,
             ValidatingSignupForm(self),
             IStaticShellContent(self.store, None))
+        page.needsSecure = True
+        return page
 
     # UserInfoSignup
 

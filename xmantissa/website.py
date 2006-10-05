@@ -131,12 +131,29 @@ class UnguardedWrapper(SiteRootMixin):
         self.guardedRoot = guardedRoot
 
     def locateChild(self, ctx, segments):
+        request = inevow.IRequest(ctx)
         if segments[0] == 'login':
-            return LoginPage(self, self.installedOn), segments[1:]
+            securePort = inevow.IResource(self.installedOn).securePort
+            if not request.isSecure() and securePort is not None:
+                url = URL.fromContext(ctx)
+                newurl = url.secure(port=securePort.getHost().port)
+                return newurl.click("/login"), ()
+            else:
+                return LoginPage(self, self.installedOn), segments[1:]
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x
-        return self.guardedRoot.locateChild(ctx, segments)
+        def maybeSecure((child, segments)):
+            if getattr(child, 'needsSecure', None):
+                request = inevow.IRequest(ctx)
+                if not request.isSecure():
+                    url = URL.fromContext(ctx)
+                    newurl = url.secure(port=inevow.IResource(
+                        self.installedOn).securePort.getHost().port)
+                    return newurl.click('/'.join(segments)), ()
+            return child, segments
+        return defer.maybeDeferred(self.guardedRoot.locateChild, ctx, segments
+                                   ).addCallback(maybeSecure)
 
 
 JUST_SLASH = ('',)
