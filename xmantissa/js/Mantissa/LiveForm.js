@@ -105,18 +105,42 @@ Mantissa.LiveForm.FormWidget.methods(
         return d;
     },
 
-    function showProgressMessage(self) {
-        var pm = self.nodeByAttribute("class", "progress-message", null);
-        if (pm !== null) {
-            pm.style.display = 'block';
+    /**
+     * Try to find the first node with class=C{className}, and display it as a
+     * block element if we find it
+     */
+    function _showMessage(self, className) {
+        var m = self.nodeByAttribute("class", className, null);
+        if(m != null) {
+            m.style.display = "block";
         }
     },
 
-    function hideProgressMessage(self) {
-        var pm = self.nodeByAttribute("class", "progress-message", null);
-        if (pm !== null) {
-            pm.style.display = 'none';
+    /**
+     * Try to find the first node with class=C{className}, and hide it if we
+     * find it
+     */
+    function _hideMessage(self, className) {
+        var m = self.nodeByAttribute("class", className, null);
+        if(m != null) {
+            m.style.display = "none";
         }
+    },
+
+    function showProgressMessage(self) {
+        self._showMessage("progress-message");
+    },
+
+    function hideProgressMessage(self) {
+        self._hideMessage("progress-message");
+    },
+
+    function showSuccessMessage(self) {
+        self._showMessage("success-message");
+    },
+
+    function hideSuccessMessage(self) {
+        self._hideMessage("success-message");
     },
 
     function submitSuccess(self, result) {
@@ -141,7 +165,14 @@ Mantissa.LiveForm.FormWidget.methods(
         }
         succm.appendChild(document.createTextNode(resultstr));
 
-        return self.runFader(Mantissa.LiveForm.MessageFader(succm));
+        self.showSuccessMessage();
+        var deferred = Divmod.Defer.Deferred();
+        setTimeout(
+            function() {
+                self.hideSuccessMessage();
+                deferred.callback(null);
+            }, 800);
+        return deferred;
     },
 
     // Not the best factoring, but we use this as a hook in
