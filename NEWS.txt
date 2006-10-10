@@ -1,3 +1,6 @@
+0.5.17 (2006-10-05):
+  - Login and signup are now done over HTTPS when available.
+
 0.5.16 (2006-09-26):
   - Signup form now generates valid email localparts for usernames, and
     doesn't allow invalid usernames to be submitted.
