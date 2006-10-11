@@ -565,59 +565,6 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
     },
 
     /**
-     * Test that the the scrolltable's empty() method removes all row nodes
-     * and empties the model
-     */
-    function test_empty(self) {
-        return self.setUp('empty').addCallback(
-            function() {
-                self.scrollingWidget.empty();
-                self.assertEqual(
-                    self.scrollingWidget._scrollViewport.childNodes.length, 0);
-                self.assertEqual(
-                    self.scrollingWidget.model.rowCount(), 0);
-            });
-    },
-
-    /**
-     * Test that the scrolltable's refill method refills an empty scrolltable,
-     * and creates as many placeholder rows as there are rows in the model
-     */
-     function test_refill(self) {
-        var assertChildNodeCount = function(count) {
-            self.assertEqual(
-                self.scrollingWidget._scrollViewport.childNodes.length, count);
-        }
-        var makeTestCallback = function(rowCount) {
-            return function() {
-                self.scrollingWidget.empty();
-                return self.callRemote('changeRowCount', 'refill', rowCount).addCallback(
-                    function() {
-                        return self.scrollingWidget.refill();
-                }).addCallback(
-                    function() {
-                        assertChildNodeCount(rowCount);
-                });
-            }
-        }
-
-        var D = self.setUp('refill');
-
-        D.addCallback(function() {
-            assertChildNodeCount(10);
-        });
-
-        var rowCounts = [4, 40, 4];
-
-        for(var i = 0; i < rowCounts.length; i++) {
-            D.addCallback(makeTestCallback(rowCounts[i]));
-        }
-
-        return D;
-    },
-
-
-    /**
      * Test that removing a row from a ScrollingWidget removes it from the
      * underlying model and removes the display nodes associated with it from
      * the document.  The nodes of rows after the removed row should also have
@@ -634,9 +581,9 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
                 self.assertEqual(nextRow.__id__, movedRow.__id__);
                 self.assertEqual(removedRow.__node__.parentNode, null);
 
-                var viewport = self.scrollingWidget._scrollViewport;
-                self.assertEqual(viewport.childNodes[0], firstRow.__node__);
-                self.assertEqual(viewport.childNodes[1], movedRow.__node__);
+                self.assertEqual(
+                    parseInt(firstRow.__node__.style.top) + self.scrollingWidget._rowHeight,
+                    parseInt(movedRow.__node__.style.top));
             });
         return result;
     }
