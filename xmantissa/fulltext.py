@@ -162,7 +162,7 @@ class RemoteIndexer(item.InstallableMixin):
 
 
     # ISearchProvider
-    def search(self, aString, keywords=None, count=None, offset=None, retry=3):
+    def search(self, aString, keywords=None, count=None, offset=0, retry=3):
         ident = "%s/%d" % (self.store, self.storeID)
         b = iaxiom.IBatchService(self.store)
         if VERBOSE:
@@ -179,11 +179,17 @@ class RemoteIndexer(item.InstallableMixin):
             results = idx.search(aString.encode('utf-8'), keywords)
             if VERBOSE:
                 log.msg("%s found %d results" % (ident, len(results)))
-            if count is not None and offset is not None:
-                results = results[offset:offset + count]
-                if VERBOSE:
-                    log.msg("%s sliced from %s to %s, leaving %d results" % (
-                            ident, offset, offset + count, len(results)))
+
+            if count is None:
+                end = None
+            else:
+                end = offset + count
+
+            results = results[offset:end]
+
+            if VERBOSE:
+                log.msg("%s sliced from %s to %s, leaving %d results" % (
+                        ident, offset, end, len(results)))
             return results
 
         d.addCallback(reallySearch)
@@ -360,15 +366,7 @@ class _PyLuceneHitsWrapper(record('index hits')):
         slices.
         """
         if isinstance(index, slice):
-            start = min(index.start, len(self) - 1)
-            if index.stop is None:
-                if index.step == -1:
-                    stop = -1
-                else:
-                    stop = len(self) - 1
-            else:
-                stop = min(index.stop, len(self) - 1)
-            return [self[i] for i in xrange(start, stop, index.step)]
+            return [self[i] for i in xrange(*index.indices(len(self)))]
         if index >= len(self.hits):
             raise IndexError(index)
         return int(self.hits[index]['storeID'])

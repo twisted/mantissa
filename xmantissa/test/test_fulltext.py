@@ -2,8 +2,10 @@
 from zope.interface import implements
 
 from twisted.trial import unittest
+from twisted.application.service import IService
 
 from axiom import iaxiom, store, batch, item, attributes
+from axiom.userbase import LoginSystem
 from axiom.scheduler import Scheduler
 
 from xmantissa import ixmantissa, fulltext
@@ -411,7 +413,6 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(list(reader.search(u'ok')),
                           list(sorted(keys)))
 
-
 class CorruptionRecoveryMixin(IndexerTestsMixin):
     def corruptIndex(self):
         raise NotImplementedError()
@@ -496,17 +497,25 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
 
 
 
-class HypeFulltextTestCase(FulltextTestsMixin, unittest.TestCase):
-    skip = "These tests don't actually pass - and I don't even care."
+class HypeTestsMixin:
     def createIndexer(self):
         return fulltext.HypeIndexer(store=self.store, indexDirectory=self.path)
 
 
 
-class XapianFulltextTestCase(FulltextTestsMixin, unittest.TestCase):
+class HypeFulltextTestCase(HypeTestsMixin, FulltextTestsMixin, unittest.TestCase):
     skip = "These tests don't actually pass - and I don't even care."
+
+
+
+class XapianTestsMixin:
     def createIndexer(self):
         return fulltext.XapianIndexer(store=self.store, indexDirectory=self.path)
+
+
+
+class XapianFulltextTestCase(XapianTestsMixin, FulltextTestsMixin, unittest.TestCase):
+    skip = "These tests don't actually pass - and I don't even care."
 
 
 
@@ -643,3 +652,99 @@ class PyLuceneObjectLifetimeTestCase(unittest.TestCase):
         self.failIf(index.closed)
         del wrapper
         self.failUnless(index.closed)
+
+
+class IndexerAPISearchTestsMixin(IndexerTestsMixin):
+    """
+    Test ISearchProvider search API on indexer objects
+    """
+
+    def setUp(self):
+        """
+        Make a store, an account/substore, an indexer, and call startService()
+        on the superstore's IService so the batch process interactions that
+        happen in fulltext.py work
+        """
+        self.dbdir = self.mktemp()
+        self.path = u'index'
+
+        superstore = store.Store(self.dbdir)
+
+        loginSystem = LoginSystem(store=superstore)
+        loginSystem.installOn(superstore)
+
+        account = loginSystem.addAccount(u'testuser', u'example.com', None)
+        substore = account.avatars.open()
+
+        self.store = substore
+        self.indexer = self.createIndexer()
+
+        self.svc = IService(superstore)
+        self.svc.startService()
+
+    def tearDown(self):
+        """
+        Stop the service we started in C{setUp}
+        """
+        return self.svc.stopService()
+
+    def _indexSomeItems(self):
+        writer = self.openWriteIndex()
+        for i in xrange(5):
+            writer.add(IndexableThing(
+                        _documentType=u'thing',
+                        _uniqueIdentifier=unicode(i),
+                        _textParts=[u'text'],
+                        _keywordParts={}))
+        writer.close()
+
+    def testIndexerSearching(self):
+        """
+        Test calling search() on the indexer item directly
+        """
+        def gotResult(res):
+            self.assertEquals(list(res), range(5))
+        self._indexSomeItems()
+        return self.indexer.search(u'text').addCallback(gotResult)
+
+    def testIndexerSearchingCount(self):
+        """
+        Test calling search() on the indexer item directly, with a count arg
+        """
+        def gotResult(res):
+            self.assertEquals(list(res), [0])
+        self._indexSomeItems()
+        return self.indexer.search(u'text', count=1).addCallback(gotResult)
+
+    def testIndexerSearchingOffset(self):
+        """
+        Test calling search() on the indexer item directly, with an offset arg
+        """
+        def gotResult(res):
+            self.assertEquals(list(res), [1, 2, 3, 4])
+        self._indexSomeItems()
+        return self.indexer.search(u'text', offset=1).addCallback(gotResult)
+
+    def testIndexerSearchingCountOffset(self):
+        """
+        Test calling search() on the indexer item directly, with count & offset args
+        """
+        def gotResult(res):
+            self.assertEquals(list(res), [1, 2, 3])
+        self._indexSomeItems()
+        return self.indexer.search(u'text', count=3, offset=1)
+
+
+
+class PyLuceneIndexerAPISearchTestCase(PyLuceneTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
+    pass
+
+
+
+class  HypeIndexerAPISearchTestCase(HypeTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
+    skip = "These tests don't actually pass - and I don't even care."
+
+
+
+class XapianIndexerAPISearchTestCase(XapianTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
+    skip = "These tests don't actually pass - and I don't even care."

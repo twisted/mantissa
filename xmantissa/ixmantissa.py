@@ -71,7 +71,7 @@ class ISearchProvider(Interface):
         (unprocessed) search string
         """
 
-    def search(term, keywords=None, count=None, offset=None):
+    def search(term, keywords=None, count=None, offset=0):
         """
         Query for items which contain the given term.
 
@@ -80,7 +80,7 @@ class ISearchProvider(Interface):
         field contents.  Search results will be limited to documents with
         fields of these names containing these values.
         @type count: C{int} or C{NoneType}
-        @type offset: C{int} or C{NoneType}
+        @type offset: C{int}, default is 0
 
         @rtype: L{twisted.internet.defer.Deferred}
         @return: a Deferred which will fire with an iterable of
