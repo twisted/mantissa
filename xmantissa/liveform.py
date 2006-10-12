@@ -50,7 +50,7 @@ class ChoiceParameter(record('name choices label description multiple',
 
     def coercer(self, value):
         if self.multiple:
-            return tuple(self.choices[int(v[0])][1] for v in value)
+            return tuple(self.choices[int(v)][1] for v in value)
         return self.choices[int(value)][1]
 
 TEXT_INPUT = 'text'

@@ -173,3 +173,51 @@ class Traverse(testcase.TestCase):
                                 )])
         f.setFragmentParent(self)
         return f
+
+class SetInputValues(testcase.TestCase):
+    jsClass = u'Mantissa.Test.SetInputValues'
+
+    def submit(self, choice, choiceMult, text, textArea, checkbox):
+        """
+        Assert that all input values have been reversed/inverted
+        """
+        self.assertEqual(choice, 1)
+        self.assertEqual(choiceMult, (2, 3))
+        self.assertEqual(text, 'dlrow olleh')
+        self.assertEqual(textArea, '2 dlrow olleh')
+        self.failIf(checkbox)
+
+    def getWidgetDocument(self):
+        """
+        Make a LiveForm with one of each kind of input, except for radio
+        buttons, since with the current liveform support for them it's
+        difficult to use them with a single form, and it's not so important to
+        do anything else right now
+        """
+        f = liveform.LiveForm(
+                self.submit,
+                (liveform.ChoiceParameter(
+                    'choice',
+                    (('0', 0, True), ('1', 1, False))),
+                 liveform.ChoiceParameter(
+                     'choiceMult',
+                     (('0', 0, True),  ('1', 1, True),
+                      ('2', 2, False), ('3', 3, False)),
+                     multiple=True),
+                 liveform.Parameter(
+                    'text',
+                    liveform.TEXT_INPUT,
+                    unicode,
+                    default=u'hello world'),
+                 liveform.Parameter(
+                     'textArea',
+                     liveform.TEXTAREA_INPUT,
+                     unicode,
+                     default=u'hello world 2'),
+                 liveform.Parameter(
+                     'checkbox',
+                     liveform.CHECKBOX_INPUT,
+                     bool,
+                     default=True)))
+        f.setFragmentParent(self)
+        return f

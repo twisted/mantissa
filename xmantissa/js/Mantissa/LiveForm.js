@@ -7,6 +7,40 @@
 
 // import Mantissa
 
+Mantissa.LiveForm.BadInputName = Divmod.Error.subclass("Mantissa.LiveForm.BadInputName");
+/**
+ * Thrown when there is an input name passed to one of L{FormWidget}'s methods
+ * doesn't correspond to an input in the widget's document
+ */
+Mantissa.LiveForm.BadInputName.methods(
+    function __init__(self, name) {
+        self.name = name;
+    },
+
+    function toString(self) {
+        return "no element with name " + self.name;
+    });
+
+Mantissa.LiveForm.NodeCountMismatch = Divmod.Error.subclass("Mantissa.LiveForm.NodeCountMismatch");
+/**
+ * Thrown where there is a mismatch between the number of values in one of the
+ * input lists passed to L{FormWidget.setInputValues} and the number of actual
+ * nodes in the document for that key
+ */
+Mantissa.LiveForm.NodeCountMismatch.methods(
+    function __init__(self, nodeName, givenNodes, actualNodes) {
+        self.nodeName = nodeName;
+        self.givenNodes = givenNodes;
+        self.actualNodes = actualNodes;
+    },
+
+    function toString(self) {
+        return "you supplied " + self.givenNodes +
+               " values for input " + self.nodeName +
+               " but there are " + self.actualNodes +
+               " nodes";
+    });
+
 Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.FormWidget');
 Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.Platform.DOM_DESCEND;
 Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.Platform.DOM_CONTINUE;
@@ -202,31 +236,68 @@ Mantissa.LiveForm.FormWidget.methods(
     },
 
     /**
-     * Returns a list of input nodes.
+     * Helper function which returns an object with C{get} and C{set} members
+     * for getting and setting the value(s) of a <select> element.  For a
+     * <select> with single selection, the return value of C{get} and the
+     * argument passed to C{set} will be atoms.  For multiple-select nodes,
+     * they will be lists.  For multiple-select nodes, it will unselect all
+     * selected <option> nodes whose values aren't in the list it is passed.
      */
-    function gatherInputs(self) {
-        var inputs = {};
-
-        var pushOneValue = function(name, value) {
-            if (inputs[name] == undefined) {
-                inputs[name] = [];
-            }
-            // Divmod.log("inputs", "adding input: " + name + " = " + value);
-            inputs[name].push(value);
-        };
-
-        // First we gather our widget children.
-        for (var i = 0; i < self.childWidgets.length; i++) {
-            var wdgt = self.childWidgets[i];
-            if ((wdgt.getFormName != undefined)
-                && (wdgt.gatherInputs != undefined)) {
-                var inputname = wdgt.getFormName();
-                pushOneValue(inputname, wdgt.gatherInputs());
+    function _getAccessorsForSelectNode(self, aNode) {
+        var set = function(values) {
+            values = Divmod.objectify(values, values);
+            for(var i = 0; i < aNode.options.length; i++) {
+                aNode.options[i].selected = (aNode.options[i].value in values);
             }
         }
 
-        // Now we go after some nodes.
-        self.traverse(function (aNode) {
+        if (aNode.type == 'select-one') {
+            return {get: function() {
+                        return aNode.value
+                    },
+                    set: function(value) {
+                        set([value]);
+                    }};
+        }
+
+        var get = function() {
+            var values = [];
+            for (var i = 0; i < aNode.options.length; i++) {
+                if (aNode.options[i].selected) {
+                    values.push(aNode.options[i].value);
+                }
+            }
+            return values;
+        }
+
+        return {get: get, set: set};
+    },
+
+    /**
+     * Gather all form input nodes below C{self.node}, without traversing into
+     * child widgets.  "Form input nodes" means <input>, <textarea> and
+     * <select>
+     *
+     * @return: mapping of node names to arrays of objects with C{get} and
+     * C{set} members, where C{get} is thunk which returns the value of the
+     * node, and C{set} is a one argument function which changes the value of
+     * the node
+     */
+    function gatherInputAccessors(self) {
+        var makeAttributeAccessors = function(attr, node) {
+            return {get: function() { return node[attr] },
+                    set: function(v) { node[attr] = v }};
+        }
+        var accessors = {};
+        var pushAccessors = function(node, accs) {
+            if (accessors[node.name] == undefined) {
+                accessors[node.name] = [];
+            }
+            accessors[node.name].push(accs);
+        }
+
+        self.traverse(
+            function(aNode) {
                 if (aNode === self.node) {
                     return Mantissa.LiveForm.FormWidget.DOM_DESCEND;
                 }
@@ -240,36 +311,18 @@ Mantissa.LiveForm.FormWidget.methods(
                         if (aNode.tagName.toLowerCase() == 'input') {
                             // It's an input
 
+                            var attr = 'value';
                             // If it's a checkbox or radio, we care about its
                             // checked-ness.
-                            var aValue = null;
-                            if (aNode.type.toLowerCase() == 'checkbox') {
-                                aValue = aNode.checked;
-                            } else if (aNode.type.toLowerCase() == 'radio') {
-                                aValue = aNode.checked;
-                            } else {
-                                aValue = aNode.value;
+                            if (aNode.type.toLowerCase() == 'checkbox' ||
+                                aNode.type.toLowerCase() == 'radio') {
+                                attr = 'checked';
                             }
-                            pushOneValue(aNode.name, aValue);
+                            pushAccessors(aNode, makeAttributeAccessors(attr, aNode));
                         } else if (aNode.tagName.toLowerCase() == 'textarea') {
-                            /* It's also an input, just not an input input.
-                             * Replace CRLF with LF so line-endings are
-                             * uniform across operating systems */
-                            var aValue = aNode.value.replace(/\r\n/g, "\n");
-                            pushOneValue(aNode.name, aValue);
+                            pushAccessors(aNode, makeAttributeAccessors('value', aNode));
                         } else if (aNode.tagName.toLowerCase() == 'select') {
-                            if (aNode.type == 'select-one') {
-                                pushOneValue(aNode.name, aNode.value);
-                            } else {
-                                // If multiple values can be selected, get them
-                                var values = [];
-                                for (var i = 0; i < aNode.options.length; i++) {
-                                    if (aNode.options[i].selected) {
-                                        values.push(aNode.options[i].value);
-                                    }
-                                }
-                                pushOneValue(aNode.name, values);
-                            }
+                            pushAccessors(aNode, self._getAccessorsForSelectNode(aNode));
                         } else {
                             // Examine the children, since it is some
                             // other kind of element.
@@ -284,5 +337,81 @@ Mantissa.LiveForm.FormWidget.methods(
                     return Mantissa.LiveForm.FormWidget.DOM_DESCEND;
                 }
             });
+        return accessors;
+    },
+
+    /**
+     * Returns a mapping of input node names to arrays of input node values
+     */
+    function gatherInputs(self) {
+        var inputs = {};
+
+        var pushOneValue = function(name, value) {
+            if (inputs[name] == undefined) {
+                inputs[name] = [];
+            }
+            inputs[name].push(value);
+        };
+
+        // First we gather our widget children.
+        for (var i = 0; i < self.childWidgets.length; i++) {
+            var wdgt = self.childWidgets[i];
+            if ((wdgt.getFormName != undefined)
+                    && (wdgt.gatherInputs != undefined)) {
+                var inputname = wdgt.getFormName();
+                pushOneValue(inputname, wdgt.gatherInputs());
+            }
+        }
+
+        var accessors = self.gatherInputAccessors();
+        for(var nodeName in accessors) {
+            for(i = 0; i < accessors[nodeName].length; i++) {
+                pushOneValue(nodeName, accessors[nodeName][i].get());
+            }
+        }
         return inputs;
+    },
+
+    /**
+     * Set the values of inputs whose names are keys in C{valueMap} to the
+     * corresponding values.  Values should be lists, where the length of each
+     * list is the same as the number of elements.  e.g.:
+     *
+     * >>> setInputValues({foo: [1, 2]})
+     *
+     * will set the first element with name="foo" to 1 and the second to 2.
+     *
+     * for multiple-select <select>s, the values should be lists of more
+     * values:
+     *
+     * >>> setInputValues({foo: [["bar", "baz"]]})
+     *
+     * will select the <option>s inside the first (and only)
+     * <select name="foo" /> which have value="bar" & value="baz"
+     *
+     * @param valueMap: mapping of input node names to values
+     *
+     * @raises L{Mantissa.LiveForm.BadInputName}: if a key in C{valueMap}
+     * doesn't correspond to an input element of this form
+     *
+     * @raises L{Mantissa.LiveForm.NodeCountMismatch}: if the number of values
+     * given for an input name doesn't match the number of inputs with that
+     * name
+     */
+    function setInputValues(self, valueMap) {
+        var i, accessors = self.gatherInputAccessors();
+        for(var nodeName in valueMap) {
+            if(accessors[nodeName] === undefined) {
+                throw Mantissa.LiveForm.BadInputName(nodeName);
+            }
+            if(accessors[nodeName].length != valueMap[nodeName].length) {
+                throw Mantissa.LiveForm.NodeCountMismatch(
+                        nodeName,
+                        valueMap[nodeName].length,
+                        accessors[nodeName].length);
+            }
+            for(i = 0; i < accessors[nodeName].length; i++) {
+                accessors[nodeName][i].set(valueMap[nodeName][i]);
+            }
+        }
     });
