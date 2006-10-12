@@ -53,3 +53,22 @@ class PasswordResetTestCase(TestCase):
         self.assertEqual(
             self.reset.accountByAddress(u'joe@divmod.com'),
             self.loginSystem.accountByAddress(u'joe', u'divmod.com'))
+
+    def testHandleRequest(self):
+        """
+        Test that we correctly handle the request when we find a user and
+        when we don't.
+        """
+        def myFunc(url, attempt):
+            myFunc.emailsSent += 1
+            myFunc.url = url
+            myFunc.attempt = attempt
+        myFunc.emailsSent = 0
+        self.reset._sendEmail=myFunc 
+        self.reset.handleRequestForUser(u'joe@divmod.com', 'http://oh.no/reset.html')
+        self.assertEquals(myFunc.emailsSent, 1)
+        self.assertEquals(myFunc.url, 'http://oh.no/reset.html')
+        self.assertEquals(myFunc.attempt.username, u'joe@divmod.com')
+        # Negative case. User does not exist. Email should not get sent
+        self.reset.handleRequestForUser(u'no_joe@divmod.com', 'http://oh.no/reset.html')
+        self.assertEquals(myFunc.emailsSent, 1)

@@ -64,7 +64,7 @@ class PasswordResetResource(Page):
         if req.method == 'POST':
             if 'username' in req.args:
                 user = unicode(req.args['username'][0], 'ascii')
-                self.handleRequestForUser(user)
+                self.handleRequestForUser(user, URL.fromContext(ctx))
                 self.docFactory = loaders.stan(tags.h1['Check your email'])
             else:
                 (password,) = req.args['password1']
@@ -76,20 +76,19 @@ class PasswordResetResource(Page):
 
         return Page.renderHTTP(self, ctx)
 
-    def handleRequestForUser(self, username):
+    def handleRequestForUser(self, username, url):
         """
         User C{username} wants to reset their password.  Create an attempt
         item, and send them an email if the username is valid
         """
-        att = self.newAttemptForUser(user)
-        if self.accountByAddress(user) is not None:
-            self._sendEmail(ctx, att)
+        att = self.newAttemptForUser(username)
+        if self.accountByAddress(username) is not None:
+            self._sendEmail(url, att)
         else:
             # do we want to disclose this to the user?
             pass
 
-    def _sendEmail(self, ctx, attempt):
-        url = URL.fromContext(ctx)
+    def _sendEmail(self, url, attempt):
         netloc = url.netloc.split(':')
         host = netloc.pop(0)
         if netloc:
