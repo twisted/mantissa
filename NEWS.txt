@@ -1,3 +1,7 @@
+0.5.18 (2006-10-10):
+  - Better looking scrolltables.
+  - Liveform success notification is now faster.
+
 0.5.17 (2006-10-05):
   - Login and signup are now done over HTTPS when available.
 
