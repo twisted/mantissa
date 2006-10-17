@@ -1,3 +1,10 @@
+0.5.19 (2006-10-17):
+  - Mantissa no longer depends on Xapian.
+  - Password reset link fixed.
+  - An API for setting liveform values from javascript has been added.
+  - Scrolltable has been reverted to the previous version for performance 
+    reasons.
+
 0.5.18 (2006-10-10):
   - Better looking scrolltables.
   - Liveform success notification is now faster.
