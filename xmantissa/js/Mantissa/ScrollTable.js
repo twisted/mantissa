@@ -31,7 +31,8 @@ Mantissa.ScrollTable.Action = Divmod.Class.subclass('Mantissa.ScrollTable.Action
  *                L{ScrollingWidget} the row was clicked in, the row that was
  *                clicked (a mapping of column names to values) and the result
  *                of the remote call that was made.  if not set, no action
- *                will be taken
+ *                will be taken.  Alternatively, you can subclass and override
+ *                L{handleSuccess}.
  *
  * @ivar icon: optional.  if set, then it will be used for the src attribute of
  *             an <IMG> element that will get placed inside the action link,
@@ -41,7 +42,7 @@ Mantissa.ScrollTable.Action.methods(
     function __init__(self, name, displayName, handler/*=undefined*/, icon/*=undefined*/) {
         self.name = name;
         self.displayName = displayName;
-        self.handler = handler;
+        self._successHandler = handler;
         self.icon = icon;
     },
 
@@ -57,12 +58,35 @@ Mantissa.ScrollTable.Action.methods(
     function enact(self, scrollingWidget, row) {
         var D = scrollingWidget.callRemote(
                     "performAction", self.name, row.__id__);
-        return D.addCallback(
+        return D.addCallbacks(
                 function(result) {
-                    if(self.handler) {
-                        return self.handler(scrollingWidget, row, result);
-                    }
+                    return self.handleSuccess(scrollingWidget, row, result);
+                },
+                function(err) {
+                    return self.handleFailure(scrollingWidget, row, err);
                 });
+    },
+
+    /**
+     * Called when the remote method successfully returns, with its result.
+     * Calls the function supplied as C{handler} to L{__init__}, if defined.
+     *
+     * First two arguments are the same as L{toNode}
+     */
+    function handleSuccess(self, scrollingWidget, row, result) {
+        if(self._successHandler) {
+            return self._successHandler(scrollingWidget, row, result);
+        }
+    },
+
+    /**
+     * Called when the remote method, or one of its callbacks throws an error.
+     * Displays an error dialog to the user.
+     *
+     * First two arguments are the same as L{toNode}
+     */
+    function handleFailure(self, scrollingWidget, row, err) {
+        scrollingWidget.showErrorDialog("performAction", err);
     },
 
     /**
@@ -85,6 +109,17 @@ Mantissa.ScrollTable.Action.methods(
             linkBody = self.displayName;
         }
         return MochiKit.DOM.A({onclick: onclick, href: "#"}, linkBody);
+    },
+
+    /**
+     * Called by L{Mantissa.ScrollTable.ScrollingWidget}.
+     *
+     * @type row: C{object}
+     * @return: boolean indicating whether this action should be enabled for
+     * C{row}
+     */
+    function enableForRow(self, row) {
+        return true;
     });
 
 Mantissa.ScrollTable.ScrollModel = Divmod.Class.subclass('Mantissa.ScrollTable.ScrollModel');
@@ -678,6 +713,22 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
+     * @type rowData: object
+     *
+     * @return: actions that are enabled for row C{rowData}
+     * @rtype: array of L{Mantissa.ScrollTable.Action} instances
+     */
+    function getActionsForRow(self, rowData) {
+        var enabled = [];
+        for(var i = 0; i < self.actions.length; i++) {
+            if(self.actions[i].enableForRow(rowData)) {
+                enabled.push(self.actions[i]);
+            }
+        }
+        return enabled;
+    },
+
+    /**
      * Make a node with some event handlers to perform actions on the row
      * specified by C{rowData}.
      *
@@ -686,9 +737,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * @return: A DOM node.
      */
     function _makeActionsCells(self, rowData) {
-        var actions = [];
-        for(var i = 0; i < self.actions.length; i++) {
-            actions.push(self.actions[i].toNode(self, rowData));
+        var actions = self.getActionsForRow(rowData);
+        for(var i = 0; i < actions.length; i++) {
+            actions[i] = actions[i].toNode(self, rowData);
         }
         var attrs = {"class": "scroll-cell"};
         if(self.columnWidths && "actions" in self.columnWidths) {

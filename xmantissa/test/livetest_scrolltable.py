@@ -42,7 +42,7 @@ class ScrollTableWidgetTestCase(TestCase):
     def getScrollingWidget(self, key):
         store = Store()
         PrivateApplication(store=store).installOn(store)
-        elements = [ScrollElement(store=store) for i in range(10)]
+        elements = [ScrollElement(store=store, column=i) for i in range(10)]
         columns = [ScrollElement.column]
         f = SequenceScrollingFragment(store, elements, columns)
         f.docFactory = getLoader(f.fragmentName)
@@ -54,7 +54,7 @@ class ScrollTableWidgetTestCase(TestCase):
 
     def changeRowCount(self, key, n):
         store, elements, fragment = self.perTestData[key]
-        elements[:] = [ScrollElement(store=store) for i in range(n)]
+        elements[:] = [ScrollElement(store=store, column=i) for i in range(n)]
     expose(changeRowCount)
 
 class ScrollTableActionsTestCase(ScrollTableWidgetTestCase):

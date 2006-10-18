@@ -679,9 +679,23 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
 
 
 
+Mantissa.Test.FrobAction = Mantissa.ScrollTable.Action.subclass("Mantissa.Test.FrobAction");
+/**
+ * Action which is only enabled for even numbered rows
+ */
+Mantissa.Test.FrobAction.methods(
+    function __init__(self) {
+        Mantissa.Test.FrobAction.upcall(
+            self, "__init__", "frob", "Frob");
+    },
+
+    function enableForRow(self, row) {
+        return row.column % 2 == 0;
+    });
+
 Mantissa.Test.ScrollTableWithActions = Mantissa.ScrollTable.ScrollingWidget.subclass('Mantissa.Test.ScrollTableWithActions');
 /**
- * L{Mantissa.ScrollTable.ScrollingWidget} subclass with a single action
+ * L{Mantissa.ScrollTable.ScrollingWidget} subclass with two actions
  */
 Mantissa.Test.ScrollTableWithActions.methods(
     function __init__(self, node) {
@@ -691,7 +705,7 @@ Mantissa.Test.ScrollTableWithActions.methods(
                                 function(scrollingWidget, row, result) {
                                     return scrollingWidget.emptyAndRefill();
                                 });
-        self.actions = [self.deleteAction];
+        self.actions = [self.deleteAction, Mantissa.Test.FrobAction()];
         Mantissa.Test.ScrollTableWithActions.upcall(self, "__init__", node);
     });
 
@@ -734,6 +748,31 @@ Mantissa.Test.ScrollTableActionsTestCase.methods(
                             });
 
                     });
+            });
+    },
+
+    /**
+     *  Test that L{Mantissa.ScrollTable.Action.enableForRow} works
+     */
+    function test_enablement(self) {
+        return self.setUp('enablement').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+
+                /* even number, no "Frob" action */
+                var actions = scroller.getActionsForRow(
+                                scroller.model.getRowData(1));
+
+                self.assertEqual(actions.length, 1);
+                self.assertEqual(actions[0].name, "delete");
+
+                /* odd number, "Frob" action */
+                actions = scroller.getActionsForRow(
+                                scroller.model.getRowData(2));
+
+                self.assertEqual(actions.length, 2);
+                self.assertEqual(actions[0].name, "delete");
+                self.assertEqual(actions[1].name, "frob");
             });
     });
 
