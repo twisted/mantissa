@@ -10,7 +10,7 @@ class FakeUserInfoSignup:
         return True
 
 class TestUserInfoSignup(testcase.TestCase):
-    jsClass = 'Mantissa.Test.UserInfoSignup'
+    jsClass = u'Mantissa.Test.UserInfoSignup'
 
     def getWidgetDocument(self):
         uis = FakeUserInfoSignup()
@@ -20,4 +20,4 @@ class TestUserInfoSignup(testcase.TestCase):
 
 
 class TestSignupLocalpartValidation(TestUserInfoSignup):
-    jsClass = 'Mantissa.Test.SignupLocalpartValidation'
+    jsClass = u'Mantissa.Test.SignupLocalpartValidation'
