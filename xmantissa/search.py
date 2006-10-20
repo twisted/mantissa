@@ -2,14 +2,12 @@
 
 from __future__ import division
 
-import time
-
 from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.python import log, components
 
-from nevow import inevow, athena
+from nevow import inevow, athena, tags
 
 from axiom import attributes, item
 from axiom.upgrade import registerDeletionUpgrader
@@ -139,8 +137,17 @@ class AggregateSearchResults(athena.LiveFragment):
     def render_search(self, ctx, data):
         req = inevow.IRequest(ctx)
         term = req.args.get('term', [None])[0]
+        charset = req.args.get('_charset_')[0]
         if term is None:
             return ''
+        try:
+            term = term.decode(charset)
+        except LookupError:
+            log.err('Unable to decode search query encoded as %s.' % charset)
+            return tags.div[
+                "Your browser sent your search query in an encoding that we do not understand.",
+                tags.br,
+                "Please set your browser's character encoding to 'UTF-8' (under the View menu in Firefox)."]
         term, keywords = parseSearchTerm(term)
         d = self.aggregator.search(term, keywords, None, None)
         def gotSearchResultFragments(fragments):
