@@ -355,36 +355,65 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
          * round-trip.
          */
         return self.getTableMetadata().addCallback(
-            function(values) {
-                var result = Divmod.objectify(
-                    ["columnNames", "columnTypes", "rowCount", "currentSort", "isAscendingNow"],
-                    values);
-
-                self.columnTypes = result.columnTypes;
-
-                var columnNames = result.columnNames;
-                if(self.actions && 0 < self.actions.length) {
-                    columnNames.push("actions");
-                }
-
-                self._rowHeight = self._getRowHeight();
-                self._columnOffsets = self._getColumnOffsets(result.columnNames);
-
-                self._headerNodes = self._createRowHeaders(result.columnNames);
-                for (var i = 0; i < self._headerNodes.length; ++i) {
-                    self._headerRow.appendChild(self._headerNodes[i]);
-                }
-
-                self.setSortInfo(result.currentSort, result.isAscendingNow);
-                self.setViewportHeight(result.rowCount);
-
+            function(metadata) {
+                self.setTableMetadata.apply(self, metadata);
                 self.model = Mantissa.ScrollTable.ScrollModel();
-
-                /*
-                 * Grab the initial data set
-                 */
                 return self._getSomeRows(true);
             });
+    },
+
+    /**
+     * Set up the tabular structure of this ScrollTable.
+     *
+     * @type columnNames: C{Array} of C{String}
+     * @param columnNames: Names of the columns visible in this ScrollTable.
+     *
+     * @type columnTypes: C{Array} of C{String}
+     * @param columnTypes: Names of the types of the columns visible in this
+     * ScrollTable.
+     *
+     * @type rowCount: C{Integer}
+     * @param rowCount: The total number of rows in the model.
+     *
+     * @type currentSort: C{String}
+     * @param currentSort: The name of the column by which the model is
+     * ordered.
+     *
+     * @type isAscendingNow: C{Boolean}
+     * @param isAscendingNow: Whether the sort is ascending.
+     *
+     * @return: C{undefined}
+     */
+    function setTableMetadata(self, columnNames, columnTypes, rowCount, currentSort, isAscendingNow) {
+        self.columnNames = columnNames;
+        self.columnTypes = columnTypes;
+
+        if(self.actions && 0 < self.actions.length) {
+            self.columnNames.push("actions");
+        }
+
+        self.resetColumns();
+        self.setSortInfo(currentSort, isAscendingNow);
+        self.setViewportHeight(rowCount);
+    },
+
+    /**
+     * Update internal state associated with displaying column data.
+     *
+     * Call this whenever the return value of skipColumn might have changed.
+     */
+    function resetColumns(self) {
+        self._rowHeight = self._getRowHeight();
+        self._columnOffsets = self._getColumnOffsets(self.columnNames);
+
+        while (self._headerRow.firstChild) {
+            self._headerRow.removeChild(self._headerRow.firstChild);
+        }
+
+        self._headerNodes = self._createRowHeaders(self.columnNames);
+        for (var i = 0; i < self._headerNodes.length; ++i) {
+            self._headerRow.appendChild(self._headerNodes[i]);
+        }
     },
 
     /**
@@ -930,6 +959,9 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      *
      */
     function setSortInfo(self, currentSortColumn, isAscendingNow) {
+        self.currentSort = currentSortColumn;
+        self.ascending = isAscendingNow;
+
         /*
          * Remove the sort direction arrow from whichever header has it.
          */
