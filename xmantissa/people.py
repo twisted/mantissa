@@ -15,6 +15,7 @@ from nevow.athena import expose
 from epsilon import extime, descriptor
 
 from axiom import item, attributes
+from axiom.attributes import AND
 from axiom.upgrade import registerUpgrader
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
@@ -159,11 +160,25 @@ class Organizer(item.Item, item.InstallableMixin):
         if email is not None:
             return email.person
 
-    def people(self, where, **kw):
-        return self.store.query(
-            Person,
-            attributes.AND(where, Person.organizer == self),
-            **kw)
+
+    def lastNamesBetweenComparison(self, begin, end):
+        """
+        Return an IComparison which will restrict a query for Person items to
+        those with last names which compare greater than or equal to begin and
+        less than end.
+        """
+        return AND(
+            RealName.person == Person.storeID,
+            RealName.last >= begin,
+            RealName.last < end)
+
+
+    def lastNameOrder(self):
+        """
+        Return an IAttribute to sort people by their last name.
+        """
+        return RealName.last
+
 
     def peoplePlugins(self, person):
         return (
@@ -209,13 +224,14 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         self.wt = original.webTranslator
         athena.LiveFragment.__init__(self, original)
 
-    def _createPeopleScrollTable(self, baseComparison):
+    def _createPeopleScrollTable(self, baseComparison, sort):
         f = ScrollingFragment(
                 self.original.store,
                 Person,
                 baseComparison,
-                [PersonNameColumn(None, 'name'), Person.created],
-                defaultSortColumn=Person.name)
+                [PersonNameColumn(None, 'name'),
+                 Person.created],
+                defaultSortColumn=sort)
         # use linkToPerson() to make item links so that rows point to
         # a version of the person URL that'll highlight the people tab
         f.linkToItem = lambda item: unicode(self.original.linkToPerson(item), 'ascii')
@@ -225,18 +241,19 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def _getBaseComparison(self, ctx):
         req = inevow.IRequest(ctx)
-        (group,) = req.args.get('show-group', [None])
-        if group is not None:
-            clauses = list()
-            for letter in group:
-                q = attributes.AND(RealName.person == Person.storeID,
-                                   RealName.last.like(u'%c%%' % letter))
-                clauses.append(q)
-            return attributes.OR(*clauses)
+        group = req.args.get('show-group', [''])[0].decode('ascii', 'replace')
+        if group:
+            # We assume the only groups being shown consist of consecutive
+            # letters.  If someone gives us something else, too bad for them.
+            return self.original.lastNamesBetweenComparison(
+                group[0],
+                unichr(ord(group[-1]) + 1))
+        return RealName.person == Person.storeID
 
     def render_peopleTable(self, ctx, data):
         comparison = self._getBaseComparison(ctx)
-        return self._createPeopleScrollTable(comparison)
+        sort = self.original.lastNameOrder()
+        return self._createPeopleScrollTable(comparison, sort)
 
     def head(self):
         return None
@@ -295,7 +312,7 @@ class RealName(item.Item):
     person = attributes.reference(allowNone=False)
 
     first = attributes.text()
-    last = attributes.text()
+    last = attributes.text(indexed=True)
 
     def _getDisplay(self):
         return ' '.join(filter(None, (self.first, self.last)))

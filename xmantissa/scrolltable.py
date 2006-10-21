@@ -230,7 +230,7 @@ class ItemQueryScrollingFragment(Scrollable, ScrollableView, LiveElement):
         for item in self.store.query(self.itemType,
                                      self.baseConstraint,
                                      offset=rangeBegin,
-                                     limit=rangeEnd-rangeBegin,
+                                     limit=rangeEnd - rangeBegin,
                                      sort=sort):
             self.currentRowSet.append(item)
         return self.currentRowSet

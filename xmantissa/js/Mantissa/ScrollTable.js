@@ -393,7 +393,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         }
 
         self.resetColumns();
-        self.setSortInfo(currentSort, isAscendingNow);
+        self._setSortHeader(currentSort, isAscendingNow);
         self.setViewportHeight(rowCount);
     },
 
@@ -735,7 +735,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function resort(self, columnName) {
         var result = self.callRemote("resort", columnName);
         result.addCallback(function(isAscendingNow) {
-                self.setSortInfo(columnName, isAscendingNow);
+                self._setSortHeader(columnName, isAscendingNow);
                 self.emptyAndRefill();
             });
         return result;
@@ -947,10 +947,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     /**
      * Update the view to reflect a new sort state.
      *
-     * XXX - This kind of sucks, it should be private, it is an implementation
-     * detail.  It should also notice when there are no header nodes at all and
-     * do the right thing.
-     *
      * @param currentSortColumn: The name of the column by which the scrolling
      * widget's rows are now ordered.
      *
@@ -958,7 +954,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * ascending.
      *
      */
-    function setSortInfo(self, currentSortColumn, isAscendingNow) {
+    function _setSortHeader(self, currentSortColumn, isAscendingNow) {
         self.currentSort = currentSortColumn;
         self.ascending = isAscendingNow;
 
@@ -981,8 +977,12 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         } else {
             c = '\u2193'; // down arrow
         }
-        self._headerNodes[self._columnOffsets[currentSortColumn]].appendChild(
-            MochiKit.DOM.SPAN({"class": "sort-arrow"}, c));
+        var sortOffset = self._columnOffsets[currentSortColumn];
+        var sortHeader = self._headerNodes[sortOffset];
+        if (sortHeader != undefined) {
+            var sortNode = MochiKit.DOM.SPAN({"class": "sort-arrow"}, c)
+            sortHeader.appendChild(sortNode);
+        }
     },
 
     /**

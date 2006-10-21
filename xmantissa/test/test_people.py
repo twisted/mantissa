@@ -1,12 +1,71 @@
+
+from string import lowercase
+
 from twisted.python.util import sibpath
 from twisted.trial import unittest
 
 from epsilon import extime
+from epsilon.extime import Time
 
 from axiom import store
+from axiom.store import Store
 
 from xmantissa import people
+from xmantissa.people import Organizer, Person, RealName
 from xmantissa.webapp import PrivateApplication
+
+class PeopleModelTestCase(unittest.TestCase):
+    """
+    Tests for the model parts of the person organizer code.
+    """
+    def setUp(self):
+        """
+        Create a bunch of people with names beginning with various letters.
+        """
+        self.store = Store()
+        self.organizer = Organizer(store=self.store)
+
+        letters = lowercase.decode('ascii')
+        for firstPrefix, lastPrefix in zip(letters, reversed(letters)):
+            first = firstPrefix + u'Alice'
+            last = lastPrefix + u'Jones'
+            person = Person(
+                store=self.store,
+                organizer=self.organizer,
+                created=Time(),
+                name=first + u' ' + last)
+            RealName(
+                store=self.store,
+                person=person,
+                first=first,
+                last=last)
+
+    def test_nameRestriction(self):
+        """
+        Test the query which loads Person items with last names in a particular
+        alphabetic range.
+        """
+        for case in (unicode.upper, unicode.lower):
+            people = list(self.store.query(Person, self.organizer.lastNamesBetweenComparison(case(u'a'), case(u'b'))))
+            self.assertEqual(len(people), 1)
+            self.assertEqual(people[0].name, u'zAlice aJones')
+
+
+    def test_nameSorting(self):
+        """
+        Test the query which loads Person items orders them alphabetically by
+        name.
+        """
+        people = list(self.store.query(
+            Person,
+            self.organizer.lastNamesBetweenComparison(u'm', u'p'),
+            sort=self.organizer.lastNameOrder().ascending))
+        self.assertEqual(len(people), 3)
+        self.assertEqual(people[0].name, u'nAlice mJones')
+        self.assertEqual(people[1].name, u'mAlice nJones')
+        self.assertEqual(people[2].name, u'lAlice oJones')
+
+
 
 class PeopleTests(unittest.TestCase):
     def testPersonCreation(self):
