@@ -32,7 +32,7 @@ class ScrollTableWidgetTestCase(TestCase):
     Tests for the scrolltable's view class.
     """
     jsClass = u'Mantissa.Test.ScrollTableViewTestCase'
-    rowCount = 10
+
 
     def __init__(self):
         TestCase.__init__(self)
@@ -42,7 +42,7 @@ class ScrollTableWidgetTestCase(TestCase):
     def getScrollingWidget(self, key):
         store = Store()
         PrivateApplication(store=store).installOn(store)
-        elements = [ScrollElement(store=store, column=i) for i in range(self.rowCount)]
+        elements = [ScrollElement(store=store, column=i) for i in range(10)]
         columns = [ScrollElement.column]
         f = SequenceScrollingFragment(store, elements, columns)
         f.docFactory = getLoader(f.fragmentName)
@@ -76,11 +76,3 @@ class ScrollTableActionsTestCase(ScrollTableWidgetTestCase):
         f.action_delete = action_delete
         return f
     expose(getScrollingWidget)
-
-
-class ScrollTablePlaceholderRowsTestCase(ScrollTableWidgetTestCase):
-    """
-    Tests for the scrolltable's placeholder rows
-    """
-    jsClass = u'Mantissa.Test.ScrollTablePlaceholderRowsTestCase'
-    rowCount = 100

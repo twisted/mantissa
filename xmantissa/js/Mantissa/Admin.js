@@ -27,13 +27,13 @@ Mantissa.Admin.EndowDepriveAction.methods(
  * about particular users from the server and displaying it on the page
  * someplace.
  */
-Mantissa.Admin.LocalUserBrowser = Mantissa.ScrollTable.FlexHeightScrollingWidget.subclass('Mantissa.Admin.LocalUserBrowser');
+Mantissa.Admin.LocalUserBrowser = Mantissa.ScrollTable.ScrollingWidget.subclass('Mantissa.Admin.LocalUserBrowser');
 Mantissa.Admin.LocalUserBrowser.methods(
     function __init__(self, node) {
         self.actions = [Mantissa.Admin.EndowDepriveAction("endow", "Endow"),
                         Mantissa.Admin.EndowDepriveAction("deprive", "Deprive")];
 
-        Mantissa.Admin.LocalUserBrowser.upcall(self, "__init__", node, 10);
+        Mantissa.Admin.LocalUserBrowser.upcall(self, "__init__", node);
     },
 
     function _getUserDetailElement(self) {
