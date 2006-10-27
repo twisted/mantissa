@@ -1,5 +1,7 @@
 # -*- test-case-name: xmantissa.test.test_scrolltable -*-
 
+from zope.interface import implements
+
 from nevow.athena import LiveElement, expose
 
 from axiom.attributes import timestamp
@@ -23,9 +25,34 @@ class TimestampAttributeColumn(AttributeColumn):
     def extractValue(self, model, item):
         return AttributeColumn.extractValue(self, model, item).asPOSIXTimestamp()
 
+    def getType(self):
+        return 'timestamp'
+
 class UnsortableColumn(AttributeColumn):
     def sortAttribute(self):
         return None
+
+class UnsortableColumnWrapper:
+    """
+    Wraps an L{AttributeColumn} and makes it unsortable
+
+    @ivar col: L{AttributeColumn}
+    """
+    implements(IColumn)
+
+    def __init__(self, col):
+        self.col = col
+        self.attribute = col.attribute
+        self.attributeID = col.attributeID
+
+    def extractValue(self, model, item):
+        return self.col.extractValue(model, item)
+
+    def sortAttribute(self):
+        return None
+
+    def getType(self):
+        return self.col.getType()
 
 class Scrollable(object):
     """
@@ -112,9 +139,13 @@ class Scrollable(object):
                 coltype = unicode(coltype, 'ascii')
             coltypes[colname] = (coltype, sortable)
 
+        if self.currentSortColumn:
+            csc = unicode(self.currentSortColumn.attrname, 'ascii')
+        else:
+            csc = None
+
         return [self.columnNames, coltypes, self.requestCurrentSize(),
-                unicode(self.currentSortColumn.attrname, 'ascii'),
-                self.isAscending]
+                csc, self.isAscending]
     expose(getTableMetadata)
 
 

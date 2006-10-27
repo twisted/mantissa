@@ -73,10 +73,23 @@ class TrivialSearchProvider(Item, InstallableMixin):
         super(TrivialSearchProvider, self).installOn(other)
         other.powerUp(self, ixmantissa.ISearchProvider)
 
-    def search(self, term, keywords, count, offset):
+    def search(self, term, keywords=None, count=None, offset=0, sortAscending=True):
         class TrivialResultsFragment(LiveFragment):
             docFactory = loaders.stan('This is a search result')
         return defer.succeed(TrivialResultsFragment())
+
+
+class ArgumentPassthroughSearchProvider(Item, InstallableMixin):
+    implements(ixmantissa.ISearchProvider)
+
+    z = attributes.integer()
+
+    def installOn(self, other):
+        super(ArgumentPassthroughSearchProvider, self).installOn(other)
+        other.powerUp(self, ixmantissa.ISearchProvider)
+
+    def search(self, *a, **k):
+        return defer.succeed((a, k))
 
 
 class DecodingTestCase(unittest.TestCase):
@@ -128,3 +141,35 @@ class DecodingTestCase(unittest.TestCase):
             self.assertIn('Your browser sent', res)
 
         return self._renderAggregateSearch('divmod-27', 'yeah')
+
+
+class AggregatorTestCase(unittest.TestCase):
+    """
+    Test that the behaviour of L{xmantissa.search.SearchAggregator} conforms
+    to L{xmantissa.ixmantissa.ISearchAggregator}
+    """
+
+    def test_argsForwarded(self):
+        """
+        Test that the search aggregator forwards arguments given to C{search}
+        to L{xmantissa.ixmantissa.ISearchProvider}s
+        """
+
+        s = Store()
+
+        ArgumentPassthroughSearchProvider(store=s).installOn(s)
+
+        agg = search.SearchAggregator(store=s)
+        agg.installOn(s)
+
+        args = (((u'foo', {u'bar': u'baz'}), {'sortAscending': False}),
+                ((u'bar', {u'foo': u'oof'}), {'sortAscending': True}),
+                ((u'', {}), {'sortAscending': True, 'count': 5, 'offset': 1}))
+
+        def checkArgs(gotArgs):
+            for ((success, gotArgset), expectedArgset) in zip(gotArgs, args):
+                self.assertEquals(gotArgset[0], expectedArgset)
+
+        dl = defer.DeferredList([agg.search(*a[0], **a[1]) for a in args])
+        dl.addCallback(checkArgs)
+        return dl

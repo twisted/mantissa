@@ -413,6 +413,27 @@ class FulltextTestsMixin(IndexerTestsMixin):
         self.assertEquals(list(reader.search(u'ok')),
                           list(sorted(keys)))
 
+    def testSortAscending(self):
+        """
+        Test that the C{sortAscending} parameter to C{search} is observed
+        """
+        writer = self.openWriteIndex()
+
+        for i in xrange(5):
+            writer.add(IndexableThing(
+                        _documentType=u'thing',
+                        _uniqueIdentifier=unicode(i),
+                        _textParts=[u'ok'],
+                        _keywordParts={}))
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        self.assertEquals(list(reader.search(u'ok')), range(5))
+        self.assertEquals(list(reader.search(u'ok', sortAscending=True)), range(5))
+        self.assertEquals(list(reader.search(u'ok', sortAscending=False)), range(4, -1, -1))
+
+
 class CorruptionRecoveryMixin(IndexerTestsMixin):
     def corruptIndex(self):
         raise NotImplementedError()

@@ -162,7 +162,7 @@ class RemoteIndexer(item.InstallableMixin):
 
 
     # ISearchProvider
-    def search(self, aString, keywords=None, count=None, offset=0, retry=3):
+    def search(self, aString, keywords=None, count=None, offset=0, sortAscending=True, retry=3):
         ident = "%s/%d" % (self.store, self.storeID)
         b = iaxiom.IBatchService(self.store)
         if VERBOSE:
@@ -176,7 +176,7 @@ class RemoteIndexer(item.InstallableMixin):
 
             if VERBOSE:
                 log.msg("%s searching for %s" % (ident, aString))
-            results = idx.search(aString.encode('utf-8'), keywords)
+            results = idx.search(aString.encode('utf-8'), keywords, sortAscending)
             if VERBOSE:
                 log.msg("%s found %d results" % (ident, len(results)))
 
@@ -239,7 +239,7 @@ class _HypeIndex(object):
         self.index.put_doc(doc)
 
 
-    def search(self, term, keywords=None):
+    def search(self, term, keywords=None, sortAscending=True):
         return [int(d.uri) for d in self.index.search(term)]
 
 
@@ -306,7 +306,7 @@ class _XapianIndex(object):
                                       uid=message.uniqueIdentifier()))
 
 
-    def search(self, term, keywords=None):
+    def search(self, term, keywords=None, sortAscending=True):
         return [d['uid'] for d in self.smartIndex.search(term.encode('utf-8'))]
 
 
@@ -425,7 +425,7 @@ class _PyLuceneIndex(object):
         self.index.addDocument(doc)
 
 
-    def search(self, phrase, keywords=None):
+    def search(self, phrase, keywords=None, sortAscending=True):
         if not phrase and not keywords:
             return []
 
@@ -442,7 +442,7 @@ class _PyLuceneIndex(object):
         qp.setDefaultOperator(qp.Operator.AND)
         query = qp.parseQuery(phrase)
 
-        sort = PyLucene.Sort(PyLucene.SortField('sortKey', False))
+        sort = PyLucene.Sort(PyLucene.SortField('sortKey', not sortAscending))
 
         try:
             hits = self.index.search(query, sort)

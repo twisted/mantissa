@@ -71,7 +71,7 @@ class ISearchProvider(Interface):
         (unprocessed) search string
         """
 
-    def search(term, keywords=None, count=None, offset=0):
+    def search(term, keywords=None, count=None, offset=0, sortAscending=True):
         """
         Query for items which contain the given term.
 
@@ -81,6 +81,8 @@ class ISearchProvider(Interface):
         fields of these names containing these values.
         @type count: C{int} or C{NoneType}
         @type offset: C{int}, default is 0
+        @param sortAscending: should the results be sorted ascendingly
+        @type sortAscending: boolean
 
         @rtype: L{twisted.internet.defer.Deferred}
         @return: a Deferred which will fire with an iterable of
@@ -103,7 +105,7 @@ class ISearchAggregator(Interface):
         same as ISearchProviders.count, but queries all search providers
         """
 
-    def search(term, keywords, count, offset):
+    def search(term, keywords, count, offset, sortAscending):
         """
         same as ISearchProvider.search, but queries all search providers
         """

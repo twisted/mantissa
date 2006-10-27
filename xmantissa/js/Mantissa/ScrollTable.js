@@ -948,7 +948,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * Update the view to reflect a new sort state.
      *
      * @param currentSortColumn: The name of the column by which the scrolling
-     * widget's rows are now ordered.
+     * widget's rows are now ordered, or null if there isn't a current sort
+     * column
      *
      * @param isAscendingNow: A flag indicating whether the sort is currently
      * ascending.
@@ -957,6 +958,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function _setSortHeader(self, currentSortColumn, isAscendingNow) {
         self.currentSort = currentSortColumn;
         self.ascending = isAscendingNow;
+
+        if(currentSortColumn == null) {
+            return;
+        }
 
         /*
          * Remove the sort direction arrow from whichever header has it.

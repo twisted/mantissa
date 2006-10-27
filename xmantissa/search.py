@@ -77,11 +77,11 @@ class SearchAggregator(item.Item, item.InstallableMixin):
             in self.providers()], consumeErrors=True).addCallback(countedHits)
 
 
-    def search(self, term, keywords, count, offset):
+    def search(self, *a, **k):
         self.searches += 1
 
         d = defer.DeferredList([
-            provider.search(term, keywords, count, offset)
+            provider.search(*a, **k)
             for provider in self.providers()
             ], consumeErrors=True)
 
@@ -149,7 +149,7 @@ class AggregateSearchResults(athena.LiveFragment):
                 tags.br,
                 "Please set your browser's character encoding to 'UTF-8' (under the View menu in Firefox)."]
         term, keywords = parseSearchTerm(term)
-        d = self.aggregator.search(term, keywords, None, None)
+        d = self.aggregator.search(term, keywords)
         def gotSearchResultFragments(fragments):
             for f in fragments:
                 f.setFragmentParent(self)
