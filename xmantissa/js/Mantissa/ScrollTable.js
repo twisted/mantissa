@@ -126,14 +126,32 @@ Mantissa.ScrollTable.ScrollModel = Divmod.Class.subclass('Mantissa.ScrollTable.S
 Mantissa.ScrollTable.ScrollModel.methods(
     function __init__(self) {
         self._rows = [];
+        self._totalRowCount = 0;
     },
 
     /**
      * @rtype: integer
-     * @return: The number of rows in the model.
+     * @return: The number of rows in the model which we have already fetched.
      */
     function rowCount(self) {
         return self._rows.length;
+    },
+
+    /**
+     * @rtype: integer
+     * @return: The total number of rows in the model, i.e. the maximum number
+     * of rows we could fetch
+     */
+    function totalRowCount(self) {
+        return self._totalRowCount;
+    },
+
+    /**
+     * Change the total number of rows in the model.
+     * @type count: integer
+     */
+    function setTotalRowCount(self, count) {
+        self._totalRowCount = count;
     },
 
     /**
@@ -295,6 +313,198 @@ Mantissa.ScrollTable.ScrollModel.methods(
         self._rows = [];
     });
 
+Mantissa.ScrollTable.PlaceholderModel = Divmod.Class.subclass('Mantissa.ScrollTable.PlaceholderModel');
+Mantissa.ScrollTable.PlaceholderModel.methods(
+    function __init__(self) {
+        self._placeholderRanges = [];
+    },
+
+    /**
+     * Find the index of the placeholder which spans the area that the row at
+     * C{rowIndex} will appear at
+     *
+     * @param rowIndex: integer
+     *
+     * @rtype: integer
+     */
+    function findPlaceholderIndexForRowIndex(self, rowIndex) {
+        var pranges = self._placeholderRanges,
+            len = pranges.length,
+            lo = 0, hi = len, mid, midnew;
+
+        while(true) {
+            midnew = Math.floor((lo + hi) / 2);
+            if(len-1 < midnew || midnew < 0 || mid == midnew) {
+                return null;
+            }
+            mid = midnew;
+            if(pranges[mid].stop <= rowIndex) {
+                lo = mid + 1;
+            } else if(rowIndex < pranges[mid].start) {
+                hi = mid - 1;
+            } else {
+                return mid;
+            }
+       }
+    },
+
+    /**
+     * Find the index of the first placeholder that starts after the row at
+     * index C{rowIndex}.
+     *
+     * @param rowIndex: index of the reference row
+     * @type rowIndex: integer
+     *
+     * @rtype: placeholder or null
+     */
+    function findFirstPlaceholderIndexAfterRowIndex(self, rowIndex) {
+        var pranges = self._placeholderRanges,
+            len = pranges.length,
+            lo = 0, hi = len, mid;
+
+        while(true) {
+            mid = Math.floor((lo + hi) / 2);
+            if(len-1 < mid || mid < 0) {
+                return null;
+            }
+            /* this is difficult to think about.  what we're trying to say is
+             * that we're done when we find the placeholder such that:
+             *       * the placeholder starts after the index of the row we want
+             *       * the placeholder before it stops before the index of the row we want
+             *    OR
+             *       * the placeholder starts after the index of the row we want
+             *       * there is no placeholder before it
+             *
+             *  example:
+             *
+             *  | start: 0, stop: 1 |
+             *  | start: 1, stop: 2 |
+             *  | start: 3, stop: 4 |
+             *  | start: 5, stop: 6 |
+             *
+             *  for a row index of 2, we want the 3 - 4 placeholder because:
+             *       * 1 - 2 stops before the index of the row we want
+             *       * 3 - 4 starts after the index of the row we want
+             */
+            if(pranges[mid].start <= rowIndex) {
+                lo = mid + 1;
+            } else if(0 < mid && rowIndex < pranges[mid-1].stop-1) {
+                hi = mid - 1;
+            } else {
+                return mid;
+            }
+        }
+    },
+
+    /**
+     * Called after a row has been removed.  Adjusts the placeholder state to
+     * take this into account.
+     *
+     * @param rowIndex: index of the row that was removed
+     * @type rowIndex: integer
+     */
+    function removedRow(self, rowIndex) {
+        var i = self.findFirstPlaceholderIndexAfterRowIndex(rowIndex),
+            pranges = self._placeholderRanges;
+        if(i == null) {
+            return;
+        }
+        for(; i < pranges.length; i++) {
+            pranges[i].start--;
+            pranges[i].stop--;
+        }
+    },
+
+    /**
+     * Find the placeholder object stored at index C{index}
+     *
+     * @type index: integer
+     * @rtype: placeholder
+     */
+    function getPlaceholderWithIndex(self, index) {
+        return self._placeholderRanges[index];
+    },
+
+    /**
+     * Get the number of placeholders
+     *
+     * @rtype: integer
+     */
+    function getPlaceholderCount(self) {
+        return self._placeholderRanges.length;
+    },
+
+    /**
+     * Create and register a placeholder which extends from the zeroth row to
+     * the end of the last row, overwriting any other placeholders.
+     *
+     * @param totalRowCount: total number of rows
+     * @param node: same as L{createPlaceholder}'s C{node} argument
+     */
+    function registerInitialPlaceholder(self, totalRowCount, node) {
+        self._placeholderRanges = [self.createPlaceholder(0, totalRowCount, node)];
+    },
+
+    /**
+     * Replace placeholder with index C{index} with C{replacement}
+     *
+     * @type index: integer
+     * @type replacement: placeholder
+     */
+    function replacePlaceholder(self, index, replacement) {
+        self._placeholderRanges[index] = replacement;
+    },
+
+    /**
+     * Divide the placeholder with index C{index} into two placeholders,
+     * C{above} and C{below}.
+     *
+     * @type index: integer
+     * @type above: placeholder
+     * @type below: placeholder
+     */
+    function dividePlaceholder(self, index, above, below) {
+        self._placeholderRanges.splice.apply(
+            self._placeholderRanges, [index, 1].concat([above, below]));
+    },
+
+    /**
+     * Remove the placeholder at C{index}
+     *
+     * @type index: integer
+     */
+    function removePlaceholder(self, index) {
+        self._placeholderRanges.splice(index, 1);
+    },
+
+    /**
+     * Remove all placeholders
+     */
+    function empty(self) {
+        self._placeholderRanges = [];
+    },
+
+    /**
+     * Create a placeholder which starts at C{start}, stops at C{stop}, and
+     * is represented by the DOM node C{node}
+     *
+     * @param start: the index of the row that the placeholder starts at
+     * @param stop: the index of the row that the placeholder stops at
+     *
+     * @return: object with "start" and "stop" members, corresponding to the
+     * arguments of this method
+     *
+     * For a scrolltable like this:
+     * | 0: REAL ROW    |
+     * | 1: REAL ROW    |
+     * | 2: PLACEHOLDER |
+     * | 3: REAL ROW    |
+     * the placeholder at index #2 would have start=2 and stop=3
+     */
+    function createPlaceholder(self, start, stop, node) {
+        return {start: start, stop: stop, node: node};
+    });
+
 
 Mantissa.ScrollTable.ScrollingWidget = Nevow.Athena.Widget.subclass('Mantissa.ScrollTable.ScrollingWidget');
 
@@ -309,7 +519,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self.scrollingDown = true;
         self.lastScrollPos = 0;
 
-        self._scrollContent = self.nodeByAttribute("class", "scroll-content");
         self._scrollViewport = self.nodeByAttribute('class', 'scroll-viewport');
         self._headerRow = self.nodeByAttribute('class', 'scroll-header-row');
 
@@ -320,6 +529,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._scrollDeferreds = [];
 
         self.model = null;
+        self.placeholderModel = Mantissa.ScrollTable.PlaceholderModel();
         self.initializationDeferred = self.initialize();
     },
 
@@ -356,8 +566,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
          */
         return self.getTableMetadata().addCallback(
             function(metadata) {
-                self.setTableMetadata.apply(self, metadata);
                 self.model = Mantissa.ScrollTable.ScrollModel();
+                self.setTableMetadata.apply(self, metadata);
                 return self._getSomeRows(true);
             });
     },
@@ -394,7 +604,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
         self.resetColumns();
         self._setSortHeader(currentSort, isAscendingNow);
-        self.setViewportHeight(rowCount);
+        self.model.setTotalRowCount(rowCount);
+        self.padViewportWithPlaceholderRow(rowCount);
     },
 
     /**
@@ -403,8 +614,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * Call this whenever the return value of skipColumn might have changed.
      */
     function resetColumns(self) {
-        self._rowHeight = self._getRowHeight();
+        /* set _columnOffsets before calling _getRowHeight() so that
+         * _getRowGuineaPig() can call _createRow() */
         self._columnOffsets = self._getColumnOffsets(self.columnNames);
+        self._rowHeight = self._getRowHeight();
 
         while (self._headerRow.firstChild) {
             self._headerRow.removeChild(self._headerRow.firstChild);
@@ -443,16 +656,73 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function requestRowRange(self, firstRow, lastRow) {
         return self.getRows(firstRow, lastRow).addCallback(
             function(rows) {
-                var row;
-                for (var i = firstRow; i < rows.length + firstRow; ++i) {
-                    row = rows[i - firstRow];
-                    if (i >= self.model.rowCount() || self.model.getRowData(i) == undefined) {
-                        row.__node__ = self._createRow(i, row);
-                        self.model.setRowData(i, row);
-                        self._scrollContent.appendChild(row.__node__);
-                    }
-                }
+                self._storeRows(firstRow, lastRow, rows);
             });
+    },
+
+    function _storeRows(self, firstRow, lastRow, rows) {
+        var rowNodes = [];
+        for (var i = firstRow; i < rows.length + firstRow; ++i) {
+            row = rows[i - firstRow];
+            if (i >= self.model.rowCount() || self.model.getRowData(i) == undefined) {
+                row.__node__ = self._createRow(i, row);
+                self.model.setRowData(i, row);
+                rowNodes.push({index: i, node: row.__node__});
+            }
+        }
+        self._addRowsToViewport(rowNodes);
+    },
+
+    /**
+     * Add C{rows} to the scroll viewport, replacing or splitting any
+     * placeholder rows that are in the way.
+     *
+     * @param rows: array of objects with "index" and "node" members
+     */
+    function _addRowsToViewport(self, rows) {
+        /* this could be made faster, if we have more than one row that falls
+         * inside a single placeholder - we only need to split it once instead
+         * of once per row, i think */
+        var sviewport = self._scrollViewport,
+            pmodel = self.placeholderModel,
+            placeholder, placeholders, placeholderEntry, above, below;
+
+        var maybeCreatePlaceholder = function(start, stop, replacing) {
+            if(start < stop) {
+                var obj = self.placeholderModel.createPlaceholder(
+                            start, stop, self.makePlaceholderRowElement(
+                                            (stop - start) * self._rowHeight));
+                sviewport.insertBefore(obj.node, replacing);
+                return obj;
+            }
+        }
+
+        for(var i = 0; i < rows.length; i++) {
+            placeholderIndex = pmodel.findPlaceholderIndexForRowIndex(rows[i].index);
+            if(placeholderIndex !== null) {
+                placeholder = pmodel.getPlaceholderWithIndex(placeholderIndex);
+
+                above = maybeCreatePlaceholder(
+                            placeholder.start, rows[i].index, placeholder.node);
+
+                sviewport.insertBefore(rows[i].node, placeholder.node);
+
+                below = maybeCreatePlaceholder(
+                            rows[i].index+1, placeholder.stop, placeholder.node);
+
+                sviewport.removeChild(placeholder.node);
+
+                if(above && below) {
+                    pmodel.dividePlaceholder(placeholderIndex, above, below);
+                } else if(above || below) {
+                    pmodel.replacePlaceholder(placeholderIndex, above || below);
+                } else {
+                    pmodel.removePlaceholder(placeholderIndex);
+                }
+            } else {
+                sviewport.appendChild(rows[i].node);
+            }
+        }
     },
 
     /**
@@ -467,25 +737,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function removeRow(self, index) {
         var rowData = self.model.removeRow(index);
         rowData.__node__.parentNode.removeChild(rowData.__node__);
-
-        /*
-         * We removed a node from the scroll area, so its overall height is
-         * different.  Compute the new height.
-         */
-        self.adjustViewportHeight(-1);
-
-        /*
-         * Shift the display of all the rows after it down.
-         */
-        var indices = self.model.getRowIndices();
-        var row;
-        for (var i = 0; i < indices.length; ++i) {
-            if (indices[i] >= index) {
-                row = self.model.getRowData(indices[i]);
-                row.__node__.style.top = (
-                    parseInt(row.__node__.style.top) - self._rowHeight) + "px";
-            }
-        }
+        self.placeholderModel.removedRow(index);
         return rowData;
     },
 
@@ -493,12 +745,13 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * Retrieve a node which is the same height as rows in the table will be.
      */
     function _getRowGuineaPig(self) {
-        return MochiKit.DOM.DIV(
+        return MochiKit.DOM.TR(
             {"style": "visibility: hidden",
-             "class": "scroll-row"},
-            [MochiKit.DOM.DIV(
-                    {"class": "scroll-cell",
-                     "style": "float: none"}, "TEST!!!")]);
+             "class": "scroll-row",
+             "valign": "center"},
+            MochiKit.DOM.TD(
+                {"class": "scroll-cell"},
+                MochiKit.DOM.A({"href": "#"}, "TEST!!!")));
     },
 
     /**
@@ -515,9 +768,10 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
          * applied to it that would mess things up. (XXX The body could have a
          * style applied to it that could mess things up? -exarkun)
          */
-        document.body.appendChild(node);
+        var tableNode = MochiKit.DOM.TABLE(null, node);
+        document.body.appendChild(tableNode);
         rowHeight = Divmod.Runtime.theRuntime.getElementSize(node).h;
-        document.body.removeChild(node);
+        document.body.removeChild(tableNode);
 
         if (rowHeight == 0) {
             rowHeight = Divmod.Runtime.theRuntime.getElementSize(self._headerRow).h;
@@ -532,26 +786,17 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
 
     /**
      * Set the display height of the scroll view DOM node to a height
-     * appropriate for displaying the given number of rows.
+     * appropriate for displaying the given number of rows, by appending
+     * C{rowCount} placeholder rows to it
      *
      * @type rowCount: integer
      * @param rowCount: The number of rows which should fit into the view node.
      */
-    function setViewportHeight(self, rowCount) {
-        var scrollContentHeight = self._rowHeight * rowCount;
-        self._scrollContent.style.height = scrollContentHeight + 'px';
-    },
+    function padViewportWithPlaceholderRow(self, rowCount) {
+        var row = self.makePlaceholderRowElement(rowCount * self._rowHeight);
+        self._scrollViewport.appendChild(row);
 
-    /**
-     * Increase or decrease the height of the scroll view DOM node by the
-     * indicated number of rows.
-     *
-     * @type rowCount: integer
-     * @param rowCount: The number of rows which should fit into the view node.
-     */
-    function adjustViewportHeight(self, rowCount) {
-        var height = parseInt(self._scrollContent.style.height);
-        self._scrollContent.style.height = height + (self._rowHeight * rowCount) + "px";
+        self.placeholderModel.registerInitialPlaceholder(rowCount, row);
     },
 
     /**
@@ -590,17 +835,16 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * Retrieve some rows from the server which are likely to be useful given
-     * the current state of this ScrollingWidget.  Update the ScrollModel when
-     * the results arrive.
+     * Figure out the start and end indexes of rows that should be requested
      *
      * @param scrollingDown: A flag indicating whether we are scrolling down,
      * and so whether the requested rows should be below the current position
      * or not.
      *
-     * @return: A Deferred which fires when the update has finished.
+     * @return: pair of [startIndex, stopIndex] or null if there isn't a
+     * useful row range to request
      */
-    function _getSomeRows(self, scrollingDown) {
+    function _calculateDesiredRowRange(self, scrollingDown) {
         var scrollViewportHeight = self.getScrollViewportHeight();
         var desiredRowCount = Math.ceil(scrollViewportHeight / self._rowHeight);
         var firstRow = Math.floor(self._scrollViewport.scrollTop / self._rowHeight);
@@ -634,14 +878,32 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 firstRow--;
             }
         }
+        if(!requestNeeded) {
+            return;
+        }
+        return [firstRow, firstRow+desiredRowCount];
+    },
+
+    /**
+     * Retrieve some rows from the server which are likely to be useful given
+     * the current state of this ScrollingWidget.  Update the ScrollModel when
+     * the results arrive.
+     *
+     * @param scrollingDown: A flag indicating whether we are scrolling down,
+     * and so whether the requested rows should be below the current position
+     * or not.
+     *
+     * @return: A Deferred which fires when the update has finished.
+     */
+    function _getSomeRows(self, scrollingDown) {
+        var range = self._calculateDesiredRowRange(scrollingDown);
 
         /* do we have the rows we need ? */
-
-        if (!requestNeeded) {
+        if (!range) {
             return Divmod.Defer.succeed(1);
         }
 
-        return self.requestRowRange(firstRow, firstRow + desiredRowCount);
+        return self.requestRowRange.apply(self, range);
     },
 
     /**
@@ -697,15 +959,39 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         if(self.columnWidths && colName in self.columnWidths) {
             attrs["style"] = "width:" + self.columnWidths[colName];
         }
-        var node = MochiKit.DOM.DIV(
+        var node = MochiKit.DOM.TD(
             attrs,
-            self.massageColumnValue(
-                colName, self.columnTypes[colName][0], rowData[colName]));
+            /* unfortunately we have to put a link inside each cell - IE
+             * doesn't seem to display rows if they are anchors with
+             * display: table-row
+             */
+            MochiKit.DOM.A({"style": "display: block",
+                            "href": rowData.__id__},
+                self.massageColumnValue(
+                    colName,
+                    self.columnTypes[colName][0],
+                    rowData[colName])));
+
         if (self.columnTypes[colName][0] == "fragment") {
-            Divmod.Runtime.theRuntime.setNodeContent(node,
+            Divmod.Runtime.theRuntime.setNodeContent(node.firstChild,
                 '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName] + '</div>');
         }
         return node;
+    },
+
+    /**
+     * Remove all row nodes, including placeholder nodes from the scrolltable
+     * viewport node.  Also empty the model.
+     */
+    function empty(self) {
+        self._scrollViewport.scrollTop = 0;
+        /* remove all rows, including placeholders */
+        while(0 < self._scrollViewport.childNodes.length) {
+            self._scrollViewport.removeChild(
+                self._scrollViewport.firstChild);
+        }
+        self.model.empty();
+        self.placeholderModel.empty();
     },
 
     /**
@@ -714,16 +1000,40 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * refill it.
      */
     function emptyAndRefill(self) {
-        self._scrollViewport.scrollTop = 0;
-        var row;
-        for (var i = 0; i < self.model.rowCount(); ++i) {
-            row = self.model.getRowData(i);
-            if (row != undefined) {
-                row.__node__.parentNode.removeChild(row.__node__);
-            }
+        self.empty();
+        return self.refill();
+    },
+
+    /**
+     * Request the current size (number of rows) from the server
+     */
+    function getSize(self) {
+        return self.callRemote("requestCurrentSize");
+    },
+
+    /**
+     * Refill an empty scrolltable by asking for more rows, creating
+     * placeholder rows and adding a screenful of fresh rows.
+     *
+     * @return: Deferred firing with pair of [total size, fetched rows]
+     */
+    function refill(self) {
+        var range = self._calculateDesiredRowRange(true);
+        if(range[0] != 0) {
+            throw new Error("expected first needed row to have index 0");
         }
-        self.model.empty();
-        return self._getSomeRows(true);
+
+        var result = Divmod.Defer.gatherResults(
+                        [self.getSize(),
+                         self.getRows(0, range[1])]);
+
+        return result.addCallback(
+                function(response) {
+                    self.padViewportWithPlaceholderRow(response[0]);
+                    self.model.setTotalRowCount(response[0]);
+                    self._storeRows.apply(self, range.concat([response[1]]));
+                    return response;
+                });
     },
 
     /**
@@ -774,7 +1084,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         if(self.columnWidths && "actions" in self.columnWidths) {
             attrs["style"] = "width:" + self.columnWidths["actions"];
         }
-        return MochiKit.DOM.DIV(attrs, actions);
+        return MochiKit.DOM.TD(attrs, actions);
     },
 
     /**
@@ -818,12 +1128,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         for (var i = 0; i < cells.length; ++i) {
             nodes.push(cells[i][1]);
         }
-        var rowNode = self.makeRowElement(rowOffset, rowData, nodes);
-
-        rowNode.style.position = "absolute";
-        rowNode.style.top = (rowOffset * self._rowHeight) + "px";
-
-        return rowNode;
+        return self.makeRowElement(rowOffset, rowData, nodes);
     },
 
     /**
@@ -841,17 +1146,30 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * @return: An element
      */
     function makeRowElement(self, rowOffset, rowData, cells) {
-        var attrs = {"class": "scroll-row",
-                     "style": "height:" + self._rowHeight + "px"};
-        if("actions" in rowData) {
-            /* XXX HACK, actions break if the row is clickable */
-            return MochiKit.DOM.DIV(attrs, cells);
+        var style = "height: " + self._rowHeight + "px";
+        if(rowOffset % 2) {
+            style += "; background-color: #F0F0F0";
         }
-        return MochiKit.DOM.A(
+        return MochiKit.DOM.TR(
             {"class": "scroll-row",
-             "style": "height:" + self._rowHeight + "px",
-             "href": rowData["__id__"]},
+             "style": style,
+             "valign": "center"},
             cells);
+    },
+
+    /**
+     * Make a placeholder row
+     *
+     * @type height: integer
+     * @param height: the height of the placeholder row
+     *
+     * @rtype: node
+     */
+    function makePlaceholderRowElement(self, height) {
+        return MochiKit.DOM.TR(
+                {"class": "placeholder-scroll-row",
+                 "style": "height: " + height + "px"},
+                MochiKit.DOM.TD({"class": "placeholder-cell"}));
     },
 
     /**
@@ -937,7 +1255,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 }
             }
 
-            var headerNode = MochiKit.DOM.DIV(attrs, displayName);
+            var headerNode = MochiKit.DOM.TD(attrs, displayName);
             headerNodes.push(headerNode);
 
         }
@@ -1079,3 +1397,90 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     function cbRowsFetched(self) {
     }
     );
+
+/**
+ * ScrollingWidget subclass which adjusts its height each time the viewport is
+ * refilled, setting it to the same height as the total height of all
+ * available rows, up until C{self.maxRows}.  Example where maxRows is 3 and
+ * row height is 10px:
+ *
+ * if there is 1 row in the model:
+ *
+ * |HEADERS HEADERS HEADERS|
+ * -------------------------
+ * |THE ONLY ROW           | <- 10px, no scrollbar
+ *
+ * 2 rows in the model:
+ *
+ * |HEADERS HEADERS HEADERS|
+ * -------------------------
+ * |THE FIRST ROW          | \__ 10px + 10px = 20px, no scrollbar
+ * |THE SECOND ROW         | /
+ *
+ * 3 or more rows in the model (>= maxRows):
+ *
+ * |HEADERS HEADERS HEADERS|
+ * -------------------------
+ * | THE FIRST ROW       | | \
+ * | THE SECOND ROW      | |  >- 10px + 10px + 10px = 30px, scrollbar
+ * | THE THIRD ROW       | | /
+ *          |
+ *         \|/
+ *  rest of the rows obscured
+ */
+
+Mantissa.ScrollTable.FlexHeightScrollingWidget = Mantissa.ScrollTable.ScrollingWidget.subclass('Mantissa.ScrollingWidget.FlexHeightScrollingWidget');
+Mantissa.ScrollTable.FlexHeightScrollingWidget.methods(
+    /**
+     * Override default implementation so we can store C{maxRows} and set the
+     * initial height once initialization is complete
+     */
+    function __init__(self, node, maxRows/*=undefined*/) {
+        Mantissa.ScrollTable.FlexHeightScrollingWidget.upcall(self, "__init__", node);
+        self.maxRows = maxRows;
+        self.initializationDeferred.addCallback(
+            function(passThrough) {
+                self._setScrollViewportHeight();
+                return passThrough;
+            });
+    },
+
+    /**
+     * Helper method which sets the height of the scrolltable so that it's
+     * tall enough to accomodate (without a scrollbar) any number of rows <=
+     * C{self.maxRows}
+     */
+    function _setScrollViewportHeight(self) {
+        var rowCount = self.model.totalRowCount();
+        if(self.maxRows) {
+            rowCount = Math.min(rowCount, self.maxRows);
+        }
+        self._scrollViewport.style.height = (rowCount * self._rowHeight) + "px";
+    },
+
+    /**
+     * Override default implementation to never request less than
+     * C{self.maxRows} if we're starting from the zeroth row (e.g. after the
+     * scrolltable has been emptied or when we make the initial fetch)
+     */
+    function _calculateDesiredRowRange(self, scrollingDown) {
+        var res = Mantissa.ScrollTable.FlexHeightScrollingWidget.upcall(
+                    self, "_calculateDesiredRowRange", scrollingDown);
+        if(res && res[0] == 0 && res[1] < self.maxRows-1) {
+            res[1] = self.maxRows-1;
+        }
+        return res;
+    },
+
+    /**
+     * Override default implementation so that we can adjust the height of the
+     * scrolltable after the scrolltable has been refilled
+     */
+    function refill(self) {
+        var D = Mantissa.ScrollTable.FlexHeightScrollingWidget.upcall(self, "refill");
+        return D.addCallback(
+            function(passThrough) {
+                self._setScrollViewportHeight();
+                return passThrough;
+            });
+    })

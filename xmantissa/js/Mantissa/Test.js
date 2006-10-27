@@ -653,6 +653,58 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
     },
 
     /**
+     * Test that the the scrolltable's empty() method removes all row nodes
+     * and empties the model
+     */
+    function test_empty(self) {
+        return self.setUp('empty').addCallback(
+            function() {
+                self.scrollingWidget.empty();
+                self.assertEqual(
+                    self.scrollingWidget._scrollViewport.childNodes.length, 0);
+                self.assertEqual(
+                    self.scrollingWidget.model.rowCount(), 0);
+            });
+    },
+
+    /**
+     * Test that the scrolltable's refill method refills an empty scrolltable
+     */
+     function test_refill(self) {
+        var assertTotalRowCount = function(count) {
+            self.assertEqual(
+                self.scrollingWidget.model.totalRowCount(), count);
+        }
+        var makeTestCallback = function(rowCount) {
+            return function() {
+                self.scrollingWidget.empty();
+                return self.callRemote('changeRowCount', 'refill', rowCount).addCallback(
+                    function() {
+                        return self.scrollingWidget.refill();
+                }).addCallback(
+                    function() {
+                        assertTotalRowCount(rowCount);
+                });
+            }
+        }
+
+        var D = self.setUp('refill');
+
+        D.addCallback(function() {
+            assertTotalRowCount(10);
+        });
+
+        var rowCounts = [4, 40, 4];
+
+        for(var i = 0; i < rowCounts.length; i++) {
+            D.addCallback(makeTestCallback(rowCounts[i]));
+        }
+
+        return D;
+    },
+
+
+    /**
      * Test that removing a row from a ScrollingWidget removes it from the
      * underlying model and removes the display nodes associated with it from
      * the document.  The nodes of rows after the removed row should also have
@@ -669,9 +721,9 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
                 self.assertEqual(nextRow.__id__, movedRow.__id__);
                 self.assertEqual(removedRow.__node__.parentNode, null);
 
-                self.assertEqual(
-                    parseInt(firstRow.__node__.style.top) + self.scrollingWidget._rowHeight,
-                    parseInt(movedRow.__node__.style.top));
+                var viewport = self.scrollingWidget._scrollViewport;
+                self.assertEqual(viewport.childNodes[0], firstRow.__node__);
+                self.assertEqual(viewport.childNodes[1], movedRow.__node__);
             });
         return result;
     }
@@ -775,6 +827,265 @@ Mantissa.Test.ScrollTableActionsTestCase.methods(
                 self.assertEqual(actions[1].name, "frob");
             });
     });
+
+Mantissa.Test.ScrollTablePlaceholderRowsTestCase = Mantissa.Test.ScrollTableViewTestBase.subclass('Mantissa.Test.ScrollTablePlaceholderRowsTestCase');
+/**
+ * Tests for the behaviour of L{Mantissa.ScrollTable.ScrollingWidget} with
+ * regard to placeholder rows
+ */
+Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
+    /**
+     * Check that the structure of placeholder rows in C{self.scrollingWidget}
+     * match the objects in C{expected}
+     *
+     * @param expected: array of objects with "start" and "stop" members,
+     * which correspond to the objects in
+     * L{Mantissa.ScrollTable.ScrollingWidget}'s placeholder range list
+     */
+    function _checkPlaceholders(self, expected) {
+        var pmodel = self.scrollingWidget.placeholderModel;
+        self.assertEqual(expected.length, pmodel.getPlaceholderCount());
+        for(var placeholder, i = 0; i < expected.length; i++) {
+            placeholder = pmodel.getPlaceholderWithIndex(i);
+            if(placeholder.start != expected[i].start ||
+                placeholder.stop != expected[i].stop) {
+                self.fail("expected start/stop of " +
+                            [expected[i].start, expected[i].stop].toSource() +
+                            " but got " +
+                            [placeholder.start, placeholder.stop].toSource());
+            }
+        }
+    },
+
+    function _prepareScrolltable(self) {
+        /* we want to emulate the initial row loading process, while
+         * being in control of exactly how many rows get added at what
+         * time, instead of depending on the relative heights of the
+         * rows and the viewport, so we empty the scrolltable after
+         * the initial load. */
+        self.scrollingWidget.empty();
+
+        /* and add one big placeholder row */
+        self.scrollingWidget.padViewportWithPlaceholderRow(
+            self.scrollingWidget.model.totalRowCount());
+
+        /* which is the same situation as when the scrolltable has got
+         * the table metadata (number of rows, etc) but hasn't yet
+         * requested any */
+        self.assertEqual(self.scrollingWidget.model.rowCount(), 0);
+    },
+
+    /**
+     * Test that storing a row splits the initial placeholder
+     */
+    function test_storingARowSplitsInitialPlaceholder(self) {
+        return self.setUp('storingARowSplitsInitialPlaceholder').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+
+                self._prepareScrolltable(scroller);
+
+                /* make one row at offset #1 */
+                scroller._storeRows(1, 1, [{column: "1", __id__: "1"}]);
+
+                /* which should split the placeholder row into two - one
+                 * extending from 0-1 and one from 2-100 */
+                self._checkPlaceholders([{start: 0, stop: 1}, {start: 2, stop: 100}]);
+            });
+    },
+
+    /**
+     * Test storing two rows in the middle of a placeholder splits it
+     */
+    function test_storingRowsSplitsPlaceholder(self) {
+        return self.setUp('storingRowsSplitsPlaceholder').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+
+                self._prepareScrolltable(scroller);
+
+                /* make one row to split the placeholder */
+                scroller._storeRows(1, 1, [{column: "1", __id__: "1"}]);
+
+                /* put another row right after the last one */
+                scroller._storeRows(2, 2, [{column: "2", __id__: "2"}]);
+
+                /* number of placeholders shouldn't have changed, since we
+                 * didn't need to split any, just needed to adjust the height of
+                 * one */
+                self._checkPlaceholders([{start: 0, stop: 1}, {start: 3, stop: 100}]);
+
+                /* put another row two rows after the last one */
+                scroller._storeRows(4, 4, [{column: "4", __id__: "4"}]);
+
+                /* which should split the 3-100 placeholder */
+                self._checkPlaceholders([{start: 0, stop: 1},
+                                         {start: 3, stop: 4},
+                                         {start: 5, stop: 100}]);
+        });
+    },
+
+    /**
+     * Test that storing rows at the end of the scrolltable shortens the last
+     * placeholder
+     */
+    function test_storingRowsAtEndShortensLastPlaceholder(self) {
+        return self.setUp('storingRowsAtEndShortsLastPlaceholder').addCallback(
+            function () {
+                var scroller = self.scrollingWidget;
+
+                self._prepareScrolltable(scroller);
+
+                scroller._storeRows(1, 1, [{column: "1", __id__: "1"}]);
+
+                /* put 2 rows at the end */
+                scroller._storeRows(98, 99, [{column: "98", __id__: "98"},
+                                             {column: "99", __id__: "99"}]);
+
+                /* which should shorten the last placeholder */
+                self._checkPlaceholders([{start: 0, stop: 1},
+                                         {start: 2, stop: 98}]);
+            });
+    },
+
+    /**
+     * Test that the number of placeholder rows and their heights match what
+     * we expect.  Do this by looking at the DOM.
+     */
+    function test_placeholderNodes(self) {
+        return self.setUp('placeholderNodes').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+                var sviewport = scroller._scrollViewport;
+
+                scroller.empty();
+                scroller.padViewportWithPlaceholderRow(
+                    scroller.model.totalRowCount());
+
+                self.assertEqual(sviewport.childNodes.length, 1);
+                self.assertEqual(parseInt(sviewport.firstChild.style.height),
+                                 (scroller.model.totalRowCount()
+                                    * scroller._rowHeight));
+                self.assertEqual(sviewport.firstChild.className,
+                                 "placeholder-scroll-row");
+
+                /* split the placeholder */
+                scroller._storeRows(1, 1, [{column: "1", __id__: "1"}]);
+
+                self.assertEqual(sviewport.childNodes.length, 3);
+                self.assertEqual(sviewport.firstChild.className,
+                                 "placeholder-scroll-row");
+                self.assertEqual(parseInt(sviewport.firstChild.style.height),
+                                 scroller._rowHeight);
+
+                /* the second row should be the one we inserted, not a
+                 * placeholder */
+                self.assertEqual(sviewport.childNodes[1].className,
+                                 "scroll-row");
+
+                self.assertEqual(sviewport.childNodes[2].className,
+                                 "placeholder-scroll-row");
+                self.assertEqual(parseInt(sviewport.childNodes[2].style.height),
+                                 ((scroller.model.totalRowCount() - 2)
+                                    * scroller._rowHeight));
+            });
+    },
+
+    /**
+     * For a scrolltable like this:
+     * | X: REAL ROW    |
+     * | Y: PLACEHOLDER |
+     * | Z: REAL ROW    |
+     * Check that the placeholder is removed, and no more placeholders are
+     * created when the row at index Y is populated
+     */
+    function test_surroundedRow(self) {
+        return self.setUp('surroundedRow').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+
+                scroller.empty();
+                scroller.padViewportWithPlaceholderRow(scroller.model.totalRowCount());
+
+                scroller._storeRows(0, 0, [{column: "0", __id__: "0"}]);
+                scroller._storeRows(2, 2, [{column: "2", __id__: "2"}]);
+
+                /* now index 1 should be a placeholder */
+                self._checkPlaceholders([{start: 1, stop: 2}, {start: 3, stop: 100}]);
+
+                /* insert a row there */
+                scroller._storeRows(1, 1, [{column: "1", __id__: "1"}]);
+
+                /* and the placeholder should be gone entirely */
+                self._checkPlaceholders([{start: 3, stop: 100}]);
+            });
+    },
+
+    /**
+     * Store C{howMany} consecutive rows in our scrolltable, with the first at
+     * index C{startingAt}
+     *
+     * @param startingAt: index of first row
+     * @type startingAt: integer
+     *
+     * @param howMany: number of rows
+     * @type howMany: integer
+     */
+    function _storeConsecutiveRows(self, startingAt, howMany) {
+        var rows = [];
+        for(var i = startingAt; i < startingAt+howMany; i++) {
+            rows.push({column: i.toString(), __id__: toString()});
+        }
+        self.scrollingWidget._storeRows(startingAt, startingAt+howMany, rows);
+    },
+
+    /**
+     * Test that L{Mantissa.ScrollTable.ScrollingWidget.removeRow} correctly
+     * modifies the start/stop indices of placeholders that start after the
+     * index of the removed row
+     */
+    function test_removeRow(self) {
+        return self.setUp('removeRow').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+
+                scroller.empty();
+                scroller.padViewportWithPlaceholderRow(scroller.model.totalRowCount());
+
+                self._storeConsecutiveRows(0, 10);
+
+                self._checkPlaceholders([{start: 10, stop: 100}]);
+
+                scroller.removeRow(0);
+
+                self._checkPlaceholders([{start: 9, stop: 99}]);
+            });
+    },
+
+    /**
+     * Same as C{test_removeRow}, but remove multiple rows and fill the
+     * scrolltable
+     */
+    function test_removeRow2(self) {
+        return self.setUp('removeRow2').addCallback(
+            function() {
+                var scroller = self.scrollingWidget;
+
+                scroller.empty();
+                scroller.padViewportWithPlaceholderRow(scroller.model.totalRowCount());
+
+                self._storeConsecutiveRows(0, 10);
+
+                scroller.removeRow(0);
+
+                self._storeConsecutiveRows(9, 90);
+
+                scroller.removeRow(82);
+
+                self._checkPlaceholders([]);
+            });
+    });
+
 
 Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
 Mantissa.Test.PersonDetail.methods(

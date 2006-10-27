@@ -12,10 +12,6 @@ body {
     font-style: italic;
 }
 
-.scrolltable-widget-node {
-    border: solid 1px black;
-}
-
 /* person widget styles */
 
 .person-widget-left-edge {
@@ -168,10 +164,6 @@ body {
 
 .summary-header-row {
     line-height: 0px;
-}
-
-.scroll-viewport {
-    height: 300px;
 }
 
 .contact-info-action-create,
@@ -549,44 +541,67 @@ body {
     background-image: url(/Mantissa/images/tab-tr-corner.png);
 }
 
+.scrolltable-widget-node {
+    margin: 4px;
+}
+
+.scrolltable {
+    border: solid 1px #CCCCCC;
+    width: 100%;
+    border-spacing: 0px;
+    table-layout: fixed;
+}
+
 .scroll-header-container {
-    background-color: #DADADA;
+    background-color: #E0E0E0;
+    background-image: url(/Mantissa/images/scrolltable-header-bg.png);
+    background-repeat: repeat-x;
+    color: #999999;
     font-weight: bold;
-    text-align: center;
+}
+
+.scroll-header-container td {
+    border-bottom: solid 1px #CCCCCC;
 }
 
 .scroll-row {
-    display: block;
     white-space: nowrap;
-    clear: both;
 }
 
-.scroll-row:hover {
+.scroll-row a:link, .scroll-row a:visited {
+    color: #000000;
+}
+
+.scroll-row:hover .scroll-cell {
     background-color: #DADADA;
 }
 
 .scroll-column-header, .scroll-cell, .sortable-scroll-column-header, .actions-column-header {
-    padding: 4px;
-    width: 250px;
-    float: left;
-    border-right: solid 1px #000000;
+    border-right: solid 1px #CCCCCC;
     overflow: hidden;
 }
 
+.scroll-cell {
+    padding: 4px;
+}
+
+.scroll-row .placeholder-cell {
+    font-weight: bold;
+    font-size: 1.3em;
+}
+
+.placeholder-cell {
+    background-image: url(/Mantissa/images/ellipsis.png);
+    background-repeat: repeat-y;
+    background-position: center center;
+}
+
 .sortable-scroll-column-header:hover {
-    background-color: #C0C0C0;
+    text-decoration: underline;
 }
 
 .sortable-scroll-column-header {
     cursor: pointer;
-}
-
-.scroll-column {
-    overflow: hidden;
-}
-
-.scroll-viewport {
-    clear: both;
 }
 
 td.multi-text-input-list > input {
