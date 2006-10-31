@@ -1,3 +1,8 @@
+0.5.21 (2006-10-31):
+  - A sort direction parameter has been added to the search API.
+  - Further scrolltable refactoring, improving the UI, creating placeholder
+    rows faster, and awareness of row removal in the placeholder model.
+
 0.5.20 (2006-10-21):
   - Scrolltable now supports conditionally enabled actions.
   - Search now handles charsets properly.
@@ -7,7 +12,7 @@
   - Mantissa no longer depends on Xapian.
   - Password reset link fixed.
   - An API for setting liveform values from javascript has been added.
-  - Scrolltable has been reverted to the previous version for performance 
+  - Scrolltable has been reverted to the previous version for performance
     reasons.
 
 0.5.18 (2006-10-10):
