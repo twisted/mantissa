@@ -1,3 +1,8 @@
+0.5.20 (2006-10-21):
+  - Scrolltable now supports conditionally enabled actions.
+  - Search now handles charsets properly.
+  - People are now sorted by last name.
+
 0.5.19 (2006-10-17):
   - Mantissa no longer depends on Xapian.
   - Password reset link fixed.
