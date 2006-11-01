@@ -296,7 +296,8 @@ runTests([
 
     /**
      * Test that L{Mantissa.ScrollTable.PlaceholderModel.removedRow} doesn't do
-     * anything if there any placeholders after the index of the removed row
+     * anything if there aren't any placeholders after the index of the removed
+     * row.
      */
     function test_removedRowNeg(selF) {
         var model = createPlaceholderLayout([[0, 1]]);
