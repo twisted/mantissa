@@ -276,6 +276,20 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
     },
 
     /**
+     * Test that L{Mantissa.ScrollTable.ScrollingWidget.getRowIndices} returns
+     * the indices in ascending order, even if rows were added out of order
+     */
+    function test_getRowIndicesOrder(self) {
+        self.setUp();
+
+        self.model.setRowData(10, {__id__: '10'});
+        self.model.setRowData(0, {__id__: '0'});
+        self.model.setRowData(3, {__id__: '3'});
+
+        self.assertArraysEqual(self.model.getRowIndices(), [0, 3, 10]);
+    },
+
+    /**
      * Test that the data associated with a particular row can be discovered by
      * that row's index in the model using L{ScrollModel.getRowData}.
      */

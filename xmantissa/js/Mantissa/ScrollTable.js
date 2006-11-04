@@ -232,7 +232,16 @@ Mantissa.ScrollTable.ScrollModel.methods(
         for (var i = 0; i < indices.length; ++i) {
             indices[i] = parseInt(indices[i]);
         }
-        return indices;
+        return indices.sort(
+            function(a, b) {
+                if (a < b) {
+                    return -1;
+                }
+                if (a > b) {
+                    return 1;
+                }
+                return 0;
+            });
     },
 
     /**
