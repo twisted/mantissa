@@ -196,7 +196,7 @@ class PreferenceEditor(athena.LiveElement):
     rendering all installed L{xmantissa.ixmantissa.IPreferenceCollection}s
     """
     implements(ixmantissa.INavigableFragment)
-    title = 'Preferences'
+    title = 'Settings'
     fragmentName = 'preference-editor'
 
     def __init__(self, aggregator):
