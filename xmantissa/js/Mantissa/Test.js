@@ -1101,6 +1101,107 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
     });
 
 
+
+/**
+ * L{Mantissa.ScrollTable.ScrollingWidget} subclass which keeps track of the
+ * number of browser-originated scroll events that it receives
+ */
+Mantissa.Test.ScrollEventTestableScrollTable = Mantissa.ScrollTable.ScrollingWidget.subclass(
+                                                    'Mantissa.Test.ScrollEventTestableScrollTable');
+Mantissa.Test.ScrollEventTestableScrollTable.methods(
+    function __init__(self, node) {
+        Mantissa.Test.ScrollEventTestableScrollTable.upcall(self, '__init__', node);
+        self.browserOriginatedScrollCount = 0;
+    },
+
+    /**
+     * Increment the scroll event counter and delegate to the superclass
+     * implementation
+     */
+    function onScroll(self) {
+        self.browserOriginatedScrollCount++;
+        return Mantissa.Test.ScrollEventTestableScrollTable.upcall(self, 'onScroll');
+    });
+
+
+
+/**
+ * Test for the behaviour of L{Mantissa.ScrollTable.ScrollingWidget} and
+ * browser onscroll events
+ */
+Mantissa.Test.ScrollTableScrollEventsTestCase = Mantissa.Test.ScrollTableViewTestBase.subclass('Mantissa.Test.ScrollTableScrollEventsTestCase');
+Mantissa.Test.ScrollTableScrollEventsTestCase.methods(
+    /**
+     * Test that emptyAndRefill() doesn't cause an exception to be thrown by
+     * generating a spurious upward scroll event
+     */
+    function test_emptyAndRefill(self) {
+        var result = self.setUp('emptyAndRefill');
+
+        result.addCallback(
+            function() {
+                var sviewport = self.scrollingWidget._scrollViewport;
+                self.scrollingWidget.whileIgnoringDOMEvents(
+                    function() {
+                        /* scroll down a bit.  halfway */
+                        sviewport.scrollTop = Math.floor(sviewport.scrollHeight / 2);
+                    }, sviewport);
+                    /* now kill all the rows */
+                    return self.callRemote('changeRowCount', 'emptyAndRefill', 0);
+            });
+
+        result.addCallback(
+            function() {
+                /* now we empty and refill.  empty and refill scrolls to the
+                 * top of the scrolltable.  we can't *really* make sure it
+                 * didn't throw an exception, because the exception would get
+                 * thrown as a result of a browser scroll event caused by
+                 * emptyAndRefill(), but we can at least check that it didn't
+                 * cause any extra scroll events
+                 */
+                self.scrollingWidget.browserOriginatedScrollCount = 0;
+                return self.scrollingWidget.emptyAndRefill();
+            });
+
+        result.addCallback(
+            function() {
+                /* which we do here */
+                self.assertEqual(self.scrollingWidget.browserOriginatedScrollCount, 0);
+
+                /* also make sure we actually did something */
+                self.assertEqual(self.scrollingWidget._scrollViewport.scrollTop, 0);
+            });
+
+        return result;
+    },
+
+    /**
+     * Test that
+     * L{Mantissa.ScrollTable.ScrollingWidget.whileIgnoringDOMEvents}
+     * really does ignore DOM events
+     */
+    function test_whileIgnoringDOMEvents(self) {
+        var result = self.setUp('whileIgnoringDOMEvents');
+
+        result.addCallback(
+            function() {
+                var sviewport = self.scrollingWidget._scrollViewport;
+                self.scrollingWidget.whileIgnoringDOMEvents(
+                    function() {
+                        var scrollHeight = sviewport.scrollHeight;
+                        sviewport.scrollTop = 0;
+                        for(var i = 0; i < scrollHeight; i++) {
+                            sviewport.scrollTop++;
+                            self.assertEqual(
+                                self.scrollingWidget.browserOriginatedScrollCount, 0);
+                        }
+                    }, sviewport);
+            });
+
+        return result;
+    });
+
+
 Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
 Mantissa.Test.PersonDetail.methods(
     function contactInfoSectionsFromSectionName(self, sectionName) {
@@ -1302,3 +1403,4 @@ Mantissa.Test.UserBrowserTestCase.methods(
     function test_depriveFormCreation(self) {
         return self._endowDepriveFormTest('deprive');
     });
+

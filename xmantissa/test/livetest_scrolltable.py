@@ -84,3 +84,18 @@ class ScrollTablePlaceholderRowsTestCase(ScrollTableWidgetTestCase):
     """
     jsClass = u'Mantissa.Test.ScrollTablePlaceholderRowsTestCase'
     rowCount = 100
+
+
+class ScrollTableScrollEventsTestCase(ScrollTableWidgetTestCase):
+    """
+    Tests for scrolling/scroll events
+    """
+    jsClass = u'Mantissa.Test.ScrollTableScrollEventsTestCase'
+
+    rowCount = 100
+
+    def getScrollingWidget(self, key):
+        f = ScrollTableWidgetTestCase.getScrollingWidget(self, key)
+        f.jsClass = u'Mantissa.Test.ScrollEventTestableScrollTable'
+        return f
+    expose(getScrollingWidget)

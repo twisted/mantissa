@@ -666,6 +666,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         return self.getRows(firstRow, lastRow).addCallback(
             function(rows) {
                 self._storeRows(firstRow, lastRow, rows);
+                return rows;
             });
     },
 
@@ -902,14 +903,15 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * and so whether the requested rows should be below the current position
      * or not.
      *
-     * @return: A Deferred which fires when the update has finished.
+     * @return: A Deferred which fires with an Array of rows retrieve when
+     * the update has finished.
      */
     function _getSomeRows(self, scrollingDown) {
         var range = self._calculateDesiredRowRange(scrollingDown);
 
         /* do we have the rows we need ? */
         if (!range) {
-            return Divmod.Defer.succeed(1);
+            return Divmod.Defer.succeed([]);
         }
 
         return self.requestRowRange.apply(self, range);
@@ -989,16 +991,54 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
+     * Execute C{thunk} while ignoring DOM events originating from C{node}.
+     * Do this by temporarily removing C{node} from the document.
+     *
+     * @type thunk: function
+     * @type node: node
+     *
+     * @return: undefined
+     */
+    function whileIgnoringDOMEvents(self, thunk, node) {
+        var parent = node.parentNode;
+        if(parent == null) {
+            throw new Error(node + " does not have a parent");
+        }
+        var nextsib = node.nextSibling,
+            cleanup = function() {
+                if(nextsib) {
+                    parent.insertBefore(node, nextsib);
+                } else {
+                    parent.appendChild(node);
+                }
+            };
+
+        parent.removeChild(node);
+
+        try {
+            thunk();
+        } catch(e) {
+            cleanup();
+            throw e;
+        }
+        cleanup();
+    },
+
+    /**
      * Remove all row nodes, including placeholder nodes from the scrolltable
      * viewport node.  Also empty the model.
      */
     function empty(self) {
-        self._scrollViewport.scrollTop = 0;
-        /* remove all rows, including placeholders */
-        while(0 < self._scrollViewport.childNodes.length) {
-            self._scrollViewport.removeChild(
-                self._scrollViewport.firstChild);
-        }
+        var sviewport = self._scrollViewport;
+
+        self.whileIgnoringDOMEvents(
+            function() {
+                while(sviewport.firstChild) {
+                    sviewport.removeChild(sviewport.firstChild);
+                }
+            },
+            sviewport);
+
         self.model.empty();
         self.placeholderModel.empty();
     },
@@ -1327,22 +1367,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * Return the number of non-empty rows, ie, rows of which we have a local
-     * cache.
-     *
-     * @rtype: integer
-     */
-    function nonEmptyRowCount(self) {
-        var count = 0;
-        for (var i = 0; i < self.model.rowCount(); ++i) {
-            if (self.model.getRowData(i) != undefined) {
-                ++count;
-            }
-        }
-        return count;
-    },
-
-    /**
      * Respond to an event which may have caused to become visible rows for
      * which we do not data locally cached.  Retrieve some data, maybe, if
      * necessary.
@@ -1377,9 +1401,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             function () {
                 self._rowTimeout = null;
                 self._requestWaiting = true;
-                var rowCount = self.nonEmptyRowCount();
                 self._getSomeRows(scrollingDown).addBoth(
-                    function (rslt) {
+                    function (rows) {
                         self._requestWaiting = false;
                         if (self._moreAfterRequest) {
                             self._moreAfterRequest = false;
@@ -1391,9 +1414,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                                 scrollDeferreds[i].callback(null);
                             }
                         }
-                        self.cbRowsFetched(self.nonEmptyRowCount() - rowCount);
-
-                        return rslt;
+                        self.cbRowsFetched(rows.length);
                     });
             },
             proposedTimeout);
