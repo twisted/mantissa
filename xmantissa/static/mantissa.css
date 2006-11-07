@@ -476,7 +476,7 @@ body {
     margin-bottom: 2px;
 }
 
-.tab-text-cell a, .tab-text-cell a:visited {
+.tab-text-cell a, .tab-text-cell a:visited, .tab-text-cell a:link {
     color: #FFFFFF;
 }
 
