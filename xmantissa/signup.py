@@ -1,4 +1,4 @@
-# -*- test-case-name: xmantissa.test.test_signup -*-
+# -*- test-case-name: xmantissa.test.test_signup,xmantissa.test.test_password_reset -*-
 
 import os, rfc822, md5, time, random
 
@@ -28,6 +28,7 @@ from xmantissa.ixmantissa import (
     IBenefactor, ISiteRootPlugin, IStaticShellContent, INavigableElement,
     INavigableFragment, ISignupMechanism)
 from xmantissa.website import PrefixURLMixin, WebSite
+from xmantissa.websession import usernameFromRequest
 from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
 from xmantissa.webnav import Tab
 from xmantissa.webapp import PrivateApplication
@@ -37,10 +38,28 @@ from xmantissa.websession import PersistentSession
 from xmantissa.smtp import parseAddress
 from xmantissa.error import ArgumentError
 
+
 class PasswordResetResource(Page):
     """
-    I handle the user-facing parts of password reset -
-    the web form junk and sending of emails
+    I handle the user-facing parts of password reset - the web form junk and
+    sending of emails.
+
+    The user sees a password reset form. The form asks the user for the
+    username they use on this server. The form data is posted back to the
+    C{PasswordResetResource}. On render, the resource creates a new 'attempt'
+    (a L{_PasswordResetAttempt}) and sends an email to one of user's external
+    addresses, if such a thing exists. The email contains a URL which is a
+    child of this page, the last segment being the attempt ID.
+
+    The user can then check their external email account and follow the link.
+    Clicking the link loads the stored attempt and presents a password change
+    form. The user can then specify a new password, click submit and their
+    password will be reset.
+
+    Currently unspecified behavior:
+    - What happens when the provided username doesn't exist.
+    - What happens when the provided passwords mismatch.
+    - What happens when the user doesn't have an external account registered.
     """
 
     attempt = None
@@ -63,7 +82,7 @@ class PasswordResetResource(Page):
 
         if req.method == 'POST':
             if 'username' in req.args:
-                user = unicode(req.args['username'][0], 'ascii')
+                user = unicode(usernameFromRequest(req), 'ascii')
                 self.handleRequestForUser(user, URL.fromContext(ctx))
                 self.docFactory = loaders.stan(tags.h1['Check your email'])
             else:
@@ -81,14 +100,31 @@ class PasswordResetResource(Page):
         User C{username} wants to reset their password.  Create an attempt
         item, and send them an email if the username is valid
         """
-        att = self.newAttemptForUser(username)
-        if self.accountByAddress(username) is not None:
-            self._sendEmail(url, att)
-        else:
+        attempt = self.newAttemptForUser(username)
+        account = self.accountByAddress(username)
+        if account is None:
             # do we want to disclose this to the user?
-            pass
+            return
+        email = self.getExternalEmail(account)
+        if email is not None:
+            self._sendEmail(url, attempt, email)
 
-    def _sendEmail(self, url, attempt):
+
+    def _sendEmail(self, url, attempt, email):
+        """
+        Send an email to the user who made C{attempt} at
+
+        @type url: L{URL}
+        @param url: The URL of the password reset page.
+
+        @type attempt: L{_PasswordResetAttempt}
+        @param attempt: An L{Item} representing a particular user's attempt to
+        reset their password.
+
+        @type email: C{str}
+        @param email: The email will be sent to this address.
+        """
+
         netloc = url.netloc.split(':')
         host = netloc.pop(0)
         if netloc:
@@ -98,12 +134,13 @@ class PasswordResetResource(Page):
 
         body = file(sibpath(__file__, 'reset.rfc2822')).read()
         body %= {'from': 'reset@' + host,
-                 'to': attempt.username,
+                 'to': email,
                  'date': rfc822.formatdate(),
                  'message-id': smtp.messageid(),
                  'link': 'http://%s:%s/resetPassword/%s' % (host, port, attempt.key)}
 
-        _sendEmail('reset@' + host, attempt.username, body)
+        _sendEmail('reset@' + host, email, body)
+
 
     def attemptByKey(self, key):
         """
@@ -115,6 +152,10 @@ class PasswordResetResource(Page):
                                      default=None)
 
     def _makeKey(self, usern):
+        """
+        Make a new, probably unique key. This key will be sent in an email to
+        the user and is used to access the password change form.
+        """
         return unicode(md5.new(str((usern, time.time(), random.random()))).hexdigest())
 
     def newAttemptForUser(self, user):
@@ -129,6 +170,23 @@ class PasswordResetResource(Page):
                                      username=user,
                                      timestamp=extime.Time(),
                                      key=self._makeKey(user))
+
+
+    def getExternalEmail(self, account):
+        """
+        @return: str which is an external email address for the C{account}.
+        None if there is no such address.
+        """
+        # XXX - shouldn't userbase do this for me? - jml
+        method = self.store.findFirst(
+            userbase.LoginMethod,
+            AND (userbase.LoginMethod.account == account,
+                 userbase.LoginMethod.internal == False))
+        if method is None:
+            return None
+        else:
+            return '%s@%s' % (method.localpart, method.domain)
+
 
     def accountByAddress(self, username):
         """
@@ -155,6 +213,7 @@ class PasswordResetResource(Page):
         attempt.deleteFromStore()
 
 
+
 class _PasswordResetAttempt(Item):
     """
     I represent as as-yet incomplete attempt at password reset
@@ -166,6 +225,8 @@ class _PasswordResetAttempt(Item):
     key = text()
     username = text()
     timestamp = timestamp()
+
+
 
 class PasswordReset(Item):
     """
@@ -179,6 +240,8 @@ class PasswordReset(Item):
 
     installedOn = reference()
 
+
+
 def passwordReset1to2(old):
     """
     Power down and delete the item
@@ -190,11 +253,15 @@ def passwordReset1to2(old):
 
 upgrade.registerUpgrader(passwordReset1to2, 'password_reset', 1, 2)
 
+
+
 class NoSuchFactory(Exception):
     """
     An attempt was made to create a signup page using the name of a benefactor
     factory which did not correspond to anything in the database.
     """
+
+
 
 _theMX = None
 def getMX():
@@ -206,6 +273,7 @@ def getMX():
     if _theMX is None:
         _theMX = relaymanager.MXCalculator()
     return _theMX
+
 
 
 class TicketClaimer(Page):
@@ -220,6 +288,7 @@ class TicketClaimer(Page):
             ISession(ctx).setDefaultResource(res, lgo)
             return URL.fromContext(ctx).click("/private")
         return None
+
 
 
 class TicketBooth(Item, PrefixURLMixin):
@@ -320,6 +389,8 @@ class TicketBooth(Item, PrefixURLMixin):
 
         return ticket, _sendEmail(signupInfo['from'], email, msg)
 
+
+
 def _sendEmail(_from, to, msg):
 
     def gotMX(mx):
@@ -327,12 +398,18 @@ def _sendEmail(_from, to, msg):
 
     return getMX().getMX(to.split('@', 1)[1]).addCallback(gotMX)
 
+
+
 def _generateNonce():
     return unicode(os.urandom(16).encode('hex'), 'ascii')
+
+
 
 class ITicketIssuer(Interface):
     def issueTicket(emailAddress):
         pass
+
+
 
 class SignupMechanism(object):
     """
@@ -374,6 +451,8 @@ class SignupMechanism(object):
         self.description = description
         self.itemClass = itemClass
         self.configuration = configuration
+
+
 
 freeTicketSignupConfiguration = [
     liveform.Parameter('prefixURL',
@@ -425,6 +504,8 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
             return issueDeferred
 
+
+
 def freeTicketSignup1To2(old):
     return old.upgradeVersion('free_signup', 1, 2,
                               prefixURL=old.prefixURL,
@@ -432,6 +513,8 @@ def freeTicketSignup1To2(old):
                               benefactor=old.benefactor)
 
 upgrade.registerUpgrader(freeTicketSignup1To2, 'free_signup', 1, 2)
+
+
 
 def freeTicketSignup2To3(old):
     emailTemplate = file(sibpath(__file__, 'signup.rfc2822')).read()
@@ -454,6 +537,8 @@ declareLegacyItem(typeName='free_signup',
                                   benefactor=reference(),
                                   emailTemplate=text()))
 
+
+
 def freeTicketSignup3To4(old):
     return old.upgradeVersion('free_signup', 3, 4,
                               prefixURL=old.prefixURL,
@@ -472,6 +557,8 @@ declareLegacyItem(typeName='free_signup',
                                   emailTemplate=text(),
                                   prompt=text()))
 
+
+
 def freeTicketSignup4To5(old):
     return old.upgradeVersion('free_signup', 4, 5,
                               prefixURL=old.prefixURL,
@@ -481,6 +568,8 @@ def freeTicketSignup4To5(old):
                               prompt=old.prompt)
 
 upgrade.registerUpgrader(freeTicketSignup4To5, 'free_signup', 4, 5)
+
+
 
 class ValidatingSignupForm(liveform.LiveForm):
     jsClass = u'Mantissa.Validate.SignupForm'
@@ -551,10 +640,11 @@ class UserInfoSignup(Item, PrefixURLMixin):
             parseAddress("<%s@%s>" % (username, domain))
         except ArgumentError:
             return False
-        return not bool(self.store.query(userbase.LoginMethod,
-                                         AND(userbase.LoginMethod.localpart == username,
-                                             userbase.LoginMethod.domain == domain)
-                                         ).count())
+        query = self.store.query(userbase.LoginMethod,
+                                 AND(userbase.LoginMethod.localpart == username,
+                                     userbase.LoginMethod.domain == domain))
+        return not bool(query.count())
+
 
     def createUser(self, firstName, lastName, username, domain,
                    password, emailAddress):
@@ -564,10 +654,9 @@ class UserInfoSignup(Item, PrefixURLMixin):
         # what do I do with firstName and lastName?
         def _():
             loginsystem = self.store.findUnique(userbase.LoginSystem)
-            acct = loginsystem.addAccount(username, domain, password)
             # XXX TODO: firstName and lastName should be on the "Me" person?
-            acct.addLoginMethod(username, domain,
-                                verified=True, internal=True)
+            acct = loginsystem.addAccount(username, domain, password,
+                                          verified=True, internal=True)
             # did we really just want to do that?  do we need to verify
             # anything...?
             emailPart, emailDomain = emailAddress.split("@")
@@ -575,6 +664,7 @@ class UserInfoSignup(Item, PrefixURLMixin):
                                 verified=False, internal=False)
             self.benefactor.endow(None, IBeneficiary(acct))
         self.store.transact(_)
+
 
 
 class InitializerBenefactor(Item, InstallableMixin):
@@ -601,6 +691,8 @@ class InitializerBenefactor(Item, InstallableMixin):
     def resumeSignup(self, ticket, avatar):
         self.realBenefactor.endow(ticket, avatar)
 
+
+
 def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None,
                              benefactor=None, emailTemplate=None, prompt=None):
 
@@ -612,6 +704,7 @@ def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None,
                             prefixURL=prefixURL,
                             emailTemplate=emailTemplate,
                             prompt=prompt)
+
 
 
 class Initializer(Item, InstallableMixin):
@@ -647,6 +740,8 @@ class Initializer(Item, InstallableMixin):
         self.store.powerDown(self, INavigableElement)
         self.deleteFromStore()
 
+
+
 class InitializerPage(PublicPage):
 
     def __init__(self, original):
@@ -679,6 +774,8 @@ class InitializerPage(PublicPage):
 registerAdapter(InitializerPage,
                 Initializer,
                 inevow.IResource)
+
+
 
 class Ticket(Item):
     schemaVersion = 1
@@ -716,6 +813,7 @@ class Ticket(Item):
     claim = transacted(claim)
 
 
+
 class _DelegatedBenefactor(Item):
     typeName = 'mantissa_delegated_benefactor'
     schemaVersion = 1
@@ -723,6 +821,7 @@ class _DelegatedBenefactor(Item):
     benefactor = reference(allowNone=False)
     multifactor = reference(allowNone=False)
     order = integer(allowNone=False, indexed=True)
+
 
 
 class Multifactor(Item):
@@ -815,6 +914,7 @@ def _getPublicSignupInfo(siteStore):
             yield (p, u'/'+u)
 
 
+
 class SignupConfiguration(Item, InstallableMixin):
     """
     Provide administrative configuration tools for the signup options
@@ -895,6 +995,7 @@ class SignupConfiguration(Item, InstallableMixin):
         return signupItem
 
 
+
 def _insertDep(dependent, ordered):
     for dependency in dependent.dependencies():
         _insertDep(dependency, ordered)
@@ -906,6 +1007,7 @@ def dependencyOrdered(coll):
     for dependent in coll:
         _insertDep(dependent, ordered)
     return ordered
+
 
 
 class BenefactorFactoryConfigMixin:
@@ -957,6 +1059,7 @@ class BenefactorFactoryConfigMixin:
             [self.benefactorFactoryConfigurationParameter(beneFac)
              for beneFac in self.getBenefactorFactories()],
             u"Benefactors for Signup")
+
 
 
 class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):

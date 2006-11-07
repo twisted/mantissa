@@ -1,3 +1,5 @@
+# -*- test-case-name: xmantissa.test.test_websession -*-
+
 # Copyright 2005 Divmod, Inc.  See LICENSE file for details
 
 """Sessions that persist in the database.
@@ -23,6 +25,22 @@ from nevow import guard
 SESSION_CLEAN_FREQUENCY = 60 * 60 * 25  # 1 day, almost
 PERSISTENT_SESSION_LIFETIME = 60 * 60 * 24 * 7 * 2 # 2 weeks
 TRANSIENT_SESSION_LIFETIME = 60 * 12 + 32 # 12 minutes, 32 seconds.
+
+
+def usernameFromRequest(request):
+    """
+    Take a HTTP request and return a username of the form <user>@<domain>.
+
+    @type request: L{inevow.IRequest}
+    @param request: A HTTP request
+
+    @return: A C{str}
+    """
+    username = request.args.get('username', [''])[0]
+    if '@' not in username:
+        username = '%s@%s' % (username, request.getHeader('host').split(':')[0])
+    return username
+
 
 
 class PersistentSession(item.Item):
@@ -218,8 +236,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         to the credentials.  This will make web-based virtual hosting
         work.
         """
-        username = request.args.get('username', [''])[0]
-        if '@' not in username:
-            username = '%s@%s' % (username, request.getHeader('host').split(':')[0])
+        username = usernameFromRequest(request)
         password = request.args.get('password', [''])[0]
         return credentials.UsernamePassword(username, password)

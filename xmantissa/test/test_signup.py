@@ -108,8 +108,8 @@ class SignupCreationTestCase(unittest.TestCase):
     def setUp(self):
         self.dbdir = self.mktemp()
         self.store = store.Store(self.dbdir)
-        ls = userbase.LoginSystem(store=self.store)
-        self.admin = ls.addAccount(u'admin', u'localhost', None)
+        self.ls = userbase.LoginSystem(store=self.store)
+        self.admin = self.ls.addAccount(u'admin', u'localhost', None)
         self.substore = self.admin.avatars.open()
         self.sc = signup.SignupConfiguration(store=self.substore)
 
@@ -147,9 +147,9 @@ class SignupCreationTestCase(unittest.TestCase):
             self.createFreeSignup(signupMechanismPlugin.itemClass)
 
 
-    def testUserInfoSignupValidation(self):
+    def testUserInfoSignupCreation(self):
         signup = self.createFreeSignup(free_signup.userInfo.itemClass)
-        self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
+        self.assertEquals(signup.usernameAvailable(u'fjones', u'127.0.0.1'),
                           True)
 
         self.assertEquals(self.ftb.endowed, 0)
@@ -158,11 +158,11 @@ class SignupCreationTestCase(unittest.TestCase):
             firstName=u"Frank",
             lastName=u"Jones",
             username=u'fjones',
-            domain=u'localhost',
+            domain=u'127.0.0.1',
             password=u'asdf',
             emailAddress=u'fj@crappy.example.com')
 
-        self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
+        self.assertEquals(signup.usernameAvailable(u'fjones', u'127.0.0.1'),
                           False)
 
         self.assertEquals(self.ftb.endowed, 1)
@@ -177,6 +177,32 @@ class SignupCreationTestCase(unittest.TestCase):
                           False)
         self.assertEquals(signup.usernameAvailable(u'foo@bar', u'localhost'),
                           False)
+
+
+    def test_userInfoLoginMethods(self):
+        """
+        Check that C{createUser} creates only two L{LoginMethod}s on the
+        account.
+        """
+        username, domain = u'fjones', u'divmod.com'
+        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
+        signup.createUser(u'Frank', u'Jones', username, domain, u'asdf',
+                          u'fj@example.com')
+        account = self.ls.accountByAddress(username, domain)
+        query = list(
+            self.store.query(userbase.LoginMethod,
+                             userbase.LoginMethod.account == account,
+                             sort=userbase.LoginMethod.internal.ascending))
+        self.assertEquals(len(query), 2)
+        self.assertEquals(query[0].internal, False)
+        self.assertEquals(query[0].verified, False)
+        self.assertEquals(query[0].localpart, u'fj')
+        self.assertEquals(query[0].domain, u'example.com')
+        self.assertEquals(query[1].internal, True)
+        self.assertEquals(query[1].verified, True)
+        self.assertEquals(query[1].localpart, username)
+        self.assertEquals(query[1].domain, domain)
+
 
     def test_freeSignupsList(self):
         """
