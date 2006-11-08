@@ -1,3 +1,11 @@
+0.5.22 (2006-11-08):
+  - Mantissa CSS now uses the same style for :link and :visit.
+  - Improved signup and password reset behaviour.
+  - Title of the settings page changed to "Settings".
+  - Fixed an issue where scrolling around or calling emptyAndRefill() in
+    certain situations would generate a phantom scroll event which would
+    result in the scrolltable ignoring subsequent scrolls.
+	  
 0.5.21 (2006-10-31):
   - A sort direction parameter has been added to the search API.
   - Further scrolltable refactoring, improving the UI, creating placeholder
