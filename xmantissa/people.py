@@ -80,10 +80,28 @@ class Person(item.Item):
             return rn.display
         return self.name
 
+    def getEmailAddresses(self):
+        """
+        Return an iterator of all email addresses associated with this person.
+
+        @return: an iterator of unicode strings in RFC2822 address format.
+        """
+        return self.store.query(
+            EmailAddress,
+            EmailAddress.person == self).getColumn('address')
+
     def getEmailAddress(self):
-        # XXX figure out the default address
-        for email in self.store.query(EmailAddress, EmailAddress.person == self):
-            return email.address
+        """
+        Return the default email address associated with this person.
+
+        Note: this is effectively random right now if a person has more than
+        one address.  It's just the first address returned.  This should be
+        fixed in a future version.
+
+        @return: a unicode string in RFC2822 address format.
+        """
+        for a in self.getEmailAddresses():
+            return a
 
     def registerExtract(self, extract, timestamp=None):
         """

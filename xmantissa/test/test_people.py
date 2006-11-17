@@ -95,6 +95,48 @@ class PeopleTests(unittest.TestCase):
         self.assertEquals(q.name, u'testuser')
         self.assertEquals(notQ.name, u'nottestuser')
 
+
+    def test_getEmailAddresses(self):
+        """
+        Verify that getEmailAddresses yields the associated email address
+        strings for a person.
+        """
+        s = store.Store()
+        p = people.Person(store=s)
+        people.EmailAddress(store=s, person=p, address=u'a@b.c')
+        people.EmailAddress(store=s, person=p, address=u'c@d.e')
+        # Ordering is undefined, so let's use a set.
+        self.assertEquals(set(p.getEmailAddresses()),
+                          set([u'a@b.c', u'c@d.e']))
+
+
+    def test_getEmailAddress(self):
+        """
+        Verify that getEmailAddress yields the only associated email address
+        for a person if it is the only one.
+        """
+        s = store.Store()
+        p = people.Person(store=s)
+        people.EmailAddress(store=s, person=p, address=u'a@b.c')
+        self.assertEquals(p.getEmailAddress(), u'a@b.c')
+
+
+    def test_getEmailAddresses(self):
+        """
+        Verify that getEmailAddress yields an associated email address
+        for a person.
+        """
+        s = store.Store()
+        p = people.Person(store=s)
+        people.EmailAddress(store=s, person=p, address=u'a@b.c')
+        people.EmailAddress(store=s, person=p, address=u'c@d.e')
+        # XXX: I know this test is awful, but it's testing existing behavior,
+        # which is random.  I could make it well defined while writing the
+        # test, but it'd be just as wrong and just as not-configurable.  Let's
+        # just get rid of this method and delete these tests soon.  -glyph
+        self.failUnlessIn(p.getEmailAddress(), [u'a@b.c', u'c@d.e'])
+
+
     def testPersonRetrieval(self):
         s = store.Store()
         o = people.Organizer(store=s)
