@@ -25,6 +25,11 @@ class IColumn(Interface):
         returns a string describing the type of this column, or None
         """
 
+    attributeID = Attribute(
+        """
+        An ASCII-encoded str object uniquely describing this column.
+        """)
+
 
 
 class ITemplateNameResolver(Interface):

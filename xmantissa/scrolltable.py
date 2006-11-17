@@ -23,7 +23,10 @@ class TimestampAttributeColumn(AttributeColumn):
     # and so it needs an extime.Time instance, not a float
 
     def extractValue(self, model, item):
-        return AttributeColumn.extractValue(self, model, item).asPOSIXTimestamp()
+        val = AttributeColumn.extractValue(self, model, item)
+        if val is None:
+            raise AttributeError("%r was None" % (self.attribute,))
+        return val.asPOSIXTimestamp()
 
     def getType(self):
         return 'timestamp'
@@ -231,9 +234,6 @@ class ScrollableView(object):
 
 
 class ItemQueryScrollingFragment(Scrollable, ScrollableView, LiveElement):
-    currentRowRange = None
-    currentRowSet = None
-
     def __init__(self, store, itemType, baseConstraint, columns,
                  defaultSortColumn=None, defaultSortAscending=True,
                  *a, **kw):
@@ -251,20 +251,15 @@ class ItemQueryScrollingFragment(Scrollable, ScrollableView, LiveElement):
 
 
     def performQuery(self, rangeBegin, rangeEnd):
-        self.currentRowRange = (rangeBegin, rangeEnd)
-
         if self.isAscending:
             sort = self.currentSortColumn.ascending
         else:
             sort = self.currentSortColumn.descending
-        self.currentRowSet = []
-        for item in self.store.query(self.itemType,
+        return list(self.store.query(self.itemType,
                                      self.baseConstraint,
                                      offset=rangeBegin,
                                      limit=rangeEnd - rangeBegin,
-                                     sort=sort):
-            self.currentRowSet.append(item)
-        return self.currentRowSet
+                              sort=sort))
 ScrollingFragment = ItemQueryScrollingFragment
 
 
