@@ -181,12 +181,12 @@ Mantissa.ScrollTable.ScrollModel.methods(
      *
      * @type data: The data to associate with the row.
      *
-     * @throw Error: Thrown if the row's index is less than zero.
+     * @throw Divmod.IndexError: Thrown if the row's index is less than zero.
      * @throw Error: Thrown if the row data's __id__ property is not a string.
      */
     function setRowData(self, index, data) {
         if (index < 0) {
-            throw new Error("Specified index out of bounds in setRowData.");
+            throw Divmod.IndexError("Specified index out of bounds in setRowData.");
         }
         /*
          * XXX I hate `typeof'.  It is an abomination.  Why the hell is
@@ -212,11 +212,11 @@ Mantissa.ScrollTable.ScrollModel.methods(
      * @rtype: object
      * @return: The structured data associated with the row at the given index.
      *
-     * @throw Error: Thrown if the given index is out of bounds.
+     * @throw Divmod.IndexError: Thrown if the given index is out of bounds.
      */
     function getRowData(self, index) {
         if (index < 0 || index >= self._rows.length) {
-            throw new Error("Specified index out of bounds in getRowData.");
+            throw Divmod.IndexError("Specified index out of bounds in getRowData.");
         }
         if (self._rows[index] === undefined) {
             return undefined;

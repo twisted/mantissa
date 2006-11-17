@@ -222,7 +222,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
          * Negative updates must be rejected.
          */
         var error = self.assertThrows(
-            Error,
+            Divmod.IndexError,
             function() { self.model.setRowData(-1, {__id__: 'c'}); });
         self.assertEqual(
             error.message,
@@ -305,14 +305,14 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
         var error;
 
         error = self.assertThrows(
-            Error,
+            Divmod.IndexError,
             function() { self.model.getRowData(-1); });
         self.assertEqual(
             error.message,
             "Specified index out of bounds in getRowData.");
 
         error = self.assertThrows(
-            Error,
+            Divmod.IndexError,
             function() { self.model.getRowData(2); });
         self.assertEqual(
             error.message,
@@ -470,7 +470,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
         var error;
 
         error = self.assertThrows(
-            Error,
+            Divmod.IndexError,
             function() { self.model.getRowData(5); });
         self.assertEqual(
             error.message,
@@ -527,7 +527,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
          */
         var error;
         error = self.assertThrows(
-            Error,
+            Divmod.IndexError,
             function() { self.model.getRowData(2); });
         self.assertEqual(
             error.message,
@@ -580,7 +580,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
         var error;
 
         error = self.assertThrows(
-            Error,
+            Divmod.IndexError,
             function() { self.model.getRowData(0); });
         self.assertEqual(
             error.message,
