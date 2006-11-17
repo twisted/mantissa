@@ -20,7 +20,7 @@ class WebSiteTestCase(unittest.TestCase):
         self.origFunction = http._logDateTimeStart
         http._logDateTimeStart = lambda: None
         self.certfile = self.mktemp()
-        certcreate.main(['--filename', self.certfile])
+        certcreate.main(['--filename', self.certfile, '--quiet'])
 
     def tearDownClass(self):
         http._logDateTimeStart = self.origFunction

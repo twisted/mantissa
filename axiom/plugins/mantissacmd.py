@@ -68,7 +68,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
     def installSite(self, s, publicURL):
         certPath = s.dbdir.child("server.pem")
         if not certPath.exists():
-            certcreate.main(['--filename', certPath.path])
+            certcreate.main(['--filename', certPath.path, '--quiet'])
         # Install a user database so that people can log in.
         s.findOrCreate(userbase.LoginSystem).installOn(s)
 
