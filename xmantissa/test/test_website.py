@@ -72,7 +72,7 @@ class WebSiteTestCase(unittest.TestCase):
         Test that the L{WebSite.cleartextRoot} method returns None if there is
         no HTTP server listening.
         """
-        ws = website.WebSite(store=self.store)
+        ws = website.WebSite(store=self.store, portNumber=None)
         self.assertEquals(ws.cleartextRoot(), None)
 
 
@@ -100,6 +100,36 @@ class WebSiteTestCase(unittest.TestCase):
         self.assertEquals(
             flatten(ws.cleartextRoot(u'example.net')),
             'http://example.net/')
+
+
+    def test_cleartextRootPortZero(self):
+        """
+        If C{WebSite.portNumber} is 0, then the server will begin
+        listening on a random port. Check that L{WebSite.cleartextRoot}
+        will return the right port when this is the case.
+        """
+        randomPort = 7777
+
+        class FakePort(object):
+            def getHost(self):
+                from twisted.internet import address
+                return address.IPv4Address('TCP', u'example.com', randomPort)
+
+        ws = website.WebSite(store=self.store,
+                             portNumber=0, hostname=u'example.com')
+        ws.port = FakePort()
+        self.assertEquals(flatten(ws.cleartextRoot()),
+                          'http://example.com:%s/' % (randomPort,))
+
+
+    def test_cleartextRootPortZeroDisconnected(self):
+        """
+        If C{WebSite.securePortNumber} is 0 and the server is not listening
+        then there is no valid URL. Check that L{WebSite.cleartextRoot}
+        returns None.
+        """
+        ws = website.WebSite(store=self.store, portNumber=0)
+        self.assertEquals(None, ws.cleartextRoot())
 
 
     def test_encryptedRoot(self):
@@ -134,7 +164,7 @@ class WebSiteTestCase(unittest.TestCase):
         Test that the L{WebSite.encryptedRoot} method returns None if there is
         no HTTP server listening.
         """
-        ws = website.WebSite(store=self.store)
+        ws = website.WebSite(store=self.store, securePortNumber=None)
         self.assertEquals(ws.encryptedRoot(), None)
 
 
@@ -162,6 +192,37 @@ class WebSiteTestCase(unittest.TestCase):
         self.assertEquals(
             flatten(ws.encryptedRoot(u'example.net')),
             'https://example.net/')
+
+
+    def test_encryptedRootPortZero(self):
+        """
+        If C{WebSite.securePortNumber} is 0, then the server will begin
+        listening on a random port. Check that L{WebSite.encryptedRoot}
+        will return the right port when this is the case.
+        """
+        randomPort = 7777
+
+        class FakePort(object):
+            def getHost(self):
+                from twisted.internet import address
+                return address.IPv4Address('TCP', u'example.com', randomPort)
+
+        ws = website.WebSite(store=self.store,
+                             securePortNumber=0, hostname=u'example.com')
+        ws.securePort = FakePort()
+        self.assertEquals(
+            flatten(ws.encryptedRoot()),
+            'https://example.com:%s/' % (randomPort,))
+
+
+    def test_encryptedRootPortZeroDisconnected(self):
+        """
+        If C{WebSite.securePortNumber} is 0 and the server is not listening
+        then there is no valid URL. Check that L{WebSite.encryptedRoot}
+        returns None.
+        """
+        ws = website.WebSite(store=self.store, securePortNumber=0)
+        self.assertEquals(None, ws.encryptedRoot())
 
 
     def testLateInstallation(self):

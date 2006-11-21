@@ -1,6 +1,6 @@
 from nevow import rend, livepage, athena, tags, inevow, url
 
-from xmantissa.webtheme import getLoader, getInstalledThemes, rewriteDOMToRewriteURLs
+from xmantissa.webtheme import getLoader, getInstalledThemes
 
 class PublicPageMixin(object):
     """
@@ -96,8 +96,6 @@ class PublicPageMixin(object):
         return ctx.tag[filter(None, list(self.getHeadContent(req)) + [self.head()])]
 
 class PublicPage(PublicPageMixin, rend.Page):
-
-    preprocessors = [rewriteDOMToRewriteURLs]
 
     def __init__(self, original, store, fragment, staticContent, forUser):
         super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))

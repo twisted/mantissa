@@ -271,7 +271,7 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
     def _setJSModuleRoot(self, ctx):
         req = IRequest(ctx)
         hostname = req.getHeader('host')
-        root = self.website.cleartextRoot(hostname)
+        root = self.website.encryptedRoot(hostname)
         if root is None:
             root = url.URL.fromString('/')
         self.jsModuleRoot = root.child('private').child('jsmodule')

@@ -189,8 +189,6 @@ upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized',
 
 class OfferingsFragment(rend.Fragment):
 
-    preprocessors = [webtheme.rewriteDOMToRewriteURLs]
-
     def __init__(self, original):
         super(OfferingsFragment, self).__init__(original, docFactory=publicresource.getLoader('front-page'))
 

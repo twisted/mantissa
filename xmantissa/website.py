@@ -406,9 +406,9 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
                 self.setServiceParent(other)
 
 
-    def _root(self, scheme, hostname, portNumber, standardPort):
+    def _root(self, scheme, hostname, portNumber, standardPort, port):
         # TODO - real unicode support (but punycode is so bad)
-        if not portNumber:
+        if portNumber is None:
             return None
 
         if hostname is None:
@@ -418,6 +418,12 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
                 hostname = self.hostname.encode('ascii')
         else:
             hostname = hostname.split(':')[0].encode('ascii')
+
+        if portNumber == 0:
+            if port is None:
+                return None
+            else:
+                portNumber = port.getHost().port
 
         if portNumber == standardPort:
             return URL(scheme, hostname, [''])
@@ -434,7 +440,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
-        return self._root('http', hostname, self.portNumber, 80)
+        return self._root('http', hostname, self.portNumber, 80, self.port)
 
 
     def encryptedRoot(self, hostname=None):
@@ -446,7 +452,8 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
-        return self._root('https', hostname, self.securePortNumber, 443)
+        return self._root('https', hostname, self.securePortNumber, 443,
+                          self.securePort)
 
 
     def child_by(self, ctx):

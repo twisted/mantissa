@@ -1,4 +1,5 @@
 
+from twisted.web import microdom
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 
@@ -18,7 +19,7 @@ from axiom.substore import SubStore
 
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
-    ThemedElement, rewriteTagToRewriteURLs, _ThemedMixin)
+    ThemedElement, _ThemedMixin)
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
@@ -29,7 +30,8 @@ def testHead(theme):
     @param theme: probably an L{xmantissa.webtheme.XHTMLDirectoryTheme}
     """
     s = Store()
-    flatten(theme.head(makeRequest(), WebSite(store=s, portNumber=80)))
+    flatten(theme.head(makeRequest(), WebSite(store=s, portNumber=80,
+                                              securePortNumber=443)))
 
 class WebThemeTestCase(TestCase):
     def _render(self, element):
@@ -124,24 +126,6 @@ class WebThemeTestCase(TestCase):
         return self._defaultThemedRendering(ThemedElement)
 
 
-    def test_rewriter(self):
-        """
-        Test that the L{rewriteTagToRewriteURLs} preprocessing visitor rewrites
-        img, script, and link nodes to use a custom render method.
-        """
-        for tag in [img(src='/foo/bar'),
-                    script(src='/foo/bar'),
-                    link(href='/foo/bar')]:
-            rewriteTagToRewriteURLs(tag)
-            self.assertEquals(
-                tag._specials,
-                {'render': directive('urlRewrite_' + tag.tagName)})
-
-        for tag in [div(src='/foo/bar'), span(href='/foo/bar')]:
-            rewriteTagToRewriteURLs(tag)
-            self.assertEquals(tag._specials, {})
-
-
     def test_websiteDiscovery(self):
         """
         Test that L{_ThemedMixin.getWebSite} finds the right object whether it
@@ -166,27 +150,6 @@ class WebThemeTestCase(TestCase):
             "Found the wrong WebSite from the user store.")
 
 
-    def test_imageSourceRewriting(self):
-        """
-        Test that a document containing links to static images has those links
-        rewritten to an appropriate non-HTTPS URL when being rendered.
-        """
-        s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
-
-        class TestElement(ThemedElement):
-            docFactory = stan(img(src='/Foo.png'))
-            store = s
-
-        d = self._render(TestElement())
-        def rendered(req):
-            self.assertIn(
-                '<img src="http://example.com/Foo.png" />',
-                req.v)
-        d.addCallback(rendered)
-        return d
-
-
     def test_imageSourceNotRewritten(self):
         """
         Test that an image tag which includes a hostname in its source does not
@@ -201,11 +164,16 @@ class WebThemeTestCase(TestCase):
 
         d = self._render(TestElement())
         def rendered(req):
-            self.assertIn(
-                '<img src="http://example.org/Foo.png" />',
-                req.v)
+            dom = microdom.parseString(req.v)
+            img = dom.getElementsByTagName('img')[0]
+            self.assertEquals("http://example.org/Foo.png",
+                              img.getAttribute('src'))
         d.addCallback(rendered)
         return d
+
+
+    def _mutate(self, urlString):
+        return "%s_mutated" % (urlString,)
 
 
     def test_originalImageRendererRespected(self):
@@ -220,36 +188,15 @@ class WebThemeTestCase(TestCase):
             docFactory = stan(img(src='/Foo.png', render=directive('mutate')))
             store = s
 
-            def mutate(self, request, tag):
-                self.mutated = flatten(tag.attributes['src'])
+            def mutate(this, request, tag):
+                this.mutated = self._mutate(tag.attributes['src'])
                 return tag
             renderer(mutate)
 
         ele = TestElement()
         d = self._render(ele)
         def rendered(req):
-            self.assertEquals(ele.mutated, 'http://example.com/Foo.png')
-        d.addCallback(rendered)
-        return d
-
-
-    def test_scriptSourceRewriting(self):
-        """
-        Test that a document containing links to static javascript has those
-        links rewritten to an appropriate non-HTTPS URL when being rendered.
-        """
-        s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
-
-        class TestElement(ThemedElement):
-            docFactory = stan(script(src='/Foo.js'))
-            store = s
-
-        d = self._render(TestElement())
-        def rendered(req):
-            self.assertIn(
-                '<script src="http://example.com/Foo.js"></script>',
-                req.v)
+            self.assertEquals(ele.mutated, self._mutate('/Foo.png'))
         d.addCallback(rendered)
         return d
 
@@ -287,36 +234,15 @@ class WebThemeTestCase(TestCase):
             docFactory = stan(script(src='/Foo.js', render=directive('mutate')))
             store = s
 
-            def mutate(self, request, tag):
-                self.mutated = flatten(tag.attributes['src'])
+            def mutate(this, request, tag):
+                this.mutated = self._mutate(tag.attributes['src'])
                 return tag
             renderer(mutate)
 
         ele = TestElement()
         d = self._render(ele)
         def rendered(req):
-            self.assertEquals(ele.mutated, 'http://example.com/Foo.js')
-        d.addCallback(rendered)
-        return d
-
-
-    def test_linkHypertextReferenceRewriting(self):
-        """
-        Test that a document containing static link tags has those links
-        rewritten to an appropriate non-HTTPS URL when being rendered.
-        """
-        s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
-
-        class TestElement(ThemedElement):
-            docFactory = stan(link(href='/Foo.css'))
-            store = s
-
-        d = self._render(TestElement())
-        def rendered(req):
-            self.assertIn(
-                '<link href="http://example.com/Foo.css" />',
-                req.v)
+            self.assertEquals(ele.mutated, self._mutate('/Foo.js'))
         d.addCallback(rendered)
         return d
 
@@ -354,15 +280,15 @@ class WebThemeTestCase(TestCase):
             docFactory = stan(link(href='/Foo.css', render=directive('mutate')))
             store = s
 
-            def mutate(self, request, tag):
-                self.mutated = flatten(tag.attributes['href'])
+            def mutate(this, request, tag):
+                this.mutated = self._mutate(tag.attributes['href'])
                 return tag
             renderer(mutate)
 
         ele = TestElement()
         d = self._render(ele)
         def rendered(req):
-            self.assertEquals(ele.mutated, 'http://example.com/Foo.css')
+            self.assertEquals(ele.mutated, self._mutate('/Foo.css'))
         d.addCallback(rendered)
         return d
 

@@ -1,4 +1,4 @@
-# -*- test-case-name xmantissa.test.test_theme -*-
+# -*- test-case-name: xmantissa.test.test_theme -*-
 
 import os, sys
 
@@ -122,43 +122,11 @@ class XHTMLDirectoryTheme(object):
 
 class MantissaTheme(XHTMLDirectoryTheme):
     def head(self, request, website):
-        root = website.cleartextRoot(request.getHeader('host'))
+        root = website.encryptedRoot(request.getHeader('host'))
         return tags.link(
             rel='stylesheet',
             type='text/css',
             href=root.child('Mantissa').child('mantissa.css'))
-
-
-# Nasty nasty hack: rewriteTagToRewriteURLs needs to preserve the original
-# render directive, if there was one; there isn't really anywhere safe to put
-# it, though, except for the attributes dictionary of the tag.  This is the key
-# used when doing that.
-_EXTRA = 'themeextra'
-
-
-def rewriteTagToRewriteURLs(tag):
-    """
-    Rewrite the C{src} and C{href} attributes of an C{img}, C{script}, or
-    C{link} tag to use a special renderer which will rewrite the links to point
-    to the most appropriate place for the Mantissa WebSite serving the request.
-    """
-    if isinstance(tag, tags.Tag):
-        for k, a in [('img', 'src'), ('script', 'src'), ('link', 'href')]:
-            if tag.tagName == k and a in tag.attributes:
-                render = tag._specials.get('render', None)
-                tag(render=tags.directive('urlRewrite_' + k))
-                tag(**{_EXTRA: render})
-                break
-
-
-
-def rewriteDOMToRewriteURLs(root):
-    """
-    Like L{rewriteDOMToRewriteURLs} but mutates the entire DOM beneath a
-    particular node.
-    """
-    stan.visit(root, rewriteTagToRewriteURLs)
-    return root
 
 
 
@@ -169,8 +137,6 @@ class _ThemedMixin(object):
     """
 
     implements(ixmantissa.ITemplateNameResolver)
-
-    preprocessors = [rewriteDOMToRewriteURLs]
 
     def __init__(self, fragmentParent=None):
         """
@@ -214,71 +180,6 @@ class _ThemedMixin(object):
 
     def render_pythonClass(self, ctx, data):
         return self.pythonClass(inevow.IRequest(ctx), ctx.tag)
-
-
-    def _findReplacementURL(self, request, current):
-        """
-        Given an URL which is notionally relative to the base of this Mantissa
-        server, return a universal URL pointing to the same resource but is
-        guaranteed to be fetched over HTTP.
-
-        Any URL with a I{netloc} (ie, hostname) will be returned unmodified.
-
-        @type current: C{str}
-        @rtype: L{nevow.url.URL}
-        """
-        url = URL.fromString(current)
-        if not url.netloc:
-            website = self.getWebSite()
-            root = website.cleartextRoot(request.getHeader('host'))
-            if root is not None:
-                root._qpathlist.extend(url._qpathlist)
-                # This really shouldn't be necessary, should it?  Who wants URLs
-                # that have double slashes in them?  And why doesn't URL(...,
-                # segments=[]) render as 'http://hostname/'? -exarkun
-                root._qpathlist = filter(None, root._qpathlist)
-                url = root
-        return url
-
-
-    def _rewriteTag(self, request, tag, attr):
-        tag.attributes[attr] = self._findReplacementURL(
-            request, tag.attributes[attr])
-        if _EXTRA in tag.attributes:
-            tag(render=tag.attributes.pop(_EXTRA))
-        return tag
-
-
-    def urlRewrite_img(self, request, tag):
-        """
-        This renderer is available on all themed fragments.  It rewrites img
-        and script URLs from templates so they point to the correct place.
-        This relieves the template author of the burden of knowing the
-        deployment configuration of the system.
-        """
-        return self._rewriteTag(request, tag, 'src')
-    page.renderer(urlRewrite_img)
-    urlRewrite_script = urlRewrite_img
-
-
-    def urlRewrite_link(self, request, tag):
-        """
-        See urlRewrite_img.
-        """
-        return self._rewriteTag(request, tag, 'href')
-    page.renderer(urlRewrite_link)
-
-
-    def render_urlRewrite_img(self, ctx, data):
-        return self.urlRewrite_img(inevow.IRequest(ctx), ctx.tag)
-
-
-    def render_urlRewrite_script(self, ctx, data):
-        return self.urlRewrite_script(inevow.IRequest(ctx), ctx.tag)
-
-
-    def render_urlRewrite_link(self, ctx, data):
-        return self.urlRewrite_link(inevow.IRequest(ctx), ctx.tag)
 
 
     _website = None
