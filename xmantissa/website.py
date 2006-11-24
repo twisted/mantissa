@@ -456,6 +456,21 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
                           self.securePort)
 
 
+    def maybeEncryptedRoot(self, hostname=None):
+        """
+        Returning a string representing the HTTPS URL which is at the root of
+        this site, falling back to HTTP if HTTPS service is not available.
+
+        @param hostname: An optional unicode string which, if specified, will
+        be used as the hostname in the resulting URL, regardless of the
+        C{hostname} attribute of this item.
+        """
+        root = self.encryptedRoot(hostname)
+        if root is None:
+            root = self.cleartextRoot(hostname)
+        return root
+
+
     def child_by(self, ctx):
         from xmantissa.websharing import UserIndexPage
         from axiom.userbase import LoginSystem

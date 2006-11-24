@@ -225,6 +225,30 @@ class WebSiteTestCase(unittest.TestCase):
         self.assertEquals(None, ws.encryptedRoot())
 
 
+    def testMaybeEncryptedRoot(self):
+        """
+        If HTTPS service is available, L{WebSite.maybeEncryptedRoot} should
+        return the same as L{WebSite.encryptedRoot}.
+        """
+        ws = website.WebSite(store=self.store,
+                             hostname=u'example.com',
+                             securePortNumber=443)
+
+        self.assertEquals(ws.encryptedRoot(), ws.maybeEncryptedRoot())
+
+
+    def testMaybeEncryptedRootUnavailable(self):
+        """
+        If HTTPS service is not available, L{WebSite.maybeEncryptedRoot} should
+        return the same as L{WebSite.cleartextRoot}.
+        """
+        ws = website.WebSite(store=self.store,
+                             hostname=u'example.com',
+                             portNumber=80)
+
+        self.assertEquals(ws.cleartextRoot(), ws.maybeEncryptedRoot())
+
+
     def testLateInstallation(self):
         ws = website.WebSite(store=self.store)
         ws.installOn(self.store)

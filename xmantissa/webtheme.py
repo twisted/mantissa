@@ -122,7 +122,7 @@ class XHTMLDirectoryTheme(object):
 
 class MantissaTheme(XHTMLDirectoryTheme):
     def head(self, request, website):
-        root = website.encryptedRoot(request.getHeader('host'))
+        root = website.maybeEncryptedRoot(request.getHeader('host'))
         return tags.link(
             rel='stylesheet',
             type='text/css',
