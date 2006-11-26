@@ -86,6 +86,178 @@ Mantissa.Test.SignupLocalpartValidation.methods(
 	self.assertEquals(f.node.username.value, "fred_home.foo_bar");
     });
 
+Mantissa.Test.SignupValidationInformation = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.SignupValidationInformation');
+Mantissa.Test.SignupValidationInformation.methods(
+    function setUp(self) {
+        var d = self.callRemote('makeWidget');
+        d.addCallback(
+            function (result) {
+                return self.addChildWidgetFromWidgetInfo(result);
+            });
+        d.addCallback(
+            function (widget) {
+                self.widget = widget;
+                self.node.appendChild(widget.node);
+            });
+        return d;
+    },
+
+
+    /**
+     * Set the field called C{name} to C{value}, as if the user had typed the
+     * name in and hit <tab>.
+     */
+    function setField(self, name, value) {
+        var field = self.widget.node[name];
+        field.onfocus();
+        field.value = value;
+        field.onkeyup();
+        field.onblur();
+    },
+
+
+    /**
+     * Focus on the given field.
+     */
+    function focusOn(self, name) {
+        var field = self.widget.node[name];
+        field.onfocus();
+    },
+
+
+    /**
+     * Return the warning that is currently being displayed to the user.
+     */
+    function getWarning(self) {
+        var node = self.widget.nodeByAttribute('class', 'validation-message');
+        return MochiKit.DOM.scrapeText(node);
+    },
+
+
+    /**
+     * Test that the form's status message is initially blank.
+     */
+    function test_initialMessage(self) {
+        var d = self.setUp();
+        return d.addCallback(
+            function (ignored) {
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['initial']);
+            });
+    },
+
+
+    /**
+     * Test that the form's status message stays blank after good input.
+     */
+    function test_goodInput(self) {
+        var d = self.setUp();
+        return d.addCallback(
+            function (ignored) {
+                self.setField('firstName', 'Jonathan');
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['input-valid']);
+                self.focusOn('firstName');
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['input-valid']);
+            });
+    },
+
+
+    /**
+     * Test that the form's status message reports the error in a bad input
+     * value.
+     */
+    function test_badInput(self) {
+        var d = self.setUp();
+        return d.addCallback(
+            function (ignored) {
+                self.setField('firstName', '');
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['input-empty']);
+            });
+    },
+
+
+    /**
+     * Test that the form's status message reports the error from the currently
+     * focused input field, even if there are multiple bad inputs and some good
+     * inputs.
+     */
+    function test_mixedInput(self) {
+        var d = self.setUp();
+        return d.addCallback(
+            function (ignored) {
+                self.setField('firstName', '');
+                self.setField('password', ' ');
+                self.setField('emailAddress', 'test@example.com');
+                self.focusOn('emailAddress');
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['input-valid']);
+                self.focusOn('password');
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['password-weak']);
+                self.focusOn('firstName');
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['input-empty']);
+            });
+    },
+
+
+    /**
+     * C{username} has its own onfocus event. Make sure that it still has its
+     * status updated if it is invalid.
+     */
+    function test_badUsername(self) {
+        // we have to call the verify* method directly because it returns a
+        // Deferred that the event handlers never get (I think) -- jml.
+        var d = self.setUp(self);
+        d.addCallback(
+            function (ignored) {
+                var field = self.widget.node.username;
+                field.value = 'bad';
+                return self.widget.verifyUsernameAvailable(field);
+            });
+        return d.addCallback(
+            function (ignored) {
+                self.focusOn('username');
+                self.assertEquals(self.getWarning(), 'bad username');
+            });
+    },
+
+
+    /**
+     * The username field has an asynchronous validation function. That means
+     * that the user might find out about its validity while they are entering
+     * data in another field.
+     *
+     * Check that we do I{not} change the status message to report on a field
+     * which does not have focus. Stated positively, we should only display the
+     * status of the field which currently has focus.
+     */
+    function test_onlyWhenFocused(self) {
+        var d = self.setUp(self);
+        d.addCallback(
+            function (ignored) {
+                // set the value of username, then set firstName, focus it,
+                // _then_ evaluate username. This duplicates the likely order
+                // of events when a user provides data for username, hits tab,
+                // then begins typing.
+                var field = self.widget.node.username;
+                field.value = 'bad';
+                self.setField('firstName', 'Jonathan');
+                self.focusOn('firstName');
+                return self.widget.verifyUsernameAvailable(field);
+            });
+        return d.addCallback(
+            function (ignored) {
+                self.assertEquals(self.getWarning(),
+                                  Mantissa.Validate.ERRORS['input-valid']);
+            });
+    });
+
+
+
 Mantissa.Test.Text = Mantissa.Test.Forms.subclass('Mantissa.Test.Text');
 
 Mantissa.Test.MultiText = Mantissa.Test.Forms.subclass('Mantissa.Test.MultiText');

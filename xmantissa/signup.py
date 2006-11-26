@@ -626,24 +626,27 @@ class UserInfoSignup(Item, PrefixURLMixin):
         return page
 
     # UserInfoSignup
-
     def usernameAvailable(self, username, domain):
         """
         Check to see if a username is available for the user to select.
         """
         if len(username) < 2:
-            return False
-        for char in "[ ,:;<>@()!\"'%&\\|\t\b":
+            return [False, u"Username too short"]
+        for char in u"[ ,:;<>@()!\"'%&\\|\t\b":
             if char in username:
-                return False
+                return [False,
+                        u"Username contains invalid character: '%s'" % char]
         try:
             parseAddress("<%s@%s>" % (username, domain))
         except ArgumentError:
-            return False
-        query = self.store.query(userbase.LoginMethod,
-                                 AND(userbase.LoginMethod.localpart == username,
-                                     userbase.LoginMethod.domain == domain))
-        return not bool(query.count())
+            return [False, u"Username fails to parse"]
+        return [
+            not bool(self.store.query(
+                    userbase.LoginMethod,
+                    AND(userbase.LoginMethod.localpart == username,
+                        userbase.LoginMethod.domain == domain)
+                    ).count()),
+            u"Username already taken"]
 
 
     def createUser(self, firstName, lastName, username, domain,

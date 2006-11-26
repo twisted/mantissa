@@ -150,7 +150,7 @@ class SignupCreationTestCase(unittest.TestCase):
     def testUserInfoSignupCreation(self):
         signup = self.createFreeSignup(free_signup.userInfo.itemClass)
         self.assertEquals(signup.usernameAvailable(u'fjones', u'127.0.0.1'),
-                          True)
+                          [True, u'Username already taken'])
 
         self.assertEquals(self.ftb.endowed, 0)
 
@@ -163,20 +163,28 @@ class SignupCreationTestCase(unittest.TestCase):
             emailAddress=u'fj@crappy.example.com')
 
         self.assertEquals(signup.usernameAvailable(u'fjones', u'127.0.0.1'),
-                          False)
+                          [False, u'Username already taken'])
 
         self.assertEquals(self.ftb.endowed, 1)
 
 
     def testUserInfoSignupValidation(self):
         """
-        Ensure that invalid characters aren't allowed in usernames.
+        Ensure that invalid characters aren't allowed in usernames, that
+        usernames are parsable as the local part of an email address and that
+        usernames shorter than two characters are invalid.
         """
         signup = self.createFreeSignup(free_signup.userInfo.itemClass)
         self.assertEquals(signup.usernameAvailable(u'foo bar', u'localhost'),
-                          False)
+                          [False, u"Username contains invalid character: ' '"])
         self.assertEquals(signup.usernameAvailable(u'foo@bar', u'localhost'),
-                          False)
+                          [False, u"Username contains invalid character: '@'"])
+        # '~' is not expressly forbidden by the validator in usernameAvailable,
+        # yet it is rejected by parseAddress (in xmantissa.smtp).
+        self.assertEquals(signup.usernameAvailable(u'fo~o', u'127.0.0.1'),
+                          [False, u"Username fails to parse"])
+        self.assertEquals(signup.usernameAvailable(u'f', u'localhost'),
+                          [False, u"Username too short"])
 
 
     def test_userInfoLoginMethods(self):

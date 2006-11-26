@@ -76,6 +76,7 @@
                             class="text-input"
                             onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
                             onblur="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
+                            onfocus="Nevow.Athena.Widget.get(this).focus(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -90,6 +91,7 @@
                             class="text-input"
                             onkeyup="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
                             onblur="Nevow.Athena.Widget.get(this).verifyNotEmpty(this)"
+                            onfocus="Nevow.Athena.Widget.get(this).focus(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -104,7 +106,7 @@
                             class="text-input"
                             onkeyup="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this)"
                             onblur="Nevow.Athena.Widget.get(this).verifyUsernameAvailable(this)"
-                            onfocus="Nevow.Athena.Widget.get(this).defaultUsername(this)"
+                            onfocus="Nevow.Athena.Widget.get(this).focus(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -119,6 +121,7 @@
                             class="password-input"
                             onkeyup="Nevow.Athena.Widget.get(this).verifyStrongPassword(this)"
                             onblur="Nevow.Athena.Widget.get(this).verifyStrongPassword(this)"
+                            onfocus="Nevow.Athena.Widget.get(this).focus(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -133,6 +136,7 @@
                             class="password-input"
                             onkeyup="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this)"
                             onblur="Nevow.Athena.Widget.get(this).verifyPasswordsMatch(this)"
+                            onfocus="Nevow.Athena.Widget.get(this).focus(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
@@ -147,10 +151,15 @@
                             class="text-input"
                             onkeyup="Nevow.Athena.Widget.get(this).verifyValidEmail(this)"
                             onblur="Nevow.Athena.Widget.get(this).verifyValidEmail(this)"
+                            onfocus="Nevow.Athena.Widget.get(this).focus(this)"
                             />
 
                           <img src="/Mantissa/images/neutral-small.png" class="verify-status" />
                         </td>
+                      </tr>
+                      <tr>
+                        <td />
+                        <td class="validation-message">Please enter your details</td>
                       </tr>
                       <tr>
                         <td />

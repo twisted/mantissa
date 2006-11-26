@@ -1,4 +1,4 @@
-
+// import MochiKit.DOM
 // import Mantissa.LiveForm
 
 /*
@@ -10,6 +10,25 @@
 /*
   XXX TODO: I really want to say "package Mantissa.Validate" or something.
  */
+
+
+/**
+ * The various messages we display to the user. We have these out here so we
+ * can keep English copy out of the code as much as possible.
+ */
+Mantissa.Validate.ERRORS = {
+    'local-too-short': 'The local part is too short',
+    'domain-too-short': 'The domain is too short',
+    'address-too-short': 'Email address is too short',
+    'input-empty': 'Input is empty',
+    'password-weak': 'Password is too weak',
+    'password-mismatch': 'Passwords do not match',
+    'input-valid': 'Input is valid',
+    'initial': 'Please enter your details',
+    'unevaluated': 'Input not yet evaluated'
+};
+
+
 
 Mantissa.Validate.SignupForm = Mantissa.LiveForm.FormWidget.subclass(
     "Mantissa.Validate.SignupForm");
@@ -30,16 +49,43 @@ Mantissa.Validate.SignupForm.methods(
         // minus one for domain, plus one for confirm...
         self.verifiedCount = 0;
         self.testedInputs = {};
+        self.currentlyFocused = null;
 
         self.passwordInput = self.nodeByAttribute("name", "password");
 
         self.submitButton = self.nodeByAttribute("type", "submit");
     },
 
+
+    /**
+     * Return C{true} if the field has been evaluated and has valid input,
+     * C{false} otherwise.
+     */
+    function isFieldValid(self, name) {
+        if (name in self.testedInputs) {
+            return self.testedInputs[name][0]
+        }
+        return false;
+    },
+
+
+    /**
+     * Return the status message code for the given field. Returns 'unevaluated'
+     * if the input has yet to be evaluated.
+     */
+    function getFieldStatusMessage(self, name) {
+        if (name in self.testedInputs) {
+            return self.testedInputs[name][1];
+        }
+        return 'unevaluated';
+    },
+
+
     // see LiveForm for explanation
     function runFader(self, fader) {
         return fader.fadeIn();
     },
+
 
     function submitSuccess(self, result) {
         var d = Mantissa.Validate.SignupForm.upcall(self, 'submitSuccess', result);
@@ -48,6 +94,8 @@ Mantissa.Validate.SignupForm.methods(
         });
         return d;
     },
+
+
     function mangleToLocalpart(self, txt) {
         /**
          * Replace any character not allowed in an email localpart
@@ -55,6 +103,8 @@ Mantissa.Validate.SignupForm.methods(
          */
         return txt.replace(/[ !%&\(\),:;<>\\\|@]/g, '_').toLowerCase();
     },
+
+
     function defaultUsername(self, inputnode) {
         /**
          * Create a username based on the first and last names entered.
@@ -65,42 +115,58 @@ Mantissa.Validate.SignupForm.methods(
                               + '.' +
                               self.mangleToLocalpart(
                               self.nodeByAttribute("name", "lastName").value));
+        } else {
+            self.updateStatus(inputnode);
         }
     },
+
+
     function verifyNotEmpty(self, inputnode) {
         /*
           This is bound using an athena handler to all the input nodes.
 
           We need to look for a matching feedback node for this input node.
          */
-        self.verifyInput(inputnode, inputnode.value != '');
+        self.verifyInput(inputnode, inputnode.value != '', "input-empty");
     },
+
+
     function verifyUsernameAvailable(self, inputnode) {
         var username = inputnode.value;
-        return self.callRemote("usernameAvailable",username, self.domain).addCallback(
+        var d = self.callRemote("usernameAvailable", username, self.domain);
+        return d.addCallback(
             function (result) {
-                self.verifyInput(inputnode, result);
+                var cond = result[0];
+                var reason = result[1];
+                self.verifyInput(inputnode, cond, reason);
             });
     },
+
+
     function passwordIsStrong(self, passwd) {
       return passwd.length > 4;
     },
 
+
     function verifyStrongPassword(self, inputnode) {
-        self.verifyInput(
-            inputnode,
-            self.passwordIsStrong(inputnode.value));
+        self.verifyInput(inputnode, self.passwordIsStrong(inputnode.value),
+                         "password-weak");
     },
+
+
     function verifyPasswordsMatch(self, inputnode) {
         if (self.passwordIsStrong(self.passwordInput.value)) {
-            self.verifyInput(
-                inputnode,
-                (self.testedInputs['password']) &&
-                (inputnode.value === self.passwordInput.value));
+            self.verifyInput(inputnode,
+                             (self.isFieldValid('password')) &&
+                             (inputnode.value === self.passwordInput.value),
+                             "password-mismatch");
         }
     },
+
+
     function verifyValidEmail(self, inputnode) {
         var cond = null;
+        var reason = null;
         var addrtup = inputnode.value.split("@");
         // require localpart *and* domain
         if (addrtup.length == 2) {
@@ -122,6 +188,7 @@ Mantissa.Validate.SignupForm.methods(
                         if (addrdom[i].length < requiredLength) {
                             // WHOOPS
                             cond = false;
+                            reason = "domain-too-short";
                             break;
                         } else {
                             // okay so far...
@@ -131,25 +198,70 @@ Mantissa.Validate.SignupForm.methods(
                 }
             } else {
                 cond = false;
+                reason = "local-too-short";
             }
         } else {
             cond = false;
+            reason = "address-too-short";
         }
-        self.verifyInput(inputnode, cond);
+        self.verifyInput(inputnode, cond, reason);
     },
-    function verifyInput(self, inputnode, condition) {
+
+
+    /**
+     * Display the given message at the bottom of the signup form,
+     * generally indicating some sort of validation error.
+     */
+    function setStatusMessage(self, message) {
+        var node = self.nodeByAttribute('class', 'validation-message');
+        if (message in Mantissa.Validate.ERRORS) {
+            message = Mantissa.Validate.ERRORS[message];
+        }
+        MochiKit.DOM.replaceChildNodes(node, message);
+    },
+
+
+    function updateStatus(self, inputNode) {
+        var message = 'input-valid';
+        if (!self.isFieldValid(inputNode.name)) {
+            message = self.getFieldStatusMessage(inputNode.name);
+        }
+        Divmod.msg(inputNode.name + ' => ' + message
+                   + ' (' + self.isFieldValid(inputNode.name) + ')');
+        if (self.currentlyFocused && self.currentlyFocused == inputNode.name) {
+            self.setStatusMessage(message);
+        }
+    },
+
+
+    function focus(self, inputNode) {
+        self.currentlyFocused = inputNode.name;
+        // XXX - probably want real dispatch here eventually -- jml
+        if (inputNode.name == 'username') {
+            self.defaultUsername(inputNode);
+        }
+        return self.updateStatus(inputNode);
+    },
+
+
+    function verifyInput(self, inputnode, condition, reason) {
         var statusNode = self._findStatusElement(inputnode);
         var status = '';
-        var wasPreviouslyVerified = !!self.testedInputs[inputnode.name];
+        var wasPreviouslyVerified = self.isFieldValid(inputnode.name);
 
         if (condition) {
             statusNode.src = '/Mantissa/images/ok-small.png';
         } else {
             statusNode.src = '/Mantissa/images/error-small.png';
+            Divmod.msg(reason);
         }
 
+        self.testedInputs[inputnode.name] = [condition, reason];
+        Divmod.msg('Verified ' + inputnode.name + ': ['
+                   + condition + ', ' + reason + ']');
+        self.updateStatus(inputnode);
+
         if (condition != wasPreviouslyVerified) {
-            self.testedInputs[inputnode.name] = condition;
             if (condition) {
                 self.verifiedCount++;
             } else {
@@ -162,6 +274,8 @@ Mantissa.Validate.SignupForm.methods(
             }
         }
     },
+
+
     function _findStatusElement(self, inputnode) {
         var fieldgroup = inputnode.parentNode;
         while (fieldgroup.className != "verified-field") {
@@ -175,6 +289,8 @@ Mantissa.Validate.SignupForm.methods(
             }
         }
     },
+
+
     function gatherInputs(self) {
         inputs = Mantissa.Validate.SignupForm.upcall(
             self, 'gatherInputs');
