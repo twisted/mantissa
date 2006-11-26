@@ -10,7 +10,6 @@ Mantissa.Preferences.PrefCollectionLiveForm = Mantissa.LiveForm.FormWidget.subcl
  */
 Mantissa.Preferences.PrefCollectionLiveForm.methods(
     function submitSuccess(self, result) {
-        Divmod.Runtime.theRuntime.setNodeContent(
-            self.node,
-            '<div xmlns="http://www.w3.org/1999/xhtml">' + result + '</div>');
+        self.removeAllChildWidgets();
+        self.addChildWidgetFromWidgetInfo(result);
     });

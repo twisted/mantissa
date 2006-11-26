@@ -1523,6 +1523,24 @@ Mantissa.Test.GeneralPrefs.methods(
     });
 
 
+Mantissa.Test.PrefCollectionTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PrefCollectionTestCase');
+Mantissa.Test.PrefCollectionTestCase.methods(
+    /**
+     * Test that the original form remains unchanged after the submit button
+     * is pressed.
+     */
+    function test_submitPreservesForm(self) {
+        var widget = self.childWidgets[0];
+        var html = MochiKit.DOM.toHTML(widget.node);
+        var d = widget.submit();
+        d.addCallback(
+            function(ignored) {
+                self.assertEqual(MochiKit.DOM.toHTML(widget.node), html);
+            });
+        return d;
+    });
+
+
 Mantissa.Test.UserBrowserTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.UserBrowserTestCase');
 Mantissa.Test.UserBrowserTestCase.methods(
     /**
