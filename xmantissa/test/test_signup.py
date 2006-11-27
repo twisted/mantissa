@@ -109,7 +109,8 @@ class SignupCreationTestCase(unittest.TestCase):
         self.dbdir = self.mktemp()
         self.store = store.Store(self.dbdir)
         self.ls = userbase.LoginSystem(store=self.store)
-        self.admin = self.ls.addAccount(u'admin', u'localhost', None)
+        self.admin = self.ls.addAccount(u'admin', u'localhost', None,
+                                        internal=True, verified=True)
         self.substore = self.admin.avatars.open()
         self.sc = signup.SignupConfiguration(store=self.substore)
 
@@ -147,9 +148,35 @@ class SignupCreationTestCase(unittest.TestCase):
             self.createFreeSignup(signupMechanismPlugin.itemClass)
 
 
+    def test_usernameAvailability(self):
+        """
+        Test that the usernames which ought to be available are and that those
+        which aren't are not:
+
+        Only syntactically valid localparts are allowed.  Localparts which are
+        already assigned are not allowed.
+
+        Only domains which are actually served by this mantissa instance are
+        allowed.
+        """
+        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
+
+        # Allowed: unused localpart, same domain as the administrator created
+        # by setUp.
+        self.failUnless(signup.usernameAvailable(u'alice', u'localhost')[0])
+
+        # Not allowed: unused localpart, unknown domain.
+        self.failIf(signup.usernameAvailable(u'alice', u'example.com')[0])
+
+        # Not allowed: used localpart, same domain as the administrator created
+        # by setUp.
+        self.failIf(signup.usernameAvailable(u'admin', u'localhost')[0])
+
+
+
     def testUserInfoSignupCreation(self):
         signup = self.createFreeSignup(free_signup.userInfo.itemClass)
-        self.assertEquals(signup.usernameAvailable(u'fjones', u'127.0.0.1'),
+        self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
                           [True, u'Username already taken'])
 
         self.assertEquals(self.ftb.endowed, 0)
@@ -158,11 +185,11 @@ class SignupCreationTestCase(unittest.TestCase):
             firstName=u"Frank",
             lastName=u"Jones",
             username=u'fjones',
-            domain=u'127.0.0.1',
+            domain=u'localhost',
             password=u'asdf',
             emailAddress=u'fj@crappy.example.com')
 
-        self.assertEquals(signup.usernameAvailable(u'fjones', u'127.0.0.1'),
+        self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
                           [False, u'Username already taken'])
 
         self.assertEquals(self.ftb.endowed, 1)
