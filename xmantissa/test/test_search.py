@@ -3,9 +3,8 @@ from zope.interface import implements
 from twisted.internet import defer
 
 from axiom.store import Store
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom import attributes
-from axiom.dependency import installOn
 
 from nevow.testutil import renderLivePage, FragmentWrapper, AccumulatingFakeRequest
 from nevow import loaders
@@ -65,11 +64,14 @@ class QueryParseTestCase(unittest.TestCase):
             (u"", None))
 
 
-class TrivialSearchProvider(Item):
+class TrivialSearchProvider(Item, InstallableMixin):
     implements(ixmantissa.ISearchProvider)
 
     z = attributes.integer()
-    powerupInterfaces = (ixmantissa.ISearchProvider)
+
+    def installOn(self, other):
+        super(TrivialSearchProvider, self).installOn(other)
+        other.powerUp(self, ixmantissa.ISearchProvider)
 
     def search(self, term, keywords=None, count=None, offset=0, sortAscending=True):
         class TrivialResultsFragment(LiveFragment):
@@ -104,10 +106,10 @@ class DecodingTestCase(unittest.TestCase):
         """
         s = Store()
 
-        installOn(TrivialSearchProvider(store=s), s)
+        TrivialSearchProvider(store=s).installOn(s)
 
         agg = search.SearchAggregator(store=s)
-        installOn(agg, s)
+        agg.installOn(s)
 
         f = search.AggregateSearchResults(agg)
         f.docFactory = getLoader(f.fragmentName)

@@ -16,7 +16,6 @@ from nevow.page import renderer
 
 from axiom.store import Store
 from axiom.substore import SubStore
-from axiom.dependency import installOn
 
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
@@ -133,10 +132,10 @@ class WebThemeTestCase(TestCase):
         is wrapped around a user store or the store store.
         """
         s = Store(self.mktemp())
-        installOn(WebSite(store=s, portNumber=80), s)
+        WebSite(store=s, portNumber=80).installOn(s)
 
         ss = SubStore.createNew(s, ['user']).open()
-        installOn(WebSite(store=ss, portNumber=8080), ss)
+        WebSite(store=ss, portNumber=8080).installOn(ss)
 
         themed = _ThemedMixin()
         themed.store = s
@@ -150,13 +149,14 @@ class WebThemeTestCase(TestCase):
             themed.getWebSite().portNumber, 80,
             "Found the wrong WebSite from the user store.")
 
+
     def test_imageSourceNotRewritten(self):
         """
         Test that an image tag which includes a hostname in its source does not
         have that source rewritten.
         """
         s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
 
         class TestElement(ThemedElement):
             docFactory = stan(img(src='http://example.org/Foo.png'))
@@ -182,7 +182,7 @@ class WebThemeTestCase(TestCase):
         invoked after the URL has been rewritten.
         """
         s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
 
         class TestElement(ThemedElement):
             docFactory = stan(img(src='/Foo.png', render=directive('mutate')))
@@ -207,7 +207,7 @@ class WebThemeTestCase(TestCase):
         have that source rewritten.
         """
         s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
 
         class TestElement(ThemedElement):
             docFactory = stan(script(src='http://example.org/Foo.js'))
@@ -228,7 +228,7 @@ class WebThemeTestCase(TestCase):
         invoked after the URL has been rewritten.
         """
         s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
 
         class TestElement(ThemedElement):
             docFactory = stan(script(src='/Foo.js', render=directive('mutate')))
@@ -246,13 +246,14 @@ class WebThemeTestCase(TestCase):
         d.addCallback(rendered)
         return d
 
+
     def test_linkHypertextReferenceNotRewritten(self):
         """
         Test that a link which includes a hostname in its href does not have
         that href rewritten.
         """
         s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
 
         class TestElement(ThemedElement):
             docFactory = stan(link(href='http://example.org/Foo.css'))
@@ -273,7 +274,7 @@ class WebThemeTestCase(TestCase):
         after the URL has been rewritten.
         """
         s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
 
         class TestElement(ThemedElement):
             docFactory = stan(link(href='/Foo.css', render=directive('mutate')))

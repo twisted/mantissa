@@ -9,7 +9,6 @@ from epsilon.extime import Time
 
 from axiom import store
 from axiom.store import Store
-from axiom.dependency import installOn
 
 from xmantissa import people
 from xmantissa.people import Organizer, Person, RealName
@@ -202,10 +201,10 @@ class PeopleTests(unittest.TestCase):
         s = store.Store()
 
         privapp = PrivateApplication(store=s)
-        installOn(privapp, s)
+        privapp.installOn(s)
 
         o = people.Organizer(store=s)
-        installOn(o, s)
+        o.installOn(s)
 
         p = people.Person(store=s)
 

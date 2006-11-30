@@ -12,7 +12,6 @@ peopleOffering = offering.Offering(
     siteRequirements=((None, website.WebSite),),
     appPowerups=(),
     benefactorFactories=(peopleBenefactorFactory,),
-    installablePowerups = [("People", "Organizer and Address Book", people.AddPerson)],
     loginInterfaces=(),
     themes=())
 

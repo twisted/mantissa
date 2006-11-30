@@ -1,3 +1,4 @@
+
 from twisted.trial.unittest import TestCase
 
 from nevow.athena import LivePage
@@ -9,11 +10,9 @@ from nevow.inevow import IRequest
 
 from axiom.store import Store
 from axiom.userbase import LoginSystem
-from axiom.dependency import installOn
 
-from xmantissa.webadmin import (LocalUserBrowser,
-    UserInteractionFragment, EndowFragment, DepriveFragment,
-    SuspendFragment, UnsuspendFragment)
+from xmantissa.webadmin import (
+    LocalUserBrowser, UserInteractionFragment, EndowDepriveFragment)
 
 class UserInteractionFragmentTestCase(TestCase):
     def setUp(self):
@@ -24,7 +23,7 @@ class UserInteractionFragmentTestCase(TestCase):
         self.sitedir = self.mktemp()
         self.siteStore = Store(self.sitedir)
         self.loginSystem = LoginSystem(store=self.siteStore)
-        installOn(self.loginSystem, self.siteStore)
+        self.loginSystem.installOn(self.siteStore)
 
         self.userStore = Store()
         self.userStore.parent = self.siteStore
@@ -71,16 +70,16 @@ class UserInteractionFragmentTestCase(TestCase):
 
 
 class EndowDepriveTestCase(TestCase):
-    def doRendering(self, fragmentClass):
+    def test_rendering(self):
         sitedir = self.mktemp()
         siteStore = Store(sitedir)
 
         loginSystem = LoginSystem(store=siteStore)
-        installOn(loginSystem, siteStore)
+        loginSystem.installOn(siteStore)
 
         account = loginSystem.addAccount(u'testuser', u'localhost', None)
 
-        f = fragmentClass(None, u'testuser', account)
+        f = EndowDepriveFragment(None, u'testuser', account, 'endow')
 
         p = LivePage(
             docFactory=stan(
@@ -98,13 +97,3 @@ class EndowDepriveTestCase(TestCase):
             p.action_close(None)
         d.addCallback(rendered)
         return d
-
-    def test_endowRendering(self):
-        return self.doRendering(EndowFragment)
-    def test_depriveRendering(self):
-        return self.doRendering(DepriveFragment)
-
-    def test_suspendRendering(self):
-        return self.doRendering(SuspendFragment)
-    def test_unsuspendRendering(self):
-        return self.doRendering(UnsuspendFragment)

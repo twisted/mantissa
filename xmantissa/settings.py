@@ -1,8 +1,8 @@
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom import attributes
 from axiom.upgrade import registerDeletionUpgrader
 
-class Settings(Item):
+class Settings(Item, InstallableMixin):
     typeName = 'mantissa_settings'
     schemaVersion = 2
 

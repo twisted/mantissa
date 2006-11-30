@@ -7,7 +7,6 @@ from twisted.cred import portal
 from axiom import errors as eaxiom, userbase
 from axiom.scripts import axiomatic
 from axiom.attributes import AND
-from axiom.dependency import installOn
 
 from xmantissa import website, webadmin, publicweb, stats
 
@@ -71,21 +70,20 @@ class Mantissa(axiomatic.AxiomaticCommand):
         if not certPath.exists():
             certcreate.main(['--filename', certPath.path, '--quiet'])
         # Install a user database so that people can log in.
-        installOn(s.findOrCreate(userbase.LoginSystem), s)
+        s.findOrCreate(userbase.LoginSystem).installOn(s)
 
         # Install an HTTP server and root resource so we have some way
         # to access it through the web: point it at port 8080.
-        installOn(
-            s.findOrCreate(website.WebSite, lambda ws: (setattr(ws,
-                                                                'portNumber',
-                                                                8080),
-                                                        setattr(ws,
-                                                                'securePortNumber',
-                                                                8443),
-                                                        setattr(ws,
-                                                                'certificateFile',
-                                                                certPath.path)))
-            ,s)
+        s.findOrCreate(website.WebSite, lambda ws: (setattr(ws,
+                                                            'portNumber',
+                                                            8080),
+                                                    setattr(ws,
+                                                            'securePortNumber',
+                                                            8443),
+                                                    setattr(ws,
+                                                            'certificateFile',
+                                                            certPath.path))
+                       ).installOn(s)
 
         # Install static resources required for DeveloperApplication
         # below.  This is installed 'sessionlessly', meaning for
@@ -93,13 +91,19 @@ class Mantissa(axiomatic.AxiomaticCommand):
         # to the *server* component of the Python command line, there
         # is no security reason to restrict access to the browser
         # parts of it (and it's faster that way)
-        installOn(s.findOrCreate(webadmin.DeveloperSite), s)
+        s.findOrCreate(webadmin.DeveloperSite).installOn(s)
 
         # Install a front page on the top level store so that the
         # developer will have something to look at when they start up
         # the server.
         fp = s.findOrCreate(publicweb.FrontPage, prefixURL=u'')
-        installOn(fp, s)
+        fp.installOn(s)
+
+        # Create a benefactor, by way of which we will be able to
+        # configure the abilities of our first administrative user, to
+        # be created below.
+        ab = s.findOrCreate(webadmin.AdministrativeBenefactor)
+        self.administrativeBenefactor = ab
 
     def installAdmin(self, s, username, password):
         # Add an account for our administrator, so they can log in through the
@@ -112,7 +116,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
             acc = r.accountByAddress(username, domain)
 
         accStore = acc.avatars.open()
-        accStore.transact(webadmin.endowAdminPowerups, accStore)
+        accStore.transact(self.administrativeBenefactor.endow, None, accStore)
 
 
 class Generate(axiomatic.AxiomaticCommand):

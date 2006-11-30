@@ -2,14 +2,13 @@ from zope.interface import implements
 
 from twisted.trial.unittest import TestCase
 
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom.store import Store
 from axiom import attributes
-from axiom.dependency import installOn
 
 from xmantissa import prefs, ixmantissa, liveform
 
-class WidgetShopPrefCollection(Item, prefs.PreferenceCollectionMixin):
+class WidgetShopPrefCollection(Item, InstallableMixin, prefs.PreferenceCollectionMixin):
     """
     Basic L{xmantissa.ixmantissa.IPreferenceCollection}, with a single
     preference, C{preferredWidget}
@@ -18,7 +17,10 @@ class WidgetShopPrefCollection(Item, prefs.PreferenceCollectionMixin):
 
     installedOn = attributes.reference()
     preferredWidget = attributes.text()
-    powerupInterfaces = (ixmantissa.IPreferenceCollection)
+
+    def installOn(self, other):
+        other.powerUp(self, ixmantissa.IPreferenceCollection)
+        super(WidgetShopPrefCollection, self).installOn(other)
 
     def getPreferenceParameters(self):
         return (liveform.Parameter('preferredWidget',
@@ -39,10 +41,10 @@ class PreferencesTestCase(TestCase):
         store = Store()
 
         agg = prefs.PreferenceAggregator(store=store)
-        installOn(agg, store)
+        agg.installOn(store)
 
         coll = WidgetShopPrefCollection(store=store)
-        installOn(coll, store)
+        coll.installOn(store)
 
         coll.preferredWidget = u'Foo'
 

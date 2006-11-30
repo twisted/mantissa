@@ -13,12 +13,11 @@ from twisted import plugin
 
 from epsilon import extime
 
-from axiom.item import Item, transacted, declareLegacyItem
+from axiom.item import Item, InstallableMixin, transacted, declareLegacyItem
 from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase, upgrade
 from axiom.userbase import getDomainNames
-from axiom.dependency import installOn, _getPowerupInterfaces
 
 from nevow.rend import Page, NotFound
 from nevow.url import URL
@@ -27,7 +26,7 @@ from nevow import inevow, tags, athena, loaders
 from nevow.athena import expose
 
 from xmantissa.ixmantissa import (
-    ISiteRootPlugin, IStaticShellContent, INavigableElement,
+    IBenefactor, ISiteRootPlugin, IStaticShellContent, INavigableElement,
     INavigableFragment, ISignupMechanism)
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.websession import usernameFromRequest
@@ -39,7 +38,6 @@ from xmantissa import plugins, liveform
 from xmantissa.websession import PersistentSession
 from xmantissa.smtp import parseAddress
 from xmantissa.error import ArgumentError
-from xmantissa.product import Product
 
 
 class PasswordResetResource(Page):
@@ -312,10 +310,10 @@ class TicketBooth(Item, PrefixURLMixin):
     def createResource(self):
         return TicketClaimer(self)
 
-    def createTicket(self, issuer, email, product):
+    def createTicket(self, issuer, email, benefactor):
         t = self.store.findOrCreate(
             Ticket,
-            product=product,
+            benefactor=benefactor,
             booth=self,
             avatar=None,
             issuer=issuer,
@@ -339,11 +337,11 @@ class TicketBooth(Item, PrefixURLMixin):
         return '%s://%s%s/%s/%s' % (
             httpScheme, domainName, httpPort, self.prefixURL, nonce)
 
-    def issueViaEmail(self, issuer, email, product, templateData,
+    def issueViaEmail(self, issuer, email, benefactor, templateData,
                       domainName, httpPort=80):
         """
         Send a ticket via email to the supplied address, which, when claimed, will
-        create an avatar and allow the given product to endow it with
+        create an avatar and allow the given benefactor to endow it with
         things.
 
         @param issuer: An object, preferably a user, to track who issued this
@@ -352,7 +350,7 @@ class TicketBooth(Item, PrefixURLMixin):
         @param email: a str, formatted as an rfc2821 email address
         (user@domain) -- source routes not allowed.
 
-        @param product: an instance of L{Product}
+        @param benefactor: an implementor of L{IBenefactor}
 
         @param domainName: a domain name, used as the domain part of the
         sender's address, and as the web server to generate a link to within
@@ -379,7 +377,7 @@ class TicketBooth(Item, PrefixURLMixin):
 
         ticket = self.createTicket(issuer,
                                    unicode(email, 'ascii'),
-                                   product)
+                                   benefactor)
         nonce = ticket.nonce
 
         signupInfo = {'from': 'signup@'+domainName,
@@ -439,7 +437,8 @@ class SignupMechanism(object):
             booth: a reference to a L{TicketBooth} that can create tickets for
             the created signup mechanism
 
-            product: the product being installed by this signup.
+            benefactor: a reference to the aggregate Multifactor instance (a
+            benefactor which is itself a list of benefactors)
 
             emailTemplate: a template for the email to be sent to the user
 
@@ -473,8 +472,7 @@ class FreeTicketSignup(Item, PrefixURLMixin):
 
     prefixURL = text(allowNone=False)
     booth = reference()
-    benefactor = reference() #XXX remove
-    product = reference()
+    benefactor = reference()
     emailTemplate = text()
     prompt = text()
 
@@ -490,14 +488,14 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     def issueTicket(self, url, emailAddress):
         domain, port = url.get('hostname'), int(url.get('port') or 80)
         if os.environ.get('CC_DEV'):
-            ticket = self.booth.createTicket(self, emailAddress, self.product)
+            ticket = self.booth.createTicket(self, emailAddress, self.benefactor)
             return '<a href="%s">Claim Your Account</a>' % (
                     self.booth.ticketLink(domain, port, ticket.nonce),)
         else:
             ticket, issueDeferred = self.booth.issueViaEmail(
                 self,
                 emailAddress.encode('ascii'), # heh
-                self.product,
+                self.benefactor,
                 self.emailTemplate,
                 domain,
                 port)
@@ -609,11 +607,10 @@ class UserInfoSignup(Item, PrefixURLMixin):
 
     implements(ISiteRootPlugin)
 
-    powerupInterfaces = (ISiteRootPlugin)
     sessioned = True
 
     booth = reference()
-    product = reference()
+    benefactor = reference()
     emailTemplate = text()
     prompt = text()
 
@@ -674,11 +671,12 @@ class UserInfoSignup(Item, PrefixURLMixin):
             emailPart, emailDomain = emailAddress.split("@")
             acct.addLoginMethod(emailPart, emailDomain, protocol=u"email",
                                 verified=False, internal=False)
-            self.product.installProductOn(IBeneficiary(acct))
+            self.benefactor.endow(None, IBeneficiary(acct))
         self.store.transact(_)
 
 
-class InitializerBenefactor(Item):
+
+class InitializerBenefactor(Item, InstallableMixin):
     typeName = 'initializer_benefactor'
     schemaVersion = 1
 
@@ -705,20 +703,20 @@ class InitializerBenefactor(Item):
 
 
 def freeTicketPasswordSignup(prefixURL=None, store=None, booth=None,
-                             product=None, emailTemplate=None, prompt=None):
+                             benefactor=None, emailTemplate=None, prompt=None):
 
-    #ibene = store.findOrCreate(InitializerBenefactor, realBenefactor=benefactor)
+    ibene = store.findOrCreate(InitializerBenefactor, realBenefactor=benefactor)
 
     return FreeTicketSignup(store=store,
-                            product=product,
+                            benefactor=ibene,
                             booth=booth,
                             prefixURL=prefixURL,
                             emailTemplate=emailTemplate,
                             prompt=prompt)
 
 
-class Initializer(Item):
 
+class Initializer(Item, InstallableMixin):
     implements(INavigableElement)
 
     typeName = 'password_initializer'
@@ -726,7 +724,9 @@ class Initializer(Item):
 
     installedOn = reference()
 
-    powerupInterfaces = (INavigableElement)
+    def installOn(self, other):
+        super(Initializer, self).installOn(other)
+        other.powerUp(self, INavigableElement)
 
     def getTabs(self):
         # This won't ever actually show up
@@ -794,7 +794,7 @@ class Ticket(Item):
     booth = reference(allowNone=False)
     avatar = reference()
     claimed = integer(default=0)
-    product = reference(allowNone=False)
+    benefactor = reference(allowNone=False)
 
     email = text()
     nonce = text()
@@ -815,7 +815,7 @@ class Ticket(Item):
             self.avatar = acct
             self.claimed += 1
             self.booth.ticketClaimed(self)
-            self.product.installProductOn(IBeneficiary(self.avatar))
+            self.benefactor.endow(self, IBeneficiary(self.avatar))
         else:
             log.msg("Ignoring re-claim of ticket for: %r" % (self.email,))
         return self.avatar
@@ -845,6 +845,45 @@ class Multifactor(Item):
     schemaVersion = 1
 
     order = integer(default=0)
+
+    def benefactors(self, order):
+        for deleg in self.store.query(_DelegatedBenefactor,
+                                      _DelegatedBenefactor.multifactor == self,
+                                      sort=getattr(_DelegatedBenefactor.order, order)):
+            yield deleg.benefactor
+
+    def briefMultifactorDescription(self):
+        """
+        Generate a string which will allow an administrator to identify what
+        this multifactor provides.  Currently it's raw.
+        """
+        return ', '.join(reflect.qual(x.__class__)
+                         for x in self.benefactors('ascending'))
+
+
+    def add(self, benefactor):
+        """
+        Add the given benefactor to the list of those which will be used to
+        endow or deprive beneficiaries.
+
+        This should only be done when creating the multifactor.  Adding
+        benefactors to a multifactor that has already endowed a beneficiary
+        will most likely have dire consequences.
+        """
+        _DelegatedBenefactor(store=self.store, multifactor=self, benefactor=benefactor, order=self.order)
+        self.order += 1
+
+
+    # IBenefactor
+    def endow(self, ticket, beneficiary):
+        for benefactor in self.benefactors('ascending'):
+            benefactor.endow(ticket, beneficiary)
+
+
+    def deprive(self, ticket, beneficiary):
+        for benefactor in self.benefactors('descending'):
+            benefactor.deprive(ticket, beneficiary)
+
 
 
 class _SignupTracker(Item):
@@ -884,7 +923,8 @@ def _getPublicSignupInfo(siteStore):
             yield (p, u'/'+u)
 
 
-class SignupConfiguration(Item):
+
+class SignupConfiguration(Item, InstallableMixin):
     """
     Provide administrative configuration tools for the signup options
     available on a Mantissa server.
@@ -894,7 +934,10 @@ class SignupConfiguration(Item):
 
     installedOn = reference()
 
-    powerupInterfaces = (INavigableElement)
+    def installOn(self, other):
+        super(SignupConfiguration, self).installOn(other)
+        other.powerUp(self, INavigableElement)
+
 
     def getTabs(self):
         return [Tab('Admin', self.storeID, 0.5,
@@ -905,8 +948,9 @@ class SignupConfiguration(Item):
     def getSignupSystems(self):
         return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
 
+
     def createSignup(self, creator, signupClass, signupConf,
-                     product, emailTemplate, prompt):
+                     benefactorFactoryConfigurations, emailTemplate, prompt):
         """
         Create a new signup facility in the site store's database.
 
@@ -918,8 +962,9 @@ class SignupConfiguration(Item):
         @param signupConf: a dictionary of keyword arguments for
         L{signupClass}'s constructor.
 
-        @param product: A Product instance, describing the powerups to be
-        installed with this signup.
+        @param benefactorFactoryConfigurations: a dictionary mapping
+        BenefactorFactories to dictionaries of keyword arguments for their
+        instantiate() methods.
 
         @param emailTemplate: a unicode string which contains some text that
         will be sent in confirmation emails generated by this signup mechanism
@@ -934,17 +979,23 @@ class SignupConfiguration(Item):
 
         siteStore = self.store.parent
 
-        booth = siteStore.findOrCreate(TicketBooth, lambda booth: installOn(booth, siteStore))
+        multifactor = Multifactor(store=siteStore)
+
+        for factory in dependencyOrdered(benefactorFactoryConfigurations):
+            benefactor = factory.instantiate(store=siteStore,
+                                             **benefactorFactoryConfigurations[factory])
+            multifactor.add(benefactor)
+
+        booth = siteStore.findOrCreate(TicketBooth)
+        booth.installOn(siteStore)
         signupItem = signupClass(
             store=siteStore,
             booth=booth,
-            product=product,
+            benefactor=multifactor,
             emailTemplate=emailTemplate,
             prompt=prompt,
             **signupConf)
-        #XXX hack, there should be framework support for installing multiple instances of a class
-        for iface, priority in _getPowerupInterfaces(signupItem):
-            siteStore.powerUp(signupItem, iface, priority)
+        signupItem.installOn(siteStore)
         _SignupTracker(store=siteStore,
                        signupItem=signupItem,
                        createdOn=extime.Time(),
@@ -952,33 +1003,75 @@ class SignupConfiguration(Item):
 
         return signupItem
 
-class ProductFormMixin(object):
-    def makeProductPicker(self):
-        productPicker = liveform.LiveForm(
-            self.coerceProduct,
-            [liveform.Parameter(
-              str(id(product)),
-              liveform.FORM_INPUT,
-              liveform.LiveForm(
-              lambda selectedProduct, product=product: selectedProduct and product,
-              [liveform.Parameter(
-                'selectedProduct',
-                liveform.RADIO_INPUT,
-                bool,
-                repr(product))]
-              ))
-              for product
-              in self.original.store.parent.query(Product)],
-            u"Product to Install")
-        return productPicker
 
-    def coerceProduct(self, **kw):
-        return filter(None, kw.values())[0]
+
+def _insertDep(dependent, ordered):
+    for dependency in dependent.dependencies():
+        _insertDep(dependency, ordered)
+    if dependent not in ordered:
+        ordered.append(dependent)
+
+def dependencyOrdered(coll):
+    ordered = []
+    for dependent in coll:
+        _insertDep(dependent, ordered)
+    return ordered
 
 
 
+class BenefactorFactoryConfigMixin:
+    def makeBenefactorCoercer(self, benefactorFactory):
+        """
+        Return a function that converts a selected flag and a set of
+        keyword arguments into either None (if not selected) or a 2-tuple
+        of (IBenefactorFactory provider, kwargs)
+        """
+        def benefactorCoercer(selectedBenefactor, **benefactorFactoryConfiguration):
+            """
+            Receive coerced values from the form post, massage them as
+            described above.
+            """
+            if selectedBenefactor:
+                return benefactorFactory, benefactorFactoryConfiguration
+            return None
+        return benefactorCoercer
 
-class SignupFragment(athena.LiveFragment, ProductFormMixin):
+
+    def makeBenefactorSelector(self, description):
+        return liveform.Parameter('selectedBenefactor',
+                                  liveform.CHECKBOX_INPUT,
+                                  bool,
+                                  description)
+
+
+    def coerceBenefactor(self, **kw):
+        return dict(filter(None, kw.values()))
+
+
+    def getBenefactorFactories(self):
+        for installedOffering in getInstalledOfferings(self.original.store.parent).itervalues():
+            for beneFac in installedOffering.benefactorFactories:
+                yield beneFac
+
+
+    def benefactorFactoryConfigurationParameter(self, beneFac):
+        return liveform.Parameter(
+            beneFac.name,
+            liveform.FORM_INPUT,
+            liveform.LiveForm(self.makeBenefactorCoercer(beneFac),
+                              [self.makeBenefactorSelector(beneFac.description)] + beneFac.parameters(),
+                              beneFac.name))
+
+    def makeBenefactorFactoryConfigurationForm(self):
+        return liveform.LiveForm(
+            self.coerceBenefactor,
+            [self.benefactorFactoryConfigurationParameter(beneFac)
+             for beneFac in self.getBenefactorFactories()],
+            u"Benefactors for Signup")
+
+
+
+class SignupFragment(athena.LiveFragment, BenefactorFactoryConfigMixin):
     fragmentName = 'signup-configuration'
     live = 'athena'
 
@@ -996,6 +1089,7 @@ class SignupFragment(athena.LiveFragment, ProductFormMixin):
         ''']
 
     def render_signupConfigurationForm(self, ctx, data):
+        benefactorFactoryConfigurations = self.makeBenefactorFactoryConfigurationForm()
 
         def makeSignupCoercer(signupPlugin):
             """
@@ -1074,8 +1168,6 @@ class SignupFragment(athena.LiveFragment, ProductFormMixin):
         else:
             deleteSignupForm = ''
 
-        productPicker = self.makeProductPicker()
-
         createSignupForm = liveform.LiveForm(
             self.createSignup,
             [liveform.Parameter('signupPrompt',
@@ -1083,10 +1175,10 @@ class SignupFragment(athena.LiveFragment, ProductFormMixin):
                                 unicode,
                                 u'Descriptive, user-facing prompt for this signup',
                                 default=u'Sign Up'),
-             liveform.Parameter('product',
+             liveform.Parameter('benefactorFactoryConfigurations',
                                 liveform.FORM_INPUT,
-                                productPicker,
-                                u'Pick some product'),
+                                benefactorFactoryConfigurations,
+                                u'Pick some dude'),
              liveform.Parameter('signupTuple',
                                 liveform.FORM_INPUT,
                                 signupMechanismConfigurations,
@@ -1095,7 +1187,7 @@ class SignupFragment(athena.LiveFragment, ProductFormMixin):
                                 liveform.FORM_INPUT,
                                 emailTemplateConfiguration,
                                 u'You know you want to')],
-            description='Create Signup')
+             description='Create Signup')
         createSignupForm.setFragmentParent(self)
 
         return [deleteSignupForm, createSignupForm]
@@ -1112,7 +1204,7 @@ class SignupFragment(athena.LiveFragment, ProductFormMixin):
     def createSignup(self,
                      signupPrompt,
                      signupTuple,
-                     product,
+                     benefactorFactoryConfigurations,
                      emailTemplate):
         """
 
@@ -1128,7 +1220,7 @@ class SignupFragment(athena.LiveFragment, ProductFormMixin):
           self.page.username,
           signupMechanism,
           signupConfig,
-          product,
+          benefactorFactoryConfigurations,
           emailTemplate,
           signupPrompt)
         return u'Great job.'

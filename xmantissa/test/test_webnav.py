@@ -3,7 +3,6 @@
 from twisted.trial import unittest
 
 from axiom.store import Store
-from axiom.dependency import installOn
 
 from nevow.url import URL
 
@@ -52,7 +51,7 @@ class NavConfig(unittest.TestCase):
         s = Store()
 
         privapp = PrivateApplication(store=s)
-        installOn(privapp,s)
+        privapp.installOn(s)
 
         tabs = [webnav.Tab('PrivateApplication', privapp.storeID, 0),
                 webnav.Tab('Something Else', None, 0, linkURL='/foo/bar')]

@@ -3,8 +3,6 @@ from twisted.python import log
 from twisted.internet import defer
 from twisted.trial import unittest
 from axiom import store, attributes, scheduler, iaxiom
-from axiom.dependency import installOn
-
 from xmantissa import stats
 from epsilon.extime import Time
 from epsilon import juice
@@ -13,9 +11,9 @@ class StatCollectorTest(unittest.TestCase):
     def testStatCollectionAndRecording(self):
         s = store.Store()
         s.parent = s #should this break something? it should break something.
-        installOn(scheduler.Scheduler(store=s), s)
+        scheduler.Scheduler(store=s).installOn(s)
         svc = stats.StatsService(store=s)
-        installOn(svc, s)
+        svc.installOn(s)
         log.msg(interface=iaxiom.IStatEvent, stat_foo=17)
         s.findUnique(stats.StatSampler).run()
         minutebucket = list(s.query(stats.StatBucket, attributes.AND(stats.StatBucket.type == u"foo",

@@ -7,7 +7,6 @@ from twisted.trial.unittest import TestCase
 
 from axiom.plugins import webcmd
 
-from axiom.dependency import installOn
 from axiom.store import Store
 from axiom.test.util import CommandStubMixin
 
@@ -119,7 +118,7 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         the C{WebSite} instance being manipulated.
         """
         ws = WebSite(store=self.store)
-        installOn(ws, self.store)
+        ws.installOn(self.store)
 
         opt = webcmd.WebConfiguration()
         opt.parent = self
@@ -135,7 +134,7 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         attribute of the C{WebSite} instance to C{None}.
         """
         ws = WebSite(store=self.store)
-        installOn(ws, self.store)
+        ws.installOn(self.store)
 
         opt = webcmd.WebConfiguration()
         opt.parent = self

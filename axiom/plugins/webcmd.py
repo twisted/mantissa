@@ -6,7 +6,6 @@ import sys
 from twisted.python import usage, reflect
 
 from axiom import item, attributes
-from axiom.dependency import installOn
 from axiom.scripts import axiomatic
 
 from xmantissa.website import WebSite, StaticSite, WebConfigurationError
@@ -88,7 +87,7 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
                     break
                 else:
                     ws = WebSite(store=s, **change)
-                    installOn(ws, s)
+                    ws.installOn(s)
                 self.didSomething = 1
 
             # Set up whatever static content was requested.
@@ -102,7 +101,7 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
                                     staticContentPath=filePath,
                                     prefixURL=webPath,
                                     sessionless=True)
-                    ss.installSite()
+                    ss.installOn(s)
                 self.didSomething = 1
         try:
             s.transact(_)
@@ -166,9 +165,9 @@ class WebApplication(axiomatic.AxiomaticCommand):
 
     def postOptions(self):
         s = self.parent.getStore()
-        installOn(webapp.PrivateApplication(
+        webapp.PrivateApplication(
             store=s,
-            preferredTheme=decodeCommandLine(self['theme'])), s)
+            preferredTheme=decodeCommandLine(self['theme'])).installOn(s)
 
 class WebAdministration(axiomatic.AxiomaticCommand):
     name = 'web-admin'
@@ -195,7 +194,7 @@ class WebAdministration(axiomatic.AxiomaticCommand):
                 else:
                     raise usage.UsageError('Administrator controls already disabled.')
             else:
-                installOn(webadmin.AdminStatsApplication(store=s), s)
+                webadmin.AdminStatsApplication(store=s).installOn(s)
 
         if self['developer']:
             didSomething = True
@@ -206,6 +205,6 @@ class WebAdministration(axiomatic.AxiomaticCommand):
                 else:
                     raise usage.UsageError('Developer controls already disabled.')
             else:
-                installOn(webadmin.DeveloperApplication(store=s), s)
+                webadmin.DeveloperApplication(store=s).installOn(s)
         if not didSomething:
             raise usage.UsageError("Specify something or I won't do anything.")

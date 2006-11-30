@@ -4,7 +4,6 @@ from nevow import loaders, tags
 from nevow.livetrial.testcase import TestCase
 
 from axiom.store import Store
-from axiom.dependency import installOn
 
 from xmantissa import people, ixmantissa
 from xmantissa.webtheme import getLoader
@@ -156,10 +155,10 @@ class PersonDetailTestCase(TestCase):
     def getWidgetDocument(self):
         s = Store()
 
-        installOn(PrivateApplication(store=s), s)
+        PrivateApplication(store=s).installOn(s)
 
         o = people.Organizer(store=s)
-        installOn(o, s)
+        o.installOn(s)
 
         p = people.Person(store=s,
                           name=u'The Foo Person',

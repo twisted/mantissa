@@ -47,7 +47,7 @@ class _IndexerInputSource(item.Item):
 
 
 
-class RemoteIndexer(object):
+class RemoteIndexer(item.InstallableMixin):
     """
     Implements most of a full-text indexer.
 
