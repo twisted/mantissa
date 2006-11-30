@@ -145,7 +145,7 @@ class CustomizingResource(object):
                                     # IResource and call rendering methods.
 
 
-class CustomizedPublicPage(item.Item, item.InstallableMixin):
+class CustomizedPublicPage(item.Item):
     """
     Per-avatar hook at '/' which finds the real public-page and asks
     it to customize itself for a particular user.
@@ -158,17 +158,12 @@ class CustomizedPublicPage(item.Item, item.InstallableMixin):
         '''The Avatar for which this item will attempt to retrieve a
         customized page.''')
 
-    def installOn(self, other):
-        super(CustomizedPublicPage, self).installOn(other)
-        # See irc://freenode.net/divmod conversation between exarkun
-        # and glyph of Sat Oct 29, 2005 regarding the correctness of
-        # the priority modifier of -256.
-        other.powerUp(self, ixmantissa.ISiteRootPlugin, -257)
+    powerupInterfaces = [(ixmantissa.ISiteRootPlugin, -257)]
 
     def resourceFactory(self, segments):
-        topResource = inevow.IResource(self.installedOn.store.parent, None)
+        topResource = inevow.IResource(self.store.parent, None)
         if topResource is not None:
-            for resource, domain in userbase.getAccountNames(self.installedOn):
+            for resource, domain in userbase.getAccountNames(self.store):
                 username = '%s@%s' % (resource, domain)
                 break
             else:

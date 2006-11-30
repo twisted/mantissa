@@ -19,6 +19,7 @@ from axiom.item import Item
 from axiom.attributes import text, integer, reference
 from axiom.userbase import getAccountNames
 from axiom import upgrade
+from axiom.dependency import dependsOn, installedOn
 
 from nevow.rend import Page, NotFound
 from nevow import livepage, athena
@@ -27,7 +28,7 @@ from nevow import tags as t
 from nevow import url, static
 
 from xmantissa.publicweb import CustomizedPublicPage
-from xmantissa.website import PrefixURLMixin, StaticRedirect
+from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
 from xmantissa.webnav import getTabs, getSelectedTab, setTabURLs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
@@ -131,7 +132,7 @@ class NavMixin(object):
 
     def render_username(self, ctx, data):
         if self.username is None:
-            for (user, domain) in getAccountNames(self.webapp.installedOn):
+            for (user, domain) in getAccountNames(installedOn(self.webapp)):
                 self.username = '%s@%s' % (user, domain)
                 break
             else:
@@ -464,14 +465,23 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     implements(ISiteRootPlugin, IWebTranslator)
 
+    powerupInterfaces = (IWebTranslator)
+
     typeName = 'private_web_application'
     schemaVersion = 2
 
-    installedOn = reference()
 
     preferredTheme = text()
     hitCount = integer(default=0)
     privateKey = integer()
+
+    website = dependsOn(WebSite)
+
+    customizedPublicPage = dependsOn(CustomizedPublicPage)
+    authenticationApplication = dependsOn(AuthenticationApplication)
+    preferenceAggregator = dependsOn(PreferenceAggregator)
+    defaultPreferenceCollection = dependsOn(DefaultPreferenceCollection)
+    searchAggregator = dependsOn(SearchAggregator)
 
     #XXX Nothing ever uses this
     privateIndexPage = reference()
@@ -486,35 +496,15 @@ class PrivateApplication(Item, PrefixURLMixin):
         gk = genkey()
         self.privateKey = gk
 
-    def installOn(self, other):
-        super(PrivateApplication, self).installOn(other)
-        other.powerUp(self, IWebTranslator)
-
-        def findOrCreate(*a, **k):
-            return other.store.findOrCreate(*a, **k)
-
-        findOrCreate(StaticRedirect,
-                     sessioned=True,
-                     sessionless=False,
-                     prefixURL=u'',
-                     targetURL=u'/'+self.prefixURL).installOn(other, -1)
-
-        findOrCreate(CustomizedPublicPage).installOn(other)
-
-        findOrCreate(AuthenticationApplication)
-        findOrCreate(PreferenceAggregator).installOn(other)
-        findOrCreate(DefaultPreferenceCollection).installOn(other)
-        findOrCreate(SearchAggregator).installOn(other)
-
     def getPageComponents(self):
-        navigation = getTabs(self.installedOn.powerupsFor(INavigableElement))
-        searchAggregator = ISearchAggregator(self.installedOn, None)
-        staticShellContent = IStaticShellContent(self.installedOn, None)
+        navigation = getTabs(installedOn(self).powerupsFor(INavigableElement))
+
+        staticShellContent = IStaticShellContent(installedOn(self), None)
 
         return _PageComponents(navigation,
-                               searchAggregator,
+                               self.searchAggregator,
                                staticShellContent,
-                               self.installedOn.findFirst(PreferenceAggregator),
+                               installedOn(self).findFirst(PreferenceAggregator),
                                getInstalledThemes(self.store.parent))
 
     def createResource(self):
@@ -522,7 +512,10 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     # ISiteRootPlugin
     def resourceFactory(self, segments):
-        return super(PrivateApplication, self).resourceFactory(segments)
+        if segments == JUST_SLASH:
+            return self.createResource(), JUST_SLASH
+        else:
+            return super(PrivateApplication, self).resourceFactory(segments)
 
 
     # IWebTranslator

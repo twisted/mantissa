@@ -11,6 +11,7 @@ from nevow import inevow, athena, tags
 
 from axiom import attributes, item
 from axiom.upgrade import registerDeletionUpgrader
+from axiom.dependency import installedOn
 
 from xmantissa import ixmantissa
 
@@ -36,20 +37,15 @@ registerDeletionUpgrader(SearchResult, 1, 2)
 
 
 
-class SearchAggregator(item.Item, item.InstallableMixin):
+class SearchAggregator(item.Item):
     implements(ixmantissa.ISearchAggregator, ixmantissa.INavigableElement)
 
+    powerupInterfaces = (ixmantissa.ISearchAggregator, ixmantissa.INavigableElement)
     schemaVersion = 1
     typeName = 'mantissa_search_aggregator'
 
     installedOn = attributes.reference()
     searches = attributes.integer(default=0)
-
-    def installOn(self, other):
-        super(SearchAggregator, self).installOn(other)
-        other.powerUp(self, ixmantissa.ISearchAggregator)
-        other.powerUp(self, ixmantissa.INavigableElement)
-
 
     # INavigableElement
     def getTabs(self):
@@ -58,7 +54,7 @@ class SearchAggregator(item.Item, item.InstallableMixin):
 
     # ISearchAggregator
     def providers(self):
-        return list(self.installedOn.powerupsFor(ixmantissa.ISearchProvider))
+        return list(installedOn(self).powerupsFor(ixmantissa.ISearchProvider))
 
 
     def count(self, term):

@@ -36,8 +36,9 @@ from nevow import athena
 from epsilon import sslverify
 
 from axiom import upgrade
-from axiom.item import Item, InstallableMixin, _PowerupConnector
+from axiom.item import Item, _PowerupConnector
 from axiom.attributes import AND, integer, inmemory, text, reference, bytes, boolean
+from axiom.dependency import installedOn, dependsOn
 
 from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent
 from xmantissa import websession
@@ -70,7 +71,7 @@ class SiteRootMixin(object):
             res = shortcut(ctx)
             if res is not None:
                 return res, segments[1:]
-        s = self.installedOn
+        s = self.store
         P = self.powerupInterface
         for plg in s.powerupsFor(P):
             childAndSegments = plg.resourceFactory(segments)
@@ -84,17 +85,14 @@ class SiteRootMixin(object):
 class LoginPage(PublicPage):
     def __init__(self, original, store, segments=()):
         PublicPage.__init__(self, original, store, getLoader("login"),
-                            IStaticShellContent(original.installedOn, None),
+                            IStaticShellContent(original.store, None),
                             None)
         self.segments = segments
 
     def beforeRender(self, ctx):
         url = URL.fromContext(ctx).click('/')
 
-        # There should be a nicer way to discover this information
-        ws = self.original.installedOn.findFirst(
-            WebSite,
-            WebSite.installedOn == self.original.installedOn)
+        ws = self.original.store.findFirst(WebSite)
 
         if ws.securePort is not None:
             url = url.secure(port=ws.securePort.getHost().port)
@@ -127,19 +125,19 @@ class UnguardedWrapper(SiteRootMixin):
     hitCount = 0
 
     def __init__(self, store, guardedRoot):
-        self.installedOn = store
+        self.store = store
         self.guardedRoot = guardedRoot
 
     def locateChild(self, ctx, segments):
         request = inevow.IRequest(ctx)
         if segments[0] == 'login':
-            securePort = inevow.IResource(self.installedOn).securePort
+            securePort = inevow.IResource(self.store).securePort
             if not request.isSecure() and securePort is not None:
                 url = URL.fromContext(ctx)
                 newurl = url.secure(port=securePort.getHost().port)
                 return newurl.click("/login"), ()
             else:
-                return LoginPage(self, self.installedOn), segments[1:]
+                return LoginPage(self, self.store), segments[1:]
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x
@@ -149,7 +147,7 @@ class UnguardedWrapper(SiteRootMixin):
                 if not request.isSecure():
                     url = URL.fromContext(ctx)
                     newurl = url.secure(port=inevow.IResource(
-                        self.installedOn).securePort.getHost().port)
+                        self.store).securePort.getHost().port)
                     return newurl.click('/'.join(segments)), ()
             return child, segments
         return defer.maybeDeferred(self.guardedRoot.locateChild, ctx, segments
@@ -158,7 +156,7 @@ class UnguardedWrapper(SiteRootMixin):
 
 JUST_SLASH = ('',)
 
-class PrefixURLMixin(InstallableMixin):
+class PrefixURLMixin(object):
     """
     Mixin for use by I[Sessionlesss]SiteRootPlugin implementors; provides a
     resourceFactory method which looks for an C{prefixURL} string on self,
@@ -220,16 +218,21 @@ class PrefixURLMixin(InstallableMixin):
             if res is not None:
                 return res, subsegments
 
-    def installOn(self, other, priorityModifier=0):
-        """Install me on something (probably a Store) that will be queried for
+    def __getPowerupInterfaces__(self, powerups):
+        """
+        Install me on something (probably a Store) that will be queried for
         ISiteRootPlugin providers.
         """
-        super(PrefixURLMixin, self).installOn(other)
+
+        #First, all the other powerups
+        for x in powerups:
+            yield x
+
         # Only 256 segments are allowed in URL paths.  We want to make sure
         # that static powerups always lose priority ordering to dynamic
         # powerups, since dynamic powerups will have information
         pURL = self.prefixURL
-        priority = (pURL.count('/') - 256) + priorityModifier
+        priority = (pURL.count('/') - 256)
         if pURL == '':
             # Did I mention I hate the web?  Plugins at / are special in 2
             # ways.  Their segment length is kinda-sorta like 0 most of the
@@ -250,12 +253,12 @@ class PrefixURLMixin(InstallableMixin):
                 stacklevel=2)
             for iface in ISessionlessSiteRootPlugin, ISiteRootPlugin:
                 if iface.providedBy(self):
-                    other.powerUp(self, iface, priority)
+                    yield (iface, priority)
         else:
             if self.sessioned:
-                other.powerUp(self, ISiteRootPlugin, priority)
+                yield (ISiteRootPlugin, priority)
             if self.sessionless:
-                other.powerUp(self, ISessionlessSiteRootPlugin, priority)
+                yield (ISessionlessSiteRootPlugin, priority)
 
 
 class StaticSite(PrefixURLMixin, Item):
@@ -277,6 +280,14 @@ class StaticSite(PrefixURLMixin, Item):
     def createResource(self):
         return File(self.staticContentPath)
 
+    def installSite(self):
+        """
+        Not using the dependency system for this class because it's only
+        installed via the command line, and multiple instances can be
+        installed.
+        """
+        for iface, priority in self.__getPowerupInterfaces__([]):
+            self.store.powerUp(self, iface, priority)
 
 def upgradeStaticSite1To2(oldSite):
     newSite = oldSite.upgradeVersion(
@@ -357,7 +368,7 @@ class AxiomFragment(Fragment):
     def rend(self, ctx, data):
         return self.store.transact(Fragment.rend, self, ctx, data)
 
-class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
+class WebSite(Item, Service, SiteRootMixin):
     """
     Govern an HTTP server which binds a port on startup and tears it down at
     shutdown using the Twisted Service system.  Unfortunately, also provide web
@@ -369,8 +380,8 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
     typeName = 'mantissa_web_powerup'
     schemaVersion = 4
 
-    hitCount = integer(default=0)
     installedOn = reference()
+    hitCount = integer(default=0)
 
     hostname = text(doc="""
     The primary hostname by which this website will be accessible.  If set to
@@ -392,18 +403,16 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
 
     debug = False
 
+    powerupInterfaces = (inevow.IResource, IService)
+
     def activate(self):
         self.site = None
         self.port = None
         self.securePort = None
 
-    def installOn(self, other):
-        super(WebSite, self).installOn(other)
-        other.powerUp(self, inevow.IResource)
-        if self.store.parent is None:
-            other.powerUp(self, IService)
-            if self.parent is None:
-                self.setServiceParent(other)
+    def installed(self):
+        if self.store.parent is None and  self.parent is None:
+            self.setServiceParent(installedOn(self))
 
 
     def _root(self, scheme, hostname, portNumber, standardPort, port):
@@ -473,8 +482,7 @@ class WebSite(Item, Service, SiteRootMixin, InstallableMixin):
 
     def child_by(self, ctx):
         from xmantissa.websharing import UserIndexPage
-        from axiom.userbase import LoginSystem
-        ls = self.installedOn.findUnique(LoginSystem, default=None)
+        ls = self.store.findUnique(LoginSystem, default=None)
         if ls is None:
             return None
         return UserIndexPage(ls)

@@ -5,6 +5,7 @@ from twisted.trial import unittest
 
 from axiom import store, item, attributes, userbase
 from axiom.scripts import axiomatic
+from axiom.dependency import installedOn
 
 from xmantissa import ixmantissa, offering
 
@@ -12,26 +13,21 @@ class TestSiteRequirement(item.Item):
     typeName = 'test_site_requirement'
     schemaVersion = 1
 
-    installed = attributes.integer(default=0)
-
-    def installOn(self, other):
-        self.installed = True
+    attr = attributes.integer()
 
 class TestAppPowerup(item.Item):
     typeName = 'test_app_powerup'
     schemaVersion = 1
 
-    installed = attributes.integer(default=0)
+    attr = attributes.integer()
 
-    def installOn(self, other):
-        self.installed = True
 
 class TestPublicPagePowerup(item.Item):
     typeName = 'test_publicpage_powerup'
     schemaVersion = 1
+    powerupInterfaces = ixmantissa.IPublicPage
 
-    def installOn(self, other):
-        other.powerUp(self, ixmantissa.IPublicPage)
+    attr = attributes.integer()
 
 class ITestInterface(Interface):
     """
@@ -56,21 +52,23 @@ class OfferingTest(unittest.TestCase):
             [TestAppPowerup],
             [],
             [],
+            [],
             []
             )
         conf.installOffering(off, None)
 
         # Site store requirements should be on the site store
         tsr = self.store.findUnique(TestSiteRequirement)
-        self.failUnless(tsr.installed)
+        self.failUnless(installedOn(tsr), self.store)
 
         # App store should have been created
         appStore = self.userbase.accountByAddress(off.name, None)
         self.assertNotEqual(appStore, None)
 
         # App store requirements should be on the app store
-        tap = appStore.avatars.open().findUnique(TestAppPowerup)
-        self.failUnless(tap.installed)
+        ss = appStore.avatars.open()
+        tap = ss.findUnique(TestAppPowerup)
+        self.failUnless(installedOn(tap), ss)
 
 
     def testGetInstalledOfferingNames(self):

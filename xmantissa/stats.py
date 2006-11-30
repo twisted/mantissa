@@ -350,7 +350,7 @@ class StatSampler(item.Item):
         statoscope.reset()
 
 
-class StatsService(item.Item, service.Service, item.InstallableMixin):
+class StatsService(item.Item, service.Service):
     """
     I collect and record statistics from various parts of a Mantissa app.
     Data is collected by means of a log observer.
@@ -362,7 +362,6 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     argument"userstore" with a Store you wish to record stats into.
 
     """
-    installedOn = attributes.reference()
     parent = attributes.inmemory()
     running = attributes.inmemory()
     name = attributes.inmemory()
@@ -375,13 +374,13 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
     loginInterfaces = attributes.inmemory()
     userStats = attributes.inmemory()
 
-    def installOn(self, store):
-        super(StatsService, self).installOn(store)
-        store.powerUp(self, service.IService)
+    powerupInterfaces = (service.IService)
+
+    def installed(self):
         # XXX TODO: we should be able to extract and insert this app store, and
         # currently we can't because there's no record of the fact that we're
         # going to power up our store's parent.
-        if store.parent is not None:
+        if self.store.parent is not None:
             # store.parent.powerUp(store.parent.getItemByID(store.idInParent), IService)
             # XXX TODO: OMG where are the tests that are failing because
             # nothing will ever start this service?  it seems like that should
@@ -390,14 +389,14 @@ class StatsService(item.Item, service.Service, item.InstallableMixin):
         now = datetime.datetime.utcnow()
 
         try:
-            store.findUnique(StatSampler)
+            self.store.findUnique(StatSampler)
         except errors.ItemNotFound:
-            s = store.findOrCreate(StatSampler, service=self)
+            s = self.store.findOrCreate(StatSampler, service=self)
             t = Time.fromDatetime(now.replace(second=0) + datetime.timedelta(minutes=1))
-            iaxiom.IScheduler(store).schedule(s, t)
+            iaxiom.IScheduler(self.store).schedule(s, t)
 
         if self.parent is None:
-            self.setServiceParent(store)
+            self.setServiceParent(self.store)
             self.startService()
 
     def startService(self):

@@ -15,10 +15,12 @@ from nevow.athena import expose
 from epsilon import extime, descriptor
 
 from axiom import item, attributes
+from axiom.dependency import dependsOn
 from axiom.attributes import AND
 from axiom.upgrade import registerUpgrader
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
+from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
@@ -40,22 +42,6 @@ def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
     endowed = attributes.integer(default=0)
-
-    def installOn(self, other):
-        other.powerUp(self, ixmantissa.IBenefactor)
-
-    def endow(self, ticket, avatar):
-        avatar.findOrCreate(Organizer).installOn(avatar)
-        avatar.findOrCreate(AddPerson).installOn(avatar)
-        self.endowed += 1
-
-    def revoke(self, ticket, avatar):
-        for cls in (Organizer, AddPerson):
-            item = avatar.findUnique(cls)
-            avatar.powerDown(item, ixmantissa.INavigableElement)
-            item.deleteFromStore()
-
-        self.endowed -= 1
 
 class Person(item.Item):
     typeName = 'mantissa_person'
@@ -127,7 +113,7 @@ class ExtractWrapper(item.Item):
     person = attributes.reference(reftype=Person,
                                   whenDeleted=attributes.reference.CASCADE)
 
-class Organizer(item.Item, item.InstallableMixin):
+class Organizer(item.Item):
     """
     Oversee the creation, location, destruction, and modification of
     people in a particular set (eg, the set of people you know).
@@ -138,23 +124,13 @@ class Organizer(item.Item, item.InstallableMixin):
     schemaVersion = 1
 
     installedOn = attributes.reference()
-    _webTranslator = attributes.inmemory()
+    _webTranslator = dependsOn(PrivateApplication)
 
-    def activate(self):
-        self._webTranslator = None
+    powerupInterfaces = (ixmantissa.INavigableElement)
 
-    class webTranslator(descriptor.attribute):
-        def get(self):
-            if self._webTranslator is None:
-                self._webTranslator = ixmantissa.IWebTranslator(self.store)
-            return self._webTranslator
-
-    def installOn(self, other):
-        super(Organizer, self).installOn(other)
-        other.powerUp(self, ixmantissa.INavigableElement)
-
-        # This is not how this should work
-        #AddressBook(store=self.store).installOn(self)
+    #class webTranslator(descriptor.attribute):
+    #    def get(self):
+    #        return self._webTranslator
 
     def personByName(self, name):
         """
@@ -209,11 +185,11 @@ class Organizer(item.Item, item.InstallableMixin):
         @param person: L{Person} instance
         @return: string url at which C{person} will be rendered
         """
-        return (self.webTranslator.linkTo(self.storeID) +
-                '/' + self.webTranslator.toWebID(person))
+        return (self._webTranslator.linkTo(self.storeID) +
+                '/' + self._webTranslator.toWebID(person))
 
     def getTabs(self):
-        ourURL = self.webTranslator.linkTo(self.storeID)
+        ourURL = self._webTranslator.linkTo(self.storeID)
         children = [webnav.Tab('All', self.storeID, 0.1)]
 
         letters = iter(uppercase)
@@ -239,7 +215,7 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     jsClass = u'Mantissa.People.Organizer'
 
     def __init__(self, original):
-        self.wt = original.webTranslator
+        self.wt = original._webTranslator
         athena.LiveFragment.__init__(self, original)
 
     def _createPeopleScrollTable(self, baseComparison, sort):
@@ -383,17 +359,14 @@ class Notes(item.Item):
     person = attributes.reference(allowNone=False)
 
 
-class AddPerson(item.Item, item.InstallableMixin):
+class AddPerson(item.Item):
     implements(ixmantissa.INavigableElement)
 
     typeName = 'mantissa_add_person'
     schemaVersion = 1
 
-    installedOn = attributes.reference()
-
-    def installOn(self, other):
-        super(AddPerson, self).installOn(other)
-        other.powerUp(self, ixmantissa.INavigableElement)
+    powerupInterfaces = ixmantissa.INavigableElement
+    organizer = dependsOn(Organizer)
 
     def getTabs(self):
         return [webnav.Tab('People', self.storeID, 0.0, children=[
@@ -412,7 +385,7 @@ def _hasLengthOrNone(s):
 class AddPersonFragment(athena.LiveFragment):
     fragmentName = 'add-person'
     live = 'athena'
-
+    
     def render_addPersonForm(self, ctx, data):
         def makeParam(name, desc, coerce=_hasLengthOrNone):
             return liveform.Parameter(name, liveform.TEXT_INPUT, coerce, desc)
@@ -461,7 +434,7 @@ class AddPersonFragment(athena.LiveFragment):
 
 components.registerAdapter(AddPersonFragment, AddPerson, ixmantissa.INavigableFragment)
 
-class AddressBook(item.Item, item.InstallableMixin):
+class AddressBook(item.Item):
     implements(ixmantissa.IOrganizerPlugin)
 
     typeName = 'mantissa_organizer_addressbook'
@@ -471,9 +444,7 @@ class AddressBook(item.Item, item.InstallableMixin):
     The Organizer on which this is installed.
     """)
 
-    def installOn(self, other):
-        super(AddressBook, self).installOn(other)
-        other.powerUp(self, ixmantissa.IOrganizerPlugin)
+    powerupInterfaces = (ixmantissa.IOrganizerPlugin)
 
     def personalize(self, person):
         return self.store.findOrCreate(

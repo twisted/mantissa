@@ -7,6 +7,7 @@ from twisted.application.service import IService
 from axiom import iaxiom, store, batch, item, attributes
 from axiom.userbase import LoginSystem
 from axiom.scheduler import Scheduler
+from axiom.dependency import installOn
 
 from xmantissa import ixmantissa, fulltext
 
@@ -91,7 +92,7 @@ class IndexerTestsMixin:
         self.dbdir = self.mktemp()
         self.path = u'index'
         self.store = store.Store(self.dbdir)
-        Scheduler(store=self.store).installOn(self.store)
+        installOn(Scheduler(store=self.store), self.store)
         self.indexer = self.createIndexer()
 
 
@@ -692,7 +693,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         superstore = store.Store(self.dbdir)
 
         loginSystem = LoginSystem(store=superstore)
-        loginSystem.installOn(superstore)
+        installOn(loginSystem, superstore)
 
         account = loginSystem.addAccount(u'testuser', u'example.com', None)
         substore = account.avatars.open()
