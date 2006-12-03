@@ -29,11 +29,11 @@ Mantissa.Admin.EndowDepriveAction.methods(
  */
 Mantissa.Admin.LocalUserBrowser = Mantissa.ScrollTable.FlexHeightScrollingWidget.subclass('Mantissa.Admin.LocalUserBrowser');
 Mantissa.Admin.LocalUserBrowser.methods(
-    function __init__(self, node) {
+    function __init__(self, node, metadata) {
         self.actions = [Mantissa.Admin.EndowDepriveAction("endow", "Endow"),
                         Mantissa.Admin.EndowDepriveAction("deprive", "Deprive")];
 
-        Mantissa.Admin.LocalUserBrowser.upcall(self, "__init__", node, 10);
+        Mantissa.Admin.LocalUserBrowser.upcall(self, "__init__", node, metadata, 10);
     },
 
     function _getUserDetailElement(self) {

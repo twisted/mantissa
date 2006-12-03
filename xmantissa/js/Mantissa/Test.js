@@ -936,7 +936,7 @@ Mantissa.Test.ScrollTableWithActions = Mantissa.ScrollTable.ScrollingWidget.subc
  * L{Mantissa.ScrollTable.ScrollingWidget} subclass with two actions
  */
 Mantissa.Test.ScrollTableWithActions.methods(
-    function __init__(self, node) {
+    function __init__(self, node, metadata) {
         /* make an action whose handler refreshes the scrolltable */
         self.deleteAction = Mantissa.ScrollTable.Action(
                                 "delete", "Delete",
@@ -944,7 +944,7 @@ Mantissa.Test.ScrollTableWithActions.methods(
                                     return scrollingWidget.emptyAndRefill();
                                 });
         self.actions = [self.deleteAction, Mantissa.Test.FrobAction()];
-        Mantissa.Test.ScrollTableWithActions.upcall(self, "__init__", node);
+        Mantissa.Test.ScrollTableWithActions.upcall(self, "__init__", node, metadata);
     });
 
 Mantissa.Test.ScrollTableActionsTestCase = Mantissa.Test.ScrollTableViewTestBase.subclass('Mantissa.Test.ScrollTableActionsTestCase');
@@ -1281,8 +1281,8 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
 Mantissa.Test.ScrollEventTestableScrollTable = Mantissa.ScrollTable.ScrollingWidget.subclass(
                                                     'Mantissa.Test.ScrollEventTestableScrollTable');
 Mantissa.Test.ScrollEventTestableScrollTable.methods(
-    function __init__(self, node) {
-        Mantissa.Test.ScrollEventTestableScrollTable.upcall(self, '__init__', node);
+    function __init__(self, node, metadata) {
+        Mantissa.Test.ScrollEventTestableScrollTable.upcall(self, '__init__', node, metadata);
         self.browserOriginatedScrollCount = 0;
     },
 

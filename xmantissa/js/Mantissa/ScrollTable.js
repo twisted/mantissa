@@ -515,10 +515,23 @@ Mantissa.ScrollTable.PlaceholderModel.methods(
     });
 
 
+/**
+ * @ivar actions: An array of L{Mantissa.ScrollTable.Action} instances which
+ * define ways which a user can interact with rows in this scrolltable.  May
+ * be undefined to indicate there are no possible actions.
+ *
+ * @ivar columnAliases: An object mapping column names to text which will be
+ * used in the construction of column headers.  If a column name is present
+ * as a property on this object, the value will be placed in the column
+ * heading, instead of the column name.  Any column name may be absent, in
+ * which case the case-normalized column name will be used to construct the
+ * header.  If this property is undefined, it will be treated the same as if
+ * it were an object with no properties.
+ */
 Mantissa.ScrollTable.ScrollingWidget = Nevow.Athena.Widget.subclass('Mantissa.ScrollTable.ScrollingWidget');
 
 Mantissa.ScrollTable.ScrollingWidget.methods(
-    function __init__(self, node) {
+    function __init__(self, node, metadata) {
         Mantissa.ScrollTable.ScrollingWidget.upcall(self, '__init__', node);
 
         self._rowTimeout = null;
@@ -537,9 +550,11 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
          */
         self._scrollDeferreds = [];
 
-        self.model = null;
         self.placeholderModel = Mantissa.ScrollTable.PlaceholderModel();
-        self.initializationDeferred = self.initialize();
+        self.model = Mantissa.ScrollTable.ScrollModel();
+
+        self.setTableMetadata.apply(self, metadata);
+        self.initializationDeferred = self._getSomeRows(true);
     },
 
     /**
@@ -563,22 +578,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      */
     function getTableMetadata(self) {
         return self.callRemote("getTableMetadata");
-    },
-
-    /**
-     * Create a ScrollModel and then populate it with an initial set of rows.
-     */
-    function initialize(self) {
-        /*
-         * XXX - Make table metadata into arguments to __init__ to save a
-         * round-trip.
-         */
-        return self.getTableMetadata().addCallback(
-            function(metadata) {
-                self.model = Mantissa.ScrollTable.ScrollModel();
-                self.setTableMetadata.apply(self, metadata);
-                return self._getSomeRows(true);
-            });
     },
 
     /**
@@ -1465,8 +1464,8 @@ Mantissa.ScrollTable.FlexHeightScrollingWidget.methods(
      * Override default implementation so we can store C{maxRows} and set the
      * initial height once initialization is complete
      */
-    function __init__(self, node, maxRows/*=undefined*/) {
-        Mantissa.ScrollTable.FlexHeightScrollingWidget.upcall(self, "__init__", node);
+    function __init__(self, node, metadata, maxRows/*=undefined*/) {
+        Mantissa.ScrollTable.FlexHeightScrollingWidget.upcall(self, "__init__", node, metadata);
         self.maxRows = maxRows;
         self.initializationDeferred.addCallback(
             function(passThrough) {

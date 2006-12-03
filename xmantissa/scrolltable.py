@@ -233,7 +233,13 @@ class ScrollableView(object):
 
 
 
-class ItemQueryScrollingFragment(Scrollable, ScrollableView, LiveElement):
+class _ScrollingElement(LiveElement):
+    def getInitialArguments(self):
+        return [self.getTableMetadata()]
+
+
+
+class ItemQueryScrollingFragment(Scrollable, ScrollableView, _ScrollingElement):
     def __init__(self, store, itemType, baseConstraint, columns,
                  defaultSortColumn=None, defaultSortAscending=True,
                  *a, **kw):
@@ -264,7 +270,7 @@ ScrollingFragment = ItemQueryScrollingFragment
 
 
 
-class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
+class SequenceScrollingFragment(Scrollable, ScrollableView, _ScrollingElement):
     """
     Scrolltable implementation backed by any Python L{axiom.item.Item}
     sequence.
@@ -277,6 +283,10 @@ class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
         LiveElement.__init__(self, *a, **kw)
         self.store = store
         self.elements = elements
+
+
+    def getInitialArguments(self):
+        return [self.getTableMetadata()]
 
 
     def performCount(self):
