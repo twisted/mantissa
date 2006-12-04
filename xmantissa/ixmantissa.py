@@ -126,13 +126,22 @@ class IFulltextIndexer(Interface):
     """
     A general interface to a low-level full-text indexer.
     """
-    def openWriteIndex():
-        pass
+    def add(document):
+        """
+        Add the given document to this index.
+
+        This method may only be called in the batch process (it will
+        synchronously invoke an indexer method which may block or cause a
+        segfault).
+        """
 
 
-    def openReadIndex():
-        pass
+    def remove(document):
+        """
+        Remove the given document from this index.
 
+        This method may be called from any process.
+        """
 
 
 

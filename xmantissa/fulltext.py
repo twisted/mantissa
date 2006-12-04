@@ -4,7 +4,7 @@
 General functionality re-usable by various concrete fulltext indexing systems.
 """
 
-import atexit, os, time, weakref
+import atexit, os, weakref
 
 from zope.interface import implements
 
@@ -14,7 +14,7 @@ from twisted.internet import defer
 from epsilon.structlike import record
 
 from axiom import item, attributes, iaxiom, batch
-from axiom.upgrade import registerUpgrader
+from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 from xmantissa import ixmantissa
 
@@ -47,6 +47,22 @@ class _IndexerInputSource(item.Item):
 
 
 
+class _RemoveDocument(item.Item):
+    """
+    Tracks a document deletion which should occur before the next search is
+    performed.
+    """
+    indexer = attributes.reference(doc="""
+    The indexer item with which this deletion is associated.
+    """, whenDeleted=attributes.reference.CASCADE)
+
+    documentIdentifier = attributes.bytes(doc="""
+    The identifier, as returned by L{IFulltextIndexable.uniqueIdentifier},
+    for the document which should be removed from the index.
+    """, allowNone=False)
+
+
+
 class RemoteIndexer(item.InstallableMixin):
     """
     Implements most of a full-text indexer.
@@ -54,7 +70,12 @@ class RemoteIndexer(item.InstallableMixin):
     This uses L{axiom.batch} to perform indexing out of process and presents an
     asynchronous interface to in-process searching of that indexing.
     """
-    implements(iaxiom.IReliableListener, ixmantissa.ISearchProvider)
+    implements(iaxiom.IReliableListener, ixmantissa.ISearchProvider, ixmantissa.IFulltextIndexer)
+
+
+    def installOn(self, other):
+        super(RemoteIndexer, self).installOn(other)
+        other.powerUp(self, ixmantissa.IFulltextIndexer)
 
 
     def openReadIndex(self):
@@ -130,21 +151,8 @@ class RemoteIndexer(item.InstallableMixin):
             self._index = None
 
 
-    # IReliableListener
-    def suspend(self):
-        if VERBOSE:
-            log.msg("%s/%d suspending" % (self.store, self.storeID))
-        self._closeIndex()
-        return defer.succeed(None)
-
-
-    def resume(self):
-        if VERBOSE:
-            log.msg("%s/%d resuming" % (self.store, self.storeID))
-        return defer.succeed(None)
-
-
-    def processItem(self, item):
+    # IFulltextIndexer
+    def add(self, item):
         if self._index is None:
             try:
                 self._index = self.openWriteIndex()
@@ -159,6 +167,51 @@ class RemoteIndexer(item.InstallableMixin):
             log.msg("%s/%d indexing document" % (self.store, self.storeID))
         self._index.add(ixmantissa.IFulltextIndexable(item))
         self.indexCount += 1
+
+
+    def remove(self, item):
+        identifier = ixmantissa.IFulltextIndexable(item).uniqueIdentifier()
+        if VERBOSE:
+            log.msg("%s/%d scheduling %r for removal." % (self.store, self.storeID, identifier))
+        _RemoveDocument(store=self.store,
+                        indexer=self,
+                        documentIdentifier=identifier)
+
+
+
+    def _flush(self):
+        """
+        Deal with pending result-affecting things.
+
+        This should always be called before issuing a search.
+        """
+        remove = self.store.query(_RemoveDocument)
+        documentIdentifiers = list(remove.getColumn("documentIdentifier"))
+        if VERBOSE:
+            log.msg("%s/%d removing %r" % (self.store, self.storeID, documentIdentifiers))
+        reader = self.openReadIndex()
+        map(reader.remove, documentIdentifiers)
+        reader.close()
+        remove.deleteFromStore()
+
+
+    # IReliableListener
+    def suspend(self):
+        self._flush() # Make sure any pending deletes are processed.
+        if VERBOSE:
+            log.msg("%s/%d suspending" % (self.store, self.storeID))
+        self._closeIndex()
+        return defer.succeed(None)
+
+
+    def resume(self):
+        if VERBOSE:
+            log.msg("%s/%d resuming" % (self.store, self.storeID))
+        return defer.succeed(None)
+
+
+    def processItem(self, item):
+        return self.add(item)
 
 
     # ISearchProvider
@@ -383,12 +436,102 @@ class _PyLuceneHitsWrapper(record('index hits')):
 
 
 
-class _PyLuceneIndex(object):
-    def __init__(self, fsdir, index, analyzer):
-        self.fsdir = fsdir
-        self.index = index
+class _PyLuceneBase(object):
+    closed = False
+
+    def __init__(self, fsdir, analyzer):
         _closeObjects.append(self)
+        self.fsdir = fsdir
         self.analyzer = analyzer
+
+
+    def close(self):
+        if not self.closed:
+            self._reallyClose()
+            self.fsdir.close()
+        self.closed = True
+        try:
+            _closeObjects.remove(self)
+        except ValueError:
+            pass
+
+
+
+_closeObjects = []
+def _closeIndexes():
+    """
+    Helper for _PyLuceneIndex to make sure FSDirectory and IndexWriter
+    instances always get closed.  This gets registered with atexit and
+    closes any _PyLuceneIndex objects still in _closeObjects when it gets
+    run.
+    """
+    while _closeObjects:
+        _closeObjects[-1].close()
+atexit.register(_closeIndexes)
+
+
+
+class _PyLuceneReader(_PyLuceneBase):
+    """
+    Searches and deletes from a Lucene index.
+    """
+    def __init__(self, fsdir, analyzer, reader, searcher):
+        self.reader = reader
+        self.searcher = searcher
+        super(_PyLuceneReader, self).__init__(fsdir, analyzer)
+
+
+    def _reallyClose(self):
+        self.reader.close()
+        self.searcher.close()
+
+
+    def remove(self, documentIdentifier):
+        self.reader.deleteDocuments(
+            PyLucene.Term('storeID', documentIdentifier))
+
+
+    def search(self, phrase, keywords=None, sortAscending=True):
+        if not phrase and not keywords:
+            return []
+
+        # XXX Colons in phrase will screw stuff up.  Can they be quoted or
+        # escaped somehow?  Probably by using a different QueryParser.
+        if keywords:
+            fieldPhrase = u' '.join(u':'.join((k, v)) for (k, v) in keywords.iteritems())
+            if phrase:
+                phrase = phrase + u' ' + fieldPhrase
+            else:
+                phrase = fieldPhrase
+
+        qp = PyLucene.QueryParser('text', self.analyzer)
+        qp.setDefaultOperator(qp.Operator.AND)
+        query = qp.parseQuery(phrase)
+
+        sort = PyLucene.Sort(PyLucene.SortField('sortKey', not sortAscending))
+
+        try:
+            hits = self.searcher.search(query, sort)
+        except PyLucene.JavaError, err:
+            if 'no terms in field sortKey' in str(err):
+                hits = []
+            else:
+                raise
+        return _PyLuceneHitsWrapper(self, hits)
+
+
+
+class _PyLuceneWriter(_PyLuceneBase):
+    """
+    Adds documents to a Lucene index.
+    """
+    def __init__(self, fsdir, analyzer, writer):
+        self.writer = writer
+        super(_PyLuceneWriter, self).__init__(fsdir, analyzer)
+
+
+    def _reallyClose(self):
+        self.writer.close()
 
 
     def add(self, message):
@@ -422,66 +565,13 @@ class _PyLuceneIndex(object):
                            PyLucene.Field.Index.UN_TOKENIZED))
         # Deprecated. use Field(name, value, Field.Store.YES, Field.Index.UN_TOKENIZED) instead
 
-        self.index.addDocument(doc)
+        self.writer.addDocument(doc)
 
-
-    def search(self, phrase, keywords=None, sortAscending=True):
-        if not phrase and not keywords:
-            return []
-
-        # XXX Colons in phrase will screw stuff up.  Can they be quoted or
-        # escaped somehow?  Probably by using a different QueryParser.
-        if keywords:
-            fieldPhrase = u' '.join(u':'.join((k, v)) for (k, v) in keywords.iteritems())
-            if phrase:
-                phrase = phrase + u' ' + fieldPhrase
-            else:
-                phrase = fieldPhrase
-
-        qp = PyLucene.QueryParser('text', self.analyzer)
-        qp.setDefaultOperator(qp.Operator.AND)
-        query = qp.parseQuery(phrase)
-
-        sort = PyLucene.Sort(PyLucene.SortField('sortKey', not sortAscending))
-
-        try:
-            hits = self.index.search(query, sort)
-        except PyLucene.JavaError, err:
-            if 'no terms in field sortKey' in str(err):
-                hits = []
-            else:
-                raise
-        return _PyLuceneHitsWrapper(self, hits)
-
-
-    closed = False
-    def close(self):
-        if not self.closed:
-            self.index.close()
-            self.fsdir.close()
-        self.closed = True
-        try:
-            _closeObjects.remove(self)
-        except ValueError:
-            pass
-
-
-_closeObjects = []
-def _closeIndexes():
-    """
-    Helper for _PyLuceneIndex to make sure FSDirectory and IndexWriter
-    instances always get closed.  This gets registered with atexit and
-    closes any _PyLuceneIndex objects still in _closeObjects when it gets
-    run.
-    """
-    while _closeObjects:
-        _closeObjects[-1].close()
-atexit.register(_closeIndexes)
 
 
 class PyLuceneIndexer(RemoteIndexer, item.Item):
 
-    schemaVersion = 4
+    schemaVersion = 5
 
     indexCount = attributes.integer(default=0)
     installedOn = attributes.reference()
@@ -529,16 +619,18 @@ class PyLuceneIndexer(RemoteIndexer, item.Item):
 
             fsdir = PyLucene.FSDirectory.getDirectory(luceneDir.path, False)
             try:
-                reader = PyLucene.IndexSearcher(fsdir)
+                searcher = PyLucene.IndexSearcher(fsdir)
             except PyLucene.JavaError, e:
                 raise IndexCorrupt()
-            else:
-                return _PyLuceneIndex(fsdir, reader, self._analyzer())
+            try:
+                reader = PyLucene.IndexReader.open(fsdir)
+            except PyLucene.JavaError, e:
+                raise IndexCorrupt()
+            return _PyLuceneReader(fsdir, self._analyzer(), reader, searcher)
 
 
         def openWriteIndex(self):
             luceneDir = self.store.newDirectory(self.indexDirectory)
-
 
             create = not luceneDir.exists()
 
@@ -553,7 +645,7 @@ class PyLuceneIndexer(RemoteIndexer, item.Item):
                 if msg.startswith(lockTimeout):
                     self._lockfile = msg[len(lockTimeout):]
                 raise IndexCorrupt()
-            return _PyLuceneIndex(fsdir, writer, analyzer)
+            return _PyLuceneWriter(fsdir, analyzer, writer)
 
 
 
@@ -626,15 +718,24 @@ del cls
 
 _declareLegacyIndexerItem(PyLuceneIndexer, 3)
 
-def pyLuceneIndexer3to4(old):
+# Copy attributes.  Rely on pyLuceneIndexer4to5 to reset the index due to
+# sorting changes.
+registerAttributeCopyingUpgrader(PyLuceneIndexer, 3, 4)
+
+_declareLegacyIndexerItem(PyLuceneIndexer, 4)
+
+def pyLuceneIndexer4to5(old):
     """
-    Copy attributes, reset index due to sorting changes
+    Copy attributes, reset index due because information about deleted
+    documents has been lost, and power up for IFulltextIndexer so other code
+    can find this item.
     """
-    new = old.upgradeVersion(PyLuceneIndexer.typeName, 3, 4,
+    new = old.upgradeVersion(PyLuceneIndexer.typeName, 4, 5,
                              indexCount=old.indexCount,
                              installedOn=old.installedOn,
                              indexDirectory=old.indexDirectory)
     new.reset()
+    new.store.powerUp(new, ixmantissa.IFulltextIndexer)
     return new
 
-registerUpgrader(pyLuceneIndexer3to4, PyLuceneIndexer.typeName, 3, 4)
+registerUpgrader(pyLuceneIndexer4to5, PyLuceneIndexer.typeName, 4, 5)

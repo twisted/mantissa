@@ -1,4 +1,4 @@
-from twisted.trial.unittest import SkipTest
+
 from axiom.test.historic import stubloader
 from xmantissa.fulltext import PyLuceneIndexer
 
