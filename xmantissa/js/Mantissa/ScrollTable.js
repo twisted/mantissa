@@ -186,7 +186,7 @@ Mantissa.ScrollTable.ScrollModel.methods(
      */
     function setRowData(self, index, data) {
         if (index < 0) {
-            throw Divmod.IndexError("Specified index out of bounds in setRowData.");
+            throw Divmod.IndexError("Specified index (" + index + ") out of bounds in setRowData.");
         }
         /*
          * XXX I hate `typeof'.  It is an abomination.  Why the hell is
@@ -216,7 +216,7 @@ Mantissa.ScrollTable.ScrollModel.methods(
      */
     function getRowData(self, index) {
         if (index < 0 || index >= self._rows.length) {
-            throw Divmod.IndexError("Specified index out of bounds in getRowData.");
+            throw Divmod.IndexError("Specified index (" + index + ") out of bounds in getRowData.");
         }
         if (self._rows[index] === undefined) {
             return undefined;
@@ -527,6 +527,10 @@ Mantissa.ScrollTable.PlaceholderModel.methods(
  * which case the case-normalized column name will be used to construct the
  * header.  If this property is undefined, it will be treated the same as if
  * it were an object with no properties.
+ *
+ * @ivar lastScrollPos: Height in pixels of the top of the viewport in the
+ * scrolling region after the most recent scroll event.  C{0} initially and
+ * after being emptied.
  */
 Mantissa.ScrollTable.ScrollingWidget = Nevow.Athena.Widget.subclass('Mantissa.ScrollTable.ScrollingWidget');
 
@@ -880,7 +884,11 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
             }
         } else {
             for (i = 0; i < desiredRowCount; i++) {
-                if (self.model.getRowData(firstRow + desiredRowCount - 1) == undefined) {
+                var rowIndex = firstRow + desiredRowCount - 1;
+                if (rowIndex < 0) {
+                    break;
+                }
+                if (rowIndex >= self.model.rowCount() || self.model.getRowData(rowIndex) == undefined) {
                     requestNeeded = true;
                     break;
                 }
@@ -990,54 +998,28 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * Execute C{thunk} while ignoring DOM events originating from C{node}.
-     * Do this by temporarily removing C{node} from the document.
-     *
-     * @type thunk: function
-     * @type node: node
-     *
-     * @return: undefined
-     */
-    function whileIgnoringDOMEvents(self, thunk, node) {
-        var parent = node.parentNode;
-        if(parent == null) {
-            throw new Error(node + " does not have a parent");
-        }
-        var nextsib = node.nextSibling,
-            cleanup = function() {
-                if(nextsib) {
-                    parent.insertBefore(node, nextsib);
-                } else {
-                    parent.appendChild(node);
-                }
-            };
-
-        parent.removeChild(node);
-
-        try {
-            thunk();
-        } catch(e) {
-            cleanup();
-            throw e;
-        }
-        cleanup();
-    },
-
-    /**
      * Remove all row nodes, including placeholder nodes from the scrolltable
      * viewport node.  Also empty the model.
      */
     function empty(self) {
         var sviewport = self._scrollViewport;
 
-        self.whileIgnoringDOMEvents(
-            function() {
-                while(sviewport.firstChild) {
-                    sviewport.removeChild(sviewport.firstChild);
-                }
-            },
-            sviewport);
+        /*
+         * Removing children from the viewport will probably cause it to
+         * scroll around a bit.  We care not about any of those events, so
+         * ignore them temporarily.
+         */
+        var onscroll = sviewport.onscroll;
+        sviewport.onscroll = undefined;
+        while (sviewport.firstChild) {
+            sviewport.removeChild(sviewport.firstChild);
+        }
+        sviewport.onscroll = onscroll;
 
+        /*
+         * Make everything as new again.
+         */
+        self.lastScrollPos = 0;
         self.model.empty();
         self.placeholderModel.empty();
     },
@@ -1360,60 +1342,68 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      * Called in response to only user-initiated scroll events.
      */
     function onScroll(self) {
-        var scrollingDown = self.lastScrollPos < self._scrollViewport.scrollTop;
-        self.lastScrollPos = self._scrollViewport.scrollTop;
-        self.scrolled(undefined, scrollingDown);
+        self.scrolled();
     },
 
     /**
      * Respond to an event which may have caused to become visible rows for
      * which we do not data locally cached.  Retrieve some data, maybe, if
      * necessary.
-     *
-     * @type proposedTimeout: integer
-     * @param proposedTimeout: The number of milliseconds to wait before
-     * requesting data.  Defaults to 250ms.
-     *
-     * @type scrollingDown: boolean
-     * @param scrollingDown: True if the viewport was scrolled down, false
-     * otherwise.  Defaults to true.
      */
-    function scrolled(self, /* optional */ proposedTimeout, scrollingDown) {
+    function scrolled(self) {
         var result = Divmod.Defer.Deferred();
         self._scrollDeferreds.push(result);
 
-        if (proposedTimeout === undefined) {
-            proposedTimeout = 250;
-        }
-        if(scrollingDown === undefined) {
-            scrollingDown = true;
-        }
+        var proposedTimeout = 250;
+        var scrollingDown = self.lastScrollPos < self._scrollViewport.scrollTop;
+        self.lastScrollPos = self._scrollViewport.scrollTop;
+
         if (self._requestWaiting) {
             self._moreAfterRequest = true;
             return result;
         }
+
         if (self._rowTimeout !== null) {
             clearTimeout(self._rowTimeout);
+        }
+
+        function finishDeferreds(result) {
+            var scrollDeferreds = self._scrollDeferreds;
+            self._scrollDeferreds = [];
+            for (var i = 0; i < scrollDeferreds.length; ++i) {
+                scrollDeferreds[i].callback(result);
+            }
         }
 
         self._rowTimeout = setTimeout(
             function () {
                 self._rowTimeout = null;
                 self._requestWaiting = true;
-                self._getSomeRows(scrollingDown).addBoth(
-                    function (rows) {
+                try {
+                    var rowsDeferred = self._getSomeRows(scrollingDown);
+                } catch (err) {
+                    finishDeferreds(Divmod.Defer.Failure(err));
+                    return;
+                }
+                rowsDeferred.addBoth(
+                    function resetRequestWaiting(passthrough) {
+                        self._requestWaiting = false;
+                        return passthrough;
+                    });
+                rowsDeferred.addCallback(
+                    function rowsReceived(rows) {
                         self._requestWaiting = false;
                         if (self._moreAfterRequest) {
                             self._moreAfterRequest = false;
                             self.scrolled();
                         } else {
-                            var scrollDeferreds = self._scrollDeferreds;
-                            self._scrollDeferreds = [];
-                            for (var i = 0; i < scrollDeferreds.length; ++i) {
-                                scrollDeferreds[i].callback(null);
-                            }
+                            finishDeferreds(null);
                         }
                         self.cbRowsFetched(rows.length);
+                    });
+                rowsDeferred.addErrback(
+                    function rowsError(err) {
+                        finishedDeferreds(err);
                     });
             },
             proposedTimeout);

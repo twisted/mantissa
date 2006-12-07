@@ -32,17 +32,16 @@ class ScrollTableWidgetTestCase(TestCase):
     Tests for the scrolltable's view class.
     """
     jsClass = u'Mantissa.Test.ScrollTableViewTestCase'
-    rowCount = 10
 
     def __init__(self):
         TestCase.__init__(self)
         self.perTestData = {}
 
 
-    def getScrollingWidget(self, key):
+    def getScrollingWidget(self, key, rowCount=10):
         store = Store()
         PrivateApplication(store=store).installOn(store)
-        elements = [ScrollElement(store=store, column=i) for i in range(self.rowCount)]
+        elements = [ScrollElement(store=store, column=i) for i in range(rowCount)]
         columns = [ScrollElement.column]
         f = SequenceScrollingFragment(store, elements, columns)
         f.docFactory = getLoader(f.fragmentName)
@@ -57,14 +56,16 @@ class ScrollTableWidgetTestCase(TestCase):
         elements[:] = [ScrollElement(store=store, column=i) for i in range(n)]
     expose(changeRowCount)
 
+
+
 class ScrollTableActionsTestCase(ScrollTableWidgetTestCase):
     """
     Tests for scrolltable actions
     """
     jsClass = u'Mantissa.Test.ScrollTableActionsTestCase'
 
-    def getScrollingWidget(self, key):
-        f = ScrollTableWidgetTestCase.getScrollingWidget(self, key)
+    def getScrollingWidget(self, key, *a, **kw):
+        f = ScrollTableWidgetTestCase.getScrollingWidget(self, key, *a, **kw)
         f.jsClass = u'Mantissa.Test.ScrollTableWithActions'
 
         # close over "key" because actions can't supply additional
@@ -78,24 +79,9 @@ class ScrollTableActionsTestCase(ScrollTableWidgetTestCase):
     expose(getScrollingWidget)
 
 
+
 class ScrollTablePlaceholderRowsTestCase(ScrollTableWidgetTestCase):
     """
     Tests for the scrolltable's placeholder rows
     """
     jsClass = u'Mantissa.Test.ScrollTablePlaceholderRowsTestCase'
-    rowCount = 100
-
-
-class ScrollTableScrollEventsTestCase(ScrollTableWidgetTestCase):
-    """
-    Tests for scrolling/scroll events
-    """
-    jsClass = u'Mantissa.Test.ScrollTableScrollEventsTestCase'
-
-    rowCount = 100
-
-    def getScrollingWidget(self, key):
-        f = ScrollTableWidgetTestCase.getScrollingWidget(self, key)
-        f.jsClass = u'Mantissa.Test.ScrollEventTestableScrollTable'
-        return f
-    expose(getScrollingWidget)

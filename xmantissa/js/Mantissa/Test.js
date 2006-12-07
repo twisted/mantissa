@@ -398,7 +398,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
             function() { self.model.setRowData(-1, {__id__: 'c'}); });
         self.assertEqual(
             error.message,
-            "Specified index out of bounds in setRowData.");
+            "Specified index (-1) out of bounds in setRowData.");
     },
 
     /**
@@ -481,14 +481,14 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
             function() { self.model.getRowData(-1); });
         self.assertEqual(
             error.message,
-            "Specified index out of bounds in getRowData.");
+            "Specified index (-1) out of bounds in getRowData.");
 
         error = self.assertThrows(
             Divmod.IndexError,
             function() { self.model.getRowData(2); });
         self.assertEqual(
             error.message,
-            "Specified index out of bounds in getRowData.");
+            "Specified index (2) out of bounds in getRowData.");
 
         /*
          * The array is sparse, so valid indexes might not be
@@ -646,7 +646,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
             function() { self.model.getRowData(5); });
         self.assertEqual(
             error.message,
-            "Specified index out of bounds in getRowData.");
+            "Specified index (5) out of bounds in getRowData.");
 
         /*
          * Count should have decreased by one as well.
@@ -703,7 +703,7 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
             function() { self.model.getRowData(2); });
         self.assertEqual(
             error.message,
-            "Specified index out of bounds in getRowData.");
+            "Specified index (2) out of bounds in getRowData.");
 
         /*
          * Count should have decreased by one as well.
@@ -756,15 +756,13 @@ Mantissa.Test.ScrollTableModelTestCase.methods(
             function() { self.model.getRowData(0); });
         self.assertEqual(
             error.message,
-            "Specified index out of bounds in getRowData.");
+            "Specified index (0) out of bounds in getRowData.");
 
         error = self.assertThrows(
             Mantissa.ScrollTable.NoSuchWebID,
             function() { self.model.findIndex('a'); });
         self.assertEqual(error.webID, 'a');
-
-    }
-    );
+    });
 
 
 Mantissa.Test.ScrollTableViewTestBase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableViewTestBase');
@@ -773,8 +771,11 @@ Mantissa.Test.ScrollTableViewTestBase.methods(
      * Retrieve a ScrollingWidget from the server to use for the running test
      * method.
      */
-    function setUp(self, testMethodName) {
-        var result = self.callRemote('getScrollingWidget', testMethodName);
+    function setUp(self, testMethodName, rowCount /* = 10 */) {
+        if (rowCount === undefined) {
+            rowCount = 10;
+        }
+        var result = self.callRemote('getScrollingWidget', testMethodName, rowCount);
         result.addCallback(
             function(widgetInfo) {
                 return self.addChildWidgetFromWidgetInfo(widgetInfo);
@@ -795,8 +796,8 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
      * initialization Deferred fires.
      */
     function test_initialize(self) {
-        return self.setUp('initialize').addCallback(function() {
-                self.assertEqual(self.scrollingWidget.model.rowCount(), 10);
+        return self.setUp('initialize', 30).addCallback(function() {
+                self.assertEqual(self.scrollingWidget.model.rowCount(), 30);
             });
     },
 
@@ -805,7 +806,7 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
      * rows have been requested from the server, perhaps.
      */
     function test_scrolled(self) {
-        var result = self.setUp('scrolled');
+        var result = self.setUp('scrolled', 30);
         result.addCallback(
             function(ignored) {
                 var scrolled = self.scrollingWidget.scrolled();
@@ -821,7 +822,7 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
      * method.
      */
     function test_emptyAndRefill(self) {
-        var result = self.setUp('emptyAndRefill');
+        var result = self.setUp('emptyAndRefill', 100);
         result.addCallback(function() {
                 /*
                  * Tell the server to lose some rows so that we will be able to
@@ -843,7 +844,7 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
      * and empties the model
      */
     function test_empty(self) {
-        return self.setUp('empty').addCallback(
+        return self.setUp('empty', 30).addCallback(
             function() {
                 self.scrollingWidget.empty();
                 self.assertEqual(
@@ -852,6 +853,49 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
                     self.scrollingWidget.model.rowCount(), 0);
             });
     },
+
+
+    /**
+     * Test that emptying a ScrollingWidget also resets its scroll position
+     * tracking.
+     */
+    function test_emptyScrollPosition(self) {
+        return self.setUp('emptyScrollPosition', 30).addCallback(
+            function cbSetUp(ignored) {
+                /*
+                 * We start at the top.
+                 */
+                self.assertEqual(self.scrollingWidget.lastScrollPos, 0);
+
+                /*
+                 * Go down a little bit so the rest of this test is meaningful.
+                 */
+                var viewport = self.scrollingWidget._scrollViewport;
+                var scrollTop = Math.floor(viewport.scrollHeight / 2);
+                var onscroll = viewport.onscroll;
+                viewport.onscroll = undefined;
+                viewport.scrollTop = scrollTop;
+                viewport.onscroll = onscroll;
+                var scrolled = self.scrollingWidget.scrolled();
+                scrolled.addCallback(
+                    function cbScrolled(ignored) {
+                        /*
+                         * Sanity check.
+                         */
+                        self.assertNotEqual(
+                            self.scrollingWidget.lastScrollPos, 0);
+
+                        /*
+                         * After being emptied we should be at the top again.
+                         */
+                        self.scrollingWidget.empty();
+                        self.assertEqual(
+                            self.scrollingWidget.lastScrollPos, 0);
+                    });
+                return scrolled;
+            });
+    },
+
 
     /**
      * Test that the scrolltable's refill method refills an empty scrolltable
@@ -874,7 +918,7 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
             }
         }
 
-        var D = self.setUp('refill');
+        var D = self.setUp('refill', 10);
 
         D.addCallback(function() {
             assertTotalRowCount(10);
@@ -897,7 +941,7 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
      * their position adjusted to fill the gap.
      */
     function test_removeRow(self) {
-        var result = self.setUp('removeRow');
+        var result = self.setUp('removeRow', 30);
         result.addCallback(function() {
                 var firstRow = self.scrollingWidget.model.getRowData(0);
                 var nextRow = self.scrollingWidget.model.getRowData(2);
@@ -1065,7 +1109,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * Test that storing a row splits the initial placeholder
      */
     function test_storingARowSplitsInitialPlaceholder(self) {
-        return self.setUp('storingARowSplitsInitialPlaceholder').addCallback(
+        return self.setUp('storingARowSplitsInitialPlaceholder', 100).addCallback(
             function() {
                 var scroller = self.scrollingWidget;
 
@@ -1084,7 +1128,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * Test storing two rows in the middle of a placeholder splits it
      */
     function test_storingRowsSplitsPlaceholder(self) {
-        return self.setUp('storingRowsSplitsPlaceholder').addCallback(
+        return self.setUp('storingRowsSplitsPlaceholder', 100).addCallback(
             function() {
                 var scroller = self.scrollingWidget;
 
@@ -1116,7 +1160,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * placeholder
      */
     function test_storingRowsAtEndShortensLastPlaceholder(self) {
-        return self.setUp('storingRowsAtEndShortsLastPlaceholder').addCallback(
+        return self.setUp('storingRowsAtEndShortsLastPlaceholder', 100).addCallback(
             function () {
                 var scroller = self.scrollingWidget;
 
@@ -1139,7 +1183,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * we expect.  Do this by looking at the DOM.
      */
     function test_placeholderNodes(self) {
-        return self.setUp('placeholderNodes').addCallback(
+        return self.setUp('placeholderNodes', 100).addCallback(
             function() {
                 var scroller = self.scrollingWidget;
                 var sviewport = scroller._scrollViewport;
@@ -1186,7 +1230,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * created when the row at index Y is populated
      */
     function test_surroundedRow(self) {
-        return self.setUp('surroundedRow').addCallback(
+        return self.setUp('surroundedRow', 100).addCallback(
             function() {
                 var scroller = self.scrollingWidget;
 
@@ -1231,7 +1275,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * index of the removed row
      */
     function test_removeRow(self) {
-        return self.setUp('removeRow').addCallback(
+        return self.setUp('removeRow', 100).addCallback(
             function() {
                 var scroller = self.scrollingWidget;
 
@@ -1253,7 +1297,7 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
      * scrolltable
      */
     function test_removeRow2(self) {
-        return self.setUp('removeRow2').addCallback(
+        return self.setUp('removeRow2', 100).addCallback(
             function() {
                 var scroller = self.scrollingWidget;
 
@@ -1272,106 +1316,6 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
             });
     });
 
-
-
-/**
- * L{Mantissa.ScrollTable.ScrollingWidget} subclass which keeps track of the
- * number of browser-originated scroll events that it receives
- */
-Mantissa.Test.ScrollEventTestableScrollTable = Mantissa.ScrollTable.ScrollingWidget.subclass(
-                                                    'Mantissa.Test.ScrollEventTestableScrollTable');
-Mantissa.Test.ScrollEventTestableScrollTable.methods(
-    function __init__(self, node, metadata) {
-        Mantissa.Test.ScrollEventTestableScrollTable.upcall(self, '__init__', node, metadata);
-        self.browserOriginatedScrollCount = 0;
-    },
-
-    /**
-     * Increment the scroll event counter and delegate to the superclass
-     * implementation
-     */
-    function onScroll(self) {
-        self.browserOriginatedScrollCount++;
-        return Mantissa.Test.ScrollEventTestableScrollTable.upcall(self, 'onScroll');
-    });
-
-
-
-/**
- * Test for the behaviour of L{Mantissa.ScrollTable.ScrollingWidget} and
- * browser onscroll events
- */
-Mantissa.Test.ScrollTableScrollEventsTestCase = Mantissa.Test.ScrollTableViewTestBase.subclass('Mantissa.Test.ScrollTableScrollEventsTestCase');
-Mantissa.Test.ScrollTableScrollEventsTestCase.methods(
-    /**
-     * Test that emptyAndRefill() doesn't cause an exception to be thrown by
-     * generating a spurious upward scroll event
-     */
-    function test_emptyAndRefill(self) {
-        var result = self.setUp('emptyAndRefill');
-
-        result.addCallback(
-            function() {
-                var sviewport = self.scrollingWidget._scrollViewport;
-                self.scrollingWidget.whileIgnoringDOMEvents(
-                    function() {
-                        /* scroll down a bit.  halfway */
-                        sviewport.scrollTop = Math.floor(sviewport.scrollHeight / 2);
-                    }, sviewport);
-                    /* now kill all the rows */
-                    return self.callRemote('changeRowCount', 'emptyAndRefill', 0);
-            });
-
-        result.addCallback(
-            function() {
-                /* now we empty and refill.  empty and refill scrolls to the
-                 * top of the scrolltable.  we can't *really* make sure it
-                 * didn't throw an exception, because the exception would get
-                 * thrown as a result of a browser scroll event caused by
-                 * emptyAndRefill(), but we can at least check that it didn't
-                 * cause any extra scroll events
-                 */
-                self.scrollingWidget.browserOriginatedScrollCount = 0;
-                return self.scrollingWidget.emptyAndRefill();
-            });
-
-        result.addCallback(
-            function() {
-                /* which we do here */
-                self.assertEqual(self.scrollingWidget.browserOriginatedScrollCount, 0);
-
-                /* also make sure we actually did something */
-                self.assertEqual(self.scrollingWidget._scrollViewport.scrollTop, 0);
-            });
-
-        return result;
-    },
-
-    /**
-     * Test that
-     * L{Mantissa.ScrollTable.ScrollingWidget.whileIgnoringDOMEvents}
-     * really does ignore DOM events
-     */
-    function test_whileIgnoringDOMEvents(self) {
-        var result = self.setUp('whileIgnoringDOMEvents');
-
-        result.addCallback(
-            function() {
-                var sviewport = self.scrollingWidget._scrollViewport;
-                self.scrollingWidget.whileIgnoringDOMEvents(
-                    function() {
-                        var scrollHeight = sviewport.scrollHeight;
-                        sviewport.scrollTop = 0;
-                        for(var i = 0; i < scrollHeight; i++) {
-                            sviewport.scrollTop++;
-                            self.assertEqual(
-                                self.scrollingWidget.browserOriginatedScrollCount, 0);
-                        }
-                    }, sviewport);
-            });
-
-        return result;
-    });
 
 
 Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
