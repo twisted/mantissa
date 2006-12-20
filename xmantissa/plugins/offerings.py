@@ -1,9 +1,4 @@
-from xmantissa import people, offering, provisioning, website
-
-peopleBenefactorFactory = provisioning.BenefactorFactory(
-    name=u'People',
-    description=u'Organizer, Address Book, etc',
-    benefactorClass=people.PeopleBenefactor)
+from xmantissa import people, offering, website
 
 peopleOffering = offering.Offering(
     name=u'People',
@@ -11,7 +6,7 @@ peopleOffering = offering.Offering(
 
     siteRequirements=((None, website.WebSite),),
     appPowerups=(),
-    benefactorFactories=(peopleBenefactorFactory,),
+    installablePowerups = [("People", "Organizer and Address Book", people.AddPerson)],
     loginInterfaces=(),
     themes=())
 

@@ -3,8 +3,9 @@ from zope.interface import implements
 from twisted.internet import defer
 
 from axiom.store import Store
-from axiom.item import Item, InstallableMixin
+from axiom.item import Item
 from axiom import attributes
+from axiom.dependency import installOn
 
 from nevow.testutil import renderLivePage, FragmentWrapper, AccumulatingFakeRequest
 from nevow import loaders
@@ -64,14 +65,11 @@ class QueryParseTestCase(unittest.TestCase):
             (u"", None))
 
 
-class TrivialSearchProvider(Item, InstallableMixin):
+class TrivialSearchProvider(Item):
     implements(ixmantissa.ISearchProvider)
 
     z = attributes.integer()
-
-    def installOn(self, other):
-        super(TrivialSearchProvider, self).installOn(other)
-        other.powerUp(self, ixmantissa.ISearchProvider)
+    powerupInterfaces = (ixmantissa.ISearchProvider,)
 
     def search(self, term, keywords=None, count=None, offset=0, sortAscending=True):
         class TrivialResultsFragment(LiveFragment):
@@ -79,14 +77,11 @@ class TrivialSearchProvider(Item, InstallableMixin):
         return defer.succeed(TrivialResultsFragment())
 
 
-class ArgumentPassthroughSearchProvider(Item, InstallableMixin):
+class ArgumentPassthroughSearchProvider(Item):
     implements(ixmantissa.ISearchProvider)
-
+    powerupInterfaces = (ixmantissa.ISearchProvider,)
     z = attributes.integer()
 
-    def installOn(self, other):
-        super(ArgumentPassthroughSearchProvider, self).installOn(other)
-        other.powerUp(self, ixmantissa.ISearchProvider)
 
     def search(self, *a, **k):
         return defer.succeed((a, k))
@@ -106,10 +101,10 @@ class DecodingTestCase(unittest.TestCase):
         """
         s = Store()
 
-        TrivialSearchProvider(store=s).installOn(s)
+        installOn(TrivialSearchProvider(store=s), s)
 
         agg = search.SearchAggregator(store=s)
-        agg.installOn(s)
+        installOn(agg, s)
 
         f = search.AggregateSearchResults(agg)
         f.docFactory = getLoader(f.fragmentName)
@@ -137,10 +132,10 @@ class DecodingTestCase(unittest.TestCase):
         Check that a rendered aggregate search doesn't contain any results if
         the charset is unknown
         """
-        def gotResult(self):
+        def gotResult(res):
             self.assertIn('Your browser sent', res)
 
-        return self._renderAggregateSearch('divmod-27', 'yeah')
+        return self._renderAggregateSearch('divmod-27', 'yeah').addCallback(gotResult)
 
 
 class AggregatorTestCase(unittest.TestCase):
@@ -157,10 +152,10 @@ class AggregatorTestCase(unittest.TestCase):
 
         s = Store()
 
-        ArgumentPassthroughSearchProvider(store=s).installOn(s)
+        installOn(ArgumentPassthroughSearchProvider(store=s), s)
 
         agg = search.SearchAggregator(store=s)
-        agg.installOn(s)
+        installOn(agg, s)
 
         args = (((u'foo', {u'bar': u'baz'}), {'sortAscending': False}),
                 ((u'bar', {u'foo': u'oof'}), {'sortAscending': True}),

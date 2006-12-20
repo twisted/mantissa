@@ -1,12 +1,12 @@
-from nevow import loaders, tags
 from nevow.athena import expose
 from nevow.livetrial.testcase import TestCase
 
 from axiom.item import Item
 from axiom.store import Store
 from axiom.attributes import integer
+from axiom.dependency import installOn
 
-from xmantissa.scrolltable import SequenceScrollingFragment, ScrollingFragment
+from xmantissa.scrolltable import SequenceScrollingFragment
 from xmantissa.webtheme import getLoader
 from xmantissa.webapp import PrivateApplication
 
@@ -40,7 +40,7 @@ class ScrollTableWidgetTestCase(TestCase):
 
     def getScrollingWidget(self, key, rowCount=10):
         store = Store()
-        PrivateApplication(store=store).installOn(store)
+        installOn(PrivateApplication(store=store), store)
         elements = [ScrollElement(store=store, column=i) for i in range(rowCount)]
         columns = [ScrollElement.column]
         f = SequenceScrollingFragment(store, elements, columns)

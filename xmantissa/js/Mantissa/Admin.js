@@ -30,8 +30,11 @@ Mantissa.Admin.EndowDepriveAction.methods(
 Mantissa.Admin.LocalUserBrowser = Mantissa.ScrollTable.FlexHeightScrollingWidget.subclass('Mantissa.Admin.LocalUserBrowser');
 Mantissa.Admin.LocalUserBrowser.methods(
     function __init__(self, node, metadata) {
-        self.actions = [Mantissa.Admin.EndowDepriveAction("endow", "Endow"),
-                        Mantissa.Admin.EndowDepriveAction("deprive", "Deprive")];
+        self.actions = [Mantissa.Admin.EndowDepriveAction("installOn", "Endow"),
+                        Mantissa.Admin.EndowDepriveAction("uninstallFrom", " Deprive"),
+                        Mantissa.Admin.EndowDepriveAction("suspend", " Suspend"),
+                        Mantissa.Admin.EndowDepriveAction("unsuspend", " Unsuspend")
+                        ];
 
         Mantissa.Admin.LocalUserBrowser.upcall(self, "__init__", node, metadata, 10);
     },

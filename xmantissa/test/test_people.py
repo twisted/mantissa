@@ -9,9 +9,10 @@ from epsilon.extime import Time
 
 from axiom import store
 from axiom.store import Store
+from axiom.dependency import installOn
 
-from xmantissa import people
-from xmantissa.people import Organizer, Person, RealName
+from xmantissa.people import (Organizer, Person, RealName, EmailAddress,
+                              AddPersonFragment, Mugshot)
 from xmantissa.webapp import PrivateApplication
 
 class PeopleModelTestCase(unittest.TestCase):
@@ -70,7 +71,7 @@ class PeopleModelTestCase(unittest.TestCase):
 class PeopleTests(unittest.TestCase):
     def testPersonCreation(self):
         s = store.Store()
-        o = people.Organizer(store=s)
+        o = Organizer(store=s)
 
         beforeCreation = extime.Time()
         p = o.personByName(u'testuser')
@@ -83,7 +84,7 @@ class PeopleTests(unittest.TestCase):
 
         # Make sure people from that organizer don't collide with
         # people from a different organizer
-        another = people.Organizer(store=s)
+        another = Organizer(store=s)
         q = another.personByName(u'testuser')
         self.failIfIdentical(p, q)
         self.assertEquals(q.name, u'testuser')
@@ -102,9 +103,9 @@ class PeopleTests(unittest.TestCase):
         strings for a person.
         """
         s = store.Store()
-        p = people.Person(store=s)
-        people.EmailAddress(store=s, person=p, address=u'a@b.c')
-        people.EmailAddress(store=s, person=p, address=u'c@d.e')
+        p = Person(store=s)
+        EmailAddress(store=s, person=p, address=u'a@b.c')
+        EmailAddress(store=s, person=p, address=u'c@d.e')
         # Ordering is undefined, so let's use a set.
         self.assertEquals(set(p.getEmailAddresses()),
                           set([u'a@b.c', u'c@d.e']))
@@ -116,30 +117,13 @@ class PeopleTests(unittest.TestCase):
         for a person if it is the only one.
         """
         s = store.Store()
-        p = people.Person(store=s)
-        people.EmailAddress(store=s, person=p, address=u'a@b.c')
+        p = Person(store=s)
+        EmailAddress(store=s, person=p, address=u'a@b.c')
         self.assertEquals(p.getEmailAddress(), u'a@b.c')
-
-
-    def test_getEmailAddresses(self):
-        """
-        Verify that getEmailAddress yields an associated email address
-        for a person.
-        """
-        s = store.Store()
-        p = people.Person(store=s)
-        people.EmailAddress(store=s, person=p, address=u'a@b.c')
-        people.EmailAddress(store=s, person=p, address=u'c@d.e')
-        # XXX: I know this test is awful, but it's testing existing behavior,
-        # which is random.  I could make it well defined while writing the
-        # test, but it'd be just as wrong and just as not-configurable.  Let's
-        # just get rid of this method and delete these tests soon.  -glyph
-        self.failUnlessIn(p.getEmailAddress(), [u'a@b.c', u'c@d.e'])
-
 
     def testPersonRetrieval(self):
         s = store.Store()
-        o = people.Organizer(store=s)
+        o = Organizer(store=s)
 
         name = u'testuser'
         firstPerson = o.personByName(name)
@@ -147,22 +131,22 @@ class PeopleTests(unittest.TestCase):
 
     def testPersonCreation2(self):
         s = store.Store()
-        o = people.Organizer(store=s)
+        o = Organizer(store=s)
 
         class original:
             store = s
 
-        addPersonFrag = people.AddPersonFragment(original)
+        addPersonFrag = AddPersonFragment(original)
         addPersonFrag.addPerson(u'Captain P.', u'Jean-Luc', u'Picard', u'jlp@starship.enterprise')
 
-        person = s.findUnique(people.Person)
+        person = s.findUnique(Person)
         self.assertEquals(person.name, 'Captain P.')
 
-        email = s.findUnique(people.EmailAddress, people.EmailAddress.person == person)
+        email = s.findUnique(EmailAddress, EmailAddress.person == person)
 
         self.assertEquals(email.address, 'jlp@starship.enterprise')
 
-        rn = s.findUnique(people.RealName, people.RealName.person == person)
+        rn = s.findUnique(RealName, RealName.person == person)
 
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
 
@@ -178,12 +162,12 @@ class PeopleTests(unittest.TestCase):
 
         s = store.Store(self.mktemp())
 
-        p = people.Person(store=s, name=u'Bob')
+        p = Person(store=s, name=u'Bob')
 
         imgpath = sibpath(__file__, 'resources/square.png')
         imgfile = file(imgpath)
 
-        m = people.Mugshot.fromFile(p, imgfile, u'png')
+        m = Mugshot.fromFile(p, imgfile, u'png')
 
         self.assertEqual(m.type, 'image/png')
         self.assertIdentical(m.person,  p)
@@ -201,12 +185,12 @@ class PeopleTests(unittest.TestCase):
         s = store.Store()
 
         privapp = PrivateApplication(store=s)
-        privapp.installOn(s)
+        installOn(privapp, s)
 
-        o = people.Organizer(store=s)
-        o.installOn(s)
+        o = Organizer(store=s)
+        installOn(o, s)
 
-        p = people.Person(store=s)
+        p = Person(store=s)
 
         self.assertEqual(o.linkToPerson(p),
                          (privapp.linkTo(o.storeID)

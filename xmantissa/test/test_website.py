@@ -3,17 +3,18 @@ import socket
 
 from twisted.trial import unittest
 from twisted.application import service
-from twisted.web import http, client
+from twisted.web import http
 
 from nevow.flat import flatten
-from nevow.url import URL
 from nevow.testutil import AccumulatingFakeRequest, renderPage
 from nevow.testutil import renderLivePage, FakeRequest
 from epsilon.scripts import certcreate
 
 from axiom import store, userbase
+from axiom.dependency import installOn
 
 from xmantissa import website, signup
+from xmantissa.product import Product
 
 class WebSiteTestCase(unittest.TestCase):
     def setUpClass(self):
@@ -29,7 +30,7 @@ class WebSiteTestCase(unittest.TestCase):
     def setUp(self):
         self.store = store.Store()
         self.login = userbase.LoginSystem(store=self.store)
-        self.login.installOn(self.store)
+        installOn(self.login, self.store)
 
         svc = service.IService(self.store)
         svc.privilegedStartService()
@@ -251,13 +252,13 @@ class WebSiteTestCase(unittest.TestCase):
 
     def testLateInstallation(self):
         ws = website.WebSite(store=self.store)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
 
         self.failUnless(ws.running)
 
     def testHTTP(self):
         ws = website.WebSite(store=self.store)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
 
         self.failIfEqual(ws.port, None)
         self.assertEqual(ws.securePort, None)
@@ -267,7 +268,7 @@ class WebSiteTestCase(unittest.TestCase):
                              portNumber=None,
                              securePortNumber=0,
                              certificateFile=self.certfile)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
 
         self.assertEqual(ws.port, None)
         self.failIfEqual(ws.securePort, None)
@@ -280,16 +281,16 @@ class WebSiteTestCase(unittest.TestCase):
                              portNumber=0,
                              securePortNumber=0,
                              certificateFile=self.certfile)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
 
         self.store.parent = self.store #blech
 
         securePortNum = ws.securePort.getHost().port
 
         sc = signup.SignupConfiguration(store=self.store)
-        sc.installOn(self.store)
+        installOn(sc, self.store)
         sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, {}, u"", u"Test")
+                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
         signupPage = sg.createResource()
         fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
         result = renderPage(signupPage, reqFactory=lambda: fr)
@@ -307,7 +308,7 @@ class WebSiteTestCase(unittest.TestCase):
                              portNumber=0,
                              securePortNumber=0,
                              certificateFile=self.certfile)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
 
         url, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
         self.assertEquals(url.scheme, "https")
@@ -319,7 +320,7 @@ class WebSiteTestCase(unittest.TestCase):
         """
         ws = website.WebSite(store=self.store,
                              portNumber=0)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
 
         res, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
         self.failUnless(isinstance(res, website.LoginPage))
@@ -330,15 +331,15 @@ class WebSiteTestCase(unittest.TestCase):
         """
         ws = website.WebSite(store=self.store,
                              portNumber=0)
-        ws.installOn(self.store)
+        installOn(ws, self.store)
         portNum = ws.port.getHost().port
 
         self.store.parent = self.store #blech
 
         sc = signup.SignupConfiguration(store=self.store)
-        sc.installOn(self.store)
+        installOn(sc, self.store)
         sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, {}, u"", u"Test")
+                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
         signupPage = sg.createResource()
         fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
         result = renderLivePage(signupPage, reqFactory=lambda: fr)

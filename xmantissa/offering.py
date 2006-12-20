@@ -9,6 +9,7 @@ from nevow import inevow, loaders, rend, athena
 from nevow.athena import expose
 
 from axiom import item, userbase, attributes, substore
+from axiom.dependency import installOn
 
 from xmantissa import ixmantissa, webnav, plugins
 
@@ -22,6 +23,12 @@ class OfferingAlreadyInstalled(Exception):
     conflict!  Oops.
     """
 
+class Benefactor(object):
+    """
+    I implement a method of installing and removing chunks of
+    functionality from a user's store.
+    """
+
 class Offering(object):
     implements(plugin.IPlugin, ixmantissa.IOffering)
 
@@ -30,7 +37,7 @@ class Offering(object):
                  description,
                  siteRequirements,
                  appPowerups,
-                 benefactorFactories,
+                 installablePowerups,
                  loginInterfaces,
                  themes,
                  version=None):
@@ -38,7 +45,7 @@ class Offering(object):
         self.description = description
         self.siteRequirements = siteRequirements
         self.appPowerups = appPowerups
-        self.benefactorFactories = benefactorFactories
+        self.installablePowerups = installablePowerups
         self.loginInterfaces = loginInterfaces
         self.themes = themes
         self.version = version
@@ -103,7 +110,7 @@ def installOffering(s, offering, configuration):
                 raise NotImplementedError(
                     'Interface %r required by %r but not provided by %r' %
                     (requiredInterface, offering, s))
-            s.findOrCreate(requiredPowerup).installOn(s)
+            s.findOrCreate(requiredPowerup, lambda p: installOn(p, s))
 
         ls = s.findOrCreate(userbase.LoginSystem)
         substoreItem = substore.SubStore.createNew(s, ('app', offering.name + '.axiom'))
@@ -112,7 +119,7 @@ def installOffering(s, offering, configuration):
         ss = substoreItem.open()
         def appSetup():
             for pup in offering.appPowerups:
-                pup(store=ss).installOn(ss)
+                installOn(pup(store=ss), ss)
 
         ss.transact(appSetup)
         # Woops, we need atomic cross-store transactions.
@@ -120,7 +127,7 @@ def installOffering(s, offering, configuration):
     s.transact(siteSetup)
 
 
-class OfferingConfiguration(item.Item, item.InstallableMixin):
+class OfferingConfiguration(item.Item):
     """
     Provide administrative configuration tools for the L{IOffering}s available
     in this Mantissa server.
@@ -129,11 +136,8 @@ class OfferingConfiguration(item.Item, item.InstallableMixin):
     schemaVersion = 1
 
     installedOfferingCount = attributes.integer(default=0)
-    installedOn = attributes.reference()
 
-    def installOn(self, other):
-        super(OfferingConfiguration, self).installOn(other)
-        other.powerUp(self, ixmantissa.INavigableElement)
+    powerupInterfaces = (ixmantissa.INavigableElement,)
 
     def installOffering(self, offering, configuration):
         s = self.store.parent

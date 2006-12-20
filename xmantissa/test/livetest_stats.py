@@ -6,7 +6,6 @@ from nevow import loaders, tags, athena
 from epsilon import extime
 
 from xmantissa import webadmin
-from xmantissa.webtheme import getLoader
 
 
 class AdminStatsTestBase(webadmin.AdminStatsFragment):

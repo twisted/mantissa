@@ -20,13 +20,17 @@ from axiom.attributes import integer, boolean, timestamp, bytes, reference, inme
 from axiom.item import Item
 from axiom import userbase
 from axiom.batch import BatchManholePowerup
+from axiom.dependency import installOn, dependsOn
 
-from xmantissa import webtheme, liveform, webnav, tdbview, offering, signup, stats
+from xmantissa import webtheme, liveform, webnav, offering, signup, stats
+from xmantissa.product import ProductConfiguration, Product, Installation
+from xmantissa.suspension import suspendJustTabProviders, unsuspendTabProviders
 from xmantissa.scrolltable import ScrollingFragment
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
     ISessionlessSiteRootPlugin
+
 from xmantissa.plugins.baseoff import baseOffering
 
 from nevow import rend, athena, static, tags as T
@@ -45,9 +49,7 @@ class DeveloperSite(Item, PrefixURLMixin):
     # Counts of each kind of user
     developers = integer(default=0)
     administrators = integer(default=0)
-
-    def installOn(self, other):
-        other.powerUp(self, ISessionlessSiteRootPlugin)
+    powerupInterfaces = (ISessionlessSiteRootPlugin,)
 
     def createResource(self):
         return static.File(sibpath(__file__, 'static'))
@@ -60,7 +62,7 @@ class ParentCounterMixin:
             break
         else:
             devsite = DeveloperSite(store=self.store.parent)
-            devsite.installOn(self.store.parent)
+            installOn(devsite, self.store.parent)
         return devsite
 
     # XXX WAaah.  self.store.parent is None sometimes, depending on
@@ -86,10 +88,8 @@ class AdminStatsApplication(Item, ParentCounterMixin):
     counterAttribute = 'administrators'
 
     updateInterval = integer(default=5)
-
-    def installOn(self, other):
-        self.increment()
-        other.powerUp(self, INavigableElement)
+    privateApplication = dependsOn(PrivateApplication)
+    powerupInterfaces = (INavigableElement,)
 
     def deletedFromStore(self, *a, **kw):
         self.decrement()
@@ -117,8 +117,8 @@ class LocalUserBrowser(Item):
 
     garbage = integer(default=12345678653)
 
-    def installOn(self, other):
-        other.powerUp(self, INavigableElement)
+    privateApplication = dependsOn(PrivateApplication)
+    powerupInterfaces = (INavigableElement,)
 
     def getTabs(self):
         return [webnav.Tab('Admin', self.storeID, 0.0,
@@ -226,21 +226,27 @@ class LocalUserBrowserFragment(ScrollingFragment):
     def itemFromLink(self, link):
         return self.store.getItemByID(int(link))
 
-    def _getActionFragment(self, loginMethod, action):
+    def doAction(self, loginMethod, actionClass):
+        """
+        Show the form for the requested action.
+        """
         loginAccount = loginMethod.account
-        return EndowDepriveFragment(
+        return actionClass(
             self,
             loginMethod.localpart + u'@' + loginMethod.domain,
-            loginAccount,
-            action)
+            loginAccount)
 
-    def action_endow(self, loginMethod):
-        return self._getActionFragment(loginMethod, 'endow')
+    def action_installOn(self, loginMethod):
+        return self.doAction(loginMethod, EndowFragment)
 
-    def action_deprive(self, loginMethod):
-        return self._getActionFragment(loginMethod, 'deprive')
+    def action_uninstallFrom(self, loginMethod):
+        return self.doAction(loginMethod, DepriveFragment)
 
+    def action_suspend(self, loginMethod):
+        return self.doAction(loginMethod, SuspendFragment)
 
+    def action_unsuspend(self, loginMethod):
+        return self.doAction(loginMethod, UnsuspendFragment)
 
 class EndowDepriveFragment(webtheme.ThemedElement):
     fragmentName = 'user-detail'
@@ -248,39 +254,35 @@ class EndowDepriveFragment(webtheme.ThemedElement):
     def __init__(self, fragmentParent, username, loginAccount, which):
         super(EndowDepriveFragment, self).__init__(fragmentParent)
         self.account = loginAccount
-        self.benefactors = list(self.account.store.query(signup.Multifactor))
         self.which = which
         self.username = username
-
 
     def _endow(self, **kw):
         subs = self.account.avatars.open()
         def endowall():
-            for benefactor in kw.values():
-                if benefactor is not None:
-                    getattr(benefactor, self.which)(None, subs)
+            for product in kw.values():
+                if product is not None:
+                    getattr(product, self.which)(subs)
         subs.transact(endowall)
 
-
-    def benefactorForm(self, request, tag):
+    def productForm(self, request, tag):
         """
         Render a L{liveform.LiveForm} -- the main purpose of this fragment --
         which will allow the administrator to endow or deprive existing users
-        using multifactors, which can be created through the signup mechanism
-        interface.
+        using Products.
         """
 
         def makeRemover(i):
             def remover(s3lected):
                 if s3lected:
-                    return self.benefactors[i]
+                    return self.products[i]
                 return None
             return remover
 
         f = liveform.LiveForm(
             self._endow,
             [liveform.Parameter(
-                    'benefactors' + str(i),
+                    'products' + str(i),
                     liveform.FORM_INPUT,
                     liveform.LiveForm(
                         makeRemover(i),
@@ -288,19 +290,81 @@ class EndowDepriveFragment(webtheme.ThemedElement):
                                 's3lected',
                                 liveform.RADIO_INPUT,
                                 bool,
-                                b.briefMultifactorDescription(),
+                                repr(p),
                                 )],
                         '',
                         ),
                     )
-             for (i, b)
-             in enumerate(self.benefactors)],
+             for (i, p)
+             in enumerate(self.products)],
             self.which.capitalize() + u' ' + self.username)
         f.setFragmentParent(self)
         return f
-    renderer(benefactorForm)
+    renderer(productForm)
+class EndowFragment(EndowDepriveFragment):
+    def __init__(self, fragmentParent, username, loginAccount):
+        EndowDepriveFragment.__init__(self, fragmentParent,
+                                      username, loginAccount,
+                                      'installProductOn')
+        allProducts = list(self.account.store.query(Product))
+        self.products = [p for p in allProducts
+                    if not self.account.avatars.open().findUnique(Installation,
+                                                              Installation.types
+                                                              == p.types,
+                                                              None)]
+        self.desc = "Install on"
 
+class DepriveFragment(EndowDepriveFragment):
+    def __init__(self, fragmentParent, username, loginAccount):
+        EndowDepriveFragment.__init__(self, fragmentParent,
+                                      username, loginAccount,
+                                      'removeProductFrom')
+        allProducts = list(self.account.store.query(Product))
+        self.products = [p for p in allProducts
+                    if self.account.avatars.open().findUnique(Installation,
+                                                              Installation.types
+                                                              == p.types,
+                                                              None)]
+        self.desc = "Remove from"
 
+class SuspendFragment(EndowDepriveFragment):
+    def __init__(self, fragmentParent, username, loginAccount):
+        self.func = suspendJustTabProviders
+        EndowDepriveFragment.__init__(self, fragmentParent,
+                                      username, loginAccount,
+                                      'suspend')
+        allProducts = list(self.account.store.query(Product))
+        self.products = [p for p in allProducts
+                    if self.account.avatars.open().findUnique(Installation,
+                                           AND(Installation.types == p.types,
+                                               Installation.suspended == False,
+                                               ), [])]
+        self.desc = "Suspend"
+
+    def _endow(self, **kw):
+        subs = self.account.avatars.open()
+        def suspend():
+            for product in kw.values():
+                if product is not None:
+                    i = subs.findUnique(Installation,
+                                        Installation.types == product.types,
+                                        None)
+                    self.func(i)
+        subs.transact(suspend)
+
+class UnsuspendFragment(SuspendFragment):
+    def __init__(self, fragmentParent, username, loginAccount):
+        self.func = unsuspendTabProviders
+        EndowDepriveFragment.__init__(self, fragmentParent,
+                                      username, loginAccount,
+                                      'unsuspend')
+        allProducts = list(self.account.store.query(Product))
+        self.products = [p for p in allProducts
+                    if self.account.avatars.open().findUnique(Installation,
+                                           AND(Installation.types == p.types,
+                                               Installation.suspended == True),
+                                                 None)]
+        self.desc = "Unsuspend"
 
 class AdminStatsFragment(athena.LiveElement):
     implements(INavigableFragment)
@@ -510,14 +574,11 @@ class DeveloperApplication(Item, ParentCounterMixin):
     schemaVersion = 1
     typeName = 'developer_application'
 
+    privateApplication = dependsOn(PrivateApplication)
     statementCount = integer(default=0)
-
-    def installOn(self, other):
-        self.increment()
-        other.powerUp(self, INavigableElement)
+    powerupInterfaces = (INavigableElement,)
 
     def deletedFromStore(self, *a, **kw):
-        self.decrement()
         return super(DeveloperApplication, self).deletedFromStore(*a, **kw)
 
     # INavigableElement
@@ -592,10 +653,10 @@ class TracebackCollector(Item, Service):
     parent = inmemory()
     running = inmemory()
     name = inmemory()
+    powerupInterfaces = (IService,)
 
-    def installOn(self, other):
-        other.powerUp(self, IService)
-        self.setServiceParent(other)
+    def installed(self):
+        self.setServiceParent(self.store)
 
     def startService(self):
         log.addObserver(self.emit)
@@ -627,8 +688,8 @@ class TracebackViewer(Item):
 
     allowDeletion = boolean(default=False)
 
-    def installOn(self, other):
-        other.powerUp(self, INavigableElement)
+    privateApplication = dependsOn(PrivateApplication)
+    powerupInterfaces = (INavigableElement,)
 
     def getTabs(self):
         return [webnav.Tab('Admin', self.storeID, 0.0,
@@ -637,7 +698,7 @@ class TracebackViewer(Item):
 
     def _getCollector(self):
         def ifCreate(coll):
-            coll.installOn(self.store.parent)
+            installOn(coll, self.store.parent)
         return self.store.parent.findOrCreate(TracebackCollector, ifCreate)
 
     # this needs to be moved somewhere else, topPanelContent is no more
@@ -661,30 +722,21 @@ class TracebackViewerFragment(rend.Fragment):
 
 registerAdapter(TracebackViewerFragment, TracebackViewer, INavigableFragment)
 
-
-class DONTUSETHISBenefactor(Item):
-    typeName = 'seriously_dont_use_it_is_just_an_example'
-    schemaVersion = 1
-
-    didYouUseIt = integer(default=0)
-
-    def endow(self, ticket, avatar):
-        self.didYouUseIt += 1 # OMFG can you *read*??
-        for X in WebSite, PrivateApplication, DeveloperApplication, TracebackViewer:
-            X(store=avatar).installOn(avatar)
-
-# This is a lot like the above benefactor.  We should probably delete
-# the above benefactor now.
 class AdministrativeBenefactor(Item):
     typeName = 'mantissa_administrative_benefactor'
     schemaVersion = 1
 
     endowed = integer(default=0)
+    powerupNames = ["xmantissa.webadmin.AdminStatsApplication",
+                    "xmantissa.webadmin.DeveloperApplication",
+                    "xmantissa.signup.SignupConfiguration",
+                    "xmantissa.webadmin.TracebackViewer",
+                    "xmantissa.webadmin.BatchManholePowerup",
+                    "xmantissa.webadmin.LocalUserBrowser"]
 
-    def endow(self, ticket, avatar):
-        self.endowed += 1
-        for powerUp in [
 
+def endowAdminPowerups(userStore):
+    powerups = [
             # Install a web site for the individual user as well.
             # This is necessary because although we have a top-level
             # website for everybody, not all users should be allowed
@@ -709,6 +761,11 @@ class AdministrativeBenefactor(Item):
             AdminStatsApplication,
             DeveloperApplication,
 
+            #ProductConfiguration lets admins collect powerups into
+            #Products users can sign up for.
+
+            ProductConfiguration,
+
             # And another one: SignupConfiguration allows the
             # administrator to add signup forms which grant various
             # kinds of account.
@@ -724,28 +781,20 @@ class AdministrativeBenefactor(Item):
 
             # And this one gives the administrator a page listing all
             # users which exist in this site's credentials database.
-            LocalUserBrowser]:
+            LocalUserBrowser
+            ]
+    for powerup in powerups:
+        installOn(powerup(store=userStore), userStore)
+    # This is another PrivateApplication plugin.  It allows
+    # the administrator to configure the services offered
+    # here.
+    oc = offering.OfferingConfiguration(store=userStore)
+    installOn(oc, userStore)
 
+    installedOffering = userStore.parent.findUnique(
+                            offering.InstalledOffering,
+                            offering.InstalledOffering.offeringName == baseOffering.name,
+                            default=None)
 
-            avatar.findOrCreate(powerUp).installOn(avatar)
-
-        # This is another PrivateApplication plugin.  It allows
-        # the administrator to configure the services offered
-        # here.
-        oc = avatar.findOrCreate(offering.OfferingConfiguration)
-        oc.installOn(avatar)
-
-        installedOffering = avatar.parent.findUnique(
-                                offering.InstalledOffering,
-                                offering.InstalledOffering.offeringName == baseOffering.name,
-                                default=None)
-
-        if installedOffering is None:
-            oc.installOffering(baseOffering, None)
-
-    def deprive(self, ticket, avatar):
-        # Only delete the really administratory things.
-        for powerUp in [
-            AdminStatsApplication, DeveloperApplication,
-            TracebackViewer, LocalUserBrowser]:
-            avatar.findUnique(powerUp).deleteFromStore()
+    if installedOffering is None:
+        oc.installOffering(baseOffering, None)

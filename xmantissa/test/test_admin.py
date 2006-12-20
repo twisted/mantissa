@@ -1,4 +1,3 @@
-
 from twisted.trial.unittest import TestCase
 
 from nevow.athena import LivePage
@@ -10,10 +9,13 @@ from nevow.inevow import IRequest
 
 from axiom.store import Store
 from axiom.userbase import LoginSystem
+from axiom.dependency import installOn
 
-from xmantissa.webadmin import (
-    LocalUserBrowser, UserInteractionFragment, EndowDepriveFragment)
+from xmantissa.webadmin import (LocalUserBrowser,
+    UserInteractionFragment, EndowFragment, DepriveFragment,
+    SuspendFragment, UnsuspendFragment)
 
+from xmantissa.product import Product
 class UserInteractionFragmentTestCase(TestCase):
     def setUp(self):
         """
@@ -23,7 +25,7 @@ class UserInteractionFragmentTestCase(TestCase):
         self.sitedir = self.mktemp()
         self.siteStore = Store(self.sitedir)
         self.loginSystem = LoginSystem(store=self.siteStore)
-        self.loginSystem.installOn(self.siteStore)
+        installOn(self.loginSystem, self.siteStore)
 
         self.userStore = Store()
         self.userStore.parent = self.siteStore
@@ -70,16 +72,20 @@ class UserInteractionFragmentTestCase(TestCase):
 
 
 class EndowDepriveTestCase(TestCase):
-    def test_rendering(self):
+    def doRendering(self, fragmentClass):
+        """
+        Ensure that the actions on the LocalUserBrowser scrolltable all render properly.
+        """
         sitedir = self.mktemp()
         siteStore = Store(sitedir)
 
         loginSystem = LoginSystem(store=siteStore)
-        loginSystem.installOn(siteStore)
-
+        installOn(loginSystem, siteStore)
+        p = Product(store=siteStore, types=["xmantissa.webadmin.LocalUserBrowser",
+                                            "xmantissa.signup.SignupConfiguration"])
         account = loginSystem.addAccount(u'testuser', u'localhost', None)
-
-        f = EndowDepriveFragment(None, u'testuser', account, 'endow')
+        p.installProductOn(account.avatars.open())
+        f = fragmentClass(None, u'testuser', account)
 
         p = LivePage(
             docFactory=stan(
@@ -97,3 +103,13 @@ class EndowDepriveTestCase(TestCase):
             p.action_close(None)
         d.addCallback(rendered)
         return d
+
+    def test_endowRendering(self):
+        return self.doRendering(EndowFragment)
+    def test_depriveRendering(self):
+        return self.doRendering(DepriveFragment)
+
+    def test_suspendRendering(self):
+        return self.doRendering(SuspendFragment)
+    def test_unsuspendRendering(self):
+        return self.doRendering(UnsuspendFragment)

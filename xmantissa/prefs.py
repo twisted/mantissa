@@ -10,7 +10,7 @@ from nevow import athena, tags, loaders, inevow
 from nevow.taglibrary import tabbedPane
 from nevow.page import renderer
 
-from axiom.item import Item, InstallableMixin
+from axiom.item import Item
 from axiom import attributes, upgrade
 
 from xmantissa.webtheme import getLoader
@@ -32,7 +32,7 @@ class PreferenceCollectionMixin:
             d[param.name] = getattr(self, param.name)
         return d
 
-class DefaultPreferenceCollection(Item, InstallableMixin, PreferenceCollectionMixin):
+class DefaultPreferenceCollection(Item, PreferenceCollectionMixin):
     """
     Badly named L{xmantissa.ixmantissa.IPreferenceCollection} which
     encapsulates basic preferences that are useful to Mantissa in
@@ -49,9 +49,7 @@ class DefaultPreferenceCollection(Item, InstallableMixin, PreferenceCollectionMi
     itemsPerPage = attributes.integer(default=10)
     timezone = attributes.text(default=u'US/Eastern')
 
-    def installOn(self, other):
-        super(DefaultPreferenceCollection, self).installOn(other)
-        other.powerUp(self, ixmantissa.IPreferenceCollection)
+    powerupInterfaces = (ixmantissa.IPreferenceCollection,)
 
     def getPreferenceParameters(self):
         return (ChoiceParameter(
@@ -156,7 +154,7 @@ registerAdapter(PreferenceCollectionFragment,
                 ixmantissa.IPreferenceCollection,
                 inevow.IRenderer)
 
-class PreferenceAggregator(Item, InstallableMixin):
+class PreferenceAggregator(Item):
     """
     L{xmantissa.ixmantissa.IPreferenceAggregator} implementor,
     which provides access to the values of preferences by name
@@ -169,9 +167,7 @@ class PreferenceAggregator(Item, InstallableMixin):
     _collections = attributes.inmemory()
     installedOn = attributes.reference()
 
-    def installOn(self, other):
-        super(PreferenceAggregator, self).installOn(other)
-        other.powerUp(self, ixmantissa.IPreferenceAggregator)
+    powerupInterfaces = (ixmantissa.IPreferenceAggregator,)
 
     def activate(self):
         self._collections = None

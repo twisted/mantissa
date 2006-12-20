@@ -63,7 +63,7 @@ class _RemoveDocument(item.Item):
 
 
 
-class RemoteIndexer(item.InstallableMixin):
+class RemoteIndexer(object):
     """
     Implements most of a full-text indexer.
 

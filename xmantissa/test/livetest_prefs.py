@@ -1,4 +1,5 @@
 from axiom.store import Store
+from axiom.dependency import installOn
 
 from nevow.livetrial.testcase import TestCase
 from nevow.athena import expose
@@ -11,7 +12,7 @@ class _PrefMixin(object):
         s = Store()
 
         self.dpc = prefs.DefaultPreferenceCollection(store=s)
-        self.dpc.installOn(s)
+        installOn(s, self.dpc)
 
         f = prefs.PreferenceCollectionFragment(self.dpc)
         class Tab:

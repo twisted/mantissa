@@ -7,6 +7,7 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.substore import SubStore
+from axiom.dependency import installOn
 
 from nevow.athena import LiveFragment
 from nevow import rend
@@ -27,7 +28,7 @@ class WebIDLocationTest(TestCase):
         store = Store(self.mktemp())
         ss = SubStore.createNew(store, ['test']).open()
         self.pa = webapp.PrivateApplication(store=ss)
-        self.pa.installOn(ss)
+        installOn(self.pa, ss)
 
 
     def test_suchWebID(self):
@@ -68,14 +69,14 @@ class TestFragment(LiveFragment):
 class FragmentWrappingTestCase(TestCase):
     def test_childLookup(self):
         s = Store(self.mktemp())
-        website.WebSite(store=s).installOn(s)
+        installOn(website.WebSite(store=s), s)
         s.parent = s
 
         ss = SubStore.createNew(s, ['child', 'lookup'])
         ss = ss.open()
 
         privapp = webapp.PrivateApplication(store=ss)
-        privapp.installOn(ss)
+        installOn(privapp, ss)
 
         class factory:
             def getClient(self, seg):
@@ -118,7 +119,7 @@ class AthenaNavigationTestCase(TestCase):
         s = Store()
         s.parent = s
         a = webapp.PrivateApplication(store=s)
-        a.installOn(s)
+        installOn(a, s)
         p = webapp.PrivateRootPage(a, a.getPageComponents())
         resource, segments = p.locateChild(None, ('jsmodule',))
         self.failUnless(isinstance(resource, webapp.HashedJSModuleNames))

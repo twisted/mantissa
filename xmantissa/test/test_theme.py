@@ -5,9 +5,8 @@ from twisted.python.reflect import qual
 
 from nevow.athena import LivePage
 from nevow.loaders import stan
-from nevow.stan import Tag
 from nevow.tags import (
-    html, head, body, div, span, img, script, link, invisible, directive)
+    html, head, body, img, script, link, invisible, directive)
 from nevow.context import WovenContext
 from nevow.testutil import FakeRequest, AccumulatingFakeRequest as makeRequest
 from nevow.flat import flatten
@@ -16,6 +15,7 @@ from nevow.page import renderer
 
 from axiom.store import Store
 from axiom.substore import SubStore
+from axiom.dependency import installOn
 
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
@@ -132,10 +132,10 @@ class WebThemeTestCase(TestCase):
         is wrapped around a user store or the store store.
         """
         s = Store(self.mktemp())
-        WebSite(store=s, portNumber=80).installOn(s)
+        installOn(WebSite(store=s, portNumber=80), s)
 
         ss = SubStore.createNew(s, ['user']).open()
-        WebSite(store=ss, portNumber=8080).installOn(ss)
+        installOn(WebSite(store=ss, portNumber=8080), ss)
 
         themed = _ThemedMixin()
         themed.store = s
@@ -149,14 +149,13 @@ class WebThemeTestCase(TestCase):
             themed.getWebSite().portNumber, 80,
             "Found the wrong WebSite from the user store.")
 
-
     def test_imageSourceNotRewritten(self):
         """
         Test that an image tag which includes a hostname in its source does not
         have that source rewritten.
         """
         s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
+        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
 
         class TestElement(ThemedElement):
             docFactory = stan(img(src='http://example.org/Foo.png'))
@@ -182,7 +181,7 @@ class WebThemeTestCase(TestCase):
         invoked after the URL has been rewritten.
         """
         s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
+        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
 
         class TestElement(ThemedElement):
             docFactory = stan(img(src='/Foo.png', render=directive('mutate')))
@@ -207,7 +206,7 @@ class WebThemeTestCase(TestCase):
         have that source rewritten.
         """
         s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
+        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
 
         class TestElement(ThemedElement):
             docFactory = stan(script(src='http://example.org/Foo.js'))
@@ -228,7 +227,7 @@ class WebThemeTestCase(TestCase):
         invoked after the URL has been rewritten.
         """
         s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
+        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
 
         class TestElement(ThemedElement):
             docFactory = stan(script(src='/Foo.js', render=directive('mutate')))
@@ -246,14 +245,13 @@ class WebThemeTestCase(TestCase):
         d.addCallback(rendered)
         return d
 
-
     def test_linkHypertextReferenceNotRewritten(self):
         """
         Test that a link which includes a hostname in its href does not have
         that href rewritten.
         """
         s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
+        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
 
         class TestElement(ThemedElement):
             docFactory = stan(link(href='http://example.org/Foo.css'))
@@ -274,7 +272,7 @@ class WebThemeTestCase(TestCase):
         after the URL has been rewritten.
         """
         s = Store()
-        WebSite(store=s, portNumber=80, hostname=u'example.com').installOn(s)
+        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
 
         class TestElement(ThemedElement):
             docFactory = stan(link(href='/Foo.css', render=directive('mutate')))
