@@ -813,7 +813,7 @@ registerAdapter(InitializerPage,
 
 
 class Ticket(Item):
-    schemaVersion = 1
+    schemaVersion = 2
     typeName = 'ticket'
 
     issuer = reference(allowNone=False)
@@ -848,7 +848,25 @@ class Ticket(Item):
     claim = transacted(claim)
 
 
+def ticket1to2(old):
+    """
+    change Ticket to refer to Products and not benefactor factories.
+    """
+    newProduct = old.store.findOrCreate(Product,
+                                        types=list(
+        chain(*[b.powerupNames for b in
+                old.benefactor.benefactors('ascending')])))
+    t = old.upgradeVersion(Ticket.typeName, 1, 2,
+                           product = newProduct,
+                           issuer = old.issuer,
+                           booth = old.booth,
+                           avatar = old.avatar,
+                           claimed = old.claimed,
 
+                           email = old.email,
+                           nonce = old.nonce)
+
+upgrade.registerUpgrader(ticket1to2, Ticket.typeName, 1, 2)
 class _DelegatedBenefactor(Item):
     typeName = 'mantissa_delegated_benefactor'
     schemaVersion = 1
