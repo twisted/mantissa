@@ -4,6 +4,7 @@ import os
 import sys
 
 from twisted.python import usage, reflect
+from twisted.python.filepath import FilePath
 
 from axiom import item, attributes
 from axiom.dependency import installOn, onlyInstallPowerups
@@ -11,12 +12,16 @@ from axiom.scripts import axiomatic
 
 from xmantissa.website import WebSite, StaticSite, WebConfigurationError
 from xmantissa import ixmantissa, webapp, webadmin
+from xmantissa.port import TCPPort, SSLPort
+
 
 def decodeCommandLine(cmdline):
     """Turn a byte string from the command line into a unicode string.
     """
     codec = sys.stdin.encoding or sys.getdefaultencoding()
     return unicode(cmdline, codec)
+
+
 
 class WebConfiguration(axiomatic.AxiomaticCommand):
     name = 'web'
@@ -43,6 +48,25 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
 
     didSomething = 0
 
+
+    def _getWebSite(self):
+        return self.parent.getStore().findOrCreate(
+            WebSite, lambda ws: installOn(ws, ws.store))
+
+
+    def _changePort(self, type, **kw):
+        ws = self._getWebSite()
+        port = ws.store.findOrCreate(
+            type,
+            lambda p: installOn(p, p.store),
+            factory=ws)
+        if kw:
+            for k, v in kw.iteritems():
+                setattr(port, k, v)
+        else:
+            port.deleteFromStore()
+
+
     def postOptions(self):
         s = self.parent.getStore()
         def _():
@@ -51,21 +75,24 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
             # Find the HTTP port, if there is one.
             if self['port'] is not None:
                 if self['port']:
-                    change['portNumber'] = int(self['port'])
+                    self._changePort(TCPPort, portNumber=int(self['port']))
                 else:
-                    change['portNumber'] = None
+                    self._changePort(TCPPort)
+                self.didSomething = 1
 
             # Find the HTTPS information, if there is any.
             if self['secure-port'] is not None:
                 if self['secure-port']:
-                    change['securePortNumber'] = int(self['secure-port'])
+                    extra = {}
+                    if self['pem-file'] is not None:
+                        if self['pem-file']:
+                            extra['certificatePath'] = FilePath(self['pem-file'])
+                    self._changePort(SSLPort,
+                                     portNumber=int(self['secure-port']),
+                                     **extra)
                 else:
-                    change['securePortNumber'] = None
-                if self['pem-file'] is not None:
-                    if self['pem-file']:
-                        change['certificateFile'] = self['pem-file']
-                    else:
-                        change['certificateFile'] = None
+                    self._changePort(SSLPort)
+                self.didSomething = 1
 
             if self['http-log'] is not None:
                 if self['http-log']:
@@ -82,13 +109,9 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
             # If HTTP or HTTPS is being configured, make sure there's
             # a WebSite with the right attribute values.
             if change:
-                for ws in s.query(WebSite):
-                    for (k, v) in change.iteritems():
-                        setattr(ws, k, v)
-                    break
-                else:
-                    ws = WebSite(store=s, **change)
-                    installOn(ws, s)
+                ws = self._getWebSite()
+                for (k, v) in change.iteritems():
+                    setattr(ws, k, v)
                 self.didSomething = 1
 
             # Set up whatever static content was requested.
@@ -124,10 +147,10 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
         s = self.parent.getStore()
         for ws in s.query(WebSite):
             print 'The hostname is', ws.hostname or 'not set.'
-            if ws.portNumber is not None:
-                print 'Configured to use HTTP port %d.' % (ws.portNumber,)
-            if ws.securePortNumber is not None:
-                print 'Configured to use HTTPS port %d with certificate %s' % (ws.securePortNumber, ws.certificateFile)
+            for tcp in s.query(TCPPort, TCPPort.factory == ws):
+                print 'Configured to use HTTP port %d.' % (tcp.portNumber,)
+            for ssl in s.query(SSLPort, SSLPort.factory == ws):
+                print 'Configured to use HTTPS port %d with certificate %s' % (ssl.portNumber, ssl.certificatePath.path)
             if ws.httpLog is not None:
                 print 'Logging HTTP requests to', ws.httpLog
             break

@@ -59,7 +59,8 @@ class TestIdempotentListing(CommandStubMixin, TestCase):
 
 class ConfigurationTestCase(CommandStubMixin, TestCase):
     def setUp(self):
-        self.store = Store()
+        self.dbdir = self.mktemp()
+        self.store = Store(self.dbdir)
 
 
     def test_shortOptionParsing(self):
@@ -69,12 +70,13 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         """
         opt = webcmd.WebConfiguration()
         opt.parent = self
+        certFile = os.path.join(self.dbdir, 'files/name')
         opt.parseOptions([
-                '-p', '8080', '-s', '8443', '-f', 'file/name',
+                '-p', '8080', '-s', '8443', '-f', certFile,
                 '-h', 'http.log', '-H', 'example.com'])
         self.assertEquals(opt['port'], '8080')
         self.assertEquals(opt['secure-port'], '8443')
-        self.assertEquals(opt['pem-file'], 'file/name')
+        self.assertEquals(opt['pem-file'], certFile)
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
 
@@ -86,13 +88,14 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         """
         opt = webcmd.WebConfiguration()
         opt.parent = self
+        certFile = os.path.join(self.dbdir, 'files/name')
         opt.parseOptions([
                 '--port', '8080', '--secure-port', '8443',
-                '--pem-file', 'file/name', '--http-log', 'http.log',
+                '--pem-file', certFile, '--http-log', 'http.log',
                 '--hostname', 'example.com'])
         self.assertEquals(opt['port'], '8080')
         self.assertEquals(opt['secure-port'], '8443')
-        self.assertEquals(opt['pem-file'], 'file/name')
+        self.assertEquals(opt['pem-file'], certFile)
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
 

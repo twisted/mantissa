@@ -18,9 +18,6 @@ class WebSiteUpgradeTestCase(StubbedTest):
 
         # Test its old attributes
         self.assertIdentical(ws.installedOn, self.store)
-        self.assertEquals(ws.portNumber, 80)
-        self.assertEquals(ws.securePortNumber, 443)
-        self.assertEquals(ws.certificateFile, 'path/to/cert.pem')
         self.assertEquals(ws.httpLog, 'path/to/httpd.log')
         self.assertEquals(ws.hitCount, 100)
 

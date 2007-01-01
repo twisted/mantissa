@@ -13,19 +13,15 @@ command-line 'axiomatic' program using the 'web' subcommand.
 
 import socket, warnings
 
-try:
-    from OpenSSL import SSL
-except ImportError:
-    SSL = None
-
 from zope.interface import implements
 
-from twisted.application.service import IService, Service
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
 from twisted.protocols import policies
-from twisted.internet import reactor, defer
+from twisted.internet import defer
+from twisted.application.service import IService
 
+from nevow.inevow import IResource
 from nevow.rend import NotFound, Page, Fragment
 from nevow import inevow
 from nevow.appserver import NevowSite, NevowRequest
@@ -33,18 +29,18 @@ from nevow.static import File
 from nevow.url import URL
 from nevow import athena
 
-from epsilon import sslverify
-
 from axiom import upgrade
-from axiom.item import Item, _PowerupConnector
+from axiom.item import Item, _PowerupConnector, declareLegacyItem
 from axiom.attributes import AND, integer, inmemory, text, reference, bytes, boolean
-from axiom.dependency import installedOn
 from axiom.userbase import LoginSystem
+from axiom.dependency import installOn
 
-from xmantissa.ixmantissa import ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent
+from xmantissa.ixmantissa import (
+    ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent,
+    IProtocolFactoryFactory)
 from xmantissa import websession
-from xmantissa.stats import BandwidthMeasuringFactory
 from xmantissa.publicresource import PublicPage, getLoader
+from xmantissa.port import TCPPort, SSLPort
 
 
 class WebConfigurationError(RuntimeError):
@@ -368,7 +364,7 @@ class AxiomFragment(Fragment):
     def rend(self, ctx, data):
         return self.store.transact(Fragment.rend, self, ctx, data)
 
-class WebSite(Item, Service, SiteRootMixin):
+class WebSite(Item, SiteRootMixin):
     """
     Govern an HTTP server which binds a port on startup and tears it down at
     shutdown using the Twisted Service system.  Unfortunately, also provide web
@@ -376,9 +372,12 @@ class WebSite(Item, Service, SiteRootMixin):
     but writing the upgrader to fix this won't be fun so I don't want to do it.
     Someone else should though.
     """
+    implements(IProtocolFactoryFactory, IResource)
+
+    powerupInterfaces = (IProtocolFactoryFactory, IResource)
 
     typeName = 'mantissa_web_powerup'
-    schemaVersion = 4
+    schemaVersion = 5
 
     hitCount = integer(default=0)
     installedOn = reference()
@@ -388,37 +387,40 @@ class WebSite(Item, Service, SiteRootMixin):
     C{None}, a guess will be made using L{socket.getfqdn}.
     """, default=None)
 
-    portNumber = integer(default=0)
-    securePortNumber = integer(default=0)
-    certificateFile = bytes(default=None)
     httpLog = bytes(default=None)
 
-    parent = inmemory()
-    running = inmemory()
-    name = inmemory()
-
-    port = inmemory()
-    securePort = inmemory()
     site = inmemory()
 
     debug = False
 
-    powerupInterfaces = (inevow.IResource, IService)
+    def securePort():
+        """
+        Define a backwards compatibility property for the IListeningPort for
+        the HTTPS server which used to be an attribute on WebSite.
+        """
+        def get(self):
+            warnings.warn(
+                "WebSite.securePort is deprecated!",
+                stacklevel=3, category=DeprecationWarning)
+            port = self._getPort(SSLPort)
+            if port is not None:
+                return port.listeningPort
+            return None
+        return get,
+    securePort = property(*securePort())
+
 
     def activate(self):
         self.site = None
-        self.port = None
-        self.securePort = None
-
-    def installed(self):
-        if self.store.parent is None and  self.parent is None:
-            self.setServiceParent(installedOn(self))
 
 
-    def _root(self, scheme, hostname, portNumber, standardPort, port):
+    def _root(self, scheme, hostname, portObj, standardPort):
         # TODO - real unicode support (but punycode is so bad)
-        if portNumber is None:
+        if portObj is None:
             return None
+
+        portNumber = portObj.portNumber
+        port = portObj.listeningPort
 
         if hostname is None:
             if self.hostname is None:
@@ -440,6 +442,11 @@ class WebSite(Item, Service, SiteRootMixin):
             return URL(scheme, '%s:%d' % (hostname, portNumber), [''])
 
 
+    def _getPort(self, portType):
+        return self.store.findFirst(
+            portType, portType.factory == self, default=None)
+
+
     def cleartextRoot(self, hostname=None):
         """
         Return a string representing the HTTP URL which is at the root of this
@@ -449,7 +456,7 @@ class WebSite(Item, Service, SiteRootMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
-        return self._root('http', hostname, self.portNumber, 80, self.port)
+        return self._root('http', hostname, self._getPort(TCPPort), 80)
 
 
     def encryptedRoot(self, hostname=None):
@@ -461,8 +468,7 @@ class WebSite(Item, Service, SiteRootMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
-        return self._root('https', hostname, self.securePortNumber, 443,
-                          self.securePort)
+        return self._root('https', hostname, self._getPort(SSLPort), 443)
 
 
     def maybeEncryptedRoot(self, hostname=None):
@@ -493,56 +499,45 @@ class WebSite(Item, Service, SiteRootMixin):
         from xmantissa.signup import PasswordResetResource
         return PasswordResetResource(self.store)
 
-    def privilegedStartService(self):
-        if SSL is None and self.securePortNumber is not None:
-            raise WebConfigurationError(
-                "No SSL support: you need to install OpenSSL to serve HTTPS")
 
-        realm = IRealm(self.store, None)
-        if realm is None:
-            raise WebConfigurationError(
-                'No realm: '
-                'you need to install a userbase before using this service.')
-        chkr = ICredentialsChecker(self.store, None)
-        if chkr is None:
-            raise WebConfigurationError(
-                'No checkers: '
-                'you need to install a userbase before using this service.')
-
-        guardedRoot = websession.PersistentSessionWrapper(
-            self.store,
-            Portal(realm, [chkr, AllowAnonymousAccess()]))
-
-        self.site = AxiomSite(
-            self.store,
-            UnguardedWrapper(self.store, guardedRoot),
-            logPath=self.httpLog)
-
-        if self.debug:
-            self.site = policies.TrafficLoggingFactory(self.site, 'http')
-
-        if self.portNumber is not None:
-            self.port = reactor.listenTCP(self.portNumber, BandwidthMeasuringFactory(self.site, 'http'))
-
-        if self.securePortNumber is not None and self.certificateFile is not None:
-            cert = sslverify.PrivateCertificate.loadPEM(file(self.certificateFile).read())
-            certOpts = sslverify.OpenSSLCertificateOptions(
-                cert.privateKey.original,
-                cert.original,
-                requireCertificate=False,
-                method=SSL.SSLv23_METHOD)
-            self.securePort = reactor.listenSSL(self.securePortNumber, BandwidthMeasuringFactory(self.site, 'https'), certOpts)
+    # IProtocolFactoryFactory
+    def getFactory(self):
+        """
+        Create an L{AxiomSite} which supports authenticated and anonymous
+        access.
+        """
+        if self.site is None:
+            realm = IRealm(self.store, None)
+            if realm is None:
+                raise WebConfigurationError(
+                    'No realm: '
+                    'you need to install a userbase before using this service.')
+            chkr = ICredentialsChecker(self.store, None)
+            if chkr is None:
+                raise WebConfigurationError(
+                    'No checkers: '
+                    'you need to install a userbase before using this service.')
+            guardedRoot = websession.PersistentSessionWrapper(
+                self.store,
+                Portal(realm, [chkr, AllowAnonymousAccess()]))
+            self.site = AxiomSite(
+                self.store,
+                UnguardedWrapper(self.store, guardedRoot),
+                logPath=self.httpLog)
+            if self.debug:
+                self.site = policies.TrafficLoggingFactory(self.site, 'http')
+        return self.site
 
 
-    def stopService(self):
-        dl = []
-        if self.port is not None:
-            dl.append(defer.maybeDeferred(self.port.stopListening))
-            self.port = None
-        if self.securePort is not None:
-            dl.append(defer.maybeDeferred(self.securePort.stopListening))
-            self.securePort = None
-        return defer.DeferredList(dl)
+    def setServiceParent(self, parent):
+        """
+        Compatibility hack necessary to prevent the Axiom service startup
+        mechanism from barfing.  Even though this Item is no longer an IService
+        powerup, it will still be found as one one more time and this method
+        will be called on it.
+        """
+
+
 
 def upgradeWebSite1To2(oldSite):
     newSite = oldSite.upgradeVersion(
@@ -593,3 +588,42 @@ def upgradeWebsite3to4(oldSite):
         hostname=None)
     return newSite
 upgrade.registerUpgrader(upgradeWebsite3to4, 'mantissa_web_powerup', 3, 4)
+
+declareLegacyItem(
+    WebSite.typeName, 4, dict(hitCount=integer(default=0),
+                              installedOn=reference(),
+                              hostname=text(default=None),
+                              portNumber=integer(default=0),
+                              securePortNumber=integer(default=0),
+                              certificateFile=bytes(default=0),
+                              httpLog=bytes(default=None)))
+
+def upgradeWebsite4to5(oldSite):
+    """
+    Create TCPPort and SSLPort items as appropriate.
+    """
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', 4, 5,
+        installedOn=oldSite.installedOn,
+        httpLog=oldSite.httpLog,
+        hitCount=oldSite.hitCount,
+        hostname=oldSite.hostname)
+
+    if oldSite.portNumber is not None:
+        port = TCPPort(store=newSite.store, portNumber=oldSite.portNumber, factory=newSite)
+        installOn(port, newSite.store)
+
+    securePortNumber = oldSite.securePortNumber
+    certificateFile = oldSite.certificateFile
+    if securePortNumber is not None and certificateFile:
+        oldCertPath = newSite.store.dbdir.preauthChild(certificateFile)
+        if oldCertPath.exists():
+            newCertPath = newSite.store.newFilePath('server.pem')
+            oldCertPath.copyTo(newCertPath)
+            port = SSLPort(store=newSite.store, portNumber=oldSite.securePortNumber, factory=newSite, certificatePath=newCertPath)
+            installOn(port, newSite.store)
+
+    newSite.store.powerDown(newSite, IService)
+
+    return newSite
+upgrade.registerUpgrader(upgradeWebsite4to5, 'mantissa_web_powerup', 4, 5)

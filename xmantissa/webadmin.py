@@ -6,6 +6,7 @@ from zope.interface import implements
 
 from twisted.python.components import registerAdapter
 from twisted.python.util import sibpath
+from twisted.python.filepath import FilePath
 from twisted.python import log
 from twisted.application.service import IService, Service
 from twisted.conch import manhole
@@ -22,14 +23,19 @@ from axiom import userbase
 from axiom.batch import BatchManholePowerup
 from axiom.dependency import installOn, dependsOn
 
+from xmantissa.liveform import LiveForm, Parameter, ChoiceParameter
+from xmantissa.liveform import TEXT_INPUT ,CHECKBOX_INPUT
 from xmantissa import webtheme, liveform, webnav, offering, signup, stats
+from xmantissa.port import TCPPort, SSLPort
 from xmantissa.product import ProductConfiguration, Product, Installation
 from xmantissa.suspension import suspendJustTabProviders, unsuspendTabProviders
+from xmantissa.tdb import AttributeColumn
 from xmantissa.scrolltable import ScrollingFragment
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
-from xmantissa.ixmantissa import INavigableElement, INavigableFragment, \
-    ISessionlessSiteRootPlugin
+from xmantissa.ixmantissa import (
+    INavigableElement, INavigableFragment, ISessionlessSiteRootPlugin,
+    IProtocolFactoryFactory)
 
 from xmantissa.plugins.baseoff import baseOffering
 
@@ -115,6 +121,10 @@ class LocalUserBrowser(Item):
     typeName = 'local_user_browser'
     schemaVersion = 1
 
+    # Only present because Axiom requires at least one attribute on an Item. 
+    # Of course, since this was first created, someone added
+    # privateApplication below, so this isn't strictly necessary any more
+    # (except there's no reason for privateApplication to be here either!).
     garbage = integer(default=12345678653)
 
     privateApplication = dependsOn(PrivateApplication)
@@ -722,6 +732,243 @@ class TracebackViewerFragment(rend.Fragment):
 
 registerAdapter(TracebackViewerFragment, TracebackViewer, INavigableFragment)
 
+
+
+class PortConfiguration(Item):
+    """
+    Marker powerup which allows those on whom it is installed to modify the
+    configuration of listening ports in this server.
+    """
+    implements(INavigableElement)
+
+    powerupInterfaces = (INavigableElement,)
+
+    # Only present because Axiom requires at least one attribute on an Item.
+    garbage = integer(default=12345678653)
+
+    def getTabs(self):
+        """
+        Add this object to the tab navigation so it can display configuration
+        information and allow configuration to be modified.
+        """
+        return [webnav.Tab('Admin', self.storeID, 0.0,
+                           [webnav.Tab('Ports', self.storeID, 0.4)],
+                           authoritative=False)]
+
+
+    def createPort(self, portNumber, ssl, certPath, factory):
+        """
+        Create a new listening port.
+
+        @type portNumber: C{int}
+        @param portNumber: Port number on which to listen.
+
+        @type ssl: C{bool}
+        @param ssl: Indicates whether this should be an SSL port or not.
+
+        @type certPath: C{str}
+        @param ssl: If C{ssl} is true, a path to a certificate file somewhere
+        within the site store's files directory.  Ignored otherwise.
+
+        @param factory: L{Item} which provides L{IProtocolFactoryFactory} which
+        will be used to get a protocol factory to associate with this port.
+
+        @return: C{None}
+        """
+        store = self.store.parent
+        if ssl:
+            port = SSLPort(store=store, portNumber=portNumber, certificatePath=FilePath(certPath), factory=factory)
+        else:
+            port = TCPPort(store=store, portNumber=portNumber, factory=factory)
+        installOn(port, store)
+
+
+
+class FactoryColumn(AttributeColumn):
+    """
+    Display the name of the class of items referred to by a reference
+    attribute.
+    """
+    def extractValue(self, model, item):
+        """
+        Get the class name of the factory referenced by a port.
+
+        @param model: Either a TabularDataModel or a ScrollableView, depending
+        on what this column is part of.
+
+        @param item: A port item instance (as defined by L{xmantissa.port}).
+
+        @rtype: C{unicode}
+        @return: The name of the class of the item to which this column's
+        attribute refers.
+        """
+        factory = super(FactoryColumn, self).extractValue(model, item)
+        return factory.__class__.__name__.decode('ascii')
+
+
+
+class CertificateColumn(AttributeColumn):
+    """
+    Display a path attribute as a unicode string.
+    """
+    def extractValue(self, model, item):
+        """
+        Get the path referenced by this column's attribute.
+
+        @param model: Either a TabularDataModel or a ScrollableView, depending
+        on what this column is part of.
+
+        @param item: A port item instance (as defined by L{xmantissa.port}).
+
+        @rtype: C{unicode}
+        """
+        certPath = super(CertificateColumn, self).extractValue(model, item)
+        return certPath.path.decode('utf-8', 'replace')
+
+
+
+class PortScrollingFragment(ScrollingFragment):
+    """
+    A scrolling fragment for TCPPorts and SSLPorts which knows how to link to
+    them and how to delete them.
+
+    @ivar userStore: The store of the user viewing these ports.
+
+    @ivar siteStore: The site store, where TCPPorts and SSLPorts are loaded
+    from.
+    """
+    jsClass = u'Mantissa.Admin.PortBrowser'
+
+    def __init__(self, userStore, portType, columns):
+        super(PortScrollingFragment, self).__init__(
+            userStore.parent,
+            portType,
+            None,
+            columns)
+        self.userStore = userStore
+        self.siteStore = userStore.parent
+        self.webTranslator = self.userStore.findUnique(PrivateApplication)
+
+
+    def itemFromLink(self, link):
+        """
+        @type link: C{unicode}
+        @param link: A webID to translate into an item.
+
+        @rtype: L{Item}
+        @return: The item to which the given link referred.
+        """
+        return self.siteStore.getItemByID(self.webTranslator.linkFrom(link))
+
+
+    def action_delete(self, port):
+        """
+        Delete the given port.
+        """
+        port.deleteFromStore()
+
+
+
+class PortConfigurationFragment(webtheme.ThemedElement):
+    """
+    Provide the view for L{PortConfiguration}.
+
+    Specifically, three renderers are offered: the first two, L{tcpPorts} and
+    L{sslPorts}, add a L{PortScrollingFragment} to their tag as a child; the
+    last, L{createPortForm} adds a L{LiveForm} for adding new ports to its tag
+    as a child.
+
+    @ivar portConf: The L{PortConfiguration} item.
+    @ivar store: The user store.
+    """
+    implements(INavigableFragment)
+
+    fragmentName = 'port-configuration'
+
+
+    def __init__(self, portConf):
+        super(PortConfigurationFragment, self).__init__()
+        self.portConf = portConf
+        self.store = portConf.store
+
+
+    def head(self):
+        return ()
+
+
+    def tcpPorts(self, req, tag):
+        """
+        Create and return a L{PortScrollingFragment} for the L{TCPPort} items
+        in site store.
+        """
+        f = PortScrollingFragment(
+            self.store,
+            TCPPort,
+            (TCPPort.portNumber,
+             FactoryColumn(TCPPort.factory)))
+        f.setFragmentParent(self)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        return tag[f]
+    renderer(tcpPorts)
+
+
+    def sslPorts(self, req, tag):
+        """
+        Create and return a L{PortScrollingFragment} for the L{SSLPort} items
+        in the site store.
+        """
+        f = PortScrollingFragment(
+            self.store,
+            SSLPort,
+            (SSLPort.portNumber,
+             CertificateColumn(SSLPort.certificatePath),
+             FactoryColumn(SSLPort.factory)))
+        f.setFragmentParent(self)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        return tag[f]
+    renderer(sslPorts)
+
+
+    def createPortForm(self, req, tag):
+        """
+        Create and return a L{LiveForm} for adding a new L{TCPPort} or
+        L{SSLPort} to the site store.
+        """
+        def port(s):
+            n = int(s)
+            if n < 0 or n > 65535:
+                raise ValueError(s)
+            return n
+
+        factories = []
+        for f in self.store.parent.powerupsFor(IProtocolFactoryFactory):
+            factories.append((f.__class__.__name__.decode('ascii'),
+                              f,
+                              False))
+
+        f = LiveForm(
+            self.portConf.createPort,
+            [Parameter('portNumber', TEXT_INPUT, port, 'Port Number',
+                       'Integer 0 <= n <= 65535 giving the TCP port to bind.'),
+
+             Parameter('ssl', CHECKBOX_INPUT, bool, 'SSL',
+                       'Select to indicate port should use SSL.'),
+
+             # Text area?  File upload?  What?
+             Parameter('certPath', TEXT_INPUT, unicode, 'Certificate Path',
+                       'Path to a certificate file on the server, if SSL is to be used.'),
+
+             ChoiceParameter('factory', factories, 'Protocol Factory',
+                             'Which pre-existing protocol factory to associate with this port.')])
+        f.setFragmentParent(self)
+        # f.docFactory = webtheme.getLoader(f.fragmentName)
+        return tag[f]
+    renderer(createPortForm)
+
+registerAdapter(PortConfigurationFragment, PortConfiguration, INavigableFragment)
+
+
+
 class AdministrativeBenefactor(Item):
     typeName = 'mantissa_administrative_benefactor'
     schemaVersion = 1
@@ -774,6 +1021,10 @@ def endowAdminPowerups(userStore):
             # This one lets the administrator view unhandled
             # exceptions which occur in the server.
             TracebackViewer,
+
+            # Allow the administrator to set the ports associated with
+            # different network services.
+            PortConfiguration,
 
             # This one lets the administrator ssh in to a REPL in the
             # batch process.

@@ -658,3 +658,14 @@ class ISignupMechanism(Interface):
     configuration = Attribute("""
     XXX EDOC ME
     """)
+
+
+
+class IProtocolFactoryFactory(Interface):
+    """
+    Powerup interface for Items which can create Twisted protocol factories.
+    """
+    def getFactory():
+        """
+        Return a Twisted protocol factory.
+        """

@@ -1,8 +1,11 @@
+
+from axiom import iaxiom, scheduler
+
 from xmantissa import webadmin, offering, stats
 from xmantissa.webadmin import (TracebackViewer, LocalUserBrowser,
-                                DeveloperApplication, BatchManholePowerup)
+                                DeveloperApplication, BatchManholePowerup,
+                                PortConfiguration)
 from xmantissa.signup import SignupConfiguration
-from axiom import iaxiom, scheduler
 
 adminOffering = offering.Offering(
     name = u'mantissa',
@@ -12,6 +15,7 @@ adminOffering = offering.Offering(
     appPowerups = [scheduler.SubScheduler, stats.StatsService],
     installablePowerups = [("Signup Configuration", "Allows configuration of signup mechanisms", SignupConfiguration),
                            ("Traceback Viewer", "Allows viewing unhandled exceptions which occur on the server", TracebackViewer),
+                           ("Port Configuration", "Allows manipulation of network service configuration.", PortConfiguration),
                            ("Local User Browser", "A page listing all users existing in this site's store.", LocalUserBrowser),
                            ("Admin REPL", "An interactive python prompt.", DeveloperApplication),
                            ("Batch Manhole", "Enables ssh login to the batch-process manhole", BatchManholePowerup),

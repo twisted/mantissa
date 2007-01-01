@@ -17,6 +17,7 @@ from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.dependency import installOn
 
+from xmantissa.port import TCPPort
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
     ThemedElement, _ThemedMixin)
@@ -29,9 +30,13 @@ def testHead(theme):
     Check that the head method of the given them doesn't explode.
     @param theme: probably an L{xmantissa.webtheme.XHTMLDirectoryTheme}
     """
-    s = Store()
-    flatten(theme.head(makeRequest(), WebSite(store=s, portNumber=80,
-                                              securePortNumber=443)))
+    store = Store()
+    site = WebSite(store=store)
+    installOn(site, store)
+    port = TCPPort(store=store, portNumber=80, factory=site)
+    installOn(port, store)
+    flatten(theme.head(makeRequest(), site))
+
 
 class WebThemeTestCase(TestCase):
     def _render(self, element):
@@ -131,22 +136,24 @@ class WebThemeTestCase(TestCase):
         Test that L{_ThemedMixin.getWebSite} finds the right object whether it
         is wrapped around a user store or the store store.
         """
-        s = Store(self.mktemp())
-        installOn(WebSite(store=s, portNumber=80), s)
+        siteStore = Store(self.mktemp())
+        siteSite = WebSite(store=siteStore)
+        installOn(siteSite, siteStore)
 
-        ss = SubStore.createNew(s, ['user']).open()
-        installOn(WebSite(store=ss, portNumber=8080), ss)
+        subStore = SubStore.createNew(siteStore, ['user']).open()
+        subSite = WebSite(store=subStore)
+        installOn(subSite, subStore)
 
         themed = _ThemedMixin()
-        themed.store = s
-        self.assertEquals(
-            themed.getWebSite().portNumber, 80,
+        themed.store = siteStore
+        self.assertIdentical(
+            themed.getWebSite(), siteSite,
             "Found the wrong WebSite from the site store.")
 
         themed = _ThemedMixin()
-        themed.store = ss
+        themed.store = subStore
         self.assertEquals(
-            themed.getWebSite().portNumber, 80,
+            themed.getWebSite(), siteSite,
             "Found the wrong WebSite from the user store.")
 
     def test_imageSourceNotRewritten(self):
@@ -154,14 +161,15 @@ class WebThemeTestCase(TestCase):
         Test that an image tag which includes a hostname in its source does not
         have that source rewritten.
         """
-        s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        store = Store()
+        site = WebSite(store=store, hostname=u'example.com')
+        installOn(site, store)
 
-        class TestElement(ThemedElement):
-            docFactory = stan(img(src='http://example.org/Foo.png'))
-            store = s
+        testElement = ThemedElement()
+        testElement.docFactory = stan(img(src='http://example.org/Foo.png'))
+        testElement.store = store
 
-        d = self._render(TestElement())
+        d = self._render(testElement)
         def rendered(req):
             dom = microdom.parseString(req.v)
             img = dom.getElementsByTagName('img')[0]
@@ -180,19 +188,20 @@ class WebThemeTestCase(TestCase):
         Test that an image tag with a render directive has that directive
         invoked after the URL has been rewritten.
         """
-        s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        store = Store()
+        site = WebSite(store=store, hostname=u'example.com')
+        installOn(site, store)
 
         class TestElement(ThemedElement):
-            docFactory = stan(img(src='/Foo.png', render=directive('mutate')))
-            store = s
-
             def mutate(this, request, tag):
                 this.mutated = self._mutate(tag.attributes['src'])
                 return tag
             renderer(mutate)
 
         ele = TestElement()
+        ele.docFactory = stan(img(src='/Foo.png', render=directive('mutate')))
+        ele.store = store
+
         d = self._render(ele)
         def rendered(req):
             self.assertEquals(ele.mutated, self._mutate('/Foo.png'))
@@ -205,14 +214,15 @@ class WebThemeTestCase(TestCase):
         Test that a script tag which includes a hostname in its source does not
         have that source rewritten.
         """
-        s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        store = Store()
+        site = WebSite(store=store, hostname=u'example.com')
+        installOn(site, store)
 
-        class TestElement(ThemedElement):
-            docFactory = stan(script(src='http://example.org/Foo.js'))
-            store = s
+        testElement = ThemedElement()
+        testElement.docFactory = stan(script(src='http://example.org/Foo.js'))
+        testElement.store = store
 
-        d = self._render(TestElement())
+        d = self._render(testElement)
         def rendered(req):
             self.assertIn(
                 '<script src="http://example.org/Foo.js"></script>',
@@ -226,38 +236,41 @@ class WebThemeTestCase(TestCase):
         Test that an script tag with a render directive has that directive
         invoked after the URL has been rewritten.
         """
-        s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        store = Store()
+        site = WebSite(store=store, hostname=u'example.com')
+        installOn(site, store)
 
         class TestElement(ThemedElement):
-            docFactory = stan(script(src='/Foo.js', render=directive('mutate')))
-            store = s
-
             def mutate(this, request, tag):
                 this.mutated = self._mutate(tag.attributes['src'])
                 return tag
             renderer(mutate)
 
         ele = TestElement()
+        ele.docFactory = stan(script(src='/Foo.js', render=directive('mutate')))
+        ele.store = store
+
         d = self._render(ele)
         def rendered(req):
             self.assertEquals(ele.mutated, self._mutate('/Foo.js'))
         d.addCallback(rendered)
         return d
 
+
     def test_linkHypertextReferenceNotRewritten(self):
         """
         Test that a link which includes a hostname in its href does not have
         that href rewritten.
         """
-        s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        store = Store()
+        site = WebSite(store=store, hostname=u'example.com')
+        installOn(site, store)
 
-        class TestElement(ThemedElement):
-            docFactory = stan(link(href='http://example.org/Foo.css'))
-            store = s
+        testElement = ThemedElement()
+        testElement.docFactory = stan(link(href='http://example.org/Foo.css'))
+        testElement.store = store
 
-        d = self._render(TestElement())
+        d = self._render(testElement)
         def rendered(req):
             self.assertIn(
                 '<link href="http://example.org/Foo.css" />',
@@ -271,24 +284,26 @@ class WebThemeTestCase(TestCase):
         Test that a link tag with a render directive has that directive invoked
         after the URL has been rewritten.
         """
-        s = Store()
-        installOn(WebSite(store=s, portNumber=80, hostname=u'example.com'), s)
+        store = Store()
+        site = WebSite(store=store, hostname=u'example.com')
+        installOn(site, store)
 
         class TestElement(ThemedElement):
-            docFactory = stan(link(href='/Foo.css', render=directive('mutate')))
-            store = s
-
             def mutate(this, request, tag):
                 this.mutated = self._mutate(tag.attributes['href'])
                 return tag
             renderer(mutate)
 
         ele = TestElement()
+        ele.docFactory = stan(link(href='/Foo.css', render=directive('mutate')))
+        ele.store = store
+
         d = self._render(ele)
         def rendered(req):
             self.assertEquals(ele.mutated, self._mutate('/Foo.css'))
         d.addCallback(rendered)
         return d
+
 
     def test_head(self):
         testHead(MantissaTheme(''))

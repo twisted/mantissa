@@ -22,6 +22,41 @@ Mantissa.Admin.EndowDepriveAction.methods(
             });
     });
 
+
+/**
+ * Action for removing ports.  In addition to deleting them from the database
+ * the server, delete them from the local view.
+ *
+ * XXX - In poor form, I have not written automated tests for this code.  The
+ * only excuse I can muster is that the thought of adding to the twenty minutes
+ * it takes to run nit for this meagre amount of code turns my stomach.  May my
+ * ancestors forgive me for the shame I do to their name. -exarkun
+ */
+Mantissa.Admin.DeleteAction = Mantissa.ScrollTable.Action.subclass('Mantissa.Admin.DeleteAction');
+Mantissa.Admin.DeleteAction.methods(
+    function __init__(self, name, displayName) {
+        Mantissa.Admin.DeleteAction.upcall(
+            self, "__init__", name, displayName,
+            function deleteSuccessful(scrollingWidget, row, result) {
+                var index = scrollingWidget.model.findIndex(row.__id__);
+                scrollingWidget.removeRow(index);
+            });
+    });
+
+
+/**
+ * Scrolling widget with a delete action.
+ *
+ * XXX See XXX for DeleteAction.
+ */
+Mantissa.Admin.PortBrowser = Mantissa.ScrollTable.FlexHeightScrollingWidget.subclass('Mantissa.Admin.PortBrowser');
+Mantissa.Admin.PortBrowser.methods(
+    function __init__(self, node, metadata) {
+        self.actions = [Mantissa.Admin.DeleteAction("delete", "Delete")];
+        Mantissa.Admin.PortBrowser.upcall(self, "__init__", node, metadata, 10);
+    });
+
+
 /**
  * Scrolltable with support for retrieving additional detailed information
  * about particular users from the server and displaying it on the page
