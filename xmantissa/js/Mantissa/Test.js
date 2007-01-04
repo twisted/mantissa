@@ -898,6 +898,37 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
 
 
     /**
+     * Check that L{scrolled} behaves correctly even if it cannot get
+     * some rows.
+     */
+    function test_scrolledWhenError(self) {
+        var d = self.setUp('scrolledWhenError', 30);
+        var _getSomeRows;
+        d.addCallback(
+            function(ignored) {
+                _getSomeRows = self.scrollingWidget._getSomeRows;
+                self.scrollingWidget._getSomeRows = function () {
+                    return Divmod.Defer.fail(
+                        Divmod.Error("deliberate failure"));
+                };
+                return self.scrollingWidget.scrolled();
+            });
+        d = self.assertFailure(d, [Divmod.Error]);
+        d.addCallback(
+            function(ignored) {
+                self.assertEqual(self.scrollingWidget._requestWaiting,
+                                 false);
+            });
+        d.addBoth(
+            function(passthru) {
+                self.scrollingWidget._getSomeRows = _getSomeRows;
+                return passthru;
+            });
+        return d;
+    },
+
+
+    /**
      * Test that the scrolltable's refill method refills an empty scrolltable
      */
      function test_refill(self) {

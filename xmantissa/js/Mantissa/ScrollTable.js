@@ -1403,7 +1403,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                     });
                 rowsDeferred.addErrback(
                     function rowsError(err) {
-                        finishedDeferreds(err);
+                        finishDeferreds(err);
                     });
             },
             proposedTimeout);
