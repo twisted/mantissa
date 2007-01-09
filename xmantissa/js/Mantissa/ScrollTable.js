@@ -5,6 +5,7 @@
 // import MochiKit.DOM
 
 
+
 Mantissa.ScrollTable.NoSuchWebID = Divmod.Error.subclass("Mantissa.ScrollTable.NoSuchWebID");
 Mantissa.ScrollTable.NoSuchWebID.methods(
     function __init__(self, webID) {
