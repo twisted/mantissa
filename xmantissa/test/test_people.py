@@ -150,26 +150,6 @@ class PeopleTests(unittest.TestCase):
 
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
 
-
-    def test_doublePersonCreation(self):
-        """
-        Test that L{AddPersonFragment.addPerson} raises a ValueError when it is
-        called twice with the same email address. This ensures that
-        L{Organizer.personByEmailAddress} can always return a unique person.
-        """
-        # make ourselves an AddPersonFragment
-        s = store.Store()
-        o = Organizer(store=s)
-        class original(object):
-            store = s
-        fragment = AddPersonFragment(original)
-
-        address = u'test@example.com'
-        fragment.addPerson(u'flast', u'First', u'Last', address)
-        self.assertRaises(ValueError, fragment.addPerson, u'foobar', u'Foo',
-                          u'Bar', address)
-
-
     def testMugshot(self):
         """
         Create a Mugshot item, check that it thumbnails it's image correctly
