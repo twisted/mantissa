@@ -424,11 +424,15 @@ class AddPersonFragment(athena.LiveFragment):
 
     def addPerson(self, nickname, firstname, lastname, email):
         if not (nickname or firstname or lastname):
-            raise ValueError('pleast supply nickname or first/last name')
+            raise ValueError('please supply nickname or first/last name')
         store = self.original.store
+        address = store.findFirst(EmailAddress, EmailAddress.address == email)
+        if address is not None:
+            raise ValueError('There is already a person with that email '
+                             'address (%s): ' % (address.person.name,))
+
         if nickname is None:
             nickname = u''
-
         person = self.makePerson(nickname)
 
         if email:
