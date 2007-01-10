@@ -221,3 +221,28 @@ class SetInputValues(testcase.TestCase):
                      default=True)))
         f.setFragmentParent(self)
         return f
+
+class FormName(testcase.TestCase):
+    """
+    Test that the form name is correctly set client-side
+    """
+    jsClass = u'Mantissa.Test.FormName'
+
+    def getWidgetDocument(self):
+        """
+        Make a nested form
+        """
+        f = liveform.LiveForm(
+                lambda **k: None,
+                (liveform.Parameter(
+                    'inner-form',
+                    liveform.FORM_INPUT,
+                    liveform.LiveForm(
+                        lambda **k: None,
+                        (liveform.Parameter(
+                            'inner-parameter',
+                            liveform.TEXT_INPUT,
+                            unicode,
+                            ''),), ())),))
+        f.setFragmentParent(self)
+        return f

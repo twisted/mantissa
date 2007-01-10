@@ -125,6 +125,11 @@ Mantissa.LiveForm.MessageFader.methods(
 
 
 Mantissa.LiveForm.FormWidget.methods(
+    function __init__(self, node, formName) {
+        Mantissa.LiveForm.FormWidget.upcall(self, '__init__', node);
+        self.formName = formName;
+    },
+
     function submit(self) {
         var d = self.callRemote('invoke', self.gatherInputs());
 
@@ -224,15 +229,6 @@ Mantissa.LiveForm.FormWidget.methods(
 
     function traverse(self, visitor) {
         return Divmod.Runtime.theRuntime.traverse(self.node, visitor);
-    },
-
-    function getFormName(self) {
-        // XXX TODO: the real way to do this would be to have a JSON object
-        // sent from the server as part of the initialization process.  I'm
-        // not sure where to squirrel that away right now, and I only need
-        // this one string.  Feel free to fix.
-        return Nevow.Athena.getAttribute(
-            self.node, 'formname', Nevow.Athena.XMLNS_URI, 'athena');
     },
 
     /**
@@ -356,9 +352,9 @@ Mantissa.LiveForm.FormWidget.methods(
         // First we gather our widget children.
         for (var i = 0; i < self.childWidgets.length; i++) {
             var wdgt = self.childWidgets[i];
-            if ((wdgt.getFormName != undefined)
+            if ((wdgt.formName != undefined)
                     && (wdgt.gatherInputs != undefined)) {
-                var inputname = wdgt.getFormName();
+                var inputname = wdgt.formName;
                 pushOneValue(inputname, wdgt.gatherInputs());
             }
         }

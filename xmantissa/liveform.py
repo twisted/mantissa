@@ -84,6 +84,14 @@ class _LiveFormMixin(record('callable parameters description',
             self.docFactory = webtheme.getLoader('liveform')
 
 
+    def getInitialArguments(self):
+        if self.subFormName:
+            subFormName = self.subFormName.decode('utf-8')
+        else:
+            subFormName = None
+        return (subFormName,)
+
+
     def asSubForm(self, name):
         self.subFormName = name
         return self
@@ -109,13 +117,6 @@ class _LiveFormMixin(record('callable parameters description',
 
     def render_submitbutton(self, ctx, data):
         return self.submitbutton(inevow.IRequest(ctx), ctx.tag)
-
-
-    def liveElement(self, request, tag):
-        if self.subFormName:
-            tag(**{'athena:formname': self.subFormName})
-        return super(_LiveFormMixin, self).liveElement(request, tag)
-    page.renderer(liveElement)
 
 
     def render_liveFragment(self, ctx, data):

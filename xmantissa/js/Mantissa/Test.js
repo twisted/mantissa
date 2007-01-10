@@ -272,6 +272,34 @@ Mantissa.Test.Choice = Mantissa.Test.Forms.subclass('Mantissa.Test.Choice');
 
 Mantissa.Test.Traverse = Mantissa.Test.Forms.subclass('Mantissa.Test.Traverse');
 
+Mantissa.Test.FormName = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.FormName');
+/**
+ * Test that the form name gets communicated intact to
+ * L{Mantissa.LiveForm.FormWidget}
+ */
+Mantissa.Test.FormName.methods(
+    /**
+     * Check that the C{formName} attributes on our form, and on its child
+     * form are set correctly
+     */
+    function test_attribute(self) {
+        var outer = self.childWidgets[0],
+            inner = outer.childWidgets[0];
+        self.assertEquals(outer.formName, null);
+        self.assertEquals(inner.formName, 'inner-form');
+    },
+
+    /**
+     * Check that L{Mantissa.LiveForm.FormWidget.gatherInputs} when called out
+     * on the outer form returns a mapping which contains an entry for the
+     * inner form under the right name
+     */
+    function test_gatherInputs(self) {
+        var outer = self.childWidgets[0],
+            inputs = outer.gatherInputs();
+        self.failUnless('inner-parameter' in inputs['inner-form'][0]);
+    });
+
 /**
  * Tests for L{Mantissa.LiveForm.FormWidget.setInputValues} and related
  * functionality
