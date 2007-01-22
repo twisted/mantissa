@@ -5,16 +5,16 @@
 Runs mantissa javascript tests as part of the mantissa python tests
 """
 
-from twisted.python.filepath import FilePath
-from nevow.testutil import JavaScriptTestSuite, setJavascriptInterpreterOrSkip
+from nevow.testutil import JavaScriptTestCase
 
-class MantissaJavaScriptTestSuite(JavaScriptTestSuite):
+class MantissaJavaScriptTestCase(JavaScriptTestCase):
     """
     Run all the mantissa javascript test
     """
-    path = FilePath(__file__).parent()
 
-    def testJSPlaceholders(self):
-        return self.onetest('test_placeholders.js')
-
-setJavascriptInterpreterOrSkip(MantissaJavaScriptTestSuite)
+    def test_placeholders(self):
+        """
+        Test the model objects which track placeholder nodes in the message
+        scrolltable.
+        """
+        return 'Mantissa.Test.TestPlaceholder'
