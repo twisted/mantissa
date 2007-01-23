@@ -15,7 +15,7 @@ from twisted.python.filepath import FilePath
 
 from epsilon.structlike import record
 
-from axiom.item import Item
+from axiom.item import Item, declareLegacyItem
 from axiom.attributes import text, integer, reference
 from axiom.userbase import getAccountNames
 from axiom import upgrade
@@ -468,7 +468,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     powerupInterfaces = (IWebTranslator,)
 
     typeName = 'private_web_application'
-    schemaVersion = 2
+    schemaVersion = 3
 
 
     preferredTheme = text()
@@ -557,6 +557,14 @@ class PrivateApplication(Item, PrefixURLMixin):
                 return fact
         return default
 
+declareLegacyItem(PrivateApplication.typeName, 2, dict(
+    installedOn = reference(),
+    preferredTheme = text(),
+    hitCount = integer(default=0),
+    privateKey = integer(),
+    privateIndexPage = reference(),
+    ))
+
 def upgradePrivateApplication1To2(oldApp):
     newApp = oldApp.upgradeVersion(
         'private_web_application', 1, 2,
@@ -570,3 +578,18 @@ def upgradePrivateApplication1To2(oldApp):
     return newApp
 
 upgrade.registerUpgrader(upgradePrivateApplication1To2, 'private_web_application', 1, 2)
+
+def _upgradePrivateApplication2to3(old):
+    pa = old.upgradeVersion(PrivateApplication.typeName, 2, 3,
+        preferredTheme=old.preferredTheme,
+        hitCount=old.hitCount,
+        privateKey=old.privateKey,
+        privateIndexPage=old.privateIndexPage)
+    pa.customizedPublicPage = old.store.findOrCreate(CustomizedPublicPage)
+    pa.authenticationApplication = old.store.findOrCreate(AuthenticationApplication)
+    pa.preferenceAggregator = old.store.findOrCreate(PreferenceAggregator)
+    pa.defaultPreferenceCollection = old.store.findOrCreate(DefaultPreferenceCollection)
+    pa.searchAggregator = old.store.findOrCreate(SearchAggregator)
+    pa.website = old.store.findOrCreate(WebSite)
+
+upgrade.registerUpgrader(_upgradePrivateApplication2to3, PrivateApplication.typeName, 2, 3)

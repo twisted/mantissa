@@ -622,8 +622,11 @@ def upgradeWebsite4to5(oldSite):
             oldCertPath.copyTo(newCertPath)
             port = SSLPort(store=newSite.store, portNumber=oldSite.securePortNumber, factory=newSite, certificatePath=newCertPath)
             installOn(port, newSite.store)
-
-    newSite.store.powerDown(newSite, IService)
+    try:
+        newSite.store.powerDown(newSite, IService)
+    except ValueError:
+        #maybe it wasn't powered up?
+        pass
 
     return newSite
 upgrade.registerUpgrader(upgradeWebsite4to5, 'mantissa_web_powerup', 4, 5)

@@ -18,10 +18,11 @@ from nevow.athena import expose
 from epsilon import extime
 
 from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
-from axiom.item import Item
+from axiom.item import Item, declareLegacyItem
 from axiom import userbase
 from axiom.batch import BatchManholePowerup
 from axiom.dependency import installOn, dependsOn
+from axiom.upgrade import registerUpgrader
 
 from xmantissa.liveform import LiveForm, Parameter, ChoiceParameter
 from xmantissa.liveform import TEXT_INPUT ,CHECKBOX_INPUT
@@ -88,7 +89,7 @@ class AdminStatsApplication(Item, ParentCounterMixin):
     """
     implements(INavigableElement)
 
-    schemaVersion = 1
+    schemaVersion = 2
     typeName = 'administrator_application'
 
     counterAttribute = 'administrators'
@@ -106,6 +107,15 @@ class AdminStatsApplication(Item, ParentCounterMixin):
                            [webnav.Tab('Stats', self.storeID, 0.1)],
                            authoritative=False)]
 
+declareLegacyItem(AdminStatsApplication, 1,
+                  dict(updateInterval=integer(default=5)))
+
+def _adminStatsApplication1to2(old):
+    new = old.upgradeVersion(AdminStatsApplication.typeName, 1, 2,
+                             updateInterval=old.updateInterval,
+                             privateApplication=old.store.findOrCreate(PrivateApplication))
+    return new
+registerUpgrader(_adminStatsApplication1to2, AdminStatsApplication.typeName, 1, 2)
 
 class LocalUserBrowser(Item):
     """
@@ -119,13 +129,7 @@ class LocalUserBrowser(Item):
     implements(INavigableElement)
 
     typeName = 'local_user_browser'
-    schemaVersion = 1
-
-    # Only present because Axiom requires at least one attribute on an Item. 
-    # Of course, since this was first created, someone added
-    # privateApplication below, so this isn't strictly necessary any more
-    # (except there's no reason for privateApplication to be here either!).
-    garbage = integer(default=12345678653)
+    schemaVersion = 2
 
     privateApplication = dependsOn(PrivateApplication)
     powerupInterfaces = (INavigableElement,)
@@ -135,7 +139,14 @@ class LocalUserBrowser(Item):
                            [webnav.Tab('Local Users', self.storeID, 0.1)],
                            authoritative=False)]
 
+declareLegacyItem(LocalUserBrowser.typeName, 1,
+                  dict(garbage=integer(default=0)))
 
+def _localUserBrowser1to2(old):
+    new = old.upgradeVersion(LocalUserBrowser.typeName, 1, 2,
+                             privateApplication=old.store.findOrCreate(PrivateApplication))
+    return new
+registerUpgrader(_localUserBrowser1to2, LocalUserBrowser.typeName, 1, 2)
 
 class UserInteractionFragment(webtheme.ThemedElement):
     """
@@ -581,7 +592,7 @@ class DeveloperApplication(Item, ParentCounterMixin):
 
     counterAttribute = 'developers'
 
-    schemaVersion = 1
+    schemaVersion = 2
     typeName = 'developer_application'
 
     privateApplication = dependsOn(PrivateApplication)
@@ -596,6 +607,16 @@ class DeveloperApplication(Item, ParentCounterMixin):
         return [webnav.Tab('Admin', self.storeID, 0.0,
                            [webnav.Tab('REPL', self.storeID, 0.0)],
                            authoritative=False)]
+
+declareLegacyItem(DeveloperApplication.typeName, 1,
+                  dict(statementCount=integer(default=0)))
+
+def _developerApplication1to2(old):
+    new = old.upgradeVersion(DeveloperApplication.typeName, 1, 2,
+                             statementCount=old.statementCount,
+                             privateApplication=old.store.findOrCreate(PrivateApplication))
+    return new
+registerUpgrader(_developerApplication1to2, DeveloperApplication.typeName, 1, 2)
 
 class REPL(athena.LiveFragment):
     """
@@ -694,7 +715,7 @@ class TracebackViewer(Item):
     implements(INavigableElement)
 
     typeName = 'mantissa_tb_viewer'
-    schemaVersion = 1
+    schemaVersion = 2
 
     allowDeletion = boolean(default=False)
 
@@ -715,6 +736,15 @@ class TracebackViewer(Item):
     #def topPanelContent(self):
     #    # XXX There should really be a juice protocol for this.
     #    return '%d errors logged' % (self._getCollector().tracebackCount,)
+
+declareLegacyItem(TracebackViewer, 1,
+                  dict(allowDeletion=boolean(default=False)))
+
+def _tracebackViewer1to2(old):
+    return old.upgradeVersion(TracebackViewer.typeName, 1, 2,
+                              allowDeletion=old.allowDeletion,
+                              privateApplication=old.store.findOrCreate(PrivateApplication))
+registerUpgrader(_tracebackViewer1to2, TracebackViewer.typeName, 1, 2)
 
 
 class TracebackViewerFragment(rend.Fragment):

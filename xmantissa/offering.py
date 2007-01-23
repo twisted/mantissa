@@ -136,7 +136,7 @@ class OfferingConfiguration(item.Item):
     schemaVersion = 1
 
     installedOfferingCount = attributes.integer(default=0)
-
+    installedOn = attributes.reference()
     powerupInterfaces = (ixmantissa.INavigableElement,)
 
     def installOffering(self, offering, configuration):

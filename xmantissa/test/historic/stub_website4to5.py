@@ -3,6 +3,8 @@
 from axiom.test.historic.stubloader import saveStub
 
 from axiom.plugins.mantissacmd import Mantissa
+from axiom.userbase import LoginSystem
+from axiom.dependency import installOn
 
 from xmantissa.website import WebSite
 
@@ -19,6 +21,10 @@ def createDatabase(store):
     site.httpLog = 'path/to/httpd.log'
     site.hitCount = 123
     site.hostname = u'example.net'
+    loginSystem = store.findUnique(LoginSystem)
+    account = loginSystem.addAccount(u'testuser', u'localhost', None)
+    subStore = account.avatars.open()
+    installOn(WebSite(store=subStore), subStore)
 
 
 if __name__ == '__main__':

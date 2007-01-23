@@ -8,6 +8,7 @@ from twisted.application.service import IService
 
 from axiom.test.historic.stubloader import StubbedTest
 from axiom.dependency import installedOn
+from axiom.userbase import LoginSystem
 
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.website import WebSite
@@ -60,3 +61,20 @@ class WebSiteUpgradeTests(StubbedTest):
         site = self.store.findUnique(WebSite)
         powerups = self.store.powerupsFor(IService)
         self.failIfIn(site, list(powerups))
+
+    def test_userStore(self):
+        """
+        Test that WebSites in user stores upgrade without errors.
+        """
+        ls = self.store.findUnique(LoginSystem)
+        substore = ls.accountByAddress(u'testuser', u'localhost').avatars.open()
+        self.failUnless(substore.getItemByID(3).__class__ is WebSite)
+
+    def tearDown(self):
+        d = StubbedTest.tearDown(self)
+        def flushit(ign):
+            from epsilon.cooperator import SchedulerStopped
+            self.flushLoggedErrors(SchedulerStopped)
+            return ign
+        return d.addCallback(flushit)
+
