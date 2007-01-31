@@ -12,6 +12,14 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
     Run all the mantissa javascript test
     """
 
+    def test_scrollmodel(self):
+        """
+        Test the model object which tracks most client-side state for any
+        ScrollTable.
+        """
+        return 'Mantissa.Test.TestScrollModel'
+
+
     def test_placeholders(self):
         """
         Test the model objects which track placeholder nodes in the message

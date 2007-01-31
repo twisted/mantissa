@@ -17,6 +17,13 @@ Mantissa.ScrollTable.NoSuchWebID.methods(
     });
 
 
+/**
+ * Error class indicating that an operation which requires an active row was
+ * attempted when there was no active row.
+ */
+Mantissa.ScrollTable.NoActiveRow = Divmod.Error.subclass("Mantissa.ScrollTable.NoActiveRow");
+
+
 Mantissa.ScrollTable.Action = Divmod.Class.subclass('Mantissa.ScrollTable.Action');
 /**
  * An action that can be performed on a scrolltable row.
@@ -123,11 +130,32 @@ Mantissa.ScrollTable.Action.methods(
         return true;
     });
 
+
+/**
+ * Structured representation of the rows in a scrolltable.
+ *
+ * @ivar _rows: A sparse array of row data for this table.
+ *
+ * @ivar _activeRow: null or a reference to the row data which is currently
+ * considered "active".  At most one row can be active at a time.  The active
+ * row can be manipulated with L{activateRow} and L{deactivateRow}.  Changes to
+ * the active row are broadcast to all listeners registered with
+ * L{addObserver}.
+ *
+ * @ivar _totalRowCount: An integer giving the total number of rows in the
+ * model, ignoring whether row data is available for all of them or not.
+ *
+ * @ivar _selectionObservers: An array of objects which have been added as
+ * selection observers using the addObserver method.  These will be notified of
+ * changes to the active row and the row selection group.
+ */
 Mantissa.ScrollTable.ScrollModel = Divmod.Class.subclass('Mantissa.ScrollTable.ScrollModel');
 Mantissa.ScrollTable.ScrollModel.methods(
     function __init__(self) {
         self._rows = [];
+        self._activeRow = null;
         self._totalRowCount = 0;
+        self._selectionObservers = [];
     },
 
     /**
@@ -202,6 +230,17 @@ Mantissa.ScrollTable.ScrollModel.methods(
         if (typeof data.__id__ != 'string') {
             throw new Error("Specified row data has invalid __id__ property.");
         }
+
+        /*
+         * XXX No one should be setting row data for rows which already have
+         * data, but we don't explicitly forbid it, so it may happen.  We do
+         * _not_ preserve selection here, nor do we broadcast a deselection
+         * event to observers (or a selection event if the new row data is
+         * marked with __selected__).  Row activation is also totally bogus,
+         * since if the clobbered row was active, it will still be referenced
+         * by _activeRow.  If replacing existing rows is actually important,
+         * this needs to be fixed.
+         */
         self._rows[index] = data;
     },
 
@@ -305,6 +344,125 @@ Mantissa.ScrollTable.ScrollModel.methods(
     },
 
     /**
+     * Set up an object to receive notification of selection changes.
+     */
+    function addObserver(self, observer) {
+        self._selectionObservers.push(observer);
+    },
+
+    /**
+     * Check whether or not a particular row is selected.
+     */
+    function isSelected(self, identifier) {
+        var row = self.findRowData(identifier);
+        return (row.__selected__ === true);
+    },
+
+    /**
+     * Call a function with each selected row or with the active row if there
+     * is one and there are no selected rows.
+     *
+     * @param visitor: A one-argument function which will be invoked once for
+     * each selected row, or once with the active row if there is one and there
+     * are no selected rows.
+     *
+     * @return: undefined
+     */
+    function visitSelectedRows(self, visitor) {
+        var row;
+        var anySelected = false;
+        var indices = self.getRowIndices();
+        for (var i = 0; i < indices.length; ++i) {
+            row = self._rows[indices[i]];
+            if (row.__selected__) {
+                visitor(row);
+                anySelected = true;
+            }
+        }
+        if (!anySelected) {
+            row = self.activeRow();
+            if (row !== null) {
+                visitor(row);
+            }
+        }
+    },
+
+    /**
+     * Add the specified row to the selection.  Any number of rows may be
+     * selected at once.
+     *
+     * @type identifier: String
+     * @param identifier: The unique identifier for the row to select.
+     *
+     * @throw Error: Thrown if the given identifier is not found.
+     */
+    function selectRow(self, identifier) {
+        var row = self.findRowData(identifier);
+        row.__selected__ = true;
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowSelected(row);
+        }
+    },
+
+    /**
+     * Remove the specified row from the selection.
+     *
+     * @type identifier: String
+     * @param identifier: The unique identifier for the row to unselect.
+     *
+     * @throw Error: Thrown if the given identifier is not found.
+     */
+    function unselectRow(self, identifier) {
+        var row = self.findRowData(identifier);
+        row.__selected__ = false;
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowUnselected(row);
+        }
+    },
+
+    /**
+     * Mark the specified row as active.  Activation differs from selection in
+     * that only a single row can be active at a time.
+     *
+     * @type identifier: String
+     * @param identifier: The unique identifier for the row to activate.
+     *
+     * @throw NoSuchWebID: Thrown if the given identifier is not found.
+     */
+    function activateRow(self, identifier) {
+        if (self._activeRow != null) {
+            self.deactivateRow();
+        }
+        self._activeRow = self.findRowData(identifier);
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowActivated(self._activeRow);
+        }
+    },
+
+    /**
+     * Make the currently active row non-active.
+     *
+     * @throw NoActiveRow: Thrown if there is no active row.
+     */
+    function deactivateRow(self) {
+        if (self._activeRow == null) {
+            throw Mantissa.ScrollTable.NoActiveRow();
+        }
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowDeactivated(self._activeRow);
+        }
+        self._activeRow = null;
+    },
+
+    /**
+     * @return: The currently active row object, or C{null} if no row is
+     * active.
+     */
+    function activeRow(self) {
+        return self._activeRow;
+    },
+
+    /**
      * Remove a particular row from the scrolltable.
      *
      * @type webID: integer
@@ -313,7 +471,11 @@ Mantissa.ScrollTable.ScrollModel.methods(
      * @return: The row data which was removed.
      */
     function removeRow(self, index) {
-        return self._rows.splice(index, 1)[0];
+        var row = self._rows.splice(index, 1)[0];
+        if (row == self._activeRow) {
+            self.deactivateRow();
+        }
+        return row;
     },
 
     /**
@@ -321,6 +483,9 @@ Mantissa.ScrollTable.ScrollModel.methods(
      */
     function empty(self) {
         self._rows = [];
+        if (self._activeRow != null) {
+            self.deactivateRow();
+        }
     });
 
 Mantissa.ScrollTable.PlaceholderModel = Divmod.Class.subclass('Mantissa.ScrollTable.PlaceholderModel');
