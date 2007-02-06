@@ -17,7 +17,8 @@ from epsilon import extime
 from axiom import item, attributes
 from axiom.dependency import dependsOn
 from axiom.attributes import AND
-from axiom.upgrade import registerUpgrader
+from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
+
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
 from xmantissa.webapp import PrivateApplication
@@ -319,10 +320,17 @@ class RealName(item.Item):
 
 class EmailAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_emailaddress'
-    schemaVersion = 2
+    schemaVersion = 3
 
     address = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
+    label = attributes.text(
+        """
+        This is a label for the role of the email address, usually something like
+        "home", "work", "school".
+        """,
+        allowNone=False,
+        default=u'')
 
 def emailAddress1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_emailaddress',
@@ -334,12 +342,26 @@ registerUpgrader(emailAddress1to2,
                  'mantissa_organizer_addressbook_emailaddress',
                  1, 2)
 
+item.declareLegacyItem(EmailAddress.typeName, 2, dict(
+                  address = attributes.text(allowNone=False),
+                  person = attributes.reference(allowNone=False)))
+
+registerAttributeCopyingUpgrader(EmailAddress, 2, 3)
+
+
 class PhoneNumber(item.Item):
     typeName = 'mantissa_organizer_addressbook_phonenumber'
-    schemaVersion = 2
+    schemaVersion = 3
 
     number = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
+    label = attributes.text(
+        """
+        This is a label for the role of the phone number, usually something like
+        "home", "office", "mobile".
+        """,
+        allowNone=False,
+        default=u'',)
 
 def phoneNumber1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_phonenumber',
@@ -347,9 +369,15 @@ def phoneNumber1to2(old):
                               number=old.number,
                               person=old.person)
 
+item.declareLegacyItem(PhoneNumber.typeName, 2, dict(
+                  number = attributes.text(allowNone=False),
+                  person = attributes.reference(allowNone=False)))
+
 registerUpgrader(phoneNumber1to2,
                  'mantissa_organizer_addressbook_phonenumber',
                  1, 2)
+
+registerAttributeCopyingUpgrader(PhoneNumber, 2, 3)
 
 class PostalAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_postaladdress'
