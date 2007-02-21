@@ -18,7 +18,7 @@ from axiom.dependency import installOn
 from axiom.test.util import getPristineStore
 
 from xmantissa.port import TCPPort, SSLPort
-from xmantissa import website, signup
+from xmantissa import website, signup, publicweb
 from xmantissa.product import Product
 
 
@@ -314,7 +314,7 @@ class WebSiteTestCase(unittest.TestCase):
         installOn(port, self.store)
 
         res, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
-        self.failUnless(isinstance(res, website.LoginPage))
+        self.failUnless(isinstance(res, publicweb.LoginPage))
 
 
     def testOnlyHTTPSignup(self):

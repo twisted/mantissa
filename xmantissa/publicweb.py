@@ -1,6 +1,7 @@
 
 """
-Support for the public-facing portion of web applications.
+This module contains code for the publicly-visible areas of a Mantissa
+server's web interface.
 """
 
 from zope.interface import implements
@@ -8,12 +9,14 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.python import util
 
-from nevow import inevow, rend, static, url
+from nevow import rend, athena, tags, inevow, static
+from nevow.url import URL
 
 from axiom import item, attributes, upgrade, userbase
 
-from xmantissa import ixmantissa, website, publicresource, websharing, offering
-
+from xmantissa import ixmantissa, website, offering
+from xmantissa.webtheme import getLoader, getInstalledThemes
+from xmantissa.ixmantissa import IStaticShellContent
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
@@ -67,22 +70,54 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
     typeName = 'mantissa_public_web'
     schemaVersion = 3
 
-    prefixURL = attributes.text(allowNone=False)
-    application = attributes.reference(allowNone=False)
+    prefixURL = attributes.text(
+        doc="""
+        The prefix of the URL where objects represented by this fixture will
+        appear.  For the front page this is u'', for other pages it is their
+        respective URLs.
+        """, allowNone=False)
 
-    installedOn = attributes.reference()
+    application = attributes.reference(
+        doc="""
+        An Item which is adaptable to L{ixmantissa.IPublicPage}.
+        """,
+        allowNone=False)
 
-    sessioned = attributes.boolean(default=False)
-    sessionless = attributes.boolean(default=False)
+    installedOn = attributes.reference(
+        doc="""
+        """)
+
+    sessioned = attributes.boolean(
+        doc="""
+        Will this resource be provided to clients with a session?  Defaults to
+        False.
+        """,
+        default=False)
+
+    sessionless = attributes.boolean(
+        doc="""
+        Will this resource be provided without a session to clients without a
+        session?  Defaults to False.
+        """,
+        default=False)
+
 
     def resourceFactory(self, segments):
+        """
+        Reserve names which begin with '__' for the framework (such as __login__,
+        __logout__, __session__, etc), but delegate everything else to
+        PrefixURLMixin (and createResource) as usual.
+        """
         if not segments[0].startswith('__'):
             return super(PublicWeb, self).resourceFactory(segments)
         return None
 
+
     def createResource(self):
-        # XXX Don't like this - shouldn't need IPublicPage interface
-        # at all.
+        """
+        When invoked by L{PrefixURLMixin}, adapt my application object to
+        L{IPublicPage} and call C{getResource} on it.
+        """
         return ixmantissa.IPublicPage(self.application).getResource()
 
 
@@ -113,16 +148,40 @@ def upgradePublicWeb2To3(oldWeb):
 upgrade.registerUpgrader(upgradePublicWeb2To3, 'mantissa_public_web', 2, 3)
 
 
-class CustomizingResource(object):
+
+class _CustomizingResource(object):
+    """
+    _CustomizingResource is a wrapping resource used to implement
+    CustomizedPublicPage.
+
+        There is an implementation assumption here, which is that the top
+        _CustomizingResource is always at "/", and locateChild will always be
+        invoked at least once.  If this doesn't hold, this render method might
+        be invoked on the top level _CustomizingResource, which would cause it
+        to be rendered without customization.  If you're going to use this
+        class directly for some reason, please keep this in mind.
+    """
     implements(inevow.IResource)
 
     def __init__(self, topResource, forWho):
-        # assume that this is a root resource and locateChild will be
-        # called at least once: otherwise do adaptation here too
+        """
+        Create a _CustomizingResource.
+
+        @param topResource: an L{inevow.IResource} provider, who may also
+        provide L{ixmantissa.ICustomizable} if it wishes to be customized.
+
+        @param forWho: the external ID of the currently logged-in user.
+        @type forWho: unicode
+        """
         self.currentResource = topResource
         self.forWho = forWho
 
+
     def locateChild(self, ctx, path):
+        """
+        Return a Deferred which will fire with the customized version of the
+        resource being located.
+        """
         D = defer.maybeDeferred(
             self.currentResource.locateChild, ctx, path)
 
@@ -133,12 +192,15 @@ class CustomizingResource(object):
             self.currentResource = nextRes
             if nextRes is None:
                 return (nextRes, nextPath)
-            return (CustomizingResource(nextRes, self.forWho), nextPath)
+            return (_CustomizingResource(nextRes, self.forWho), nextPath)
 
         return D.addCallback(finishLocating)
 
+
     def renderHTTP(self, ctx):
-        # We never got customized.
+        """
+        Render the resource I was provided at construction time.
+        """
         if self.currentResource is None:
             return rend.FourOhFour()
         return self.currentResource # nevow will automatically adapt to
@@ -147,20 +209,45 @@ class CustomizingResource(object):
 
 class CustomizedPublicPage(item.Item):
     """
-    Per-avatar hook at '/' which finds the real public-page and asks
-    it to customize itself for a particular user.
+    A CustomizedPublicPage is a powerup for users which is installed on their
+    stores at the URL '/'.  It finds the real site's public-page and asks it to
+    customize itself for the user that its store belongs to.
+
+    This works because when users are logged in, their top level resource is
+    their own store, and so this powerup has a chance to intercept any hit to
+    any URL on the entire site before it is actually rendered to the user.
+
+    While this technique for logging in requires a user store, the only
+    information it communicates to other stores is a string via the
+    C{customizeFor} method, so other implementations of this technique could
+    simply be drawing that string from a cookie, from OpenID, etc.  Those
+    interested in implementing distributed security mechanisms for mantissa
+    should familiarize themselves with this code.
     """
 
     typeName = 'mantissa_public_customized'
     schemaVersion = 2
 
     installedOn = attributes.reference(
-        '''The Avatar for which this item will attempt to retrieve a
-        customized page.''')
+        doc="""
+        The Avatar for which this item will attempt to retrieve a customized
+        page.
+        """)
 
     powerupInterfaces = [(ixmantissa.ISiteRootPlugin, -257)]
 
     def resourceFactory(self, segments):
+        """
+        Implementation of L{ixmantissa.ISiteRootPlugin.resourceFactory}.
+
+        This will look in this powerup's store to discover the currently active
+        username, look for the parent store's top-level resource (the top-level
+        resource of the site) and then return a L{_CustomizingResource} which
+        wraps that resource and customizes any of the customizable children.
+
+        @return: a 2-tuple of a customizing resource and the given list of
+        segments, or, if no resource is provided by the site store, None.
+        """
         topResource = inevow.IResource(self.store.parent, None)
         if topResource is not None:
             for resource, domain in userbase.getAccountNames(self.store):
@@ -168,8 +255,10 @@ class CustomizedPublicPage(item.Item):
                 break
             else:
                 username = None
-            return (CustomizingResource(topResource, username), segments)
+            return (_CustomizingResource(topResource, username), segments)
         return None
+
+
 
 def customizedPublicPage1To2(oldPage):
     newPage = oldPage.upgradeVersion(
@@ -182,12 +271,204 @@ upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized',
 
 
 
-class OfferingsFragment(rend.Fragment):
+class PublicPageMixin(object):
+    """
+    Mixin for use by C{Page} or C{LivePage} subclasses that are visible to
+    unauthenticated clients.
 
+    @ivar needsSecure: whether this page requires SSL to be rendered.
+    """
+    fragment = None
+    title = ''
+    username = None
+    needsSecure = False
+
+    def renderHTTP(self, ctx):
+        """
+        Issue a redirect to an HTTPS URL for this resource if one
+        exists and the page demands it.
+        """
+        req = inevow.IRequest(ctx)
+        securePort = inevow.IResource(self.store).securePort
+        if self.needsSecure and not req.isSecure() and securePort is not None:
+            return URL.fromContext(
+                ctx).secure(port=securePort.getHost().port)
+        else:
+            return super(PublicPageMixin, self).renderHTTP(ctx)
+
+
+    def render_navigation(self, ctx, data):
+        """
+        Return the empty string; do not provide the public site with any
+        navigation.
+        """
+        return ""
+
+
+    def render_search(self, ctx, data):
+        """
+        Return the empty string; do not provide the public site with any search
+        functionality.
+        """
+        return ""
+
+
+    def render_title(self, ctx, data):
+        """
+        Return the current context tag containing the 'title' attribute of this
+        page.
+        """
+        return ctx.tag[self.title]
+
+
+    def render_username(self, ctx, data):
+        """
+        If this is being viewed by a logged in user, fill the 'username' slot with
+        their username.
+
+        Otherwise, discover available public signup mechanisms and fill the
+        'signups' slot with a list of them.
+        """
+        # there is a circular import here which should probably be avoidable,
+        # since we don't actually need signup links on the signup page.  on the
+        # other hand, maybe we want to eventually put those there for
+        # consistency.  for now, this import is easiest, and although it's a
+        # "friend" API, which I dislike, it doesn't seem to cause any real
+        # problems...  -glyph
+        from xmantissa.signup import _getPublicSignupInfo
+
+        if self.username is not None:
+            return ctx.tag.fillSlots('username', self.username)
+
+        IQ = inevow.IQ(self.docFactory)
+        signupPattern = IQ.patternGenerator('signup')
+        loginLinks = IQ.onePattern('login-links')
+
+        signups = []
+        for (prompt, url) in _getPublicSignupInfo(self.store):
+            signups.append(signupPattern.fillSlots(
+                    'prompt', prompt).fillSlots(
+                    'url', url))
+
+        return ctx.tag.clear()[loginLinks.fillSlots('signups', signups)]
+
+
+    def render_header(self, ctx, data):
+        """
+        Render any required static content in the header, from the C{staticContent}
+        attribute of this page.
+        """
+        if self.staticContent is None:
+            return ctx.tag
+
+        header = self.staticContent.getHeader()
+        if header is not None:
+            return ctx.tag[header]
+        else:
+            return ctx.tag
+
+    def render_footer(self, ctx, data):
+        """
+        Render any required static content in the footer, from the C{staticContent}
+        attribute of this page.
+        """
+        if self.staticContent is None:
+            return ctx.tag
+
+        header = self.staticContent.getFooter()
+        if header is not None:
+            return ctx.tag[header]
+        else:
+            return ctx.tag
+
+
+    def render_content(self, ctx, data):
+        """
+        This renderer, which is used for the visual bulk of the page, provides
+        self.fragment renderer.
+        """
+        return ctx.tag[self.fragment]
+
+
+    def head(self):
+        """
+        Override this method to insert additional content into the header.  By
+        default, does nothing.
+        """
+        return None
+
+
+    def getHeadContent(self, req):
+        """
+        Retrieve a list of header content from all installed themes on the site
+        store.
+        """
+        website = inevow.IResource(self.store)
+        for t in getInstalledThemes(self.store):
+            yield t.head(req, website)
+
+
+    def render_head(self, ctx, data):
+        """
+        This renderer calculates content for the <head> tag by concatenating the
+        values from L{getHeadContent} and the overridden L{head} method.
+        """
+        req = inevow.IRequest(ctx)
+        return ctx.tag[filter(None, list(self.getHeadContent(req)) + [self.head()])]
+
+
+
+class PublicPage(PublicPageMixin, rend.Page):
+    """
+    PublicPage is a utility superclass for implementing static pages which have
+    theme support and authentication trimmings.
+    """
+
+    def __init__(self, original, store, fragment, staticContent, forUser):
+        """
+        Create a public page.
+
+        @param original: any object
+
+        @param fragment: a L{rend.Fragment} to display in the content area of
+        the page.
+
+        @param staticContent: some stan, to include in the header of the page.
+
+        @param forUser: a string, the external ID of a user to customize for.
+        """
+        super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
+        self.store = store
+        self.fragment = fragment
+        self.staticContent = staticContent
+        if forUser is not None:
+            assert isinstance(forUser, unicode), forUser
+        self.username = forUser
+
+
+
+class _OfferingsFragment(rend.Fragment):
+    """
+    This fragment provides the list of installed offerings as a data generator.
+    This is used to display the list of app stores on the default front page.
+    """
     def __init__(self, original):
-        super(OfferingsFragment, self).__init__(original, docFactory=publicresource.getLoader('front-page'))
+        """
+        Create an _OfferingsFragment with an item from a site store.
+
+        @param original: a L{FrontPage} item.
+        """
+        super(_OfferingsFragment, self).__init__(
+            original, docFactory=getLoader('front-page'))
+
 
     def data_offerings(self, ctx, data):
+        """
+        Generate a list of installed offerings.
+
+        @return: a generator of dictionaries mapping 'name' to the name of an
+        offering installed on the store.
+        """
         for io in self.original.store.query(offering.InstalledOffering):
             pp = ixmantissa.IPublicPage(io.application, None)
             if pp is not None and getattr(pp, 'index', True):
@@ -197,14 +478,36 @@ class OfferingsFragment(rend.Fragment):
 
 
 
-class PublicFrontPage(publicresource.PublicPage):
+class PublicFrontPage(PublicPage):
+    """
+    This is the implementation of the default Mantissa front page.  It renders
+    a list of offering names, displays the user's name, and lists signup
+    mechanisms.  It also provides various top-level URLs.
+    """
     implements(ixmantissa.ICustomizable)
 
     def __init__(self, original, staticContent, forUser=None):
-        publicresource.PublicPage.__init__(
-            self, original, original.store, OfferingsFragment(original), staticContent, forUser)
+        """
+        Create a PublicFrontPage.
+
+        @param original: a L{FrontPage} item, which we use primarily to get at a Store.
+
+        @param staticContent: additional data to embed in the header.
+
+        @param forUser: an external ID of the logged in user, or None, if the
+        user viewing this page is browsing anonymously.
+        """
+        PublicPage.__init__(
+            self, original, original.store, _OfferingsFragment(original),
+            staticContent, forUser)
+
 
     def locateChild(self, ctx, segments):
+        """
+        Look up children in the normal manner, but then customize them for the
+        authenticated user if they support the L{ICustomizable} interface.  If
+        the user is attempting to access a private URL, redirect them.
+        """
         result = super(PublicFrontPage, self).locateChild(ctx, segments)
         if result is not rend.NotFound:
             child, segments = result
@@ -218,25 +521,20 @@ class PublicFrontPage(publicresource.PublicPage):
         # expired or he is otherwise not logged in. Redirect him to /login,
         # preserving the URL segments, rather than giving him an obscure 404.
         if segments[0] == 'private':
-            u = url.URL.fromContext(ctx).click('/').child('login')
+            u = URL.fromContext(ctx).click('/').child('login')
             for seg in segments:
                 u = u.child(seg)
             return u, ()
 
         return rend.NotFound
 
-    def child_(self, ctx):
-        return self
-
-    def child_by(self, ctx):
-        return websharing.UserIndexPage(self.original.store.findUnique(userbase.LoginSystem))
-
-    def child_Mantissa(self, ctx):
-        # Cheating!  It *looks* like there's an app store, but there isn't
-        # really, because this is the One Store To Bind Them All.
-        return static.File(util.sibpath(__file__, "static"))
 
     def childFactory(self, ctx, name):
+        """
+        Customize child lookup such that all installed offerings on the site store
+        that this page is viewing are given an opportunity to display their own
+        page.
+        """
         offer = self.original.store.findFirst(
             offering.InstalledOffering,
             offering.InstalledOffering.offeringName == unicode(name, 'ascii'))
@@ -246,16 +544,122 @@ class PublicFrontPage(publicresource.PublicPage):
                 return pp.getResource()
         return None
 
+
+    def child_(self, ctx):
+        """
+        Return 'self' if the index is requested, since this page can render a
+        simple index.
+        """
+        return self
+
+
+    def child_by(self, ctx):
+        """
+        Return a L{UserIndexPage} for the URL '/by'.
+        """
+        from xmantissa.websharing import UserIndexPage
+        return UserIndexPage(self.original.store.findUnique(userbase.LoginSystem))
+
+
+    def child_Mantissa(self, ctx):
+        """
+        Serve files from C{xmantissa/static/} at the URL C{/Mantissa}.
+        """
+        # Cheating!  It *looks* like there's an app store, but there isn't
+        # really, because this is the One Store To Bind Them All.
+        return static.File(util.sibpath(__file__, "static"))
+
+
     def customizeFor(self, forUser):
+        """
+        Return a customized version of this page for a particular user.
+
+        @param forUser: the external ID of a user.
+        """
         return PublicFrontPage(self.original, self.staticContent, forUser)
 
+
     def renderHTTP(self, ctx):
+        """
+        If viewed by a logged in user, redirect them to their application at
+        /private.  Otherwise, view the public index page.
+        """
         if self.username:
             self.original.publicViews += 1
-            return url.URL.fromContext(ctx).click('/').child('private')
+            return URL.fromContext(ctx).click('/').child('private')
         else:
             self.original.privateViews += 1
-            return publicresource.PublicPage.renderHTTP(self, ctx)
+            return PublicPage.renderHTTP(self, ctx)
+
+
+
+class LoginPage(PublicPage):
+    """
+    This is the page which presents a 'login' dialog to the user, at "/login".
+
+    This does not perform the actual login, nevow.guard does that, at the URL
+    /__login__; this resource merely provides the entry field and redirection
+    logic.
+    """
+
+    def __init__(self, original, store, segments=()):
+        """
+        Create a login page.
+
+        @param original: unused.
+
+        @param store: a site store which contains a WebSite item.
+
+        @param segments: a list of strings.  For example, if you hit
+        /login/private/stuff, you want to log in to /private/stuff, and the
+        resulting LoginPage will have the segments of ['private', 'stuff']
+        """
+        PublicPage.__init__(self, original, store, getLoader("login"),
+                            IStaticShellContent(original.store, None),
+                            None)
+        self.segments = segments
+
+
+    def beforeRender(self, ctx):
+        """
+        Before rendering this page, identify the correct URL for the login to post
+        to, and the error message to display (if any), and fill the 'login
+        action' and 'error' slots in the template accordingly.
+        """
+        url = URL.fromContext(ctx).click('/')
+
+        ws = self.store.findFirst(website.WebSite)
+
+        if ws.securePort is not None:
+            url = url.secure(port=ws.securePort.getHost().port)
+
+        url = url.child('__login__')
+        for seg in self.segments:
+            url = url.child(seg)
+
+        req = inevow.IRequest(ctx)
+        err = req.args.get('login-failure', ('',))[0]
+
+        if 0 < len(err):
+            error = inevow.IQ(
+                        self.fragment).onePattern(
+                                'error').fillSlots('error', err)
+        else:
+            error = ''
+
+        ctx.fillSlots("login-action", url)
+        ctx.fillSlots("error", error)
+
+
+    def locateChild(self, ctx, segments):
+        """
+        Return a clone of this page that remembers its segments, so that URLs like
+        /login/private/stuff will redirect the user to /private/stuff after
+        login has completed.
+        """
+        return self.__class__(self.original, self.store, segments), ()
+
+
 
 class FrontPage(item.Item, website.PrefixURLMixin):
     """
@@ -267,12 +671,92 @@ class FrontPage(item.Item, website.PrefixURLMixin):
 
     sessioned = True
 
-    publicViews = attributes.integer(default=0)
-    privateViews = attributes.integer(default=0)
+    publicViews = attributes.integer(
+        doc="""
+        The number of times this object has been viewed in a public
+        (non-authenticated) context.  This includes renderings of the front
+        page only.
+        """,
+        default=0)
 
-    prefixURL = attributes.text(default=u'',
-                                allowNone=False)
+    privateViews = attributes.integer(
+        doc="""
+        The number of times this object has been viewed in a private
+        (authenticated) context.  This only counts the number of times users
+        have been redirected from "/" to "/private".
+        """,
+        default=0)
+
+    prefixURL = attributes.text(
+        doc="""
+        See L{website.PrefixURLMixin}.
+        """,
+        default=u'',
+        allowNone=False)
 
 
     def createResource(self):
+        """
+        Create a L{PublicFrontPage} resource wrapping this object.
+        """
         return PublicFrontPage(self, None)
+
+
+
+class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
+    """
+    PublicAthenaLivePage is a publicly viewable Athena-enabled page which slots
+    a single fragment into the center of the page.
+    """
+    fragment = None
+    def __init__(self, store, fragment, staticContent=None, forUser=None,
+                 *a, **k):
+        """
+        Create a PublicAthenaLivePage.
+
+        @param store: an L{axiom.store.Store}.
+
+        @param fragment: The L{INavigableFragment} provider which will be
+        displayed on this page.
+        """
+        self.store = store
+        super(PublicAthenaLivePage, self).__init__(
+            docFactory=getLoader("public-shell"),
+            *a, **k)
+        if fragment is not None:
+            self.fragment = fragment
+            # everybody who calls this has a different idea of what 'fragment'
+            # means - let's just be super-lenient for now
+            if getattr(fragment, 'setFragmentParent', False):
+                fragment.setFragmentParent(self)
+            else:
+                fragment.page = self
+        self.staticContent = staticContent
+        if forUser is not None:
+            assert isinstance(forUser, unicode), forUser
+        self.username = forUser
+
+
+    def render_head(self, ctx, data):
+        """
+        Put liveglue content into the header of this page to activate it, but
+        otherwise delegate to my parent's renderer for <head>.
+        """
+        ctx.tag[tags.invisible(render=tags.directive('liveglue'))]
+        return PublicPageMixin.render_head(self, ctx, data)
+
+
+    def locateChild(self, ctx, segments):
+        """
+        Delegate locateChild to my fragment.  Wrap the resulting fragment object in
+        a new PublicAthenaLivePage and return it.
+        """
+        res = rend.NotFound
+
+        if hasattr(self.fragment, 'locateChild'):
+            res = self.fragment.locateChild(ctx, segments)
+
+        if res is rend.NotFound:
+            res = super(PublicAthenaLivePage, self).locateChild(ctx, segments)
+
+        return res

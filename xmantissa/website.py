@@ -36,10 +36,8 @@ from axiom.userbase import LoginSystem
 from axiom.dependency import installOn
 
 from xmantissa.ixmantissa import (
-    ISiteRootPlugin, ISessionlessSiteRootPlugin, IStaticShellContent,
-    IProtocolFactoryFactory)
+    ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory)
 from xmantissa import websession
-from xmantissa.publicresource import PublicPage, getLoader
 from xmantissa.port import TCPPort, SSLPort
 
 
@@ -78,40 +76,6 @@ class SiteRootMixin(object):
                 return child, segments
         return NotFound
 
-class LoginPage(PublicPage):
-    def __init__(self, original, store, segments=()):
-        PublicPage.__init__(self, original, store, getLoader("login"),
-                            IStaticShellContent(original.store, None),
-                            None)
-        self.segments = segments
-
-    def beforeRender(self, ctx):
-        url = URL.fromContext(ctx).click('/')
-
-        ws = self.original.store.findFirst(WebSite)
-
-        if ws.securePort is not None:
-            url = url.secure(port=ws.securePort.getHost().port)
-
-        url = url.child('__login__')
-        for seg in self.segments:
-            url = url.child(seg)
-
-        req = inevow.IRequest(ctx)
-        err = req.args.get('login-failure', ('',))[0]
-
-        if 0 < len(err):
-            error = inevow.IQ(
-                        self.fragment).onePattern(
-                                'error').fillSlots('error', err)
-        else:
-            error = ''
-
-        ctx.fillSlots("login-action", url)
-        ctx.fillSlots("error", error)
-
-    def locateChild(self, ctx, segments):
-        return self.__class__(self.original, self.store, segments), ()
 
 
 class UnguardedWrapper(SiteRootMixin):
@@ -133,6 +97,10 @@ class UnguardedWrapper(SiteRootMixin):
                 newurl = url.secure(port=securePort.getHost().port)
                 return newurl.click("/login"), ()
             else:
+                # This should be eliminated by having a regular child_login in
+                # publicweb instead, I think, but for now we can eliminate a
+                # confusing circular import --glyph
+                from xmantissa.publicweb import LoginPage
                 return LoginPage(self, self.store), segments[1:]
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:

@@ -26,3 +26,9 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         scrolltable.
         """
         return 'Mantissa.Test.TestPlaceholder'
+
+    def test_autocomplete(self):
+        """
+        Tests the model object which tracks client-side autocomplete state
+        """
+        return 'Mantissa.Test.TestAutoComplete'
