@@ -12,10 +12,31 @@ class PATestCase(stubloader.StubbedTest):
         """
         Ensure upgraded fields refer to correct items.
         """
+
         pa = self.store.findUnique(PrivateApplication)
-        self.assertEqual(pa.customizedPublicPage, pa.store.findUnique(CustomizedPublicPage))
-        self.assertEqual(pa.authenticationApplication, pa.store.findUnique(AuthenticationApplication))
-        self.assertEqual(pa.preferenceAggregator, pa.store.findUnique(PreferenceAggregator))
-        self.assertEqual(pa.defaultPreferenceCollection, pa.store.findUnique(DefaultPreferenceCollection))
-        self.assertEqual(pa.searchAggregator, pa.store.findUnique(SearchAggregator))
-        self.assertEqual(pa.website, pa.store.findUnique(WebSite))
+
+        self.assertEqual(pa.customizedPublicPage,
+                         pa.store.findUnique(CustomizedPublicPage))
+        self.assertEqual(pa.authenticationApplication,
+                         pa.store.findUnique(AuthenticationApplication))
+        self.assertEqual(pa.preferenceAggregator,
+                         pa.store.findUnique(PreferenceAggregator))
+        self.assertEqual(pa.defaultPreferenceCollection,
+                         pa.store.findUnique(DefaultPreferenceCollection))
+        self.assertEqual(pa.searchAggregator,
+                         pa.store.findUnique(SearchAggregator))
+        self.assertEqual(pa.website,
+                         pa.store.findUnique(WebSite))
+
+    def test_privateKeyDoesntChange(self):
+        """
+        Verify that upgrading the PrivateApplication does not change its privateKey
+        attribute.
+        """
+        pa = self.store.findUnique(PrivateApplication)
+        oldStore = self.openLegacyStore()
+        oldPA = oldStore.getItemByID(pa.storeID, autoUpgrade=False)
+
+        self.assertEqual(oldPA.privateKey, pa.privateKey)
+
+

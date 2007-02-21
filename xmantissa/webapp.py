@@ -473,7 +473,7 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     preferredTheme = text()
     hitCount = integer(default=0)
-    privateKey = integer()
+    privateKey = integer(defaultFactory=genkey)
 
     website = dependsOn(WebSite)
 
@@ -490,11 +490,6 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     sessioned = True
     sessionless = False
-
-    def __init__(self, **kw):
-        super(PrivateApplication, self).__init__(**kw)
-        gk = genkey()
-        self.privateKey = gk
 
     def getPageComponents(self):
         navigation = getTabs(self.store.powerupsFor(INavigableElement))
