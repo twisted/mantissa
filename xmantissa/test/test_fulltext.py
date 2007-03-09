@@ -640,6 +640,42 @@ class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.
         self.assertEquals(results[0:24:2], identifiers[0:24:2])
         self.assertEquals(results[24:None:-1], identifiers[24:None:-1])
 
+    def test_hitWrapperAttributes(self):
+        """
+        Test that L{xmantissa.fulltext._PyLuceneHitWrapper}'s attributes are
+        set correctly
+        """
+        class Indexable:
+            implements(ixmantissa.IFulltextIndexable)
+
+            def keywordParts(self):
+                return {'foo': 'bar', 'baz': 'quux'}
+
+            def uniqueIdentifier(self):
+                return 'indexable'
+
+            def documentType(self):
+                return 'the indexable type'
+
+            def sortKey(self):
+                return 'foo'
+
+            def textParts(self):
+                return ['my', 'text']
+
+        indexable = Indexable()
+        writer = self.openWriteIndex()
+        writer.add(indexable)
+        writer.close()
+
+        reader = self.openReadIndex()
+        (wrapper,) = reader.search(u'text')
+
+        self.assertEquals(wrapper.keywordParts, indexable.keywordParts())
+        self.assertEquals(wrapper.uniqueIdentifier, indexable.uniqueIdentifier())
+        self.assertEquals(wrapper.documentType, indexable.documentType())
+        self.assertEquals(wrapper.sortKey, indexable.sortKey())
+
 
 class PyLuceneCorruptionRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin, unittest.TestCase):
     def corruptIndex(self):

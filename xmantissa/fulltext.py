@@ -4,7 +4,7 @@
 General functionality re-usable by various concrete fulltext indexing systems.
 """
 
-import atexit, os, weakref
+import atexit, os, weakref, warnings
 
 from zope.interface import implements
 
@@ -432,8 +432,50 @@ class _PyLuceneHitsWrapper(record('index hits')):
             return [self[i] for i in xrange(*index.indices(len(self)))]
         if index >= len(self.hits):
             raise IndexError(index)
-        return int(self.hits[index]['storeID'])
+        return _PyLuceneHitWrapper(self.hits[index])
 
+
+class _PyLuceneHitWrapper:
+    """
+    Wrapper around a single pylucene hit
+
+    @ivar keywordParts: dictionary mapping keyword names to values.  should be the
+    same as the result of calling the L{IFulltextIndexable.keywordParts} on
+    the item corresponding to the hit
+    @ivar documentType: the document type.  return value of
+    L{IFulltextIndexable.documentType} called on the item corresponding to the
+    hit
+    @ivar uniqueIdentifier: an opaque unique identifier.  return value of
+    L{IFulltextIndexable.uniqueIdentifier} called on the item corresponding to
+    the hit
+    @ivar sortKey: the key to sort on.  return value of
+    L{IFulltextIndexable.sortKey} called on the item corresponding to the hit
+    """
+    def __init__(self, hit):
+        self.keywordParts = self._getKeywords(hit)
+        self.documentType = hit['documentType']
+        self.uniqueIdentifier = hit['storeID']
+        self.sortKey = hit['sortKey']
+
+    def _getKeywords(self, hit):
+        keywords = {}
+        systemKeywords = set(('storeID', 'documentType', 'sortKey'))
+        for field in hit.fields():
+            if field.name() not in systemKeywords:
+                keywords[field.name()] = hit[field.name()]
+        return keywords
+
+    def __int__(self):
+        warnings.warn(
+            '_PyLuceneHitWrapper is not an integer',
+            DeprecationWarning)
+        return int(self.uniqueIdentifier)
+
+    def __cmp__(self, other):
+        warnings.warn(
+            '_PyLuceneHitWrapper is not an integer',
+            DeprecationWarning)
+        return int(self).__cmp__(other)
 
 
 class _PyLuceneBase(object):
