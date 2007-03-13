@@ -29,8 +29,10 @@ def linkTo(sharedProxy, store):
 
     @rtype: str
     """
-    username = '@'.join(userbase.getAccountNames(store).next())
-    return '/by/' + username + '/' + sharedProxy.shareID
+    for lm in userbase.getLoginMethods(store):
+        if lm.internal:
+            return '/by/' + lm.localpart + '/' + sharedProxy.shareID
+
 
 
 class UserIndexPage(object):
@@ -58,14 +60,14 @@ class UserIndexPage(object):
         Retrieve a L{SharingIndex} for a particular user, or rend.NotFound.
         """
         user = segments[0]
-        host = inevow.IRequest(ctx).getHeader('host')
-        parts = unicode(user).split(u'@')
-        if len(parts) == 1:
-            parts.append(host.decode('ascii'))
-        result = self.loginSystem.accountByAddress(*parts)
-        if result is not None:
-            return SharingIndex(result.avatars.open()), segments[1:]
-        return rend.NotFound
+        lm = self.loginSystem.store.findUnique(
+                userbase.LoginMethod,
+                userbase.LoginMethod.localpart == user.decode('utf-8'),
+                default=None)
+        if lm is None:
+            return rend.NotFound
+        store = lm.account.avatars.open()
+        return (SharingIndex(store), segments[1:])
 
 
     def renderHTTP(self, ctx):
@@ -111,8 +113,8 @@ class SharingIndex(object):
 
     def renderHTTP(self, ctx):
         """
-        The sharing index is located at '/by/username@host' - when rendered, it
-        will redirect to '/by/username@host/', i.e. the default shared item or
+        The sharing index is located at '/by/username' - when rendered, it
+        will redirect to '/by/username', i.e. the default shared item or
         the item with the shareID of the empty string.
         """
         return url.URL.fromContext(ctx).child('')
