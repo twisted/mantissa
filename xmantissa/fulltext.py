@@ -215,7 +215,8 @@ class RemoteIndexer(object):
 
 
     # ISearchProvider
-    def search(self, aString, keywords=None, count=None, offset=0, sortAscending=True, retry=3):
+    def search(self, aString, keywords=None, count=None, offset=0,
+               sortAscending=True, retry=3):
         ident = "%s/%d" % (self.store, self.storeID)
         b = iaxiom.IBatchService(self.store)
         if VERBOSE:
@@ -228,8 +229,9 @@ class RemoteIndexer(object):
             idx = self.openReadIndex()
 
             if VERBOSE:
-                log.msg("%s searching for %s" % (ident, aString))
-            results = idx.search(aString.encode('utf-8'), keywords, sortAscending)
+                log.msg("%s searching for %s" % (
+                    ident, aString.encode('utf-8')))
+            results = idx.search(aString, keywords, sortAscending)
             if VERBOSE:
                 log.msg("%s found %d results" % (ident, len(results)))
 
@@ -545,7 +547,8 @@ class _PyLuceneReader(_PyLuceneBase):
                 phrase = phrase + u' ' + fieldPhrase
             else:
                 phrase = fieldPhrase
-
+        phrase = phrase.translate({ord(u'@'): u' ', ord(u'-'): u' ',
+                                   ord(u'.'): u' '})
         qp = PyLucene.QueryParser('text', self.analyzer)
         qp.setDefaultOperator(qp.Operator.AND)
         query = qp.parseQuery(phrase)
@@ -581,13 +584,17 @@ class _PyLuceneWriter(_PyLuceneBase):
         for part in message.textParts():
             doc.add(
                 PyLucene.Field('text',
-                               part.encode('utf-8'),
+                               part.translate({
+                ord(u'@'): u' ', ord(u'-'): u' ',
+                ord(u'.'): u' '}).encode('utf-8'),
                                PyLucene.Field.Store.NO,
                                PyLucene.Field.Index.TOKENIZED))
 
         for (k, v) in message.keywordParts().iteritems():
             doc.add(
-                PyLucene.Field(k, v,
+                PyLucene.Field(k, v.translate({
+                ord(u'@'): u' ', ord(u'-'): u' ',
+                ord(u'.'): u' '}).encode('utf-8'),
                             PyLucene.Field.Store.YES,
                             PyLucene.Field.Index.TOKENIZED))
         doc.add(

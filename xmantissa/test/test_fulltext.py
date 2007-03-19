@@ -3,6 +3,7 @@ from zope.interface import implements
 
 from twisted.trial import unittest
 from twisted.application.service import IService
+from twisted.internet.defer import gatherResults
 
 from axiom import iaxiom, store, batch, item, attributes
 from axiom.userbase import LoginSystem
@@ -206,7 +207,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer.add(IndexableThing(
                 _documentType=u'thing',
                 _uniqueIdentifier='2',
-                _textParts=[u'cherry', 'drosophila melanogaster'],
+                _textParts=[u'cherry', u'drosophila melanogaster'],
                 _keywordParts={}))
         writer.close()
 
@@ -649,7 +650,7 @@ class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.
             implements(ixmantissa.IFulltextIndexable)
 
             def keywordParts(self):
-                return {'foo': 'bar', 'baz': 'quux'}
+                return {u'foo': u'bar', u'baz': u'quux'}
 
             def uniqueIdentifier(self):
                 return 'indexable'
@@ -661,7 +662,7 @@ class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.
                 return 'foo'
 
             def textParts(self):
-                return ['my', 'text']
+                return [u'my', u'text']
 
         indexable = Indexable()
         writer = self.openWriteIndex()
@@ -837,6 +838,38 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         return self.indexer.search(u'text', count=3, offset=1)
 
 
+    def test_DifficultTokens(self):
+        """
+        Test searching for fragments of phone numbers, email
+        addresses, and urls.
+        """
+        writer = self.openWriteIndex()
+        specimens = [u"trevor 718-555-1212", u"bob rjones@moddiv.com",
+                     u"atop http://divmod.org/projects/atop"]
+        for i, txt in enumerate(specimens):
+            writer.add(IndexableThing(
+                        _documentType=u'thing',
+                        _uniqueIdentifier=str(i),
+                        _textParts=[txt],
+                        _keywordParts={}))
+        writer.close()
+        def gotResult(res):
+            return list(res)
+        def testResults(results):
+            self.assertEqual(results, [[0], [1], [2],
+                                       [0], [1], [2]])
+        return gatherResults(
+            [self.indexer.search(u'718').addCallback(gotResult),
+             self.indexer.search(u'moddiv').addCallback(gotResult),
+             self.indexer.search(u'divmod').addCallback(gotResult),
+             self.indexer.search(u'718-555').addCallback(gotResult),
+             self.indexer.search(u'rjones@moddiv').addCallback(gotResult),
+             self.indexer.search(u'divmod.org').addCallback(gotResult),
+             ]
+            ).addCallback(testResults)
+
+    def test_unicodeSearch(self):
+        return self.indexer.search(u'\N{WHITE SMILING FACE}')
 
 class PyLuceneIndexerAPISearchTestCase(PyLuceneTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
     pass
