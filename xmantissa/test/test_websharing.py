@@ -6,9 +6,8 @@ from twisted.trial.unittest import TestCase
 from axiom.userbase import LoginMethod, LoginSystem
 from axiom.store import Store
 from axiom.dependency import installOn
-from axiom.plugins.mantissacmd import Mantissa
 
-from xmantissa import websharing, sharing, signup, offering, product
+from xmantissa import websharing, sharing
 
 class WebSharingTestCase(TestCase):
     """
@@ -32,58 +31,3 @@ class WebSharingTestCase(TestCase):
         self.assertEquals(
             websharing.linkTo(share, s),
             '/by/right/loginsystem')
-
-
-
-class UserIdentificationTestCase(TestCase):
-    """
-    Tests for L{xmantissa.websharing._storeFromUsername}
-    """
-    def setUp(self):
-        self.siteStore = Store(self.mktemp())
-        Mantissa().installSite(self.siteStore, '/')
-        Mantissa().installAdmin(self.siteStore, 'admin@localhost', '')
-        for off in offering.getOfferings():
-            if off.name == 'mantissa':
-                offering.installOffering(self.siteStore, off, {})
-                break
-        self.loginSystem = self.siteStore.findUnique(LoginSystem)
-        self.adminStore = self.loginSystem.accountByAddress(
-            u'admin', u'localhost').avatars.open()
-        sc = self.adminStore.findUnique(signup.SignupConfiguration)
-        self.signup = sc.createSignup(
-            u'testuser@localhost',
-            signup.UserInfoSignup,
-            {'prefixURL': u''},
-            product.Product(store=self.siteStore, types=[]),
-            u'', u'')
-
-
-    def test_sameLocalpartAndUsername(self):
-        """
-        Test that L{xmantissa.websharing._storeFromUsername} doesn't get
-        confused when the username it is passed is the same as the localpart
-        of that user's email address
-        """
-        self.signup.createUser(
-            u'', u'', u'username', u'localhost', u'', u'username@internet')
-        self.assertIdentical(
-            websharing._storeFromUsername(self.siteStore, u'username'),
-            self.loginSystem.accountByAddress(
-                u'username', u'localhost').avatars.open())
-
-
-    def test_usernameMatchesOtherLocalpart(self):
-        """
-        Test that L{xmantissa.websharing._storeFromUsername} doesn't get
-        confused when the username it is passed matches the localpart of
-        another user's email address
-        """
-        self.signup.createUser(
-            u'', u'', u'username', u'localhost', u'', u'notusername@internet')
-        self.signup.createUser(
-            u'', u'', u'notusername', u'localhost', u'', u'username@internet')
-        self.assertIdentical(
-            websharing._storeFromUsername(self.siteStore, u'username'),
-            self.loginSystem.accountByAddress(
-                u'username', u'localhost').avatars.open())
