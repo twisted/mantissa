@@ -12,7 +12,7 @@ Users' publicly shared objects are exposed at the url::
 
 from zope.interface import implements
 
-from axiom import userbase
+from axiom import userbase, attributes
 
 from nevow import inevow, url, rend
 
@@ -32,6 +32,29 @@ def linkTo(sharedProxy, store):
     for lm in userbase.getLoginMethods(store):
         if lm.internal:
             return '/by/' + lm.localpart + '/' + sharedProxy.shareID
+
+
+
+def _storeFromUsername(store, username):
+    """
+    Find the user store of the user with username C{store}
+
+    @param store: site-store
+    @type store: L{axiom.store.Store}
+
+    @param username: the name a user signed up with
+    @type username: C{unicode}
+
+    @rtype: L{axiom.store.Store} or C{None}
+    """
+    lm = store.findUnique(
+            userbase.LoginMethod,
+            attributes.AND(
+                userbase.LoginMethod.localpart == username,
+                userbase.LoginMethod.internal == True),
+            default=None)
+    if lm is not None:
+        return lm.account.avatars.open()
 
 
 
@@ -59,14 +82,10 @@ class UserIndexPage(object):
         """
         Retrieve a L{SharingIndex} for a particular user, or rend.NotFound.
         """
-        user = segments[0]
-        lm = self.loginSystem.store.findUnique(
-                userbase.LoginMethod,
-                userbase.LoginMethod.localpart == user.decode('utf-8'),
-                default=None)
-        if lm is None:
+        store = _storeFromUsername(
+            self.loginSystem.store, segments[0].decode('utf-8'))
+        if store is None:
             return rend.NotFound
-        store = lm.account.avatars.open()
         return (SharingIndex(store), segments[1:])
 
 
