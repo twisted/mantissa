@@ -4,6 +4,7 @@ Tests for L{xmantissa.websharing} and L{xmantissa.publicweb}.
 from zope.interface import Interface, Attribute, implements
 
 from twisted.python.components import registerAdapter
+from twisted.python.reflect import qual
 
 from twisted.trial.unittest import TestCase
 
@@ -19,7 +20,7 @@ from axiom.dependency import installOn
 from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa import (websharing, sharing, signup, offering, product,
-                       ixmantissa, website)
+                       ixmantissa, website, people)
 
 class WebSharingTestCase(TestCase):
     """
@@ -85,7 +86,9 @@ class _UserIdentificationMixin:
             u'testuser@localhost',
             signup.UserInfoSignup,
             {'prefixURL': u''},
-            product.Product(store=self.siteStore, types=[]),
+            product.Product(
+                store=self.siteStore,
+                types=[qual(people.Organizer)]),
             u'', u'')
 
 

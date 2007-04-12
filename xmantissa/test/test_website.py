@@ -6,6 +6,7 @@ from twisted.trial import unittest
 from twisted.application import service
 from twisted.web import http
 from twisted.python.filepath import FilePath
+from twisted.python.reflect import qual
 
 from nevow.flat import flatten
 from nevow.testutil import AccumulatingFakeRequest, renderPage
@@ -18,7 +19,7 @@ from axiom.dependency import installOn
 from axiom.test.util import getPristineStore
 
 from xmantissa.port import TCPPort, SSLPort
-from xmantissa import website, signup, publicweb
+from xmantissa import website, signup, publicweb, people
 from xmantissa.product import Product
 
 
@@ -278,7 +279,9 @@ class WebSiteTestCase(unittest.TestCase):
         sc = signup.SignupConfiguration(store=self.store)
         installOn(sc, self.store)
         sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
+                             {"prefixURL": u"signup"},
+                             Product(store=self.store, types=[qual(people.Organizer)]),
+                             u"", u"Test")
         signupPage = sg.createResource()
         fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
         result = renderPage(signupPage, reqFactory=lambda: fr)
@@ -333,7 +336,9 @@ class WebSiteTestCase(unittest.TestCase):
         sc = signup.SignupConfiguration(store=self.store)
         installOn(sc, self.store)
         sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
+                             {"prefixURL": u"signup"},
+                             Product(store=self.store, types=[qual(people.Organizer)]),
+                             u"", u"Test")
         signupPage = sg.createResource()
         fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
         result = renderLivePage(signupPage, reqFactory=lambda: fr)

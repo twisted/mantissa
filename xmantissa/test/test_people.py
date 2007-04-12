@@ -139,8 +139,7 @@ class PeopleTests(unittest.TestCase):
         addPersonFrag = AddPersonFragment(original)
         addPersonFrag.addPerson(u'Captain P.', u'Jean-Luc', u'Picard', u'jlp@starship.enterprise')
 
-        person = s.findUnique(Person)
-        self.assertEquals(person.name, 'Captain P.')
+        person = s.findUnique(Person, Person.name == u'Captain P.')
 
         email = s.findUnique(EmailAddress, EmailAddress.person == person)
 
@@ -216,3 +215,28 @@ class PeopleTests(unittest.TestCase):
                          (privapp.linkTo(o.storeID)
                              + '/'
                              + privapp.toWebID(p)))
+
+
+    def test_addEmailAddress(self):
+        """
+        Test L{Person.addEmailAddress}
+        """
+        s = store.Store()
+        p = Person(store=s)
+        e = p.addEmailAddress(u'foo', u'bar')
+        self.assertIdentical(e, s.findUnique(EmailAddress))
+        self.assertIdentical(p, e.person)
+        self.assertEqual('foo@bar', e.address)
+
+
+    def test_addRealName(self):
+        """
+        Test L{Person.addRealName}
+        """
+        s = store.Store()
+        p = Person(store=s)
+        r = p.addRealName(u'foo', u'bar')
+        self.assertIdentical(r, s.findUnique(RealName))
+        self.assertIdentical(p, r.person)
+        self.assertEqual('foo', r.first)
+        self.assertEqual('bar', r.last)

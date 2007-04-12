@@ -550,6 +550,18 @@ class IDateBook(Interface):
         @return: an iterable of L{ITemporalEvent} providers.
         """
 
+
+class IOrganizer(Interface):
+    """
+    Powerup which organizes L{xmantissa.people.Person} objects
+    """
+    ownerPerson = Attribute("""
+    A L{xmantissa.people.Person} which represents the owner of the store that
+    the organizer lives in.
+    """)
+
+
+
 class IOrganizerPlugin(Interface):
     """
     Powerup which provides additional functionality to Mantissa
@@ -648,11 +660,14 @@ class ISignupMechanism(Interface):
     What it does.
     """)
 
-    itemClass = Attribute("""
-    An Axiom Item subclass which will be instantiated and added to the
-    site store when this signup mechanism is selected.  The class
-    should implement L{ISessionlessSiteRootPlugin} or
-    L{ISiteRootPlugin}.
+    product = Attribute("""
+    A L{mantissa.product.Product} which will be instantiated and installed on
+    a user store when a user signs up with this signup mechanism.
+    """)
+
+    requiredPowerups = Attribute("""
+    A list of powerups that must be included in L{product} for this signup
+    mechanism to work.
     """)
 
     configuration = Attribute("""

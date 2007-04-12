@@ -14,7 +14,7 @@ from nevow.athena import expose
 
 from epsilon import extime
 
-from axiom import item, attributes
+from axiom import item, attributes, userbase
 from axiom.dependency import dependsOn
 from axiom.attributes import AND
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
@@ -109,6 +109,43 @@ class Person(item.Item):
                                 sort=ExtractWrapper.timestamp.desc,
                                 limit=n)
 
+
+
+    def addEmailAddress(self, localpart, domain):
+        """
+        Associate an email address with this person.
+
+        @param localpart: the bit before the '@'
+        @type localpart: C{unicode}
+
+        @param domain: the bit after the '@'
+        @type domain: C{unicode}
+
+        @rtype: L{EmailAddress}
+        """
+        return EmailAddress(
+            store=self.store,
+            person=self,
+            address=localpart + '@' + domain)
+
+
+    def addRealName(self, firstName, lastName):
+        """
+        Associate a real name with this person.
+
+        @param firstName: first name
+        @type firstName: C{unicode}
+
+        @param lastName: last name
+        @type lastName: C{unicode}
+
+        @rtype: L{RealName}
+        """
+        return RealName(
+            store=self.store, person=self, first=firstName, last=lastName)
+
+
+
 class ExtractWrapper(item.Item):
     extract = attributes.reference(whenDeleted=attributes.reference.CASCADE)
     timestamp = attributes.timestamp(indexed=True)
@@ -122,14 +159,24 @@ class Organizer(item.Item):
     Oversee the creation, location, destruction, and modification of
     people in a particular set (eg, the set of people you know).
     """
-    implements(ixmantissa.INavigableElement)
+    implements(ixmantissa.INavigableElement, ixmantissa.IOrganizer)
 
     typeName = 'mantissa_people'
-    schemaVersion = 2
-
+    schemaVersion =  3
     _webTranslator = dependsOn(PrivateApplication)
+    ownerPerson = attributes.reference(reftype=Person)
 
-    powerupInterfaces = (ixmantissa.INavigableElement,)
+    powerupInterfaces = (ixmantissa.INavigableElement,
+                         ixmantissa.IOrganizer)
+
+
+    def __init__(self, *a, **k):
+        """
+        Make a person representing the owner of the store that we're being
+        added to
+        """
+        super(Organizer, self).__init__(*a, **k)
+        self.ownerPerson = Person(store=self.store, organizer=self)
 
     def personByName(self, name):
         """
@@ -203,12 +250,34 @@ class Organizer(item.Item):
         return [webnav.Tab('People', self.storeID, 0.5,
                            authoritative=True, children=children)]
 
+
+
 def organizer1to2(old):
     o = old.upgradeVersion(old.typeName, 1, 2)
     o._webTranslator = old.store.findOrCreate(PrivateApplication)
     return o
 
+
+
 registerUpgrader(organizer1to2, Organizer.typeName, 1, 2)
+
+
+
+def organizer2to3(old):
+    new = old.upgradeVersion(
+        old.typeName, 2, 3, _webTranslator=old._webTranslator)
+    new.store.powerUp(new, ixmantissa.IOrganizer)
+    for meth in userbase.getLoginMethods(new.store):
+        if meth.internal:
+            continue
+        new.ownerPerson.addEmailAddress(meth.localpart, meth.domain)
+    return new
+
+
+
+registerUpgrader(organizer2to3, Organizer.typeName, 2, 3)
+
+
 
 class PersonNameColumn(UnsortableColumn):
     def extractValue(self, model, item):
@@ -398,7 +467,7 @@ class AddPerson(item.Item):
     typeName = 'mantissa_add_person'
     schemaVersion = 2
 
-    powerupInterfaces = ixmantissa.INavigableElement
+    powerupInterfaces = (ixmantissa.INavigableElement,)
     organizer = dependsOn(Organizer)
 
     def getTabs(self):
