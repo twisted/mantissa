@@ -454,14 +454,22 @@ class WebSite(Item, SiteRootMixin):
         return root
 
 
-    def child_by(self, ctx):
+    def child_users(self, ctx):
+        """
+        Return a child resource to provide access to items shared by users.
+
+        @return: a resource whose children will be private pages of individual
+        users.
+
+        @rtype L{xmantissa.websharing.UserIndexPage}
+        """
+        # inner import due to websharing->publicweb->website circularity
         from xmantissa.websharing import UserIndexPage
         ls = self.store.findUnique(LoginSystem, default=None)
         if ls is None:
             return None
         return UserIndexPage(ls)
 
-    child_users = child_by
 
     def child_resetPassword(self, ctx):
         from xmantissa.signup import PasswordResetResource

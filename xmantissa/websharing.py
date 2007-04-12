@@ -1,4 +1,4 @@
-# -*- test-case-name: xmantissa.test.test_sharing -*-
+# -*- test-case-name: xmantissa.test.test_websharing -*-
 
 """
 This module provides web-based access to objects shared with the
@@ -10,6 +10,8 @@ Users' publicly shared objects are exposed at the url::
 
 """
 
+import warnings
+
 from zope.interface import implements
 
 from axiom import userbase, attributes
@@ -20,18 +22,28 @@ from xmantissa import ixmantissa
 from xmantissa import sharing
 
 
-def linkTo(sharedProxy, store):
+def linkTo(sharedProxyOrItem, store=None):
     """
-    Generate the path part of a URL to link to a proxy for a shared item.
+    Generate the path part of a URL to link to a share item or its proxy.
+
+    @param sharedProxy: a L{sharing.SharedProxy} or L{sharing.Share}
+
+    @param store: this argument was redundant and is now deprecated.
 
     @return: an absolute path URL string, which looks like
-    '/by/user@host/shareID'
+    '/users/user@host/shareID'
 
     @rtype: str
     """
-    for lm in userbase.getLoginMethods(store):
+    if store is not None:
+        warnings.warn("Do not pass store argument.", DeprecationWarning, stacklevel=2)
+    if isinstance(sharedProxyOrItem, sharing.SharedProxy):
+        userStore = sharing.itemFromProxy(sharedProxyOrItem).store
+    else:
+        userStore = sharedProxyOrItem.store
+    for lm in userbase.getLoginMethods(userStore):
         if lm.internal:
-            return '/by/' + lm.localpart + '/' + sharedProxy.shareID
+            return '/users/' + lm.localpart.encode('ascii') + '/' + sharedProxyOrItem.shareID.encode("ascii")
 
 
 
@@ -62,7 +74,7 @@ class UserIndexPage(object):
     """
     This is the resource accessible at "/by"
 
-    See L{xmantissa.publicweb.PublicFrontPage.child_by} for the integration
+    See L{xmantissa.website.WebSite.child_users} for the integration
     point with the rest of the system.
     """
     implements(inevow.IResource)
@@ -175,6 +187,7 @@ class SharingIndex(object):
                 self.userStore).getDocFactory(fragment.fragmentName, None)
             if fragDocFactory is not None:
                 fragment.docFactory = fragDocFactory
+        # inner import due to websharing->publicweb->website circularity
         from xmantissa.publicweb import PublicAthenaLivePage
         result = PublicAthenaLivePage(
             self.userStore.parent, fragment, forUser=self.avatarName)

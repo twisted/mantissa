@@ -553,14 +553,6 @@ class PublicFrontPage(PublicPage):
         return self
 
 
-    def child_by(self, ctx):
-        """
-        Return a L{UserIndexPage} for the URL '/by'.
-        """
-        from xmantissa.websharing import UserIndexPage
-        return UserIndexPage(self.original.store.findUnique(userbase.LoginSystem))
-
-
     def child_Mantissa(self, ctx):
         """
         Serve files from C{xmantissa/static/} at the URL C{/Mantissa}.
