@@ -1,17 +1,14 @@
-from zope.interface import Interface, implements
-
 from twisted.trial import unittest
-from twisted.python.reflect import qual
 
-from axiom import store, userbase, item, attributes
-from axiom.dependency import dependsOn
+from axiom import store, userbase
 
-from xmantissa import signup, offering, ixmantissa, people
+from xmantissa import signup, offering
 from xmantissa.plugins import free_signup
 from xmantissa.product import Product, Installation
 
 
-class _SignupTestMixin:
+
+class SignupCreationTestCase(unittest.TestCase):
     def setUp(self):
         self.dbdir = self.mktemp()
         self.store = store.Store(self.dbdir)
@@ -21,8 +18,13 @@ class _SignupTestMixin:
         self.substore = self.admin.avatars.open()
         self.sc = signup.SignupConfiguration(store=self.substore)
 
+    def _installTestOffering(self):
+        io = offering.InstalledOffering(
+            store=self.store,
+            offeringName=u"mantissa",
+            application=None)
 
-    def createFreeSignup(self, itemClass, url=u'signup', prompt=u'Sign Up!', types=None):
+    def createFreeSignup(self, itemClass, url=u'signup', prompt=u'Sign Up!'):
         """
 
         A utility method to ensure that the same arguments are always used to
@@ -30,9 +32,7 @@ class _SignupTestMixin:
         to be coming from the admin form.
 
         """
-        if types is None:
-            types = []
-        self.ftp = Product(store=self.store, types=types)
+        self.ftp = Product(store=self.store, types=[])
         return self.sc.createSignup(
             u'testuser@localhost',
             itemClass,
@@ -40,22 +40,13 @@ class _SignupTestMixin:
             self.ftp,
             u'Blank Email Template', prompt)
 
-
-    def _installTestOffering(self):
-        io = offering.InstalledOffering(
-            store=self.store,
-            offeringName=u"mantissa",
-            application=None)
-
-
-
-class SignupCreationTestCase(_SignupTestMixin, unittest.TestCase):
-    def test_createFreeSignups(self):
+    def testCreateFreeSignups(self):
         self._installTestOffering()
 
-        self.createFreeSignup(free_signup.freeTicket.itemClass)
-        self.createFreeSignup(
-            free_signup.userInfo.itemClass, types=[qual(people.Organizer)])
+        for signupMechanismPlugin in [free_signup.freeTicket,
+                                      free_signup.userInfo]:
+            self.createFreeSignup(signupMechanismPlugin.itemClass)
+
 
 
     def test_usernameAvailability(self):
@@ -70,8 +61,7 @@ class SignupCreationTestCase(_SignupTestMixin, unittest.TestCase):
         allowed.
         """
 
-        signup = self.createFreeSignup(
-            free_signup.userInfo.itemClass, types=[qual(people.Organizer)])
+        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
         # Allowed: unused localpart, same domain as the administrator created
         # by setUp.
         self.failUnless(signup.usernameAvailable(u'alice', u'localhost')[0])
@@ -81,7 +71,7 @@ class SignupCreationTestCase(_SignupTestMixin, unittest.TestCase):
 
         # Not allowed: used localpart, same domain as the administrator created
         # by setUp.
-        self.failIf(signup.usernameAvailable(u'admin', u'localhost')[0])
+        self.failIf(signup.usernameAvailable(u'admin', u'localhost')[0]) 
         self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
                           [True, u'Username already taken'])
 
@@ -99,14 +89,13 @@ class SignupCreationTestCase(_SignupTestMixin, unittest.TestCase):
         self.assertEquals(ss.query(Installation).count(), 1)
 
 
-    def test_userInfoSignupValidation2(self):
+    def testUserInfoSignupValidation2(self):
         """
         Ensure that invalid characters aren't allowed in usernames, that
         usernames are parsable as the local part of an email address and that
         usernames shorter than two characters are invalid.
         """
-        signup = self.createFreeSignup(
-            free_signup.userInfo.itemClass, types=[qual(people.Organizer)])
+        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
         self.assertEquals(signup.usernameAvailable(u'foo bar', u'localhost'),
                           [False, u"Username contains invalid character: ' '"])
         self.assertEquals(signup.usernameAvailable(u'foo@bar', u'localhost'),
@@ -125,8 +114,7 @@ class SignupCreationTestCase(_SignupTestMixin, unittest.TestCase):
         account.
         """
         username, domain = u'fjones', u'divmod.com'
-        signup = self.createFreeSignup(
-            free_signup.userInfo.itemClass, types=[qual(people.Organizer)])
+        signup = self.createFreeSignup(free_signup.userInfo.itemClass)
         signup.createUser(u'Frank', u'Jones', username, domain, u'asdf',
                           u'fj@example.com')
         account = self.ls.accountByAddress(username, domain)
@@ -155,157 +143,9 @@ class SignupCreationTestCase(_SignupTestMixin, unittest.TestCase):
              free_signup.userInfo]):
             self.createFreeSignup(signupMechanismPlugin.itemClass,
                                   url=u'signup%d' % (i+1,),
-                                  prompt=u"Sign Up %d" % (i+1,),
-                                  types=[qual(people.Organizer)])
+                                  prompt=u"Sign Up %d" % (i+1,))
         x = list(signup._getPublicSignupInfo(self.store))
         x.sort()
         self.assertEquals(x, [(u'Sign Up 1', u'/signup1'),
                               (u'Sign Up 2', u'/signup2')])
 
-
-class IFoo(Interface):
-    """
-    Dummy interface.
-    """
-
-
-class IBar(Interface):
-    """
-    Dummy interface.
-    """
-
-
-class IBaz(Interface):
-    """
-    Dummy interface.
-    """
-
-
-class BoringSignupMechanism(item.Item):
-    """
-    A trivial signup mechanism which depends on L{IBaz}.
-    """
-    implements(ixmantissa.ISignupMechanism)
-
-    requiredPowerups = (IBaz,)
-    powerupInterfaces = (ixmantissa.ISignupMechanism,)
-
-    name = u'Boring'
-    description = u'Boring'
-    configuration = {}
-    product = attributes.reference()
-    prompt = attributes.text()
-    prefixURL = attributes.text()
-    booth = attributes.reference()
-    emailTemplate = attributes.text()
-
-
-
-class BazProvider(item.Item):
-    """
-    Trivial item which is a L{IBaz} powerup.
-    """
-    powerupInterfaces = (IBaz,)
-    attr = attributes.integer()
-
-
-
-class BarProvider(item.Item):
-    """
-    Trivial item which is a L{IBar} powerup, and depends on L{BazProvider}.
-    """
-    powerupInterfaces = (IBar,)
-    baz = dependsOn(BazProvider)
-
-
-
-class FooProvider(item.Item):
-    """
-    Trivial item which is a L{IFoo} powerup, and depends on L{BarProvider}.
-    """
-    powerupInterfaces = (IFoo,)
-    bar = dependsOn(BarProvider)
-
-
-
-class SignupProductDependencyTestCase(_SignupTestMixin, unittest.TestCase):
-    """
-    Tests for the functionality of L{signup.SignupConfiguration} which deals
-    with L{xmantissa.ixmantissa.ISignupMechanism} that require their products
-    to contain a particular set of powerups.
-    """
-    def _makeProduct(self, types):
-        return Product(store=self.store, types=map(qual, types))
-
-
-    def test_signupDependenciesMetDirectly(self):
-        """
-        Test that L{signup.SignupConfiguration.signupDependenciesMet} is
-        satisfied when the product directly includes something which provides
-        L{IFoo}.
-        """
-        self.failUnless(
-            self.sc.signupDependenciesMet(
-                BoringSignupMechanism,
-                self._makeProduct([BazProvider])))
-
-
-    def test_signupDependenciesMet(self):
-        """
-        Test that L{signup.SignupConfiguration.signupDependenciesMet} is
-        satisfied when the product includes something which provides L{IFoo}.
-        """
-        self.failUnless(
-            self.sc.signupDependenciesMet(
-                BoringSignupMechanism,
-                self._makeProduct([FooProvider])))
-
-
-    def test_signupDependenciesMetEmpty(self):
-        """
-        Test that L{signup.SignupConfiguration.signupDependenciesMet} isn't
-        satisfied when the product is empty.
-        """
-        self.failIf(
-            self.sc.signupDependenciesMet(
-                BoringSignupMechanism,
-                self._makeProduct([])))
-
-
-    def test_createSignupUnsatisfiedDeps(self):
-        """
-        Test that L{signup.SignupConfiguration.createSignup} throws a
-        L{signup.IncompatibleProduct} when there are unsatisfied dependencies.
-        """
-        self.assertRaises(
-            signup.IncompatibleProduct,
-            lambda: self.createFreeSignup(BoringSignupMechanism))
-
-
-    def test_createSignup(self):
-        """
-        Test L{signup.SignupConfiguration.createSignup}.
-        """
-        self.failUnless(
-            isinstance(
-                self.createFreeSignup(
-                    BoringSignupMechanism,
-                    types=[qual(FooProvider)]),
-                BoringSignupMechanism))
-
-
-    def test_userInfoSignup(self):
-        """
-        Test that L{signup.UserInfoSignup} correctly calls C{addRealName} on
-        the I{me} person.
-        """
-        uiSignup = self.createFreeSignup(
-            signup.UserInfoSignup, types=[qual(people.Organizer)])
-        uiSignup.createUser(
-            u'Foo', u'Bar', u'foobar', u'host', u'', u'foo@bar.com')
-        ss = self.ls.accountByAddress(u'foobar', u'host').avatars.open()
-        organizer = ixmantissa.IOrganizer(ss)
-        self.assertEquals(
-            organizer.ownerPerson.getEmailAddress(), 'foo@bar.com')
-        self.assertEquals(
-            organizer.ownerPerson.getDisplayName(), 'Foo Bar')

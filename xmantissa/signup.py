@@ -10,7 +10,6 @@ from twisted.python.components import registerAdapter
 from twisted.mail import smtp, relaymanager
 from twisted.python.util import sibpath
 from twisted.python import log
-from twisted.python.reflect import namedAny
 from twisted import plugin
 
 from epsilon import extime
@@ -20,7 +19,7 @@ from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase, upgrade
 from axiom.userbase import getDomainNames
-from axiom.dependency import installOn, _getPowerupInterfaces, getAllPowerupInterfaces
+from axiom.dependency import installOn, _getPowerupInterfaces
 
 from nevow.rend import Page, NotFound
 from nevow.url import URL
@@ -30,7 +29,7 @@ from nevow.athena import expose
 
 from xmantissa.ixmantissa import (
     ISiteRootPlugin, IStaticShellContent, INavigableElement,
-    INavigableFragment, ISignupMechanism, IOrganizer)
+    INavigableFragment, ISignupMechanism)
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.websession import usernameFromRequest
 from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
@@ -471,7 +470,6 @@ class FreeTicketSignup(Item, PrefixURLMixin):
     schemaVersion = 6
 
     sessioned = True
-    requiredPowerups = ()
 
     prefixURL = text(allowNone=False)
     booth = reference()
@@ -629,7 +627,6 @@ class UserInfoSignup(Item, PrefixURLMixin):
     implements(ISiteRootPlugin)
 
     powerupInterfaces = (ISiteRootPlugin,)
-    requiredPowerups = (IOrganizer,)
     schemaVersion = 2
     sessioned = True
 
@@ -685,8 +682,10 @@ class UserInfoSignup(Item, PrefixURLMixin):
         """
         Create a user with some associated metadata.
         """
+        # what do I do with firstName and lastName?
         def _():
             loginsystem = self.store.findUnique(userbase.LoginSystem)
+            # XXX TODO: firstName and lastName should be on the "Me" person?
             acct = loginsystem.addAccount(username, domain, password,
                                           verified=True, internal=True)
             # did we really just want to do that?  do we need to verify
@@ -695,12 +694,6 @@ class UserInfoSignup(Item, PrefixURLMixin):
             acct.addLoginMethod(emailPart, emailDomain, protocol=u"email",
                                 verified=False, internal=False)
             self.product.installProductOn(IBeneficiary(acct))
-
-            # our requiredPowerups includes IOrganizer, so we know there is
-            # one...
-            organizer = IOrganizer(acct)
-            organizer.ownerPerson.addRealName(firstName, lastName)
-            organizer.ownerPerson.addEmailAddress(*emailAddress.split('@'))
         self.store.transact(_)
 
 declareLegacyItem(typeName=UserInfoSignup.typeName,
@@ -948,11 +941,6 @@ def _getPublicSignupInfo(siteStore):
         if p is not None and u is not None:
             yield (p, u'/'+u)
 
-class IncompatibleProduct(Exception):
-    """
-    Thrown when a product doesn't satisfy the requirements of the
-    L{xmantissa.ixmantissa.ISignupMechanism} that is to install it.
-    """
 
 class SignupConfiguration(Item):
     """
@@ -974,29 +962,6 @@ class SignupConfiguration(Item):
 
     def getSignupSystems(self):
         return dict((p.name, p) for p in plugin.getPlugins(ISignupMechanism, plugins))
-
-    def signupDependenciesMet(self, signupClass, product):
-        """
-        Figure out if the product C{product} contains all the powerups
-        required by C{signupClass}.
-
-        @param signupClass: a signup class
-        @type signupClass: L{xmantissa.ixmantissa.ISignupMechanism}
-
-        @param product: a product
-        @type product: L{xmantissa.product.Product}
-        """
-        deps = set(signupClass.requiredPowerups)
-        if not deps:
-            return True
-        for qualName in product.types:
-            itemClass = namedAny(qualName)
-            for pup in getAllPowerupInterfaces(itemClass):
-                if pup in deps:
-                    deps.remove(pup)
-                    if not deps:
-                        return True
-        return False
 
     def createSignup(self, creator, signupClass, signupConf,
                      product, emailTemplate, prompt):
@@ -1024,8 +989,7 @@ class SignupConfiguration(Item):
 
         @return: a newly-created, database-resident instance of signupClass.
         """
-        if not self.signupDependenciesMet(signupClass, product):
-            raise IncompatibleProduct()
+
         siteStore = self.store.parent
 
         booth = siteStore.findOrCreate(TicketBooth, lambda booth: installOn(booth, siteStore))
