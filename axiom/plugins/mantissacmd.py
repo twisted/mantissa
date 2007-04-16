@@ -1,5 +1,5 @@
 
-import sys
+import sys, os, struct
 
 from twisted.python import util
 from twisted.cred import portal
@@ -15,6 +15,8 @@ from xmantissa.port import TCPPort, SSLPort
 from epsilon.asplode import splode
 from epsilon.scripts import certcreate
 
+
+
 def gtpswd(prompt, confirmPassword):
     """
     Temporary wrapper for Twisted's getPassword until a version that supports
@@ -27,6 +29,16 @@ def gtpswd(prompt, confirmPassword):
     except TypeError:
         return util.getPassword(prompt=prompt,
                                 confirm=True)
+
+
+
+def genSerial():
+    """
+    Generate a (hopefully) unique integer usable as an SSL certificate serial.
+    """
+    return abs(struct.unpack('l', os.urandom(4))[0])
+
+
 
 class Mantissa(axiomatic.AxiomaticCommand):
     """
@@ -67,10 +79,11 @@ class Mantissa(axiomatic.AxiomaticCommand):
         s.transact(self.installSite, s, publicURL)
         s.transact(self.installAdmin, s, adminUser, adminPassword)
 
+
     def installSite(self, s, publicURL):
         certPath = s.dbdir.child("files").child("server.pem")
         if not certPath.exists():
-            certcreate.main(['--filename', certPath.path, '--quiet'])
+            certcreate.main(['--filename', certPath.path, '--quiet', '--serial-number', str(genSerial())])
         # Install a user database so that people can log in.
         installOn(s.findOrCreate(userbase.LoginSystem), s)
 
@@ -98,6 +111,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
         fp = s.findOrCreate(publicweb.FrontPage, prefixURL=u'')
         installOn(fp, s)
 
+
     def installAdmin(self, s, username, password):
         # Add an account for our administrator, so they can log in through the
         # web.
@@ -110,6 +124,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
 
         accStore = acc.avatars.open()
         accStore.transact(webadmin.endowAdminPowerups, accStore)
+
 
 
 class Generate(axiomatic.AxiomaticCommand):
@@ -140,6 +155,8 @@ class Generate(axiomatic.AxiomaticCommand):
 
         splode(fObj.readlines(), proj, capproj)
 
+
+
 class RemoteStatsAdd(axiomatic.AxiomaticSubCommand):
 
     optParameters = [
@@ -151,10 +168,13 @@ class RemoteStatsAdd(axiomatic.AxiomaticSubCommand):
         s = self.parent.parent.getStore()
         s.transact(self.installCollector, s, self['host'], int(self['port']))
 
+
     def installCollector(self, s, host, port):
         ss = portal.IRealm(s).accountByAddress(u'mantissa',
                                                None).avatars.open()
         obs = stats.RemoteStatsObserver(store=ss, hostname=host, port=port)
+
+
 
 class RemoteStatsList(axiomatic.AxiomaticSubCommand):
     def postOptions(self):
@@ -163,6 +183,8 @@ class RemoteStatsList(axiomatic.AxiomaticSubCommand):
                                                None).avatars.open()
         for i, obs in enumerate(ss.query(stats.RemoteStatsObserver)):
             print "%s) %s:%s" % (i, obs.hostname, obs.port)
+
+
 
 class RemoteStatsRemove(axiomatic.AxiomaticSubCommand):
     optParameters = [
@@ -176,6 +198,8 @@ class RemoteStatsRemove(axiomatic.AxiomaticSubCommand):
         for obs in ss.query(stats.RemoteStatsObserver,
                             AND(stats.RemoteStatsObserver.hostname==self['host'], stats.RemoteStatsObserver.port==int(self['port']))):
             obs.deleteFromStore()
+
+
 
 class RemoteStats(axiomatic.AxiomaticCommand):
     name = "stats"
