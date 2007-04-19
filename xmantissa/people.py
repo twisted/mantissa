@@ -15,7 +15,7 @@ from nevow.athena import expose
 from epsilon import extime
 
 from axiom import item, attributes
-from axiom.dependency import dependsOn
+from axiom.dependency import dependsOn, installOn
 from axiom.attributes import AND
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
@@ -108,6 +108,119 @@ class Person(item.Item):
                                 ExtractWrapper.person == self,
                                 sort=ExtractWrapper.timestamp.desc,
                                 limit=n)
+
+    def getContactInfoItems(self, itemType, valueColumn):
+        """
+        Find the values of all contact info items of the given type.
+
+        @type itemType: L{MetaItem}
+        @param itemType: The L{Item} subclass defining the contact
+        info type to create.
+
+        @type valueColumn: C{str}
+        @param valueColumn: The name of the primary key attribute of
+        the contact info type.
+
+        @return: C{valueColumn} for each contact info item.
+        @rtype: the type of C{valueColumn}
+        """
+        return self.store.query(
+            itemType, itemType.person == self).getColumn(valueColumn)
+
+    def deleteContactInfoItem(self, itemType, valueColumn, value):
+        """
+        Delete the contact info item with the given value.
+
+        @type itemType: L{MetaItem}
+        @param itemType: The L{Item} subclass defining the contact
+        info type to create.
+
+        @type valueColumn: C{str}
+        @param valueColumn: The name of the primary key attribute of
+        the contact info type.
+
+        @param value: The value of C{valueColumn} to search for.  It
+        should be of the appropriate type for that attribute.
+
+        @return: C{None}
+        """
+        self.findContactInfoItem(
+            itemType, valueColumn, value).deleteFromStore()
+
+    def editContactInfoItem(self, itemType, valueColumn, oldValue, newValue):
+        """
+        Change the value of the contact info item with the given value
+        to a new value.
+
+        @type itemType: L{MetaItem}
+        @param itemType: The L{Item} subclass defining the contact
+        info type to create.
+
+        @type valueColumn: C{str}
+        @param valueColumn: The name of the primary key attribute of
+        the contact info type.
+
+        @param oldValue: The value of C{valueColumn} to search for.  It
+        should be of the appropriate type for that attribute.
+
+        @param newValue: The value of C{valueColumn} to set on the
+        found item.  It should be of the appropriate type for that
+        attribute
+
+        @return: C{None}
+        """
+        setattr(
+            self.findContactInfoItem(itemType, valueColumn, oldValue),
+            valueColumn,
+            newValue)
+
+    def findContactInfoItem(self, itemType, valueColumn, value):
+        """
+        Find a contact info item of the given type with the given value.
+
+        @type itemType: L{MetaItem}
+        @param itemType: The L{Item} subclass defining the contact
+        info type to create.
+
+        @type valueColumn: C{str}
+        @param valueColumn: The name of the primary key attribute of
+        the contact info type.
+
+        @param value: The value of C{valueColumn} to search for.  It
+        should be of the appropriate type for that attribute.
+
+        @return: An instance of C{itemType} with a matching
+        C{valueColumn} which belongs to this person, or C{None} if
+        there is not one.
+        """
+        return self.store.findFirst(
+            itemType,
+            attributes.AND(
+                itemType.person == self,
+                getattr(itemType, valueColumn) == value))
+
+    def createContactInfoItem(self, itemType, valueColumn, value):
+        """
+        Create a new contact information item of the given type.
+
+        @type itemType: L{MetaItem}
+        @param itemType: The L{Item} subclass defining the contact
+        info type to create.
+
+        @type valueColumn: C{str}
+        @param valueColumn: The name of the primary key attribute of
+        the contact info type.
+
+        @param value: A value to use for the C{valueColumn} attribute
+        of the created item.  It should be of the appropriate type for
+        that attribute.
+
+        @return: C{None}
+        """
+        installOn(
+            itemType(store=self.store,
+                    person=self,
+                    **{valueColumn: value}), self)
 
 class ExtractWrapper(item.Item):
     extract = attributes.reference(whenDeleted=attributes.reference.CASCADE)
@@ -398,7 +511,7 @@ class AddPerson(item.Item):
     typeName = 'mantissa_add_person'
     schemaVersion = 2
 
-    powerupInterfaces = ixmantissa.INavigableElement
+    powerupInterfaces = (ixmantissa.INavigableElement,)
     organizer = dependsOn(Organizer)
 
     def getTabs(self):
@@ -425,7 +538,7 @@ def _hasLengthOrNone(s):
 class AddPersonFragment(athena.LiveFragment):
     fragmentName = 'add-person'
     live = 'athena'
-    
+
     def render_addPersonForm(self, ctx, data):
         def makeParam(name, desc, coerce=_hasLengthOrNone):
             return liveform.Parameter(name, liveform.TEXT_INPUT, coerce, desc)
@@ -450,7 +563,7 @@ class AddPersonFragment(athena.LiveFragment):
                       organizer=self.original.store.findUnique(Organizer),
                       name=nickname)
 
-    def addPerson(self, nickname, firstname, lastname, email):
+    def _addPerson(self, nickname, firstname, lastname, email):
         if not (nickname or firstname or lastname):
             raise ValueError('please supply nickname or first/last name')
         store = self.original.store
@@ -461,18 +574,25 @@ class AddPersonFragment(athena.LiveFragment):
 
         if nickname is None:
             nickname = u''
-        person = self.makePerson(nickname)
+        def txn():
+            person = self.makePerson(nickname)
 
-        if email:
-            EmailAddress(store=store,
-                         address=email,
-                         person=person)
+            if email:
+                EmailAddress(store=store,
+                            address=email,
+                            person=person)
 
-        if firstname is not None or lastname is not None:
-            RealName(store=store,
-                     person=person,
-                     first=firstname,
-                     last=lastname)
+            if firstname is not None or lastname is not None:
+                RealName(store=store,
+                        person=person,
+                        first=firstname,
+                        last=lastname)
+
+            return person
+        return self.original.store.transact(txn)
+
+    def addPerson(self, nickname, firstname, lastname, email):
+        self._addPerson(nickname, firstname, lastname, email)
         return u'Made A Person!'
     expose(addPerson)
 
@@ -651,10 +771,140 @@ class MugshotResource(rend.Page):
 
         return static.File(path.path, str(self.mugshot.type))
 
+_CONTACT_INFO_ITEM_TYPES = [(PhoneNumber, 'number'),
+                            (EmailAddress, 'address'),
+                            (PostalAddress, 'address'),
+                            (Notes, 'notes')]
+
+
+
+def addContactInfoType(itemType, settableAttribute):
+    """
+    Register a new contact info item type C{itemType}, with value
+    attribute C{settableAttribute}
+
+    @param itemType: an item type
+    @type itemType: L{MetaItem}
+
+    @param settableAttribute: the name of a settable attribute on
+    C{itemType}
+    @type settableAttribute: C{str}
+    """
+    _CONTACT_INFO_ITEM_TYPES.append((itemType, settableAttribute))
+
+
+
+def contactInfoItemTypeFromClassName(className):
+    """
+    Find the registered contact info item type with the class name of
+    C{className}
+
+    @return: the class and the value attribute name
+    @rtype: 2-C{tuple} of C{MetaItem} and C{str}
+    """
+    # maybe this should use quals or something
+    for (cls, attr) in _CONTACT_INFO_ITEM_TYPES:
+        if cls.__name__ == className:
+            return (cls, attr)
+
+
+
+class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
+    """
+    Renderer for contact information about a L{Person}.
+    """
+    fragmentName = 'contact-info'
+    jsClass = u'Mantissa.People.ContactInfo'
+
+    def __init__(self, person):
+        athena.LiveFragment.__init__(self)
+        self.person = person
+
+    def _gotMugshotFile(self, ctype, infile):
+        (majortype, minortype) = ctype.split('/')
+
+        if majortype == 'image':
+            Mugshot.fromFile(self.person, infile, unicode(minortype, 'ascii'))
+
+    def child_uploadMugshot(self, ctx):
+        return MugshotUploadPage(self._gotMugshotFile, self.getMyURL())
+
+    def child_mugshot(self, ctx):
+        return MugshotResource(
+                    self.person.store.findUnique(
+                        Mugshot, Mugshot.person == self.person))
+
+    def render_mugshotLink(self, ctx, data):
+        self.mugshot = self.person.store.findUnique(
+                            Mugshot, Mugshot.person == self.person, default=None)
+        if self.mugshot is None:
+            return '/Mantissa/images/mugshot-placeholder.png'
+        return self.getMyURL() + '/mugshot'
+
+    def render_mugshotFormAction(self, ctx, data):
+        return self.getMyURL() + '/uploadMugshot'
+
+    def getMyURL(self):
+        return self.person.organizer.linkToPerson(self.person)
+
+    def editContactInfoItem(self, typeName, oldValue, newValue):
+        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
+        self.person.editContactInfoItem(
+            cls, attr, oldValue, newValue)
+    expose(editContactInfoItem)
+
+    def createContactInfoItem(self, typeName, value):
+        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
+        self.person.createContactInfoItem(cls, attr, value)
+        p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
+        return unicode(flatten(p.fillSlots('value', value)), 'utf-8')
+    expose(createContactInfoItem)
+
+    def deleteContactInfoItem(self, typeName, value):
+        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
+        self.person.deleteContactInfoItem(cls, attr, value)
+    expose(deleteContactInfoItem)
+
+    def _renderSection(self, itemType, items):
+        """
+        Render the given contact info items.
+
+        @type itemType: L{MetaItem}
+        @param itemType: The type of contact info items to be rendered.
+
+        @type items: C{list} of C{itemType}
+        @param items: The contact info items to be rendered.
+
+        @return: A flattenable object representing the given contact
+        information.
+        """
+        iq = inevow.IQ(self.docFactory)
+        sectionPattern = iq.onePattern('contact-info-section')
+        itemPattern = iq.patternGenerator('contact-info-item')
+
+        return dictFillSlots(sectionPattern,
+                        {'type': itemType.__name__,
+                        'icon-path': '/Mantissa/images/' + itemType.__name__ + '-icon.png',
+                        'items': (itemPattern.fillSlots('value', item)
+                                    for item in items)})
+
+    def render_contactInfoSummary(self, ctx, data):
+        """
+        Render each of the kinds of contact information for C{self.person}.
+        """
+        for (itemType, valueColumn) in _CONTACT_INFO_ITEM_TYPES:
+            yield self._renderSection(
+                itemType, self.person.getContactInfoItems(
+                    itemType, valueColumn))
+
+
+
 class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
+    """
+    Renderer for detailed information about a L{Person}.
+    """
     fragmentName = 'person-detail'
     live = 'athena'
-    jsClass = u'Mantissa.People.PersonDetail'
 
     def __init__(self, person):
         athena.LiveFragment.__init__(self, person)
@@ -668,89 +918,24 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
         self.personFragments = list(ixmantissa.IPersonFragment(p)
                                         for p in self.organizer.peoplePlugins(person))
 
-        self.myURL = self.organizer.linkToPerson(person)
-
-    def _gotMugshotFile(self, ctype, infile):
-        (majortype, minortype) = ctype.split('/')
-
-        if majortype == 'image':
-            Mugshot.fromFile(self.person, infile, unicode(minortype, 'ascii'))
-
-    def child_uploadMugshot(self, ctx):
-        return MugshotUploadPage(self._gotMugshotFile, self.myURL)
-
-    def child_mugshot(self, ctx):
-        return MugshotResource(
-                    self.person.store.findUnique(
-                        Mugshot, Mugshot.person == self.person))
-
-    def render_mugshotLink(self, ctx, data):
-        self.mugshot = self.person.store.findUnique(
-                            Mugshot, Mugshot.person == self.person, default=None)
-        if self.mugshot is None:
-            return '/Mantissa/images/mugshot-placeholder.png'
-        return self.myURL + '/mugshot'
-
-    def render_mugshotFormAction(self, ctx, data):
-        return self.myURL + '/uploadMugshot'
-
-    def editContactInfoItem(self, typeName, oldValue, newValue):
-        for (cls, attr) in self.contactInfoItemTypes:
-            if typeName == cls.__name__:
-                item = self.person.store.findFirst(cls,
-                            attributes.AND(
-                                getattr(cls, attr) == oldValue,
-                                cls.person == self.person))
-                setattr(item, attr, newValue)
-                break
-    expose(editContactInfoItem)
-
-    def createContactInfoItem(self, typeName, value):
-        for (cls, attr) in self.contactInfoItemTypes:
-            if typeName == cls.__name__:
-                cls(person=self.person,
-                    store=self.person.store,
-                    **{attr: value})
-                p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
-                return unicode(flatten(p.fillSlots('value', value)), 'utf-8')
-    expose(createContactInfoItem)
-
-    def deleteContactInfoItem(self, typeName, value):
-        for (cls, attr) in self.contactInfoItemTypes:
-            if typeName == cls.__name__:
-                self.person.store.findFirst(cls,
-                        attributes.AND(
-                            getattr(cls, attr) == value,
-                            cls.person == self.person)).deleteFromStore()
-                break
-    expose(deleteContactInfoItem)
-
     def head(self):
         return None
 
     def render_personName(self, ctx, data):
         return ctx.tag[self.person.getDisplayName()]
 
-    contactInfoItemTypes = ((PhoneNumber, 'number'),
-                            (EmailAddress, 'address'),
-                            (PostalAddress, 'address'),
-                            (Notes, 'notes')
-                            )
 
-    def render_contactInfoSummary(self, ctx, data):
-        iq = inevow.IQ(self.docFactory)
-        itemPattern = iq.patternGenerator('contact-info-item')
-        sectionPattern = iq.patternGenerator('contact-info-section')
-        sections = []
+    def render_contactInfo(self, ctx, data):
+        """
+        Render contact information for C{self.person}.
 
-        return ctx.tag.fillSlots('sections',
-            (dictFillSlots(sectionPattern,
-                           {'type': itemType.__name__,
-                            'icon-path': '/Mantissa/images/' + itemType.__name__ + '-icon.png',
-                            'items': (itemPattern.fillSlots('value', value)
-                                         for value in self.person.store.query(
-                                             itemType, itemType.person == self.person).getColumn(valueColumn))})
-                for (itemType, valueColumn) in self.contactInfoItemTypes))
+        @rtype: L{ContactInfoFragment}
+        """
+        f = ContactInfoFragment(self.person)
+        f.setFragmentParent(self)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        return f
+
 
     def render_extracts(self, ctx, data):
         tdm = TabularDataModel(

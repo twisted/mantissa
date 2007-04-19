@@ -1,50 +1,5 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveFragment">
 
-  <div nevow:pattern="contact-info-item" class="contact-info-item">
-    <div class="contact-info-view-container">
-      <span class="value"><nevow:slot name="value" /></span>
-      <a href="#" class="contact-info-action-edit"
-        onclick="Mantissa.People.PersonDetail.get(this).showEditForm(this); return false">(edit)</a>
-      <a href="#" class="contact-info-action-delete"
-        onclick="Mantissa.People.PersonDetail.get(this).deleteContactInfoItem(this); return false">(delete)</a>
-    </div>
-    <div class="contact-info-edit-container" style="display: none">
-      <form onsubmit="Mantissa.People.PersonDetail.get(this).saveContactInfoItem(this.elements[0]); return false">
-        <input type="text"><nevow:attr name="value"><nevow:slot name="value" /></nevow:attr></input>
-      </form>
-      <a href="#" class="contact-info-action-save"
-        onclick="Mantissa.People.PersonDetail.get(this).saveContactInfoItem(this); return false">(save)</a>
-      <a href="#" class="contact-info-action-cancel"
-        onclick="Mantissa.People.PersonDetail.get(this).cancelEditForm(this); return false">(cancel)</a>
-    </div>
-  </div>
-
-  <tr nevow:pattern="contact-info-section" valign="top">
-    <nevow:attr name="class"
-      ><nevow:slot name="type" /></nevow:attr>
-    <td align="center">
-      <img class="contact-type-icon">
-        <nevow:attr name="src">
-          <nevow:slot name="icon-path" />
-        </nevow:attr>
-      </img>
-    </td>
-    <td class="contact-info-items">
-      <nevow:slot name="items" />
-      <a href="#" class="contact-info-action-add"
-        onclick="Mantissa.People.PersonDetail.get(this).showAddForm(this); return false">(add)</a>
-      <div class="add-contact-info" style="display: none">
-        <form onsubmit="Mantissa.People.PersonDetail.get(this).createContactInfoItem(this.elements[0]); return false">
-          <input type="text" />
-        </form>
-        <a href="#" class="contact-info-action-create"
-          onclick="Mantissa.People.PersonDetail.get(this).createContactInfoItem(this); return false">(create)</a>
-        <a href="#" class="contact-info-action-cancel"
-          onclick="Mantissa.People.PersonDetail.get(this).cancelAddForm(this); return false">(cancel)</a>
-      </div>
-    </td>
-  </tr>
-
   <table class="person-fragment" nevow:pattern="person-fragment" cellpadding="0" cellspacing="0">
     <tr class="header-row" valign="top">
       <td class="image-cell"><img class="left-image" src="/Mantissa/images/person-fragment-tl-corner.png" /></td>
@@ -73,45 +28,7 @@
     <table cellpadding="0" cellspacing="0">
       <tr valign="top">
         <td class="person-detail-left-block">
-          <table nevow:render="contactInfoSummary" class="contact-info-summary" cellpadding="0" cellspacing="0">
-            <tr class="contact-header">
-              <td colspan="2" />
-            </tr>
-            <tr valign="top">
-              <td class="mugshot-container">
-                <img class="mugshot">
-                  <nevow:attr name="src">
-                    <nevow:invisible nevow:render="mugshotLink" />
-                  </nevow:attr>
-                </img>
-              </td>
-              <td>
-                <table cellpadding="0" cellspacing="0">
-                  <nevow:slot name="sections" />
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="text-align: center">
-                <a href="#"
-                  onclick="Mantissa.People.PersonDetail.get(this).toggleEditMugshotForm(); return false"
-                  class="mugshot-change-link"
-                  >Change...</a>
-              </td>
-              <td>
-                <form enctype="multipart/form-data" method="POST"
-                  name="mugshot" class="mugshot-form"
-                  style="visibility: hidden">
-                  <nevow:attr name="action">
-                    <nevow:invisible nevow:render="mugshotFormAction" />
-                  </nevow:attr>
-                  <input type="file" name="uploaddata" />
-                  <input type="submit" name="upload" value="Upload" />
-                </form>
-              </td>
-            </tr>
-
-          </table>
+          <nevow:invisible nevow:render="contactInfo" />
           <nevow:invisible nevow:render="organizerPlugins" />
         </td>
       </tr>

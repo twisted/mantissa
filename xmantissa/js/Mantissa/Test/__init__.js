@@ -1377,11 +1377,11 @@ Mantissa.Test.ScrollTablePlaceholderRowsTestCase.methods(
 
 
 
-Mantissa.Test.PersonDetail = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.PersonDetail');
-Mantissa.Test.PersonDetail.methods(
+Mantissa.Test.ContactInfo = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ContactInfo');
+Mantissa.Test.ContactInfo.methods(
     function contactInfoSectionsFromSectionName(self, sectionName) {
         return Nevow.Athena.NodesByAttribute(
-            self.personDetail.firstNodeByAttribute("class", sectionName),
+            self.contactInfo.firstNodeByAttribute("class", sectionName),
             "class",
             "contact-info-item");
     },
@@ -1417,7 +1417,7 @@ Mantissa.Test.PersonDetail.methods(
 
         Nevow.Athena.FirstNodeByAttribute(node, "value", value).value = newValue;
 
-        var D = self.personDetail.saveContactInfoItem(
+        var D = self.contactInfo.saveContactInfoItem(
             Nevow.Athena.FirstNodeByAttribute(
                 node, "class", "contact-info-action-save"));
 
@@ -1428,7 +1428,7 @@ Mantissa.Test.PersonDetail.methods(
     },
 
     function addItemToSection(self, sectionName, value) {
-        var section = self.personDetail.firstNodeByAttribute("class", sectionName);
+        var section = self.contactInfo.firstNodeByAttribute("class", sectionName);
 
         Nevow.Athena.FirstNodeByAttribute(
             section, "class", "contact-info-action-add").onclick();
@@ -1443,7 +1443,7 @@ Mantissa.Test.PersonDetail.methods(
         var createLink = Nevow.Athena.FirstNodeByAttribute(
                             addForm, "class", "contact-info-action-create");
 
-        var D = self.personDetail.createContactInfoItem(createLink);
+        var D = self.contactInfo.createContactInfoItem(createLink);
         return D.addCallback(
             function(node) {
                 node = Nevow.Athena.FirstNodeByAttribute(
@@ -1453,11 +1453,11 @@ Mantissa.Test.PersonDetail.methods(
     },
 
     function test_people(self) {
-        self.personDetail = Nevow.Athena.Widget.get(
+        self.contactInfo = Nevow.Athena.Widget.get(
                                 Nevow.Athena.FirstNodeByAttribute(
                                     self.node,
                                     "athena:class",
-                                    "Mantissa.People.PersonDetail"));
+                                    "Mantissa.People.ContactInfo"));
 
         var phoneSections = self.contactInfoSectionsFromSectionName("PhoneNumber");
         var emailSections = self.contactInfoSectionsFromSectionName("EmailAddress");

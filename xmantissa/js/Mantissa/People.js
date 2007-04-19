@@ -28,12 +28,12 @@ Mantissa.People.Organizer.methods(
         d.addCallback(self.replaceTDB).addErrback(self.cbPersonError);
     });
 
-Mantissa.People.PersonDetail = Nevow.Athena.Widget.subclass('PersonDetail');
+Mantissa.People.ContactInfo = Nevow.Athena.Widget.subclass('Mantissa.People.ContactInfo');
 
-Mantissa.People.PersonDetail.methods(
+Mantissa.People.ContactInfo.methods(
     function __init__(self, node) {
         self._nodeCache = {};
-        Mantissa.People.PersonDetail.upcall(self, "__init__", node);
+        Mantissa.People.ContactInfo.upcall(self, "__init__", node);
     },
 
     function _getEnclosingRow(self, node) {

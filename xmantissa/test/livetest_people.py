@@ -150,8 +150,8 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
 
 
 
-class PersonDetailTestCase(TestCase):
-    jsClass = u'Mantissa.Test.PersonDetail'
+class ContactInfoTestCase(TestCase):
+    jsClass = u'Mantissa.Test.ContactInfo'
 
     def getWidgetDocument(self):
         s = Store()

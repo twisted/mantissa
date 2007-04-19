@@ -9,10 +9,14 @@ from epsilon.extime import Time
 
 from axiom import store
 from axiom.store import Store
-from axiom.dependency import installOn
+from axiom.dependency import installOn, installedOn
+from axiom.item import Item
+from axiom.attributes import text
 
 from xmantissa.people import (Organizer, Person, RealName, EmailAddress,
-                              AddPersonFragment, Mugshot)
+                              AddPersonFragment, Mugshot, addContactInfoType,
+                              contactInfoItemTypeFromClassName,
+                              _CONTACT_INFO_ITEM_TYPES)
 from xmantissa.webapp import PrivateApplication
 
 class PeopleModelTestCase(unittest.TestCase):
@@ -68,6 +72,11 @@ class PeopleModelTestCase(unittest.TestCase):
 
 
 
+class POBox(Item):
+    number = text()
+
+
+
 class PeopleTests(unittest.TestCase):
     def testPersonCreation(self):
         s = store.Store()
@@ -109,6 +118,114 @@ class PeopleTests(unittest.TestCase):
         # Ordering is undefined, so let's use a set.
         self.assertEquals(set(p.getEmailAddresses()),
                           set([u'a@b.c', u'c@d.e']))
+
+
+    def test_createContactInfoItem(self):
+        """
+        Verify a new contact info item can be created using
+        L{Person.createContactInfoItem} and that newly created contact
+        info items are installed on their person item.
+        """
+        email = u'username@hostname'
+        s = store.Store()
+        person = Person(store=s)
+        person.createContactInfoItem(EmailAddress, 'address', email)
+        contacts = list(s.query(EmailAddress))
+        self.assertEqual(len(contacts), 1)
+        self.assertEqual(contacts[0].person, person)
+        self.assertEqual(contacts[0].address, email)
+        self.assertEqual(installedOn(contacts[0]), person)
+
+
+    def test_findContactInfoItem(self):
+        """
+        Verify an existing contact info item can be found with
+        L{Person.findContactInfoItem}.
+        """
+        email = u'username@hostname'
+        s = store.Store()
+        alice = Person(store=s)
+        bob = Person(store=s)
+        emailObj = EmailAddress(store=s, person=alice, address=email)
+        self.assertEqual(alice.findContactInfoItem(EmailAddress, 'address', email), emailObj)
+        self.assertEqual(bob.findContactInfoItem(EmailAddress, 'address', email), None)
+
+
+    def test_editContactInfoItem(self):
+        """
+        Verify that L{Person.editContactInfoItem} changes the value of
+        the contact info item's attribute in the database.
+        """
+        oldEmail = u'username@hostname'
+        newEmail = u'notusername@hostname'
+        store = Store()
+
+        alice = Person(store=store)
+        bob = Person(store=store)
+
+        aliceEmail = EmailAddress(store=store, person=alice, address=oldEmail)
+        bobEmail = EmailAddress(store=store, person=bob, address=oldEmail)
+
+        alice.editContactInfoItem(
+            EmailAddress, 'address', oldEmail, newEmail)
+        self.assertEqual(aliceEmail.address, newEmail)
+        self.assertEqual(bobEmail.address, oldEmail)
+
+
+    def test_deleteContactInfoItem(self):
+        """
+        Verify that L{Person.deleteContactInfoItem} removes the
+        matching contact info item from the database.
+        """
+        email = u'username@hostname'
+
+        store = Store()
+
+        alice = Person(store=store)
+        bob = Person(store=store)
+        aliceEmail = EmailAddress(store=store, person=alice, address=email)
+        bobEmail = EmailAddress(store=store, person=bob, address=email)
+
+        alice.deleteContactInfoItem(
+            EmailAddress, 'address', email)
+
+        emails = list(store.query(EmailAddress))
+        self.assertEqual(len(emails), 1)
+        self.assertIdentical(emails[0], bobEmail)
+
+
+    def test_getContactInfoItems(self):
+        """
+        Verify that L{Person.getContactInfoItems} returns the values
+        of all contact info items that belong to it.
+        """
+        store = Store()
+
+        alice = Person(store=store)
+        bob = Person(store=store)
+        aliceEmail1 = EmailAddress(store=store, person=alice, address=u'alice1@host')
+        aliceEmail2 = EmailAddress(store=store, person=alice, address=u'alice2@host')
+        bobEmail = EmailAddress(store=store, person=bob, address=u'bob@host')
+
+        self.assertEqual(
+            list(sorted(alice.getContactInfoItems(EmailAddress, 'address'))),
+            ['alice1@host', 'alice2@host'])
+        self.assertEqual(
+            list(bob.getContactInfoItems(EmailAddress, 'address')),
+            ['bob@host'])
+
+
+    def test_contactInfoItemTypeFromClassName(self):
+        """
+        Test that we can register a new contact info item type and
+        then find it by class name with
+        L{contactInfoItemTypeFromClassName}
+        """
+        addContactInfoType(POBox, 'number')
+        (itemClass, attr) = contactInfoItemTypeFromClassName(POBox.__name__)
+        self.assertIdentical(itemClass, POBox)
+        self.assertEqual(attr, 'number')
+        _CONTACT_INFO_ITEM_TYPES.remove((POBox, 'number'))
 
 
     def test_getEmailAddress(self):
