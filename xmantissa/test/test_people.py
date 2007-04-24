@@ -4,6 +4,10 @@ from string import lowercase
 from twisted.python.util import sibpath
 from twisted.trial import unittest
 
+from nevow.loaders import stan
+from nevow.tags import div, slot
+from nevow.flat import flatten
+
 from epsilon import extime
 from epsilon.extime import Time
 
@@ -16,7 +20,8 @@ from axiom.attributes import text
 from xmantissa.people import (Organizer, Person, RealName, EmailAddress,
                               AddPersonFragment, Mugshot, addContactInfoType,
                               contactInfoItemTypeFromClassName,
-                              _CONTACT_INFO_ITEM_TYPES)
+                              _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment,
+                              PhoneNumber,)
 from xmantissa.webapp import PrivateApplication
 
 class PeopleModelTestCase(unittest.TestCase):
@@ -333,3 +338,59 @@ class PeopleTests(unittest.TestCase):
                          (privapp.linkTo(o.storeID)
                              + '/'
                              + privapp.toWebID(p)))
+
+
+
+class StubPerson(object):
+    """
+    Stub implementation of L{Person} used for testing.
+
+    @ivar contactItems: A list of three-tuples of the arguments passed to
+    createContactInfoItem.
+    """
+    def __init__(self, contactItems):
+        self.contactItems = contactItems
+
+
+    def createContactInfoItem(self, cls, attr, value):
+        self.contactItems.append((cls, attr, value))
+
+
+
+class ContactInfoViewTests(unittest.TestCase):
+    """
+    Tests for L{ContactInfoFragment}.
+    """
+    def test_createContactInfoItem(self):
+        """
+        Verify that L{ContactInfoFragment.createContactInfoItem} calls
+        C{createContactInfoItem} with the correct arguments on the object it
+        wraps.
+        """
+        contactItems = []
+        person = StubPerson(contactItems)
+        fragment = ContactInfoFragment(
+            person,
+            stan(div(pattern='contact-info-item')[slot('value')]))
+        fragment.createContactInfoItem(u'PhoneNumber', u'123-456-7890')
+        self.assertEqual(
+            contactItems, [(PhoneNumber, 'number', u'123-456-7890')])
+
+
+    def test_createContactInfoItemReturnsFragment(self):
+        """
+        Verify that L{ContactInfoFragment.createContactInfoItem} returns a
+        L{ContactInfoFragment} with the proper parent and docFactory.
+        """
+        person = StubPerson([])
+        fragment = ContactInfoFragment(
+            person,
+            stan(div(pattern='contact-info-item')[slot('value')]))
+        result = fragment.createContactInfoItem(
+            u'PhoneNumber', u'123-456-7890')
+        self.failUnless(isinstance(result, ContactInfoFragment))
+        self.assertEqual(
+            flatten(result.docFactory.load()),
+            '<div>123-456-7890</div>')
+        self.assertIdentical(result.fragmentParent, fragment)
+

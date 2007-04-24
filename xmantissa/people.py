@@ -4,13 +4,14 @@ import re
 from itertools import islice
 from string import uppercase
 
+
 from zope.interface import implements
 
 from twisted.python import components
 
 from nevow import rend, athena, inevow, static, url
-from nevow.flat import flatten
 from nevow.athena import expose
+from nevow.loaders import stan
 
 from epsilon import extime
 
@@ -816,8 +817,18 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'contact-info'
     jsClass = u'Mantissa.People.ContactInfo'
 
-    def __init__(self, person):
-        athena.LiveFragment.__init__(self)
+    def __init__(self, person, docFactory=None):
+        """
+        Initialize this instance.
+
+        @type person: L{Person}
+        @param person: The person object about whom contact information will
+        be rendered.
+
+        @param docFactory: A optional nevow document loader which will be
+        used if specified.
+        """
+        athena.LiveFragment.__init__(self, docFactory=docFactory)
         self.person = person
 
     def _gotMugshotFile(self, ctype, infile):
@@ -854,10 +865,27 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
     expose(editContactInfoItem)
 
     def createContactInfoItem(self, typeName, value):
+        """
+        Create a new contact information item for the wrapped person.
+
+        @type typeName: C{unicode}
+        @param typeName: The class name of the contact information to
+        create.
+
+        @param value: The value to use for the value column for the type
+        specified.
+
+        @see Person.createContactInfoItem
+
+        @return: A fragment which will display the newly added contact info
+        item.
+        """
         (cls, attr) = contactInfoItemTypeFromClassName(typeName)
         self.person.createContactInfoItem(cls, attr, value)
         p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
-        return unicode(flatten(p.fillSlots('value', value)), 'utf-8')
+        fragment = self.__class__(self.person, docFactory=stan(p.fillSlots('value', value)))
+        fragment.setFragmentParent(self)
+        return fragment
     expose(createContactInfoItem)
 
     def deleteContactInfoItem(self, typeName, value):

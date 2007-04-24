@@ -80,6 +80,7 @@ Mantissa.People.ContactInfo.methods(
                         self._getEnclosingRow(deleteLink).className,
                         value).addCallback(
             function() {
+                /* XXX Remove the widget associated with that node */
                 var item = viewContainer.parentNode;
                 item.parentNode.removeChild(item);
             });
@@ -183,17 +184,18 @@ Mantissa.People.ContactInfo.methods(
         var sectionName = self._getEnclosingRow(createLink).className;
         var section = self._nodeCache[sectionName];
         var input = section["add-form"].getElementsByTagName("input")[0];
-        return self.callRemote("createContactInfoItem", sectionName, input.value).addCallback(
-            function(html) {
-                var e = document.createElement("div");
-                section["add-link"].parentNode.insertBefore(e, section["add-link"]);
-                Divmod.Runtime.theRuntime.setNodeContent(
-                    e,
-                    '<div xmlns="http://www.w3.org/1999/xhtml">' + html + '</div>');
-
+        var createdDeferred = self.callRemote("createContactInfoItem", sectionName, input.value);
+        createdDeferred.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        createdDeferred.addCallback(
+            function(widget) {
+                section["add-link"].parentNode.insertBefore(widget.node, section["add-link"]);
                 section["add-link"].style.display = "";
                 section["add-form"].style.display = "none";
                 input.value = "";
-                return e;
+                return widget.node;
             });
+        return createdDeferred;
     });
