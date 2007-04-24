@@ -127,15 +127,23 @@ class ProductConfiguration(Item):
                     authoritative=False)]
 
     def createProduct(self, powerups):
+        """
+        Create a new L{Product} instance which confers the given
+        powerups.
+
+        @type powerups: C{list} of powerup item types
+
+        @rtype: L{Product}
+        @reteurn: The new product instance.
+        """
         types = [qual(powerup).decode('ascii')
                        for powerup in powerups]
         for p in self.store.parent.query(Product):
             for t in types:
                 if t in p.types:
                     raise ValueError("%s is already included in a Product" % (t,))
-        Product(store=self.store.parent,
-                types=types)
-        return u'Created.'
+        return Product(store=self.store.parent,
+                       types=types)
 
 class ProductFragment(athena.LiveElement):
     fragmentName = 'product-configuration'
@@ -158,7 +166,16 @@ class ProductFragment(athena.LiveElement):
 
 
     def coerceProduct(self, **kw):
-        return self.original.createProduct(filter(None, kw.values()))
+        """
+        Create a product and return a status string which should be part of a
+        template.
+
+        @param **kw: Fully qualified Python names for powerup types to
+        associate with the created product.
+        """
+        self.original.createProduct(filter(None, kw.values()))
+        return u'Created.'
+
 
     def makePowerupCoercer(self, powerup):
         def powerupCoercer(selectedPowerup):
