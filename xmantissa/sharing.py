@@ -536,7 +536,7 @@ def asAccessibleTo(role, query):
     for resultingShare in (query.store.query(
             Share,
             comparison,
-            sort=query.sort,
+            sort=(query.sort, Share.sharedItem.ascending),
             limit=query.limit
             )):
         yielded = False

@@ -217,10 +217,43 @@ class AccessibilityQuery(unittest.TestCase):
         self.assertEquals(self.store.query(PrivateThing).count(), 3)
         aat = list(sharing.asAccessibleTo(self.bob, self.store.query(
                     PrivateThing, sort=PrivateThing.publicData.descending)))
+        aat2 = list(sharing.asAccessibleTo(self.bob, self.store.query(
+                    PrivateThing, sort=PrivateThing.publicData.ascending)))
         # sanity check x2
         for acc in aat:
             acc.mutateSomeState()
         expectedData = [x + 5 for x in reversed(range(3))]
+        self.assertEquals([acc.retrieveSomeState() for acc in aat],
+                          expectedData)
+        self.assertEquals([acc.retrieveSomeState() for acc in aat2],
+                          list(reversed(expectedData)))
+
+
+    def test_twoInterfacesTwoGroupsUnsortedQuery(self):
+        """
+        Verify that when duplicate shares exist for the same item and an
+        asAccessibleTo query is made with no specified sort, the roles are
+        still deduplicated properly.
+        """
+        us = sharing.getPrimaryRole(self.store, u'us', True)
+        them = sharing.getPrimaryRole(self.store, u'them', True)
+        self.bob.becomeMemberOf(us)
+        self.bob.becomeMemberOf(them)
+        for x in range(3):
+            it = PrivateThing(store=self.store, publicData=x)
+            sharing.shareItem(it, toRole=us, shareID=u'q',
+                              interfaces=[IPrivateThing])
+            sharing.shareItem(it, toRole=them, shareID=u'q',
+                              interfaces=[IReadOnly])
+        # sanity check
+        self.assertEquals(self.store.query(PrivateThing).count(), 3)
+        aat = list(sharing.asAccessibleTo(self.bob, self.store.query(
+                    PrivateThing)))
+        # sanity check x2
+        for acc in aat:
+            acc.mutateSomeState()
+        expectedData = [x + 5 for x in range(3)]
+        aat.sort(key=lambda i: i.retrieveSomeState())
         self.assertEquals([acc.retrieveSomeState() for acc in aat],
                           expectedData)
 
