@@ -1,6 +1,8 @@
+// -*- test-case-name: xmantissa.test.test_javascript -*-
 // Copyright (c) 2006 Divmod.
 // See LICENSE for details.
 
+// import Divmod.UnitTest
 // import Mantissa.AutoComplete
 
 
@@ -105,8 +107,9 @@ Mantissa.Test.TestAutoComplete.AutoCompleteTests.methods(
      * contents of our imaginary textbox.
      */
     function test_alnumKeypressWithCompletions(self) {
-        var keypressListener = self.view.keypressListener,
-            keypressEvent = self.makeKeypressEvent(_KEYCODE_ALNUM);
+        var keypressListener = self.view.keypressListener;
+        var keypressEvent = self.makeKeypressEvent(
+            Mantissa.Test.TestAutoComplete.KEYCODE_ALNUM);
 
         self.view.setValue('abb');
         keypressListener(keypressEvent);
