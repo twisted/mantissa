@@ -41,6 +41,31 @@ def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
     image.resize((int(width * scale),
                   int(height * scale)), Image.ANTIALIAS).save(outfile, format)
 
+_CONTACT_INFO_ICON_URLS = {}
+def setIconURLForContactInfoType(itemType, iconPath):
+    """
+    Set the URL to the icon for a particular contact info type.
+
+    @param itemType: an item type
+    @type itemType: L{MetaItem}
+
+    @param iconPath: The location of an image to be used as an icon
+    when displaying contact information of the given type.
+    """
+    _CONTACT_INFO_ICON_URLS[itemType] = iconPath
+
+
+def iconURLForContactInfoType(itemType):
+    """
+    Look up the URL to the icon for a particular contact info type.
+
+    @param itemType: an item type
+    @type itemType: L{MetaItem}
+    """
+    return _CONTACT_INFO_ICON_URLS[itemType]
+
+
+
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
     endowed = attributes.integer(default=0)
@@ -446,6 +471,8 @@ class EmailAddress(item.Item):
         allowNone=False,
         default=u'')
 
+setIconURLForContactInfoType(EmailAddress, '/Mantissa/images/EmailAddress-icon.png')
+
 def emailAddress1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_emailaddress',
                               1, 2,
@@ -477,6 +504,8 @@ class PhoneNumber(item.Item):
         allowNone=False,
         default=u'',)
 
+setIconURLForContactInfoType(PhoneNumber, '/Mantissa/images/PhoneNumber-icon.png')
+
 def phoneNumber1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_phonenumber',
                               1, 2,
@@ -493,17 +522,26 @@ registerUpgrader(phoneNumber1to2,
 
 registerAttributeCopyingUpgrader(PhoneNumber, 2, 3)
 
+
+
 class PostalAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_postaladdress'
 
     address = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
 
+setIconURLForContactInfoType(PostalAddress, '/Mantissa/images/PostalAddress-icon.png')
+
+
+
 class Notes(item.Item):
     typeName = 'mantissa_organizer_addressbook_notes'
 
     notes = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
+
+setIconURLForContactInfoType(Notes, '/Mantissa/images/Notes-icon.png')
+
 
 
 class AddPerson(item.Item):
@@ -794,7 +832,6 @@ def addContactInfoType(itemType, settableAttribute):
     _CONTACT_INFO_ITEM_TYPES.append((itemType, settableAttribute))
 
 
-
 def contactInfoItemTypeFromClassName(className):
     """
     Find the registered contact info item type with the class name of
@@ -893,6 +930,7 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         self.person.deleteContactInfoItem(cls, attr, value)
     expose(deleteContactInfoItem)
 
+
     def _renderSection(self, itemType, items):
         """
         Render the given contact info items.
@@ -900,8 +938,8 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         @type itemType: L{MetaItem}
         @param itemType: The type of contact info items to be rendered.
 
-        @type items: C{list} of C{itemType}
-        @param items: The contact info items to be rendered.
+        @type values: C{list} of C{unicode}
+        @param values: The contact info items to be rendered.
 
         @return: A flattenable object representing the given contact
         information.
@@ -910,9 +948,11 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         sectionPattern = iq.onePattern('contact-info-section')
         itemPattern = iq.patternGenerator('contact-info-item')
 
+        iconPath = iconURLForContactInfoType(itemType)
+
         return dictFillSlots(sectionPattern,
                         {'type': itemType.__name__,
-                        'icon-path': '/Mantissa/images/' + itemType.__name__ + '-icon.png',
+                        'icon-path': iconPath,
                         'items': (itemPattern.fillSlots('value', item)
                                     for item in items)})
 

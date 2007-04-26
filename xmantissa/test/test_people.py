@@ -1,4 +1,6 @@
 
+from xml.dom.minidom import parseString
+
 from string import lowercase
 
 from twisted.python.util import sibpath
@@ -21,7 +23,8 @@ from xmantissa.people import (Organizer, Person, RealName, EmailAddress,
                               AddPersonFragment, Mugshot, addContactInfoType,
                               contactInfoItemTypeFromClassName,
                               _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment,
-                              PhoneNumber,)
+                              PhoneNumber, setIconURLForContactInfoType,
+                              iconURLForContactInfoType, _CONTACT_INFO_ICON_URLS)
 from xmantissa.webapp import PrivateApplication
 
 class PeopleModelTestCase(unittest.TestCase):
@@ -227,10 +230,26 @@ class PeopleTests(unittest.TestCase):
         L{contactInfoItemTypeFromClassName}
         """
         addContactInfoType(POBox, 'number')
-        (itemClass, attr) = contactInfoItemTypeFromClassName(POBox.__name__)
-        self.assertIdentical(itemClass, POBox)
-        self.assertEqual(attr, 'number')
-        _CONTACT_INFO_ITEM_TYPES.remove((POBox, 'number'))
+        try:
+            (itemClass, attr) = contactInfoItemTypeFromClassName(POBox.__name__)
+            self.assertIdentical(itemClass, POBox)
+            self.assertEqual(attr, 'number')
+        finally:
+            _CONTACT_INFO_ITEM_TYPES.remove((POBox, 'number'))
+
+
+    def test_setIconURLForContactInfoType(self):
+        """
+        Test that we can register an URL for an icon for a contact
+        info item type and then find it by type with
+        L{iconURLForContactInfoType}.
+        """
+        url = '/foo/bar/pobox.png'
+        setIconURLForContactInfoType(POBox, url)
+        try:
+            self.assertEqual(iconURLForContactInfoType(POBox), url)
+        finally:
+            del _CONTACT_INFO_ICON_URLS[POBox]
 
 
     def test_getEmailAddress(self):
@@ -394,3 +413,36 @@ class ContactInfoViewTests(unittest.TestCase):
             '<div>123-456-7890</div>')
         self.assertIdentical(result.fragmentParent, fragment)
 
+
+    def test_contactInfoSummarySection(self):
+        """
+        Test that the renderer for a single section of the contact
+        info summary points to the correct icon URL for that section's
+        item type.
+        """
+        sectionPattern = div(pattern='contact-info-section')[
+            div[slot(name='type')],
+            div[slot(name='icon-path')],
+            slot(name='items')]
+        itemPattern = div(pattern='contact-info-item')[
+            slot(name='value')]
+
+        person = StubPerson([])
+        fragment = ContactInfoFragment(
+            person,
+            stan(div[sectionPattern, itemPattern]))
+
+        url = '/foo/bar/pobox.png'
+        number = u'1234'
+        setIconURLForContactInfoType(POBox, url)
+        result = fragment._renderSection(POBox, [number])
+        markup = flatten(result)
+        document = parseString(markup)
+        ele = document.documentElement
+        self.assertEqual(ele.tagName, 'div')
+        self.assertEqual(ele.childNodes[0].tagName, 'div')
+        self.assertEqual(ele.childNodes[0].childNodes[0].nodeValue, 'POBox')
+        self.assertEqual(ele.childNodes[1].tagName, 'div')
+        self.assertEqual(ele.childNodes[1].childNodes[0].nodeValue, url)
+        self.assertEqual(ele.childNodes[2].tagName, 'div')
+        self.assertEqual(ele.childNodes[2].childNodes[0].nodeValue, number)
