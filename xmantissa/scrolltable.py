@@ -322,3 +322,20 @@ class StoreIDSequenceScrollingFragment(SequenceScrollingFragment):
             super(
                 StoreIDSequenceScrollingFragment,
                 self).performQuery(rangeBegin, rangeEnd))
+
+
+class SearchResultScrollingFragment(SequenceScrollingFragment):
+    """
+    Scrolltable implementation like L{SequenceScrollingFragment} but which is
+    backed by a sequence of L{_PyLuceneHitWrapper} instances.
+
+    XXX _PyLuceneHitWrapper should probably implement IFulltextIndexable instead
+    of a subtly different interface.
+    """
+    def performQuery(self, rangeBegin, rangeEnd):
+        results = SequenceScrollingFragment.performQuery(
+            self, rangeBegin, rangeEnd)
+        return [
+            self.store.getItemByID(int(hit.uniqueIdentifier))
+            for hit
+            in results]

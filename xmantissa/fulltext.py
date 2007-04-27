@@ -12,6 +12,7 @@ from twisted.python import log, reflect
 from twisted.internet import defer
 
 from epsilon.structlike import record
+from epsilon.view import SlicedView
 
 from axiom import item, attributes, iaxiom, batch
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
@@ -431,7 +432,7 @@ class _PyLuceneHitsWrapper(record('index hits')):
         slices.
         """
         if isinstance(index, slice):
-            return [self[i] for i in xrange(*index.indices(len(self)))]
+            return SlicedView(self, index)
         if index >= len(self.hits):
             raise IndexError(index)
         return _PyLuceneHitWrapper(self.hits[index])

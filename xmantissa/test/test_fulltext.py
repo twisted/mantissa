@@ -13,6 +13,13 @@ from axiom.dependency import installOn
 from xmantissa import ixmantissa, fulltext
 
 
+def identifiersFrom(hits):
+    """
+    Convert iterable of hits into list of integer unique identifiers.
+    """
+    return [int(h.uniqueIdentifier) for h in hits]
+
+
 class IndexableThing(item.Item):
     implements(ixmantissa.IFulltextIndexable)
 
@@ -169,19 +176,19 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
 
-        results = list(reader.search(u'apple'))
+        results = identifiersFrom(reader.search(u'apple'))
         self.assertEquals(results, [7])
 
-        results = list(reader.search(u'banana'))
+        results = identifiersFrom(reader.search(u'banana'))
         self.assertEquals(results, [7])
 
-        results = list(reader.search(u'cherry'))
+        results = identifiersFrom(reader.search(u'cherry'))
         self.assertEquals(results, [21])
 
-        results = list(reader.search(u'drosophila'))
+        results = identifiersFrom(reader.search(u'drosophila'))
         self.assertEquals(results, [21])
 
-        results = list(reader.search(u'melanogaster'))
+        results = identifiersFrom(reader.search(u'melanogaster'))
         self.assertEquals(results, [21])
 
         reader.close()
@@ -197,9 +204,9 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer.close()
 
         reader = self.openReadIndex()
-        results = list(reader.search(u'apple'))
+        results = identifiersFrom(reader.search(u'apple'))
         self.assertEquals(results, [1])
-        results = list(reader.search(u'banana'))
+        results = identifiersFrom(reader.search(u'banana'))
         self.assertEquals(results, [1])
         reader.close()
 
@@ -212,23 +219,23 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer.close()
 
         reader = self.openReadIndex()
-        results = list(reader.search(u'apple'))
+        results = identifiersFrom(reader.search(u'apple'))
         self.assertEquals(results, [1])
-        results = list(reader.search(u'banana'))
+        results = identifiersFrom(reader.search(u'banana'))
         self.assertEquals(results, [1])
 
-        results = list(reader.search(u'cherry'))
+        results = identifiersFrom(reader.search(u'cherry'))
         self.assertEquals(results, [2])
-        results = list(reader.search(u'drosophila'))
+        results = identifiersFrom(reader.search(u'drosophila'))
         self.assertEquals(results, [2])
-        results = list(reader.search(u'melanogaster'))
+        results = identifiersFrom(reader.search(u'melanogaster'))
         self.assertEquals(results, [2])
         reader.close()
 
 
     def testReadBeforeWrite(self):
         reader = self.openReadIndex()
-        results = list(reader.search(u'apple'))
+        results = identifiersFrom(reader.search(u'apple'))
         self.assertEquals(results, [])
 
 
@@ -251,7 +258,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEqual(
-            list(reader.search(u'apple')), [])
+            identifiersFrom(reader.search(u'apple')), [])
 
 
     def test_removalFromReadIndex(self):
@@ -273,7 +280,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEqual(
-            list(reader.search(u'apple')), [])
+            identifiersFrom(reader.search(u'apple')), [])
 
 
     def testKeywordIndexing(self):
@@ -290,15 +297,15 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEquals(
-            list(reader.search(u'airplane')), [])
+            identifiersFrom(reader.search(u'airplane')), [])
         self.assertEquals(
-            list(reader.search(u'fruit')), [])
+            identifiersFrom(reader.search(u'fruit')), [])
         self.assertEquals(
-            list(reader.search(u'apple')), [50])
+            identifiersFrom(reader.search(u'apple')), [50])
         self.assertEquals(
-            list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
+            identifiersFrom(reader.search(u'apple', {u'subject': u'fruit'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'subject': u'fruit'})), [50])
+            identifiersFrom(reader.search(u'', {u'subject': u'fruit'})), [50])
 
 
     def test_typeRestriction(self):
@@ -322,13 +329,13 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEquals(
-            list(reader.search(u'apple', {'documentType': u'first'})),
+            identifiersFrom(reader.search(u'apple', {'documentType': u'first'})),
             [1])
         self.assertEquals(
-            list(reader.search(u'apple', {'documentType': u'second'})),
+            identifiersFrom(reader.search(u'apple', {'documentType': u'second'})),
             [2])
         self.assertEquals(
-            list(reader.search(u'apple', {'documentType': u'three'})),
+            identifiersFrom(reader.search(u'apple', {'documentType': u'three'})),
             [])
 
 
@@ -346,19 +353,19 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEquals(
-            list(reader.search(u'pear')), [])
+            identifiersFrom(reader.search(u'pear')), [])
         self.assertEquals(
-            list(reader.search(u'fruit')), [])
+            identifiersFrom(reader.search(u'fruit')), [])
         self.assertEquals(
-            list(reader.search(u'apple')), [50])
+            identifiersFrom(reader.search(u'apple')), [50])
         self.assertEquals(
-            list(reader.search(u'apple', {u'subject': u'fruit'})), [50])
+            identifiersFrom(reader.search(u'apple', {u'subject': u'fruit'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'subject': u'fruit'})), [50])
+            identifiersFrom(reader.search(u'', {u'subject': u'fruit'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'subject': u'list'})), [50])
+            identifiersFrom(reader.search(u'', {u'subject': u'list'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'subject': u'things'})), [50])
+            identifiersFrom(reader.search(u'', {u'subject': u'things'})), [50])
 
 
     def testKeywordCombination(self):
@@ -381,15 +388,15 @@ class FulltextTestsMixin(IndexerTestsMixin):
         reader = self.openReadIndex()
 
         self.assertEquals(
-            list(reader.search(u'', {u'car': u'honda'})), [50])
+            identifiersFrom(reader.search(u'', {u'car': u'honda'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'car': u'mercedes'})), [51])
+            identifiersFrom(reader.search(u'', {u'car': u'mercedes'})), [51])
         self.assertEquals(
-            list(reader.search(u'', {u'name': u'john'})), [50, 51])
+            identifiersFrom(reader.search(u'', {u'name': u'john'})), [50, 51])
         self.assertEquals(
-            list(reader.search(u'', {u'name': u'john', u'car': u'honda'})), [50])
+            identifiersFrom(reader.search(u'', {u'name': u'john', u'car': u'honda'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'name': u'john', u'car': u'mercedes'})), [51])
+            identifiersFrom(reader.search(u'', {u'name': u'john', u'car': u'mercedes'})), [51])
 
 
     def testKeywordValuesInPhrase(self):
@@ -407,13 +414,13 @@ class FulltextTestsMixin(IndexerTestsMixin):
         reader = self.openReadIndex()
 
         self.assertEquals(
-            list(reader.search(u'honda', {})), [])
+            identifiersFrom(reader.search(u'honda', {})), [])
         self.assertEquals(
-            list(reader.search(u'jack', {})), [50])
+            identifiersFrom(reader.search(u'jack', {})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'car': u'honda'})), [50])
+            identifiersFrom(reader.search(u'', {u'car': u'honda'})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'car': u'jack'})), [])
+            identifiersFrom(reader.search(u'', {u'car': u'jack'})), [])
 
     def testDigitSearch(self):
         """
@@ -431,11 +438,11 @@ class FulltextTestsMixin(IndexerTestsMixin):
         reader = self.openReadIndex()
 
         self.assertEquals(
-            list(reader.search(u'123', {})), [50])
+            identifiersFrom(reader.search(u'123', {})), [50])
         self.assertEquals(
-            list(reader.search(u'456', {})), [50])
+            identifiersFrom(reader.search(u'456', {})), [50])
         self.assertEquals(
-            list(reader.search(u'', {u'foo': u'x12'})), [50])
+            identifiersFrom(reader.search(u'', {u'foo': u'x12'})), [50])
 
     def testSorting(self):
         """
@@ -456,7 +463,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
 
-        self.assertEquals(list(reader.search(u'ok')),
+        self.assertEquals(identifiersFrom(reader.search(u'ok')),
                           list(sorted(keys)))
 
     def testSortAscending(self):
@@ -475,9 +482,9 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
 
-        self.assertEquals(list(reader.search(u'ok')), range(5))
-        self.assertEquals(list(reader.search(u'ok', sortAscending=True)), range(5))
-        self.assertEquals(list(reader.search(u'ok', sortAscending=False)), range(4, -1, -1))
+        self.assertEquals(identifiersFrom(reader.search(u'ok')), range(5))
+        self.assertEquals(identifiersFrom(reader.search(u'ok', sortAscending=True)), range(5))
+        self.assertEquals(identifiersFrom(reader.search(u'ok', sortAscending=False)), range(4, -1, -1))
 
 
 class CorruptionRecoveryMixin(IndexerTestsMixin):
@@ -521,9 +528,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         # Sanity check - make sure both items come back from a search before
         # going on with the real core of the test.
         reader = self.openReadIndex()
-        self.assertEquals(list(reader.search(u'apple')), [100])
-        self.assertEquals(list(reader.search(u'cherry')), [200])
-        self.assertEquals(list(reader.search(u'drosophila')), [])
+        self.assertEquals(identifiersFrom(reader.search(u'apple')), [100])
+        self.assertEquals(identifiersFrom(reader.search(u'cherry')), [200])
+        self.assertEquals(identifiersFrom(reader.search(u'drosophila')), [])
         reader.close()
 
         self.corruptIndex()
@@ -543,9 +550,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         # At this point, the index should have been deleted, so any search
         # should turn up no results.
         reader = self.openReadIndex()
-        self.assertEquals(list(reader.search(u'apple')), [])
-        self.assertEquals(list(reader.search(u'cherry')), [])
-        self.assertEquals(list(reader.search(u'drosophila')), [])
+        self.assertEquals(identifiersFrom(reader.search(u'apple')), [])
+        self.assertEquals(identifiersFrom(reader.search(u'cherry')), [])
+        self.assertEquals(identifiersFrom(reader.search(u'drosophila')), [])
         reader.close()
 
         self.indexer.resume()
@@ -557,9 +564,9 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         self.indexer.suspend()
 
         reader = self.openReadIndex()
-        self.assertEquals(list(reader.search(u'apple')), [100])
-        self.assertEquals(list(reader.search(u'cherry')), [200])
-        self.assertEquals(list(reader.search(u'drosophila')), [300])
+        self.assertEquals(identifiersFrom(reader.search(u'apple')), [100])
+        self.assertEquals(identifiersFrom(reader.search(u'cherry')), [200])
+        self.assertEquals(identifiersFrom(reader.search(u'drosophila')), [300])
         reader.close()
 
 
@@ -591,7 +598,6 @@ class PyLuceneTestsMixin:
         return fulltext.PyLuceneIndexer(store=self.store, indexDirectory=self.path)
 
 
-
 class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.TestCase):
     def testAutomaticClosing(self):
         """
@@ -613,7 +619,7 @@ class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.
         writer.close()
         self.failUnless(writer.closed, "Writer should have stayed closed.")
 
-    def testResultSlicing(self):
+    def test_resultSlicing(self):
         """
         Test that the wrapper object return by the pylucene index correctly
         handles slices
@@ -633,13 +639,14 @@ class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.
 
         results = reader.search(u'e')
 
-        self.assertEquals(list(results), identifiers)
-        self.assertEquals(results[0:None:2], identifiers[0:None:2])
-        self.assertEquals(results[0:5:1], identifiers[0:5:1])
-        self.assertEquals(results[15:0:-1], identifiers[15:0:-1])
-        self.assertEquals(results[15:None:-1], identifiers[15:None:-1])
-        self.assertEquals(results[0:24:2], identifiers[0:24:2])
-        self.assertEquals(results[24:None:-1], identifiers[24:None:-1])
+        self.assertEquals(identifiersFrom(results), identifiers)
+        self.assertEquals(identifiersFrom(results[0:None:2]), identifiers[0:None:2])
+        self.assertEquals(identifiersFrom(results[0:5:1]), identifiers[0:5:1])
+        self.assertEquals(identifiersFrom(results[15:0:-1]), identifiers[15:0:-1])
+        self.assertEquals(identifiersFrom(results[15:None:-1]), identifiers[15:None:-1])
+        self.assertEquals(identifiersFrom(results[0:24:2]), identifiers[0:24:2])
+        self.assertEquals(identifiersFrom(results[24:None:-1]), identifiers[24:None:-1])
+
 
     def test_hitWrapperAttributes(self):
         """
@@ -806,7 +813,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         Test calling search() on the indexer item directly
         """
         def gotResult(res):
-            self.assertEquals(list(res), range(5))
+            self.assertEquals(identifiersFrom(res), range(5))
         self._indexSomeItems()
         return self.indexer.search(u'text').addCallback(gotResult)
 
@@ -815,7 +822,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         Test calling search() on the indexer item directly, with a count arg
         """
         def gotResult(res):
-            self.assertEquals(list(res), [0])
+            self.assertEquals(identifiersFrom(res), [0])
         self._indexSomeItems()
         return self.indexer.search(u'text', count=1).addCallback(gotResult)
 
@@ -824,7 +831,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         Test calling search() on the indexer item directly, with an offset arg
         """
         def gotResult(res):
-            self.assertEquals(list(res), [1, 2, 3, 4])
+            self.assertEquals(identifiersFrom(res), [1, 2, 3, 4])
         self._indexSomeItems()
         return self.indexer.search(u'text', offset=1).addCallback(gotResult)
 
@@ -833,7 +840,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         Test calling search() on the indexer item directly, with count & offset args
         """
         def gotResult(res):
-            self.assertEquals(list(res), [1, 2, 3])
+            self.assertEquals(identifiersFrom(res), [1, 2, 3])
         self._indexSomeItems()
         return self.indexer.search(u'text', count=3, offset=1)
 
@@ -854,7 +861,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
                         _keywordParts={}))
         writer.close()
         def gotResult(res):
-            return list(res)
+            return identifiersFrom(res)
         def testResults(results):
             self.assertEqual(results, [[0], [1], [2],
                                        [0], [1], [2]])
