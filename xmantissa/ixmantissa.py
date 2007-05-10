@@ -669,3 +669,18 @@ class IProtocolFactoryFactory(Interface):
         """
         Return a Twisted protocol factory.
         """
+
+
+
+class IContactInfoView(Interface):
+    """
+    View facet of an object which stores a piece of information that can be
+    used to contact a L{xmantissa.people.Person}.
+    """
+    def getValue():
+        """
+        Get a displayable value for this contact info item.
+
+        @return: a displayable value.
+        @rtype: C{unicode}
+        """

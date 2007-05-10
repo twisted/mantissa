@@ -243,10 +243,13 @@ class Person(item.Item):
 
         @return: C{None}
         """
-        installOn(
-            itemType(store=self.store,
-                    person=self,
-                    **{valueColumn: value}), self)
+        item = itemType(store=self.store,
+                        person=self,
+                        **{valueColumn: value})
+        installOn(item, self)
+        return item
+
+
 
 class ExtractWrapper(item.Item):
     extract = attributes.reference(whenDeleted=attributes.reference.CASCADE)
@@ -847,6 +850,28 @@ def contactInfoItemTypeFromClassName(className):
 
 
 
+class _DefaultContactInfoView:
+    """
+    Trivial L{ixmantissa.IContactInfoView}.
+    """
+    implements(ixmantissa.IContactInfoView)
+
+    def __init__(self, contactInfoItem):
+        self.contactInfoItem = contactInfoItem
+
+
+    def getValue(self):
+        """
+        Pass through the value of the underlying item.
+
+        @rtype: C{unicode}
+        """
+        for (cls, attr) in _CONTACT_INFO_ITEM_TYPES:
+            if isinstance(self.contactInfoItem, cls):
+                return getattr(self.contactInfoItem, attr)
+
+
+
 class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
     """
     Renderer for contact information about a L{Person}.
@@ -918,9 +943,13 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         item.
         """
         (cls, attr) = contactInfoItemTypeFromClassName(typeName)
-        self.person.createContactInfoItem(cls, attr, value)
+        contactInfoItem = self.person.createContactInfoItem(cls, attr, value)
+        contactInfoView = ixmantissa.IContactInfoView(contactInfoItem, None)
+        if contactInfoView is None:
+            contactInfoView = _DefaultContactInfoView(contactInfoItem)
         p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
-        fragment = self.__class__(self.person, docFactory=stan(p.fillSlots('value', value)))
+        docFactory = stan(p.fillSlots('value', contactInfoView.getValue()))
+        fragment = self.__class__(self.person, docFactory=docFactory)
         fragment.setFragmentParent(self)
         return fragment
     expose(createContactInfoItem)

@@ -373,6 +373,9 @@ class StubPerson(object):
 
     def createContactInfoItem(self, cls, attr, value):
         self.contactItems.append((cls, attr, value))
+        # maybe not so great!
+        s = store.Store()
+        return cls(store=s, person=s, **{attr: value})
 
 
 
