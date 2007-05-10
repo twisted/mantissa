@@ -149,53 +149,6 @@ class Person(item.Item):
         return self.store.query(
             itemType, itemType.person == self)
 
-    def deleteContactInfoItem(self, itemType, valueColumn, value):
-        """
-        Delete the contact info item with the given value.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @param value: The value of C{valueColumn} to search for.  It
-        should be of the appropriate type for that attribute.
-
-        @return: C{None}
-        """
-        self.findContactInfoItem(
-            itemType, valueColumn, value).deleteFromStore()
-
-    def editContactInfoItem(self, itemType, valueColumn, oldValue, newValue):
-        """
-        Change the value of the contact info item with the given value
-        to a new value.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @param oldValue: The value of C{valueColumn} to search for.  It
-        should be of the appropriate type for that attribute.
-
-        @param newValue: The value of C{valueColumn} to set on the
-        found item.  It should be of the appropriate type for that
-        attribute
-
-        @return: C{None}
-        """
-        setattr(
-            self.findContactInfoItem(itemType, valueColumn, oldValue),
-            valueColumn,
-            newValue)
-
     def findContactInfoItem(self, itemType, valueColumn, value):
         """
         Find a contact info item of the given type with the given value.
@@ -1010,9 +963,8 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
             'contact-info-item-id', webID)
 
 
-    def deleteContactInfoItem(self, typeName, value):
-        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
-        self.person.deleteContactInfoItem(cls, attr, value)
+    def deleteContactInfoItem(self, contactInfoItemID):
+        self.webTranslator.fromWebID(contactInfoItemID).deleteFromStore()
     expose(deleteContactInfoItem)
 
 
