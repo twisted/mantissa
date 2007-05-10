@@ -135,23 +135,19 @@ class Person(item.Item):
                                 sort=ExtractWrapper.timestamp.desc,
                                 limit=n)
 
-    def getContactInfoItems(self, itemType, valueColumn):
+    def getContactInfoItems(self, itemType):
         """
-        Find the values of all contact info items of the given type.
+        Find all contact info items of the given type.
 
         @type itemType: L{MetaItem}
         @param itemType: The L{Item} subclass defining the contact
         info type to create.
 
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @return: C{valueColumn} for each contact info item.
-        @rtype: the type of C{valueColumn}
+        @return: all contact info items.
+        @rtype: the type of C{itemType}.
         """
         return self.store.query(
-            itemType, itemType.person == self).getColumn(valueColumn)
+            itemType, itemType.person == self)
 
     def deleteContactInfoItem(self, itemType, valueColumn, value):
         """
@@ -460,7 +456,11 @@ class RealName(item.Item):
         return ' '.join(filter(None, (self.first, self.last)))
     display = property(_getDisplay)
 
+
+
 class EmailAddress(item.Item):
+    implements(ixmantissa.IContactInfoItem)
+
     typeName = 'mantissa_organizer_addressbook_emailaddress'
     schemaVersion = 3
 
@@ -473,6 +473,15 @@ class EmailAddress(item.Item):
         """,
         allowNone=False,
         default=u'')
+
+    def getValue(self):
+        return self.address
+
+
+    def setValue(self, address):
+        self.address = address
+
+
 
 setIconURLForContactInfoType(EmailAddress, '/Mantissa/images/EmailAddress-icon.png')
 
@@ -494,6 +503,8 @@ registerAttributeCopyingUpgrader(EmailAddress, 2, 3)
 
 
 class PhoneNumber(item.Item):
+    implements(ixmantissa.IContactInfoItem)
+
     typeName = 'mantissa_organizer_addressbook_phonenumber'
     schemaVersion = 3
 
@@ -506,6 +517,15 @@ class PhoneNumber(item.Item):
         """,
         allowNone=False,
         default=u'',)
+
+    def getValue(self):
+        return self.number
+
+
+    def setValue(self, number):
+        self.number = number
+
+
 
 setIconURLForContactInfoType(PhoneNumber, '/Mantissa/images/PhoneNumber-icon.png')
 
@@ -528,20 +548,42 @@ registerAttributeCopyingUpgrader(PhoneNumber, 2, 3)
 
 
 class PostalAddress(item.Item):
+    implements(ixmantissa.IContactInfoItem)
+
     typeName = 'mantissa_organizer_addressbook_postaladdress'
 
     address = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
+
+    def getValue(self):
+        return self.address
+
+
+    def setValue(self, address):
+        self.address = address
+
+
 
 setIconURLForContactInfoType(PostalAddress, '/Mantissa/images/PostalAddress-icon.png')
 
 
 
 class Notes(item.Item):
+    implements(ixmantissa.IContactInfoItem)
+
     typeName = 'mantissa_organizer_addressbook_notes'
 
     notes = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
+
+    def getValue(self):
+        return self.notes
+
+
+    def setValue(self, notes):
+        self.notes = notes
+
+
 
 setIconURLForContactInfoType(Notes, '/Mantissa/images/Notes-icon.png')
 
@@ -852,7 +894,8 @@ def contactInfoItemTypeFromClassName(className):
 
 class _DefaultContactInfoView:
     """
-    Trivial L{ixmantissa.IContactInfoView}.
+    Trivial, transparent L{ixmantissa.IContactInfoView} for contact info item
+    types that require no special display mapping.
     """
     implements(ixmantissa.IContactInfoView)
 
@@ -861,14 +904,17 @@ class _DefaultContactInfoView:
 
 
     def getValue(self):
-        """
-        Pass through the value of the underlying item.
+        return self.contactInfoItem.getValue()
 
-        @rtype: C{unicode}
-        """
-        for (cls, attr) in _CONTACT_INFO_ITEM_TYPES:
-            if isinstance(self.contactInfoItem, cls):
-                return getattr(self.contactInfoItem, attr)
+
+    def toModelValue(self, value):
+        return value
+
+
+
+components.registerAdapter(_DefaultContactInfoView,
+                           ixmantissa.IContactInfoItem,
+                           ixmantissa.IContactInfoView)
 
 
 
@@ -892,6 +938,8 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         """
         athena.LiveFragment.__init__(self, docFactory=docFactory)
         self.person = person
+        self.webTranslator = person.organizer._webTranslator
+
 
     def _gotMugshotFile(self, ctype, infile):
         (majortype, minortype) = ctype.split('/')
@@ -920,10 +968,11 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
     def getMyURL(self):
         return self.person.organizer.linkToPerson(self.person)
 
-    def editContactInfoItem(self, typeName, oldValue, newValue):
-        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
-        self.person.editContactInfoItem(
-            cls, attr, oldValue, newValue)
+    def editContactInfoItem(self, contactInfoItemID, newDisplayValue):
+        contactInfoItem = self.webTranslator.fromWebID(contactInfoItemID)
+        contactInfoItem.setValue(
+            ixmantissa.IContactInfoView(
+                contactInfoItem).toModelValue(newDisplayValue))
     expose(editContactInfoItem)
 
     def createContactInfoItem(self, typeName, value):
@@ -944,15 +993,22 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         """
         (cls, attr) = contactInfoItemTypeFromClassName(typeName)
         contactInfoItem = self.person.createContactInfoItem(cls, attr, value)
-        contactInfoView = ixmantissa.IContactInfoView(contactInfoItem, None)
-        if contactInfoView is None:
-            contactInfoView = _DefaultContactInfoView(contactInfoItem)
-        p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
-        docFactory = stan(p.fillSlots('value', contactInfoView.getValue()))
+
+        docFactory = stan(self._getStanForContactInfoItem(contactInfoItem))
         fragment = self.__class__(self.person, docFactory=docFactory)
         fragment.setFragmentParent(self)
         return fragment
     expose(createContactInfoItem)
+
+
+    def _getStanForContactInfoItem(self, contactInfoItem):
+        contactInfoView = ixmantissa.IContactInfoView(contactInfoItem)
+        pattern = inevow.IQ(self.docFactory).onePattern('contact-info-item')
+        webID = self.webTranslator.toWebID(contactInfoItem)
+        return pattern.fillSlots(
+            'value', contactInfoView.getValue()).fillSlots(
+            'contact-info-item-id', webID)
+
 
     def deleteContactInfoItem(self, typeName, value):
         (cls, attr) = contactInfoItemTypeFromClassName(typeName)
@@ -975,24 +1031,21 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
         """
         iq = inevow.IQ(self.docFactory)
         sectionPattern = iq.onePattern('contact-info-section')
-        itemPattern = iq.patternGenerator('contact-info-item')
 
         iconPath = iconURLForContactInfoType(itemType)
 
         return dictFillSlots(sectionPattern,
                         {'type': itemType.__name__,
                         'icon-path': iconPath,
-                        'items': (itemPattern.fillSlots('value', item)
+                        'items': (self._getStanForContactInfoItem(item)
                                     for item in items)})
 
     def render_contactInfoSummary(self, ctx, data):
         """
         Render each of the kinds of contact information for C{self.person}.
         """
-        for (itemType, valueColumn) in _CONTACT_INFO_ITEM_TYPES:
-            yield self._renderSection(
-                itemType, self.person.getContactInfoItems(
-                    itemType, valueColumn))
+        for (itemType, items) in self._contactInfoItems.iteritems():
+            yield self._renderSection(itemType, items)
 
 
 

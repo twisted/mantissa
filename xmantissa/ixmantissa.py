@@ -684,3 +684,35 @@ class IContactInfoView(Interface):
         @return: a displayable value.
         @rtype: C{unicode}
         """
+
+
+    def toModelValue(value):
+        """
+        Convert a displayable value to something meaningful to the
+        corresponding L{IContactInfoItem}.
+
+        @param value: the contact info value.
+        """
+
+
+
+class IContactInfoItem(Interface):
+    """
+    An object which stores a piece of information that can be used to contact
+    a L{xmantissa.people.Person}.
+    """
+    def getValue():
+        """
+        Get a value for this contact info item.
+
+        @return: a value.
+        """
+
+
+    def setValue(value):
+        """
+        Set a value for this contact info item.
+
+        @type value: C{unicode}
+        @rtype: C{None}
+        """

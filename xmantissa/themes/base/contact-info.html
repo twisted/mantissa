@@ -9,8 +9,11 @@
         onclick="Mantissa.People.ContactInfo.get(this).deleteContactInfoItem(this); return false">(delete)</a>
     </div>
     <div class="contact-info-edit-container" style="display: none">
-      <form onsubmit="Mantissa.People.ContactInfo.get(this).saveContactInfoItem(this.elements[0]); return false">
+      <form onsubmit="Mantissa.People.ContactInfo.get(this).saveContactInfoItem(this); return false">
         <input type="text"><nevow:attr name="value"><nevow:slot name="value" /></nevow:attr></input>
+        <input type="hidden" name="contactInfoItemID">
+          <nevow:attr name="value"><nevow:slot name="contact-info-item-id" /></nevow:attr>
+        </input>
       </form>
       <a href="#" class="contact-info-action-save"
         onclick="Mantissa.People.ContactInfo.get(this).saveContactInfoItem(this); return false">(save)</a>

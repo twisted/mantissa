@@ -95,15 +95,15 @@ Mantissa.People.ContactInfo.methods(
      *
      * @param saveLink: node
      */
-    function saveContactInfoItem(self, saveLink) {
-        var sectionName = self._getEnclosingRow(saveLink).className;
+    function saveContactInfoItem(self, form) {
+        var sectionName = self._getEnclosingRow(form).className;
         var section = self._nodeCache[sectionName];
         var viewNode = self._getValueNode(section["view-container"]);
-        var editInput = section["edit-container"].getElementsByTagName("input")[0];
+        var editInput = form.elements[0];
 
         return self.callRemote("editContactInfoItem",
                         sectionName,
-                        viewNode.firstChild.nodeValue,
+                        form.contactInfoItemID.value,
                         editInput.value).addCallback(
             function() {
                 viewNode.firstChild.nodeValue = editInput.value;
