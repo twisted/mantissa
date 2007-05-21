@@ -1,46 +1,119 @@
+# -*- test-case-name: xmantissa.test.test_liveform -*-
+
 """
 
 XXX HYPER TURBO SUPER UNSTABLE DO NOT USE XXX
 
 """
 
+import warnings
+
+from zope.interface import implements
+
+from twisted.python.components import registerAdapter
+
 from epsilon.structlike import record
 
 from nevow import inevow, tags, page, athena
 from nevow.athena import expose
+from nevow.page import Element, renderer
+from nevow.loaders import stan
 
 from xmantissa import webtheme
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
+from xmantissa.ixmantissa import IParameterView
 
-class Parameter(record('name type coercer label description default',
+
+TEXT_INPUT = 'text'
+PASSWORD_INPUT = 'password'
+TEXTAREA_INPUT = 'textarea'
+FORM_INPUT = 'form'
+RADIO_INPUT = 'radio'
+CHECKBOX_INPUT = 'checkbox'
+class Parameter(record('name type coercer label description default '
+                       'viewFactory',
                        label=None,
                        description=None,
-                       default=None)):
-    pass
+                       default=None,
+                       viewFactory=IParameterView)):
+    """
+    @type name: C{unicode}
+    @ivar name: A name uniquely identifying this parameter within a particular
+        form.
+
+    @ivar type: One of C{TEXT_INPUT}, C{PASSWORD_INPUT}, C{TEXTAREA_INPUT},
+        C{FORM_INPUT}, C{RADIO_INPUT}, or C{CHECKBOX_INPUT} indicating the kind
+        of input interface which will be presented for this parameter.
+
+    @type description: C{unicode} or C{NoneType}
+    @ivar description: An explanation of the meaning or purpose of this
+        parameter which will be presented in the view, or C{None} if the user
+        is intended to guess.
+
+    @type default: C{unicode} or C{NoneType}
+    @ivar default: A value which will be initially presented in the view as the
+        value for this parameter, or C{None} if no such value is to be
+        presented.
+
+    @ivar viewFactory: A two-argument callable which returns an
+        L{IParameterView} provider which will be used as the view for this
+        parameter, if one can be provided.  It will be invoked with the
+        parameter as the first argument and a default value as the second
+        argument.  The default should be returned if no view can be provided
+        for the given parameter.
+    """
 
 MULTI_TEXT_INPUT = 'multi-text'
 
-class ListParameter(record('name coercer count label description defaults',
-                    label=None,
-                    description=None,
-                    defaults=None)):
+class ListParameter(record('name coercer count label description defaults '
+                           'viewFactory',
+                           label=None,
+                           description=None,
+                           defaults=None,
+                           viewFactory=IParameterView)):
 
     type = MULTI_TEXT_INPUT
 
 CHOICE_INPUT = 'choice'
 MULTI_CHOICE_INPUT = 'multi-choice'
 
-class ChoiceParameter(record('name choices label description multiple',
-                      label=None,
-                      description="",
-                      multiple=False)):
+
+class Option(record('description value selected')):
+    """
+    A single choice for a L{ChoiceParameter}.
+    """
+
+
+class ChoiceParameter(record('name choices label description multiple '
+                             'viewFactory',
+                             label=None,
+                             description="",
+                             multiple=False,
+                             viewFactory=IParameterView)):
     """
     A choice parameter, represented by a <select> element in HTML.
 
-    @ivar choices: a sequence of choices, represented as sequences of the form
-    C{(description, value, initiallySelected)}
+    @ivar choices: A sequence of L{Option} instances (deprecated: a sequence of
+        three-tuples giving the attributes of L{Option} instances).
+
     @ivar multiple: C{True} if multiple choice selections are allowed
+
+    @ivar viewFactory: A two-argument callable which returns an
+        L{IParameterView} provider which will be used as the view for this
+        parameter, if one can be provided.  It will be invoked with the
+        parameter as the first argument and a default value as the second
+        argument.  The default should be returned if no view can be provided
+        for the given parameter.
     """
+    def __init__(self, *a, **kw):
+        ChoiceParameter.__bases__[0].__init__(self, *a, **kw)
+        if self.choices and isinstance(self.choices[0], tuple):
+            warnings.warn(
+                "Pass a list of Option instances to ChoiceParameter, "
+                "not a list of tuples.",
+                category=DeprecationWarning,
+                stacklevel=2)
+            self.choices = [Option(*o) for o in self.choices]
 
     def type(self):
         if self.multiple:
@@ -50,26 +123,93 @@ class ChoiceParameter(record('name choices label description multiple',
 
     def coercer(self, value):
         if self.multiple:
-            return tuple(self.choices[int(v)][1] for v in value)
-        return self.choices[int(value)][1]
+            return tuple(self.choices[int(v)].value for v in value)
+        return self.choices[int(value)].value
 
-TEXT_INPUT = 'text'
-PASSWORD_INPUT = 'password'
-TEXTAREA_INPUT = 'textarea'
-FORM_INPUT = 'form'
-RADIO_INPUT = 'radio'
-CHECKBOX_INPUT = 'checkbox'
+
 
 class ConfigurationError(Exception):
     """
-    User-specified configuration for a newly created Item was invalid
-    or incomplete.
+    User-specified configuration for a newly created Item was invalid or
+    incomplete.
     """
+
+
 
 class InvalidInput(Exception):
     """
     Data entered did not meet the requirements of the coercer.
     """
+
+
+
+def _legacySpecialCases(form, patterns, parameter):
+    """
+    Create a view object for the given parameter.
+
+    This function implements the remaining view construction logic which has
+    not yet been converted to the C{viewFactory}-style expressed in
+    L{_LiveFormMixin.form}.
+
+    @type form: L{_LiveFormMixin}
+    @param form: The form fragment which contains the given parameter.
+    @type patterns: L{PatternDictionary}
+    @type parameter: L{Parameter}, L{ChoiceParameter}, or L{ListParameter}.
+    """
+    p = patterns[parameter.type + '-input-container']
+
+    if parameter.type == FORM_INPUT:
+        # SUPER SPECIAL CASE
+        subForm = parameter.coercer.asSubForm(parameter.name)
+        subForm.setFragmentParent(form)
+        p = p.fillSlots('input', subForm)
+    elif parameter.type == TEXTAREA_INPUT:
+        p = dictFillSlots(p, dict(label=parameter.label,
+                                  name=parameter.name,
+                                  value=parameter.default or ''))
+    elif parameter.type == MULTI_TEXT_INPUT:
+        subInputs = list()
+
+        for i in xrange(parameter.count):
+            subInputs.append(dictFillSlots(patterns['input'],
+                                dict(name=parameter.name + '_' + str(i),
+                                     type='text',
+                                     value=parameter.defaults[i])))
+
+        p = dictFillSlots(p, dict(label=parameter.label or parameter.name,
+                                  inputs=subInputs))
+
+    else:
+        if parameter.default is not None:
+            value = parameter.default
+        else:
+            value = ''
+
+        if parameter.type == CHECKBOX_INPUT and parameter.default:
+            inputPattern = 'checked-checkbox-input'
+        else:
+            inputPattern = 'input'
+
+        p = dictFillSlots(
+            p, dict(label=parameter.label or parameter.name,
+                    input=dictFillSlots(patterns[inputPattern],
+                                        dict(name=parameter.name,
+                                             type=parameter.type,
+                                             value=value))))
+
+    p(**{'class' : 'liveform_'+parameter.name})
+
+    if parameter.description:
+        description = patterns['description'].fillSlots(
+                           'description', parameter.description)
+    else:
+        description = ''
+
+    return dictFillSlots(
+        patterns['parameter-input'],
+        dict(input=p, description=description))
+
+
 
 class _LiveFormMixin(record('callable parameters description',
                             description=None)):
@@ -77,11 +217,13 @@ class _LiveFormMixin(record('callable parameters description',
 
     subFormName = None
 
+    fragmentName = 'liveform'
+
     def __init__(self, *a, **k):
         super(_LiveFormMixin, self).__init__(*a, **k)
         if self.docFactory is None:
             # Give subclasses a chance to assign their own docFactory.
-            self.docFactory = webtheme.getLoader('liveform')
+            self.docFactory = webtheme.getLoader(self.fragmentName)
 
 
     def getInitialArguments(self):
@@ -124,84 +266,31 @@ class _LiveFormMixin(record('callable parameters description',
 
 
     def form(self, request, tag):
+        """
+        Render the inputs for a form.
+
+        @param tag: A tag with
+        """
         patterns = PatternDictionary(self.docFactory)
-        inputs = list()
+        inputs = []
 
         for parameter in self.parameters:
-            p = patterns[parameter.type + '-input-container']
-
-            if parameter.type == FORM_INPUT:
-                # SUPER SPECIAL CASE
-                subForm = parameter.coercer.asSubForm(parameter.name)
-                subForm.setFragmentParent(self)
-                p = p.fillSlots('input', subForm)
-            elif parameter.type == TEXTAREA_INPUT:
-                p = dictFillSlots(p, dict(label=parameter.label,
-                                          name=parameter.name,
-                                          value=parameter.default or ''))
-            elif parameter.type == MULTI_TEXT_INPUT:
-                subInputs = list()
-
-                for i in xrange(parameter.count):
-                    subInputs.append(dictFillSlots(patterns['input'],
-                                        dict(name=parameter.name + '_' + str(i),
-                                             type='text',
-                                             value=parameter.defaults[i])))
-
-                p = dictFillSlots(p, dict(label=parameter.label or parameter.name,
-                                          inputs=subInputs))
-
-            elif parameter.type in (CHOICE_INPUT, MULTI_CHOICE_INPUT):
-                selectedOptionPattern = patterns['selected-option']
-                unselectedOptionPattern = patterns['unselected-option']
-                options = []
-                for index, (text, _, selected) in enumerate(parameter.choices):
-                    if selected:
-                        pattern = selectedOptionPattern
-                    else:
-                        pattern = unselectedOptionPattern
-                    options.append(dictFillSlots(
-                            pattern, dict(code=index, text=text)))
-                p = dictFillSlots(p, dict(name=parameter.name,
-                                          label=parameter.label or parameter.name,
-                                          options=options))
+            view = parameter.viewFactory(parameter, None)
+            if view is not None:
+                view.setDefaultTemplate(
+                    tag.onePattern(view.patternName + '-input-container'))
+                inputs.append(view)
             else:
-                if parameter.default is not None:
-                    value = parameter.default
-                else:
-                    value = ''
-
-                if parameter.type == CHECKBOX_INPUT and parameter.default:
-                    inputPattern = 'checked-checkbox-input'
-                else:
-                    inputPattern = 'input'
-
-                p = dictFillSlots(
-                    p, dict(label=parameter.label or parameter.name,
-                            input=dictFillSlots(patterns[inputPattern],
-                                                dict(name=parameter.name,
-                                                     type=parameter.type,
-                                                     value=value))))
-
-            p(**{'class' : 'liveform_'+parameter.name})
-
-            if parameter.description:
-                description = patterns['description'].fillSlots(
-                                   'description', parameter.description)
-            else:
-                description = ''
-
-            inputs.append(dictFillSlots(
-                patterns['parameter-input'],
-                dict(input=p, description=description)))
+                inputs.append(_legacySpecialCases(self, patterns, parameter))
 
         if self.subFormName is None:
-            pname = 'liveform'
+            pattern = tag.onePattern('liveform')
         else:
-            pname = 'subform'
+            pattern = tag.onePattern('subform')
+
         return dictFillSlots(
             tag,
-            dict(form=patterns[pname].fillSlots('inputs', inputs),
+            dict(form=pattern.fillSlots('inputs', inputs),
                  description=self._getDescription()))
     page.renderer(form)
 
@@ -215,7 +304,7 @@ class _LiveFormMixin(record('callable parameters description',
         Invoke my callable with input from the browser.
 
         @param formPostEmulator: a dict of lists of strings in a format like a
-        cgi-module form post.
+            cgi-module form post.
         """
         return self.callable(**self._coerced(formPostEmulator))
     expose(invoke)
@@ -223,13 +312,11 @@ class _LiveFormMixin(record('callable parameters description',
 
     def _coerced(self, received):
         """
-        Convert some random strings received from a browser into structured data,
-        using a list of parameters.
+        Convert some random strings received from a browser into structured
+        data, using a list of parameters.
 
-        @param expected: an iterable of L{Parameter}s
-
-        @param received: a dict of lists of strings, i.e. the canonical Python form
-        of web form post.
+        @param received: a dict of lists of strings, i.e. the canonical Python
+            form of web form post.
 
         @return: a dict mapping parameter names to coerced parameter values.
         """
@@ -266,13 +353,7 @@ class _LiveFormMixin(record('callable parameters description',
 
 class LiveFormFragment(_LiveFormMixin, athena.LiveFragment):
     """
-    A live form. (Deprecated)
-
-    Create with a callable and a list of L{Parameter}s which describe the form
-    of the arguments which the callable will expect.
-
-    @ivar callable: a callable that you can call
-    @ivar parameters: a list of Parameter objects describing
+    DEPRECATED.
 
     @see LiveForm
     """
@@ -287,5 +368,222 @@ class LiveForm(_LiveFormMixin, athena.LiveElement):
     of the arguments which the callable will expect.
 
     @ivar callable: a callable that you can call
-    @ivar parameters: a list of Parameter objects describing
+
+    @ivar parameters: a list of L{Parameter} objects describing the arguments
+        which should be passed to C{callable}.
     """
+
+
+
+class _ParameterViewBase(Element):
+    """
+    Base class providing common functionality for different parameter views.
+
+    @type parameter: L{Parameter}
+    """
+    def __init__(self, parameter):
+        """
+        @type tag: L{nevow.stan.Tag}
+        @param tag: The document template to use to render this view.
+        """
+        self.parameter = parameter
+
+
+    def setDefaultTemplate(self, tag):
+        """
+        Use the given default template.
+        """
+        self.docFactory = stan(tag)
+
+
+    def __eq__(self, other):
+        """
+        Define equality such other views which are instances of the same class
+        as this view and which wrap the same L{Parameter} are considered equal
+        to this one.
+        """
+        if isinstance(other, self.__class__):
+            return self.parameter is other.parameter
+        return False
+
+
+    def __ne__(self, other):
+        """
+        Define inequality as the negation of equality.
+        """
+        return not self.__eq__(other)
+
+
+    def name(self, request, tag):
+        """
+        Render the name of the wrapped L{Parameter} or L{ChoiceParameter} instance.
+        """
+        return tag[self.parameter.name]
+    renderer(name)
+
+
+    def label(self, request, tag):
+        """
+        Render the label of the wrapped L{Parameter} or L{ChoiceParameter} instance.
+        """
+        if self.parameter.label:
+            tag[self.parameter.label]
+        return tag
+    renderer(label)
+
+
+    def description(self, request, tag):
+        """
+        Render the description of the wrapped L{Parameter} instance.
+        """
+        if self.parameter.description is not None:
+            tag[self.parameter.description]
+        return tag
+    renderer(description)
+
+
+
+class _TextLikeParameterView(_ParameterViewBase):
+    """
+    View definition base class for L{Parameter} instances which are simple text
+    inputs.
+    """
+    def default(self, request, tag):
+        """
+        Render the initial value of the wrapped L{Parameter} instance.
+        """
+        if self.parameter.default is not None:
+            tag[self.parameter.default]
+        return tag
+    renderer(default)
+
+
+
+class TextParameterView(_TextLikeParameterView):
+    """
+    View definition for L{Parameter} instances with type of C{TEXT_INPUT}
+    """
+    implements(IParameterView)
+    patternName = 'text'
+
+
+
+class PasswordParameterView(_TextLikeParameterView):
+    """
+    View definition for L{Parameter} instances with type of C{PASSWORD_INPUT}
+    """
+    implements(IParameterView)
+    patternName = 'password'
+
+
+
+class OptionView(Element):
+    """
+    View definition for a single choice of a L{ChoiceParameter}.
+
+    @type option: L{Option}
+    """
+    def __init__(self, index, option, tag):
+        self._index = index
+        self.option = option
+        self.docFactory = stan(tag)
+
+
+    def __eq__(self, other):
+        """
+        Define equality such other L{OptionView} instances which wrap the same
+        L{Option} are considered equal to this one.
+        """
+        if isinstance(other, OptionView):
+            return self.option is other.option
+        return False
+
+
+    def __ne__(self, other):
+        """
+        Define inequality as the negation of equality.
+        """
+        return not self.__eq__(other)
+
+
+    def description(self, request, tag):
+        """
+        Render the description of the wrapped L{Option} instance.
+        """
+        return tag[self.option.description]
+    renderer(description)
+
+
+    def value(self, request, tag):
+        """
+        Render the value of the wrapped L{Option} instance.
+        """
+        return tag[self.option.value]
+    renderer(value)
+
+
+    def index(self, request, tag):
+        """
+        Render the index specified to C{__init__}.
+        """
+        return tag[self._index]
+    renderer(index)
+
+
+    def selected(self, request, tag):
+        """
+        Render a selected attribute on the given tag if the wrapped L{Option}
+        instance is selected.
+        """
+        if self.option.selected:
+            tag(selected='selected')
+        return tag
+    renderer(selected)
+
+
+
+def _textParameterToView(parameter):
+    """
+    Return a L{TextParameterView} adapter for C{TEXT_INPUT} and
+    C{PASSWORD_INPUT} L{Parameter} instances.
+    """
+    if parameter.type == TEXT_INPUT:
+        return TextParameterView(parameter)
+    if parameter.type == PASSWORD_INPUT:
+        return PasswordParameterView(parameter)
+    return None
+
+registerAdapter(_textParameterToView, Parameter, IParameterView)
+
+
+
+class ChoiceParameterView(_ParameterViewBase):
+    """
+    View definition for L{Parameter} instances with type of C{CHOICE_INPUT}.
+    """
+    implements(IParameterView)
+    patternName = 'choice'
+
+    def multiple(self, request, tag):
+        """
+        Render a I{multiple} attribute on the given tag if the wrapped
+        L{ChoiceParameter} instance allows multiple selection.
+        """
+        if self.parameter.multiple:
+            tag(multiple='multiple')
+        return tag
+    renderer(multiple)
+
+
+    def options(self, request, tag):
+        """
+        Render each of the options of the wrapped L{ChoiceParameter} instance.
+        """
+        option = tag.patternGenerator('option')
+        return tag[[
+                OptionView(index, o, option())
+                for (index, o)
+                in enumerate(self.parameter.choices)]]
+    renderer(options)
+
+registerAdapter(ChoiceParameterView, ChoiceParameter, IParameterView)

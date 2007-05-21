@@ -1,5 +1,13 @@
+# -*- test-case-name: xmantissa.test -*-
+
+"""
+Public interfaces used in Mantissa.
+"""
 
 from zope.interface import Interface, Attribute
+
+from nevow.inevow import IRenderer
+
 
 class IColumn(Interface):
     """
@@ -571,6 +579,7 @@ class IOrganizerPlugin(Interface):
         """
 
 
+
 class IPersonFragment(Interface):
     """
     Web facet of a personalized L{IOrganizerPlugin}, e.g.
@@ -669,3 +678,35 @@ class IProtocolFactoryFactory(Interface):
         """
         Return a Twisted protocol factory.
         """
+
+
+
+class IParameterView(IRenderer):
+    """
+    View interface for an individual LiveForm parameter.
+    """
+    patternName = Attribute("""
+    Short string giving the name of the pattern for this parameter view.  Must
+    be one of C{'text'}, C{'password'}, or C{'choice'}.
+    """)
+
+    def setDefaultTemplate(tag):
+        """
+        Called by L{xmantissa.liveform.LiveForm} to specify the default
+        template for this view.
+
+        @type tag: L{nevow.stan.Tag} or C{nevow.stan.Proto}
+        """
+
+
+__all__ = [
+    'IColumn', 'ITemplateNameResolver', 'IPreferenceAggregator',
+    'ISearchProvider', 'ISearchAggregator', 'IFulltextIndexer',
+    'IFulltextIndexable', 'IStaticShellContent', 'ISiteRootPlugin',
+    'ISessionlessSiteRootPlugin', 'ICustomizable', 'IPublicPage',
+    'ICustomizablePublicPage', 'IWebTranslator', 'INavigableElement',
+    'INavigableFragment', 'ITab', 'IBenefactor', 'IBenefactorFactory',
+    'IQ2QService', 'IPreferenceCollection', 'ITemporalEvent', 'IDateBook',
+    'IOrganizerPlugin', 'IPersonFragment', 'IOffering', 'ISignupMechanism',
+    'IProtocolFactoryFactory', 'IParameterView',
+    ]

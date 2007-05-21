@@ -1,7 +1,5 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <nevow:invisible nevow:render="form">
-    <nevow:slot name="form" />
-  </nevow:invisible>
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="form">
+  <nevow:slot name="form" />
 
   <form action="#" nevow:render="liveElement"
         onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
@@ -69,35 +67,23 @@
   </div>
 
   <div nevow:pattern="text-input-container">
-    <nevow:slot name="label" />
-    <nevow:slot name="input" />
+    <nevow:attr name="class" nevow:render="name">liveform_</nevow:attr>
+    <nevow:invisible nevow:render="label" />
+    <input type="text"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input>
   </div>
 
   <div nevow:pattern="choice-input-container">
-    <nevow:slot name="label" />
-    <select>
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="options" />
+    <nevow:invisible nevow:render="label" />
+    <select nevow:render="multiple">
+      <nevow:attr name="name" nevow:render="name" />
+      <nevow:invisible nevow:render="options">
+        <option nevow:render="selected" nevow:pattern="option">
+          <nevow:attr name="value" nevow:render="index" />
+          <nevow:invisible nevow:render="description" />
+        </option>
+      </nevow:invisible>
     </select>
   </div>
-
-  <div nevow:pattern="multi-choice-input-container">
-    <nevow:slot name="label" />
-    <select multiple="multiple">
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="options" />
-    </select>
-  </div>
-
-  <option selected="selected" nevow:pattern="selected-option">
-    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
-    <nevow:slot name="text" />
-  </option>
-
-  <option nevow:pattern="unselected-option">
-    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
-    <nevow:slot name="text" />
-  </option>
 
   <div nevow:pattern="multi-text-input-container">
     <nevow:slot name="label" />
@@ -105,8 +91,9 @@
   </div>
 
   <div nevow:pattern="password-input-container">
-    <nevow:slot name="label" />
-    <nevow:slot name="input" />
+    <nevow:attr name="class" nevow:render="name">liveform_</nevow:attr>
+    <nevow:invisible nevow:render="label" />
+    <input type="password"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input>
   </div>
 
   <!-- Note that any whitespace in the textarea tag will appear in the

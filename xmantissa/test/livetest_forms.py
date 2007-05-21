@@ -177,13 +177,14 @@ class Traverse(testcase.TestCase):
 class SetInputValues(testcase.TestCase):
     jsClass = u'Mantissa.Test.SetInputValues'
 
-    def submit(self, choice, choiceMult, text, textArea, checkbox):
+    def submit(self, choice, choiceMult, text, passwd, textArea, checkbox):
         """
         Assert that all input values have been reversed/inverted
         """
         self.assertEqual(choice, 1)
         self.assertEqual(choiceMult, (2, 3))
         self.assertEqual(text, 'dlrow olleh')
+        self.assertEqual(passwd, 'yek terces')
         self.assertEqual(textArea, '2 dlrow olleh')
         self.failIf(checkbox)
 
@@ -209,6 +210,11 @@ class SetInputValues(testcase.TestCase):
                     liveform.TEXT_INPUT,
                     unicode,
                     default=u'hello world'),
+                 liveform.Parameter(
+                    'passwd',
+                    liveform.PASSWORD_INPUT,
+                    unicode,
+                    default=u'secret key'),
                  liveform.Parameter(
                      'textArea',
                      liveform.TEXTAREA_INPUT,

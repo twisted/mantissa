@@ -1,7 +1,5 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
-  <nevow:invisible nevow:render="form">
-    <nevow:slot name="form" />
-  </nevow:invisible>
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="form">
+  <nevow:slot name="form" />
 
   <form nevow:pattern="liveform"
     action="#" nevow:render="liveElement"
@@ -41,8 +39,8 @@
   </tr>
 
   <tr nevow:pattern="text-input-container">
-    <td><nevow:slot name="label" /></td>
-    <td><nevow:slot name="input" /></td>
+    <td><nevow:invisible nevow:render="label" /></td>
+    <td><input type="text"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input></td>
   </tr>
 
   <tr nevow:pattern="multi-text-input-container" valign="top">
@@ -51,8 +49,8 @@
   </tr>
 
   <tr nevow:pattern="password-input-container">
-    <td><nevow:slot name="label" /></td>
-    <td><nevow:slot name="input" /></td>
+    <td><nevow:invisible nevow:render="label" /></td>
+    <td><input type="password"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input></td>
   </tr>
 
   <tr nevow:pattern="radio-input-container">
@@ -71,7 +69,6 @@
     </td>
   </tr>
 
-
   <input nevow:pattern="input">
     <nevow:attr name="value"><nevow:slot name="value" /></nevow:attr>
     <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
@@ -83,32 +80,18 @@
   </input>
 
   <tr nevow:pattern="choice-input-container">
-    <td><nevow:slot name="label" /></td>
+    <nevow:attr name="class" nevow:render="name">liveform_</nevow:attr>
+    <td><nevow:invisible nevow:render="label" /></td>
     <td>
-    <select>
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="options" />
-    </select>
+      <select nevow:render="multiple">
+        <nevow:attr name="name" nevow:render="name" />
+        <nevow:invisible nevow:render="options">
+          <option nevow:render="selected" nevow:pattern="option">
+            <nevow:attr name="value" nevow:render="index" />
+            <nevow:invisible nevow:render="description" />
+          </option>
+        </nevow:invisible>
+      </select>
     </td>
   </tr>
-
-  <tr nevow:pattern="multi-choice-input-container">
-    <td><nevow:slot name="label" /></td>
-    <td>
-    <select multiple="multiple">
-      <nevow:attr name="name"><nevow:slot name="name" /></nevow:attr>
-      <nevow:slot name="options" />
-    </select>
-    </td>
-  </tr>
-
-  <option selected="selected" nevow:pattern="selected-option">
-    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
-    <nevow:slot name="text" />
-  </option>
-
-  <option nevow:pattern="unselected-option">
-    <nevow:attr name="value"><nevow:slot name="code" /></nevow:attr>
-    <nevow:slot name="text" />
-  </option>
 </div>

@@ -315,6 +315,7 @@ Mantissa.Test.SetInputValues.methods(
         var expected = {choice: "0",
                         text: "hello world",
                         textArea: "hello world 2",
+                        passwd: "secret key",
                         checkbox: true};
         for(var k in expected) {
             self.assertArraysEqual([expected[k]], inputValues[k]);
@@ -349,6 +350,7 @@ Mantissa.Test.SetInputValues.methods(
                         choiceMult: [["2", "3"]],
                         text: ["dlrow olleh"],
                         textArea: ["2 dlrow olleh"],
+                        passwd: ["yek terces"],
                         checkbox: [false]};
         var form = self.childWidgets[0];
         form.setInputValues(inverted);
