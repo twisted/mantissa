@@ -3,7 +3,7 @@
 import re
 from itertools import islice
 from string import uppercase
-
+from warnings import warn
 
 from zope.interface import implements
 
@@ -12,6 +12,7 @@ from twisted.python import components
 from nevow import rend, athena, inevow, static, url
 from nevow.athena import expose
 from nevow.loaders import stan
+from nevow.page import renderer
 
 from epsilon import extime
 
@@ -22,6 +23,8 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
+from xmantissa.liveform import FORM_INPUT, Parameter
+from xmantissa.ixmantissa import IOrganizerPlugin
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
@@ -270,6 +273,68 @@ class Organizer(item.Item):
 
     powerupInterfaces = (ixmantissa.INavigableElement,)
 
+
+    def getOrganizerPlugins(self):
+        """
+        Return an iterator of the installed L{IOrganizerPlugin} powerups.
+        """
+        return self.store.powerupsFor(IOrganizerPlugin)
+
+
+    def getContactTypes(self):
+        """
+        Return an iterator of L{IContactType} providers available to this
+        organizer's store.
+        """
+        for plugin in self.getOrganizerPlugins():
+            getContactTypes = getattr(plugin, 'getContactTypes', None)
+            if getContactTypes is not None:
+                for contactType in plugin.getContactTypes():
+                    yield contactType
+            else:
+                warn(
+                    "IOrganizerPlugin now has the getContactTypes method, %s "
+                    "did not implement it" % (plugin.__class__,),
+                    category=PendingDeprecationWarning)
+
+
+    def getContactCreationParameters(self):
+        """
+        Yield a L{Parameter} for each L{IContactType} known.
+        """
+        for contactType in self.getContactTypes():
+            yield Parameter(
+                contactType.uniqueIdentifier(),
+                FORM_INPUT,
+                contactType.getCreationForm())
+
+
+    def createPerson(self, nickname):
+        """
+        Create a new L{Person} with the given name in this organizer.
+
+        @type nickname: C{unicode}
+        @param nickname: The value for the new person's C{name} attribute.
+
+        @rtype: L{Person}
+        """
+        person = Person(
+            store=self.store,
+            created=extime.Time(),
+            organizer=self,
+            name=nickname)
+        for observer in self.getOrganizerPlugins():
+            personCreated = getattr(observer, 'personCreated', None)
+            if personCreated is not None:
+                personCreated(person)
+            else:
+                warn(
+                    "IOrganizerPlugin now has the personCreated method, %s "
+                    "did not implement it" % (observer.__class__,),
+                    category=PendingDeprecationWarning)
+        return person
+
+
     def personByName(self, name):
         """
         Retrieve the L{Person} item for the given Q2Q address,
@@ -278,6 +343,7 @@ class Organizer(item.Item):
         @type name: C{unicode}
         """
         return self.store.findOrCreate(Person, organizer=self, name=name)
+
 
     def personByEmailAddress(self, address):
         """
@@ -575,37 +641,63 @@ def _hasLengthOrNone(s):
     return s
 
 class AddPersonFragment(athena.LiveFragment):
+    """
+    View class for L{AddPerson}, presenting a user interface for creating a new
+    L{Person}.
+
+    @ivar adder: The L{AddPerson} instance this instance adapts.
+    """
     fragmentName = 'add-person'
     live = 'athena'
 
-    def render_addPersonForm(self, ctx, data):
-        def makeParam(name, desc, coerce=_hasLengthOrNone):
-            return liveform.Parameter(name, liveform.TEXT_INPUT, coerce, desc)
+    def __init__(self, addPerson):
+        athena.LiveFragment.__init__(self)
+        self.adder = addPerson
 
+
+    def head(self):
+        """
+        Supply not content to the head area of the page.
+        """
+        return None
+
+
+    def _addPersonParameters(self):
+        """
+        Return some fixed fields for the person creation form as well as any
+        fields from L{IOrganizerPlugin} powerups.
+        """
+        def makeParam(name, desc):
+            return liveform.Parameter(
+                name, liveform.TEXT_INPUT, _hasLengthOrNone, desc)
+
+        parameters = [
+            makeParam('firstname', 'First Name'),
+            makeParam('lastname', 'Last Name'),
+            makeParam('email', 'Email Address'),
+            makeParam('nickname', 'Nickname')]
+        parameters.extend(self.adder.organizer.getContactCreationParameters())
+        return parameters
+
+
+    def render_addPersonForm(self, ctx, data):
+        """
+        Create and return a L{liveform.LiveForm} for creating a new L{Person}.
+        """
         addPersonForm = liveform.LiveForm(
             self.addPerson,
-            (makeParam('firstname', 'First Name'),
-             makeParam('lastname', 'Last Name'),
-             makeParam('email', 'Email Address'),
-             makeParam('nickname', 'Nickname')),
-             description='Add Person')
+            self._addPersonParameters(),
+            description='Add Person')
         addPersonForm.docFactory = webtheme.getLoader('liveform-compact')
         addPersonForm.setFragmentParent(self)
         return addPersonForm
 
-    def head(self):
-        return None
 
-    def makePerson(self, nickname):
-        return Person(store=self.original.store,
-                      created=extime.Time(),
-                      organizer=self.original.store.findUnique(Organizer),
-                      name=nickname)
-
-    def _addPerson(self, nickname, firstname, lastname, email):
+    def _addPerson(self, nickname, firstname, lastname, email,
+                   **allContactInfo):
         if not (nickname or firstname or lastname):
             raise ValueError('please supply nickname or first/last name')
-        store = self.original.store
+        store = self.adder.store
         address = store.findFirst(EmailAddress, EmailAddress.address == email)
         if address is not None:
             raise ValueError('There is already a person with that email '
@@ -614,7 +706,7 @@ class AddPersonFragment(athena.LiveFragment):
         if nickname is None:
             nickname = u''
         def txn():
-            person = self.makePerson(nickname)
+            person = self.adder.organizer.createPerson(nickname)
 
             if email:
                 EmailAddress(store=store,
@@ -627,11 +719,20 @@ class AddPersonFragment(athena.LiveFragment):
                         first=firstname,
                         last=lastname)
 
-            return person
-        return self.original.store.transact(txn)
+            # XXX This has the potential for breakage, if a new contact type is
+            # returned by this call which was not returned by the call used to
+            # generate the form, or vice versa.  I'll happily fix this the very
+            # instant a button is present upon a web page which can provoke
+            # this behavior. -exarkun
+            for contactType in self.adder.organizer.getContactTypes():
+                contactInfo = allContactInfo[contactType.uniqueIdentifier()]
+                contactType.createContactItem(person, contactInfo)
 
-    def addPerson(self, nickname, firstname, lastname, email):
-        self._addPerson(nickname, firstname, lastname, email)
+            return person
+        return self.adder.store.transact(txn)
+
+    def addPerson(self, nickname, firstname, lastname, email, **contactInfo):
+        self._addPerson(nickname, firstname, lastname, email, **contactInfo)
         return u'Made A Person!'
     expose(addPerson)
 

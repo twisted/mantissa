@@ -1,9 +1,16 @@
 
+"""
+Tests for L{xmantissa.people}.
+"""
+
 from xml.dom.minidom import parseString
+
+from zope.interface import implements
 
 from string import lowercase
 
 from twisted.python.util import sibpath
+from twisted.python.reflect import qual
 from twisted.trial import unittest
 
 from nevow.loaders import stan
@@ -13,19 +20,104 @@ from nevow.flat import flatten
 from epsilon import extime
 from epsilon.extime import Time
 
-from axiom import store
 from axiom.store import Store
 from axiom.dependency import installOn, installedOn
 from axiom.item import Item
-from axiom.attributes import text
+from axiom.attributes import inmemory, text
 
 from xmantissa.people import (Organizer, Person, RealName, EmailAddress,
                               AddPersonFragment, Mugshot, addContactInfoType,
                               contactInfoItemTypeFromClassName,
                               _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment,
                               PhoneNumber, setIconURLForContactInfoType,
-                              iconURLForContactInfoType, _CONTACT_INFO_ICON_URLS)
+                              iconURLForContactInfoType, _CONTACT_INFO_ICON_URLS,
+                              AddPerson)
 from xmantissa.webapp import PrivateApplication
+from xmantissa.liveform import FORM_INPUT, Parameter
+from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
+
+
+class StubOrganizerPlugin(Item):
+    """
+    Organizer powerup which records which people are created and gives back
+    canned responses to method calls.
+    """
+    value = text(
+        doc="""
+        Mandatory attribute.
+        """)
+
+    createdPeople = inmemory(
+        doc="""
+        A list of all L{People} created since this item was last loaded from
+        the database.
+        """)
+
+    contactTypes = inmemory(
+        doc="""
+        A list of L{IContact} implementors to return from L{getContactTypes}.
+        """)
+
+    def activate(self):
+        """
+        Initialize C{createdPeople} to an empty list.
+        """
+        self.createdPeople = []
+
+
+    def personCreated(self, person):
+        """
+        Record the creation of a L{Person}.
+        """
+        self.createdPeople.append(person)
+
+
+    def getContactTypes(self):
+        """
+        Return the contact types list this item was constructed with.
+        """
+        return self.contactTypes
+
+
+
+class StubContactType(object):
+    """
+    Behaviorless contact type implementation used for tests.
+
+    @ivar creationForm: The object which will be returned from L{getCreationForm}.
+    @ivar createdContacts: A list of tuples of the arguments passed to
+        C{createContactItem}.
+
+    """
+    implements(IContactType)
+
+    def __init__(self, creationForm):
+        self.creationForm = creationForm
+        self.createdContacts = []
+
+
+    def uniqueIdentifier(self):
+        """
+        Return the L{qual} of this class.
+        """
+        return qual(self.__class__)
+
+
+    def getCreationForm(self):
+        """
+        Return an object which is supposed to be a form for creating a new
+        instance of this contact type.
+        """
+        return self.creationForm
+
+
+    def createContactItem(self, person, argument):
+        """
+        Record an attempt to create a new contact item of this type for the
+        given person.
+        """
+        self.createdContacts.append((person, argument))
+
 
 class PeopleModelTestCase(unittest.TestCase):
     """
@@ -79,6 +171,131 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertEqual(people[2].name, u'lAlice oJones')
 
 
+    def test_createPerson(self):
+        """
+        L{Organizer.createPerson} should instantiate and return a L{Person} item
+        with the specified nickname, a reference to the creating L{Organizer},
+        and a creation timestamp set to the current time.
+        """
+        nickname = u'test person'
+        beforeCreation = extime.Time()
+        person = self.organizer.createPerson(nickname)
+        afterCreation = extime.Time()
+        self.assertEqual(person.name, nickname)
+        self.assertIdentical(person.organizer, self.organizer)
+        self.assertTrue(beforeCreation <= person.created <= afterCreation)
+
+
+    def test_getOrganizerPlugins(self):
+        """
+        L{Organizer.getOrganizerPlugins} should return an iterator of the
+        installed L{IOrganizerPlugin} powerups.
+        """
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        self.assertEqual(
+            list(self.organizer.getOrganizerPlugins()), [observer])
+
+
+    def test_createPersonNotifiesPlugins(self):
+        """
+        L{Organizer.createPerson} should call L{personCreated} on all
+        L{IOrganizerPlugin} powerups on the store.
+        """
+        nickname = u'test person'
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        person = self.organizer.createPerson(nickname)
+        self.assertEqual(observer.createdPeople, [person])
+
+
+    def test_organizerPluginWithoutPersonCreated(self):
+        """
+        L{IOrganizerPlugin} powerups which don't have the C{personCreated}
+        method should not cause problems with L{Organizer.createPerson} (The
+        method was added after the interface was initially defined so there may
+        be implementations which have not yet been updated).
+        """
+        class OldOrganizerPlugin(object):
+            """
+            An L{IOrganizerPlugin} which does not implement C{getContactTypes}.
+            """
+        getOrganizerPlugins = Organizer.getOrganizerPlugins.im_func
+        plugins = [OldOrganizerPlugin(), StubOrganizerPlugin(createdPeople=[])]
+        Organizer.getOrganizerPlugins = lambda self: plugins
+        try:
+            organizer = Organizer()
+            person = organizer.createPerson(u'nickname')
+        finally:
+            Organizer.getOrganizerPlugins = getOrganizerPlugins
+
+        self.assertEqual(plugins[1].createdPeople, [person])
+
+
+    def test_getContactTypes(self):
+        """
+        L{Organizer.getContactTypes} should return an iterable of all the
+        L{IContactType} plugins available on the store.
+        """
+        firstContactTypes = [object(), object()]
+        firstContactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=firstContactTypes)
+        self.store.powerUp(
+            firstContactPowerup, IOrganizerPlugin, priority=1)
+
+        secondContactTypes = [object()]
+        secondContactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=secondContactTypes)
+        self.store.powerUp(
+            secondContactPowerup, IOrganizerPlugin, priority=0)
+
+        self.assertEqual(
+            list(self.organizer.getContactTypes()),
+            firstContactTypes + secondContactTypes)
+
+
+    def test_organizerPluginWithoutContactTypes(self):
+        """
+        L{IOrganizerPlugin} powerups which don't have the C{getContactTypes}
+        method should not cause problems with L{Organizer.getContactTypes} (The
+        method was added after the interface was initially defined so there may
+        be implementations which have not yet been updated).
+        """
+        class OldOrganizerPlugin(object):
+            """
+            An L{IOrganizerPlugin} which does not implement C{getContactTypes}.
+            """
+        getOrganizerPlugins = Organizer.getOrganizerPlugins.im_func
+        Organizer.getOrganizerPlugins = lambda self: [OldOrganizerPlugin()]
+        try:
+            organizer = Organizer()
+            contactTypes = list(organizer.getContactTypes())
+        finally:
+            Organizer.getOrganizerPlugins = getOrganizerPlugins
+
+        self.assertEqual(contactTypes, [])
+
+
+    def test_getContactCreationParameters(self):
+        """
+        L{Organizer.getContactCreationParameters} should return a list
+        containing C{FORM_INPUT} parameters for each contact type available in
+        the system.
+        """
+        contactForm = object()
+        contactTypes = [StubContactType(contactForm)]
+        contactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=contactTypes)
+        self.store.powerUp(contactPowerup, IOrganizerPlugin)
+
+        parameters = list(self.organizer.getContactCreationParameters())
+        self.assertEqual(len(parameters), 1)
+        self.assertTrue(isinstance(parameters[0], Parameter))
+        self.assertEqual(parameters[0].name, qual(StubContactType))
+        self.assertEqual(parameters[0].type, FORM_INPUT)
+        self.assertIdentical(parameters[0].coercer, contactForm)
+
+
 
 class POBox(Item):
     number = text()
@@ -87,7 +304,7 @@ class POBox(Item):
 
 class PeopleTests(unittest.TestCase):
     def testPersonCreation(self):
-        s = store.Store()
+        s = Store()
         o = Organizer(store=s)
 
         beforeCreation = extime.Time()
@@ -119,7 +336,7 @@ class PeopleTests(unittest.TestCase):
         Verify that getEmailAddresses yields the associated email address
         strings for a person.
         """
-        s = store.Store()
+        s = Store()
         p = Person(store=s)
         EmailAddress(store=s, person=p, address=u'a@b.c')
         EmailAddress(store=s, person=p, address=u'c@d.e')
@@ -135,7 +352,7 @@ class PeopleTests(unittest.TestCase):
         info items are installed on their person item.
         """
         email = u'username@hostname'
-        s = store.Store()
+        s = Store()
         person = Person(store=s)
         person.createContactInfoItem(EmailAddress, 'address', email)
         contacts = list(s.query(EmailAddress))
@@ -151,7 +368,7 @@ class PeopleTests(unittest.TestCase):
         L{Person.findContactInfoItem}.
         """
         email = u'username@hostname'
-        s = store.Store()
+        s = Store()
         alice = Person(store=s)
         bob = Person(store=s)
         emailObj = EmailAddress(store=s, person=alice, address=email)
@@ -257,37 +474,86 @@ class PeopleTests(unittest.TestCase):
         Verify that getEmailAddress yields the only associated email address
         for a person if it is the only one.
         """
-        s = store.Store()
+        s = Store()
         p = Person(store=s)
         EmailAddress(store=s, person=p, address=u'a@b.c')
         self.assertEquals(p.getEmailAddress(), u'a@b.c')
 
     def testPersonRetrieval(self):
-        s = store.Store()
+        s = Store()
         o = Organizer(store=s)
 
         name = u'testuser'
         firstPerson = o.personByName(name)
         self.assertIdentical(firstPerson, o.personByName(name))
 
+
+    def test_addPersonParameters(self):
+        """
+        L{AddPersonFragment.render_addPersonForm} should return a L{LiveForm}
+        with several fixed parameters and any parameters from available
+        powerups.
+        """
+        store = Store()
+        adder = AddPerson(store=store)
+        installOn(adder, store)
+
+        addPersonFrag = AddPersonFragment(adder)
+        addPersonForm = addPersonFrag.render_addPersonForm(None, None)
+        self.assertEqual(len(addPersonForm.parameters), 4)
+
+        contactTypes = [StubContactType(object())]
+        observer = StubOrganizerPlugin(
+            store=store, contactTypes=contactTypes)
+        store.powerUp(observer, IOrganizerPlugin)
+
+        addPersonForm = addPersonFrag.render_addPersonForm(None, None)
+        self.assertEqual(len(addPersonForm.parameters), 5)
+
+
+    def test_addPersonWithContactItems(self):
+        """
+        L{AddPersonFragment.addPerson} should give the L{IContactType} plugins
+        their information from the form submission.
+        """
+        store = Store()
+        adder = AddPerson(store=store)
+        installOn(adder, store)
+
+        creationForm = object()
+        contactType = StubContactType(creationForm)
+        observer = StubOrganizerPlugin(
+            store=store, contactTypes=[contactType])
+        store.powerUp(observer, IOrganizerPlugin)
+
+        addPersonFragment = AddPersonFragment(adder)
+
+        argument = object()
+        addPersonFragment.addPerson(
+            u'nickname', u'firstname', u'lastname', u'email@example.com',
+            **{contactType.uniqueIdentifier(): argument})
+
+        person = store.findUnique(Person)
+
+        self.assertEqual(contactType.createdContacts, [(person, argument)])
+
+
     def testPersonCreation2(self):
-        s = store.Store()
-        o = Organizer(store=s)
+        store = Store()
+        organizer = Organizer(store=store)
+        adder = AddPerson(store=store, organizer=organizer)
 
-        class original:
-            store = s
-
-        addPersonFrag = AddPersonFragment(original)
+        addPersonFrag = AddPersonFragment(adder)
         addPersonFrag.addPerson(u'Captain P.', u'Jean-Luc', u'Picard', u'jlp@starship.enterprise')
 
-        person = s.findUnique(Person)
+        person = store.findUnique(Person)
         self.assertEquals(person.name, 'Captain P.')
 
-        email = s.findUnique(EmailAddress, EmailAddress.person == person)
+        email = store.findUnique(EmailAddress, EmailAddress.person == person)
 
         self.assertEquals(email.address, 'jlp@starship.enterprise')
 
-        rn = s.findUnique(RealName, RealName.person == person)
+        rn = store.findUnique(RealName, RealName.person == person)
 
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
 
@@ -299,11 +565,10 @@ class PeopleTests(unittest.TestCase):
         L{Organizer.personByEmailAddress} can always return a unique person.
         """
         # make ourselves an AddPersonFragment
-        s = store.Store()
-        o = Organizer(store=s)
-        class original(object):
-            store = s
-        fragment = AddPersonFragment(original)
+        store = Store()
+        organizer = Organizer(store=store)
+        adder = AddPerson(store=store, organizer=organizer)
+        fragment = AddPersonFragment(adder)
 
         address = u'test@example.com'
         fragment.addPerson(u'flast', u'First', u'Last', address)
@@ -321,7 +586,7 @@ class PeopleTests(unittest.TestCase):
         except ImportError:
             raise unittest.SkipTest('PIL is not available')
 
-        s = store.Store(self.mktemp())
+        s = Store(self.mktemp())
 
         p = Person(store=s, name=u'Bob')
 
@@ -343,7 +608,7 @@ class PeopleTests(unittest.TestCase):
         self.assertEqual(smallerimg.size, (m.smallerSize, m.smallerSize))
 
     def testLinkToPerson(self):
-        s = store.Store()
+        s = Store()
 
         privapp = PrivateApplication(store=s)
         installOn(privapp, s)

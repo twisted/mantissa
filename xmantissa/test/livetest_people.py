@@ -15,10 +15,9 @@ class AddPersonTestBase(people.AddPersonFragment):
 
     def __init__(self):
         self.store = Store()
-        self.original  = people.AddPerson(store=self.store)
-        self.organizer = people.Organizer(store=self.store)
-
-        super(AddPersonTestBase, self).__init__()
+        adder = people.AddPerson(store=self.store)
+        installOn(adder, self.store)
+        people.AddPersonFragment.__init__(self, adder)
 
 
     def getWidgetDocument(self):
@@ -75,7 +74,7 @@ class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
 
         p = self.store.findUnique(people.Person)
         self.assertEqual(p.name, '')
-        self.assertEqual(p.organizer, self.organizer)
+        self.assertEqual(p.organizer, self.adder.organizer)
 
         rn = self.store.findUnique(people.RealName)
         self.assertEqual(rn.first, 'FIRSTNAME')
@@ -101,7 +100,7 @@ class OnlyNick(AddPersonTestBase, TestCase):
 
         p = self.store.findUnique(people.Person)
         self.assertEqual(p.name, 'everybody')
-        self.assertEqual(p.organizer, self.organizer)
+        self.assertEqual(p.organizer, self.adder.organizer)
         p.deleteFromStore()
 
         self.assertEqual(self.store.count(people.EmailAddress), 0)
@@ -137,7 +136,7 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
 
         p = self.store.findUnique(people.Person)
         self.assertEqual(p.name, 'NICK!!!')
-        self.assertEqual(p.organizer, self.organizer)
+        self.assertEqual(p.organizer, self.adder.organizer)
 
         e = self.store.findUnique(people.EmailAddress)
         self.assertEqual(e.address, 'a@b.c')

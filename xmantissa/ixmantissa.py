@@ -558,6 +558,40 @@ class IDateBook(Interface):
         @return: an iterable of L{ITemporalEvent} providers.
         """
 
+
+
+class IContactType(Interface):
+    """
+    A means by which communication with a L{Person} might occur.  For example,
+    a telephone number.
+    """
+    def getCreationForm():
+        """
+        Return a L{LiveForm} for the creation of a new instance of the contact
+        type represented by this object.
+        """
+
+
+    def createContactItem(person, parameters):
+        """
+        Create a new instance of this contact type for the given person.
+
+        @type person: L{Person}
+        @param person: The person to whom the contact item pertains.
+
+        @type parameters: C{dict}
+        @param parameters: A mapping of the arguments supplied to the form
+            returned by L{getCreationForm}.
+        """
+
+    def uniqueIdentifier():
+        """
+        Return a C{unicode} string which, for the lifetime of a single Python
+        process, uniquely identifies this type of contact information.
+        """
+
+
+
 class IOrganizerPlugin(Interface):
     """
     Powerup which provides additional functionality to Mantissa
@@ -568,6 +602,18 @@ class IOrganizerPlugin(Interface):
     aggregate blog posts, or provide an interface for configuring
     sharing permissions).
     """
+    def getContactTypes():
+        """
+        Return an iterator of L{IContactType} providers supplied by this
+        plugin.
+        """
+
+
+    def personCreated(person):
+        """
+        Called when a new L{Person} is created.
+        """
+
 
     def personalize(person):
         """
