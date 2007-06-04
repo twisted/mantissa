@@ -44,22 +44,26 @@ from nevow import rend, athena, static, tags as T
 
 
 class DeveloperSite(Item, PrefixURLMixin):
-    """Provides static content sessionlessly for the developer application.
+    """
+    Provides static content sessionlessly for the developer application.
     """
     implements(ISessionlessSiteRootPlugin)
 
     typeName = 'developer_site'
     schemaVersion = 1
 
+    sessionless = True
+
     prefixURL = 'static/webadmin'
 
     # Counts of each kind of user
     developers = integer(default=0)
     administrators = integer(default=0)
-    powerupInterfaces = (ISessionlessSiteRootPlugin,)
 
     def createResource(self):
         return static.File(sibpath(__file__, 'static'))
+
+
 
 class ParentCounterMixin:
     def _getDevSite(self):
