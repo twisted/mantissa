@@ -79,6 +79,13 @@ class SiteRootMixin(object):
 
 
 class UnguardedWrapper(SiteRootMixin):
+    """
+    Resource which wraps the top of the Mantissa resource hierarchy and adds a
+    login resource and performs redirects to HTTPS URLs as necessary.
+
+    @ivar store: The site L{Store} for the resource hierarchy being wrapped.
+    @ivar guardedRoot: The root resource of the hierarchy being wrapped.
+    """
     implements(inevow.IResource)
 
     powerupInterface = ISessionlessSiteRootPlugin
@@ -91,17 +98,23 @@ class UnguardedWrapper(SiteRootMixin):
     def locateChild(self, ctx, segments):
         request = inevow.IRequest(ctx)
         if segments[0] == 'login':
-            securePort = inevow.IResource(self.store).securePort
+            webSite = inevow.IResource(self.store, None)
+            if webSite is not None:
+                securePort = webSite.securePort
+            else:
+                securePort = None
             if not request.isSecure() and securePort is not None:
                 url = URL.fromContext(ctx)
                 newurl = url.secure(port=securePort.getHost().port)
-                return newurl.click("/login"), ()
+                for seg in segments:
+                    newurl = newurl.child(seg)
+                return newurl, ()
             else:
                 # This should be eliminated by having a regular child_login in
                 # publicweb instead, I think, but for now we can eliminate a
                 # confusing circular import --glyph
                 from xmantissa.publicweb import LoginPage
-                return LoginPage(self, self.store), segments[1:]
+                return LoginPage(self.store), segments[1:]
         x = SiteRootMixin.locateChild(self, ctx, segments)
         if x is not NotFound:
             return x

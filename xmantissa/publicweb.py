@@ -1,3 +1,4 @@
+# -*- test-case-name: xmantissa.test.test_website -*-
 
 """
 This module contains code for the publicly-visible areas of a Mantissa
@@ -10,6 +11,7 @@ from twisted.internet import defer
 from twisted.python import util
 
 from nevow import rend, athena, tags, inevow, static
+from nevow.inevow import IRequest
 from nevow.url import URL
 
 from axiom import item, attributes, upgrade, userbase
@@ -594,22 +596,26 @@ class LoginPage(PublicPage):
     logic.
     """
 
-    def __init__(self, original, store, segments=()):
+    def __init__(self, store, segments=(), arguments=None):
         """
         Create a login page.
-
-        @param original: unused.
 
         @param store: a site store which contains a WebSite item.
 
         @param segments: a list of strings.  For example, if you hit
         /login/private/stuff, you want to log in to /private/stuff, and the
         resulting LoginPage will have the segments of ['private', 'stuff']
+
+        @param arguments: A dictionary mapping query argument names to lists of
+        values for those arguments (see IRequest.args).
         """
-        PublicPage.__init__(self, original, store, getLoader("login"),
-                            IStaticShellContent(original.store, None),
+        PublicPage.__init__(self, None, store, getLoader("login"),
+                            IStaticShellContent(store, None),
                             None)
         self.segments = segments
+        if arguments is None:
+            arguments = {}
+        self.arguments = arguments
 
 
     def beforeRender(self, ctx):
@@ -628,6 +634,9 @@ class LoginPage(PublicPage):
         url = url.child('__login__')
         for seg in self.segments:
             url = url.child(seg)
+        for queryKey, queryValues in self.arguments.iteritems():
+            for queryValue in queryValues:
+                url = url.add(queryKey, queryValue)
 
         req = inevow.IRequest(ctx)
         err = req.args.get('login-failure', ('',))[0]
@@ -649,8 +658,30 @@ class LoginPage(PublicPage):
         /login/private/stuff will redirect the user to /private/stuff after
         login has completed.
         """
-        return self.__class__(self.original, self.store, segments), ()
+        arguments = IRequest(ctx).args
+        return self.__class__(
+            self.store, segments, arguments), ()
 
+
+    def fromRequest(cls, store, request):
+        """
+        Return a L{LoginPage} which will present the user with a login prompt.
+
+        @type store: L{Store}
+        @param store: A I{site} store.
+
+        @type request: L{nevow.inevow.IRequest}
+        @param request: The HTTP request which encountered a need for
+            authentication.  This will be effectively re-issued after login
+            succeeds.
+
+        @return: A L{LoginPage} and the remaining segments to be processed.
+        """
+        location = URL.fromRequest(request)
+        segments = location.pathList(unquote=True, copy=False)
+        segments.append(request.postpath[0])
+        return cls(store, segments, request.args)
+    fromRequest = classmethod(fromRequest)
 
 
 class FrontPage(item.Item, website.PrefixURLMixin):

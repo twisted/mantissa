@@ -1,6 +1,8 @@
 
 import socket
 
+from zope.interface import implements
+
 from twisted.internet.address import IPv4Address
 from twisted.trial import unittest
 from twisted.application import service
@@ -8,8 +10,13 @@ from twisted.web import http
 from twisted.python.filepath import FilePath
 
 from nevow.flat import flatten
+from nevow.context import WebContext
 from nevow.testutil import AccumulatingFakeRequest, renderPage
 from nevow.testutil import renderLivePage, FakeRequest
+from nevow.url import URL
+from nevow.guard import LOGIN_AVATAR
+from nevow.inevow import IResource
+
 from epsilon.scripts import certcreate
 
 from axiom import userbase
@@ -19,6 +26,7 @@ from axiom.test.util import getPristineStore
 
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa import website, signup, publicweb
+from xmantissa.publicweb import LoginPage
 from xmantissa.product import Product
 
 
@@ -314,7 +322,7 @@ class WebSiteTestCase(unittest.TestCase):
         installOn(port, self.store)
 
         res, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
-        self.failUnless(isinstance(res, publicweb.LoginPage))
+        self.failUnless(isinstance(res, LoginPage))
 
 
     def testOnlyHTTPSignup(self):
@@ -343,3 +351,179 @@ class WebSiteTestCase(unittest.TestCase):
             self.assertNotEquals(len(fr.accumulator), 0)
         result.addCallback(rendered)
         return result
+
+
+
+class LoginPageTests(unittest.TestCase):
+    """
+    Tests for functionality related to login.
+    """
+    def setUp(self):
+        """
+        Create a L{Store}, L{WebSite} and necessary request-related objects to
+        test L{LoginPage}.
+        """
+        self.store = Store()
+        website.WebSite(store=self.store)
+        self.context = WebContext()
+        self.request = FakeRequest()
+        self.context.remember(self.request)
+
+
+    def test_fromRequest(self):
+        """
+        L{LoginPage.fromRequest} should return a two-tuple of the class it is
+        called on and an empty tuple.
+        """
+        request = FakeRequest(
+            uri='/foo/bar/baz',
+            currentSegments=['foo'],
+            args={'quux': ['corge']})
+
+        class StubLoginPage(LoginPage):
+            def __init__(self, store, segments, arguments):
+                self.store = store
+                self.segments = segments
+                self.arguments = arguments
+
+        page = StubLoginPage.fromRequest(self.store, request)
+        self.assertTrue(isinstance(page, StubLoginPage))
+        self.assertIdentical(page.store, self.store)
+        self.assertEqual(page.segments, ['foo', 'bar'])
+        self.assertEqual(page.arguments, {'quux': ['corge']})
+
+
+    def test_staticShellContent(self):
+        """
+        The L{IStaticShellContent} adapter for the C{store} argument to
+        L{LoginPage.__init__} should become its C{staticContent} attribute.
+        """
+        originalInterface = publicweb.IStaticShellContent
+        adaptions = []
+        result = object()
+        def stubInterface(object, default):
+            adaptions.append((object, default))
+            return result
+        publicweb.IStaticShellContent = stubInterface
+        try:
+            page = LoginPage(self.store)
+        finally:
+            publicweb.IStaticShellContent = originalInterface
+        self.assertEqual(len(adaptions), 1)
+        self.assertIdentical(adaptions[0][0], self.store)
+        self.assertIdentical(page.staticContent, result)
+
+
+    def test_segments(self):
+        """
+        L{LoginPage.beforeRender} should fill the I{login-action} slot with an
+        L{URL} which includes all the segments given to the L{LoginPage}.
+        """
+        segments = ('foo', 'bar')
+        page = LoginPage(self.store, segments)
+        page.beforeRender(self.context)
+        loginAction = self.context.locateSlotData('login-action')
+        expectedLocation = URL.fromContext(self.context)
+        for segment in (LOGIN_AVATAR,) + segments:
+            expectedLocation = expectedLocation.child(segment)
+        self.assertEqual(loginAction, expectedLocation)
+
+
+    def test_queryArguments(self):
+        """
+        L{LoginPage.beforeRender} should fill the I{login-action} slot with an
+        L{URL} which includes all the query arguments given to the
+        L{LoginPage}.
+        """
+        args = {'foo': ['bar']}
+        page = LoginPage(self.store, (), args)
+        page.beforeRender(self.context)
+        loginAction = self.context.locateSlotData('login-action')
+        expectedLocation = URL.fromContext(self.context)
+        expectedLocation = expectedLocation.child(LOGIN_AVATAR)
+        expectedLocation = expectedLocation.add('foo', 'bar')
+        self.assertEqual(loginAction, expectedLocation)
+
+
+    def test_locateChildPreservesSegments(self):
+        """
+        L{LoginPage.locateChild} should create a new L{LoginPage} with segments
+        extracted from the traversal context.
+        """
+        segments = ('foo', 'bar')
+        page = LoginPage(self.store)
+        child, remaining = page.locateChild(self.context, segments)
+        self.assertTrue(isinstance(child, LoginPage))
+        self.assertEqual(remaining, ())
+        self.assertEqual(child.segments, segments)
+
+
+    def test_locateChildPreservesQueryArguments(self):
+        """
+        L{LoginPage.locateChild} should create a new L{LoginPage} with query
+        arguments extracted from the traversal context.
+        """
+        self.request.args = {'foo': ['bar']}
+        page = LoginPage(self.store)
+        child, remaining = page.locateChild(self.context, None)
+        self.assertTrue(isinstance(child, LoginPage))
+        self.assertEqual(child.arguments, self.request.args)
+
+
+
+class UnguardedWrapperTests(unittest.TestCase):
+    """
+    Tests for L{UnguardedWrapper}.
+    """
+    def test_secureLoginRequest(self):
+        """
+        When queried over HTTPS, L{UnguardedWrapper.locateChild} should consume
+        the leading C{'login'} segment of a request and return a L{LoginPage}
+        and the remaining segments.
+        """
+        request = FakeRequest(
+            uri='/login/foo',
+            currentSegments=[],
+            isSecure=True)
+        store = object()
+        wrapper = website.UnguardedWrapper(store, None)
+        child, segments = wrapper.locateChild(request, ('login', 'foo'))
+        self.assertTrue(isinstance(child, LoginPage))
+        self.assertIdentical(child.store, store)
+        self.assertEqual(child.segments, ())
+        self.assertEqual(child.arguments, {})
+        self.assertEqual(segments, ('foo',))
+
+
+    def test_insecureLoginRequest(self):
+        """
+        When queried for I{login} over HTTP, L{UnguardedWrapper.locateChild}
+        should respond with a redirect to a location which differs on in its
+        use of HTTPS instead of HTTP.
+        """
+        host = 'example.org'
+        port = 1234
+
+        request = FakeRequest(
+            headers={'host': '%s:%d' % (host, port)},
+            uri='/login/foo',
+            currentSegments=[],
+            isSecure=False)
+
+        class FakeStore(object):
+            implements(IResource)
+            class securePort(object):
+                def getHost():
+                    return IPv4Address('TCP', '127.0.0.1', port, 'INET')
+                getHost = staticmethod(getHost)
+
+        store = FakeStore()
+        wrapper = website.UnguardedWrapper(store, None)
+        child, segments = wrapper.locateChild(request, ('login', 'foo'))
+        self.assertTrue(isinstance(child, URL))
+
+        # XXX FakeRequest hardcodes `localhost' as the netloc.
+        self.assertEqual(
+            str(child),
+            str(URL('https', 'localhost:%d' % (port,), ['login', 'foo'])))
+        self.assertEqual(segments, ())
