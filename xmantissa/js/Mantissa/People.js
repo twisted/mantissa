@@ -1,10 +1,52 @@
-// import Mantissa
+// import Mantissa.LiveForm
 // import Mantissa.ScrollTable
 
-Mantissa.People.Organizer = Nevow.Athena.Widget.subclass('Mantissa.People.Organizer');
+/**
+ * ScrollTable action which allows the user to edit the contact details for the
+ * selected person.
+ */
+Mantissa.People.EditAction = Mantissa.ScrollTable.Action.subclass(
+    'Mantissa.People.EditAction');
+Mantissa.People.EditAction.methods(
+    /**
+     * Initialize the action by calling the base initializer with edit-specific
+     * values.
+     */
+    function __init__(self) {
+        Mantissa.People.EditAction.upcall(
+            self, '__init__', 'edit', 'Edit',
+            function(peopleScroller, row, editWidgetInfo) {
+                var parent = peopleScroller.widgetParent;
+                var d = parent.addChildWidgetFromWidgetInfo(editWidgetInfo);
+                d.addCallback(function(widget) {
+                        parent.setDetailWidget(widget);
+                    });
+            });
+    });
+
+/**
+ * Container for person interaction user interface elements.
+ *
+ * This also provides APIs for different parts of the UI to interact with each
+ * other so they they don't directly depend on each other.
+ */
+Mantissa.People.Organizer = Nevow.Athena.Widget.subclass(
+    'Mantissa.People.Organizer');
 Mantissa.People.Organizer.methods(
     function cbPersonError(self, err) {
         alert("Sorry something broke: " + new String(err));
+    },
+
+    /**
+     * Replace the current detail view with the node from the given
+     * L{Nevow.Athena.Widget}.
+     */
+    function setDetailWidget(self, widget) {
+        var detail = self.nodeById('detail');
+        while (detail.childNodes.length) {
+            detail.removeChild(detail.childNodes[0]);
+        }
+        detail.appendChild(widget.node);
     },
 
     function replaceTDB(self, data) {
@@ -27,6 +69,21 @@ Mantissa.People.Organizer.methods(
 
         d.addCallback(self.replaceTDB).addErrback(self.cbPersonError);
     });
+
+
+/**
+ * A flexible-height scrolling widget which allows contact information for
+ * people to be edited.
+ */
+Mantissa.People.PersonScroller = Mantissa.ScrollTable.FlexHeightScrollingWidget.subclass(
+    'Mantissa.People.PersonScroller');
+Mantissa.People.PersonScroller.methods(
+    function __init__(self, node, metadata) {
+        self.actions = [Mantissa.People.EditAction()];
+        Mantissa.People.PersonScroller.upcall(
+            self, '__init__', node, metadata, 10);
+    });
+
 
 Mantissa.People.ContactInfo = Nevow.Athena.Widget.subclass('Mantissa.People.ContactInfo');
 
@@ -198,4 +255,19 @@ Mantissa.People.ContactInfo.methods(
                 return widget.node;
             });
         return createdDeferred;
+    });
+
+
+/**
+ * Specialized L{Mantissa.LiveForm.FormWidget} which doesn't reset its inputs
+ * to their default values after being submitted.
+ */
+Mantissa.People.EditPersonForm = Mantissa.LiveForm.FormWidget.subclass(
+    'Mantissa.People.EditPersonForm');
+Mantissa.People.EditPersonForm.methods(
+    /**
+     * Override the parent behavior so that the newly entered values remain in
+     * the form, since they are the values which are present on the server.
+     */
+    function reset(self) {
     });

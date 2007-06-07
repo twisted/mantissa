@@ -572,22 +572,53 @@ class IContactType(Interface):
         """
 
 
-    def createContactItem(person, parameters):
+    def createContactItem(person, **parameters):
         """
         Create a new instance of this contact type for the given person.
 
         @type person: L{Person}
         @param person: The person to whom the contact item pertains.
 
-        @type parameters: C{dict}
-        @param parameters: A mapping of the arguments supplied to the form
-            returned by L{getCreationForm}.
+        @param parameters: The form input key/value pairs as returned by the
+            L{LiveForm} returned by L{getCreationForm}.
         """
+
+
+    def getContactItems(person):
+        """
+        Return an iterator of contact items created by this contact type for
+        the given person.
+
+        @type person: L{Person}
+        @param person: The person to whom the contact item pertains.
+        """
+
 
     def uniqueIdentifier():
         """
         Return a C{unicode} string which, for the lifetime of a single Python
         process, uniquely identifies this type of contact information.
+        """
+
+
+    def getEditorialForm(contact):
+        """
+        Return a L{LiveForm} which will allow the given contact item to be
+        edited.
+
+        @param contact: An L{Item} previously returned by this provider's
+            C{createContactItem} method for which a form should be returned.
+
+        @rtype: L{LiveForm}
+        """
+
+
+    def editContactItem(contact, **parameters):
+        """
+        Update the given contact item to reflect the new parameters.
+
+        @param **parameters: The form input key/value pairs, as produced by the
+            L{LiveForm} returned by L{ L{getEditorialForm}.
         """
 
 

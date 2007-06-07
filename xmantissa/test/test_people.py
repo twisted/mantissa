@@ -6,6 +6,7 @@ Tests for L{xmantissa.people}.
 from xml.dom.minidom import parseString
 
 from zope.interface import implements
+from zope.interface.verify import verifyObject
 
 from string import lowercase
 
@@ -16,25 +17,76 @@ from twisted.trial import unittest
 from nevow.loaders import stan
 from nevow.tags import div, slot
 from nevow.flat import flatten
+from nevow.athena import expose
+from nevow.page import renderer
+from nevow.testutil import FakeRequest
 
 from epsilon import extime
 from epsilon.extime import Time
+from epsilon.structlike import record
 
 from axiom.store import Store
 from axiom.dependency import installOn, installedOn
 from axiom.item import Item
 from axiom.attributes import inmemory, text
 
-from xmantissa.people import (Organizer, Person, RealName, EmailAddress,
-                              AddPersonFragment, Mugshot, addContactInfoType,
-                              contactInfoItemTypeFromClassName,
-                              _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment,
-                              PhoneNumber, setIconURLForContactInfoType,
-                              iconURLForContactInfoType, _CONTACT_INFO_ICON_URLS,
-                              AddPerson)
+from xmantissa.test.rendertools import renderLiveFragment
+from xmantissa.people import (
+    Organizer, Person, RealName, EmailAddress, AddPersonFragment, Mugshot,
+    addContactInfoType, contactInfoItemTypeFromClassName,
+    _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PhoneNumber,
+    setIconURLForContactInfoType, iconURLForContactInfoType,
+    _CONTACT_INFO_ICON_URLS, AddPerson, PersonScrollingFragment,
+    PersonNameColumn, OrganizerFragment, EditPersonView, NameContactType,
+    BaseContactType, EmailContactType, _normalizeWhitespace)
+
 from xmantissa.webapp import PrivateApplication
-from xmantissa.liveform import FORM_INPUT, Parameter
-from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
+from xmantissa.liveform import TEXT_INPUT, FORM_INPUT, Parameter, LiveForm
+from xmantissa.ixmantissa import IOrganizerPlugin, IContactType, IWebTranslator
+
+
+
+class WhitespaceNormalizationTests(unittest.TestCase):
+    """
+    Tests for L{_normalizeWhitespace}.
+    """
+    def test_empty(self):
+        """
+        L{_normalizeWhitespace} should return an empty string for an empty
+        string.
+        """
+        self.assertEqual(_normalizeWhitespace(u''), u'')
+
+
+    def test_spaces(self):
+        """
+        L{_normalizeWhitespace} should return an empty string for a string
+        consisting only of whitespace.
+        """
+        self.assertEqual(_normalizeWhitespace(u' \t\v'), u'')
+
+
+    def test_leadingSpace(self):
+        """
+        L{_normalizeWhitespace} should remove leading whitespace in its result.
+        """
+        self.assertEqual(_normalizeWhitespace(u' x'), u'x')
+
+
+    def test_trailingSpace(self):
+        """
+        L{_normalizeWhitespace} should remove trailing whitespace in its result.
+        """
+        self.assertEqual(_normalizeWhitespace(u'x '), u'x')
+
+
+    def test_multipleSpace(self):
+        """
+        L{_normalizeWhitespace} should replace occurrences of contiguous
+        whitespace characters with a single space character.
+        """
+        self.assertEqual(_normalizeWhitespace(u'x  x'), u'x x')
+
 
 
 class StubOrganizerPlugin(Item):
@@ -84,23 +136,38 @@ class StubContactType(object):
     """
     Behaviorless contact type implementation used for tests.
 
-    @ivar creationForm: The object which will be returned from L{getCreationForm}.
+    @ivar creationForm: The object which will be returned from
+        L{getCreationForm}.
     @ivar createdContacts: A list of tuples of the arguments passed to
         C{createContactItem}.
-
+    @ivar editorialForm: The object which will be returned from
+        L{getEditorialForm}.
+    @ivar editedContacts: A list of the contact items passed to
+        L{getEditorialForm}.
+    @ivar contactItems: The list of objects which will be returned from
+        L{getContactItems}.
+    @ivar queriedPeople: A list of the person items passed to
+        L{getContactItems}.
+    @ivar editedContacts: A list of two-tuples of the arguments passed to
+        L{editContactItem}.
     """
     implements(IContactType)
 
-    def __init__(self, creationForm):
+    def __init__(self, creationForm, editorialForm, contactItems):
         self.creationForm = creationForm
         self.createdContacts = []
+        self.editorialForm = editorialForm
+        self.editedContacts = []
+        self.contactItems = contactItems
+        self.queriedPeople = []
+        self.editedContacts = []
 
 
     def uniqueIdentifier(self):
         """
         Return the L{qual} of this class.
         """
-        return qual(self.__class__)
+        return qual(self.__class__).decode('ascii')
 
 
     def getCreationForm(self):
@@ -111,12 +178,349 @@ class StubContactType(object):
         return self.creationForm
 
 
-    def createContactItem(self, person, argument):
+    def getEditorialForm(self, contact):
+        """
+        Return an object which is supposed to be a form for editing an existing
+        instance of this contact type and record the contact object which was
+        passed in.
+        """
+        self.editedContacts.append(contact)
+        return self.editorialForm
+
+
+    def createContactItem(self, person, **parameters):
         """
         Record an attempt to create a new contact item of this type for the
         given person.
         """
-        self.createdContacts.append((person, argument))
+        self.createdContacts.append((person, parameters))
+
+
+    def getContactItems(self, person):
+        """
+        Return C{self.contactItems} and record the person item passed in.
+        """
+        self.queriedPeople.append(person)
+        return self.contactItems
+
+
+    def editContactItem(self, contact, **changes):
+        """
+        Record an attempt to edit the details of a contact item.
+        """
+        self.editedContacts.append((contact, changes))
+
+
+
+class BaseContactTests(unittest.TestCase):
+    """
+    Tests for the utility base-class L{BaseContactType}.
+    """
+    def test_uniqueIdentifier(self):
+        """
+        L{BaseContactType.uniqueIdentifier} should return a unicode string
+        giving the fully-qualifed Python name of the class of the instance it
+        is called on.
+        """
+        class Dummy(BaseContactType):
+            pass
+        identifier = Dummy().uniqueIdentifier()
+        self.assertTrue(isinstance(identifier, unicode))
+        self.assertEqual(identifier, __name__ + '.' + Dummy.__name__)
+
+
+    def test_getCreationForm(self):
+        """
+        L{BaseContactType.getCreationForm} should return a L{LiveForm} with the
+        parameters specified by C{getParameters}.
+        """
+        contacts = []
+        params = object()
+        class Stub(BaseContactType):
+            def getParameters(self, contact):
+                contacts.append(contact)
+                return params
+        form = Stub().getCreationForm()
+        self.assertTrue(isinstance(form, LiveForm))
+        self.assertEqual(contacts, [None])
+        self.assertIdentical(form.parameters, params)
+
+        params = dict(a='b', c='d')
+        self.assertEqual(form.callable(**params), params)
+
+
+    def test_getEditorialForm(self):
+        """
+        L{BaseContactType.getEditorialForm} should return an L{LiveForm} with
+        the parameters specified by L{getParameters}.
+        """
+        contact = object()
+        contacts = []
+        params = object()
+        class Stub(BaseContactType):
+            def getParameters(self, contact):
+                contacts.append(contact)
+                return params
+        form = Stub().getEditorialForm(contact)
+        self.assertTrue(isinstance(form, LiveForm))
+        self.assertEqual(contacts, [contact])
+        self.assertIdentical(form.parameters, params)
+
+        params = dict(a='b', c='d')
+        self.assertEqual(form.callable(**params), params)
+
+
+
+class RealNameTests(unittest.TestCase):
+    """
+    Tests for L{RealName}.
+    """
+    def test_noFirstNameDisplay(self):
+        """
+        L{RealName.display} should be a unicode string giving the last name if
+        there is only a last name.
+        """
+        store = Store()
+        person = Person(store=store)
+        realName = RealName(store=store, person=person, last=u'Last')
+        self.assertTrue(isinstance(realName.display, unicode))
+        self.assertEqual(realName.display, u'Last')
+
+
+    def test_noLastNameDisplay(self):
+        """
+        L{RealName.display} should be a unicode string giving the first name if
+        there is only a first name.
+        """
+        store = Store()
+        person = Person(store=store)
+        realName = RealName(store=store, person=person, first=u'First')
+        self.assertTrue(isinstance(realName.display, unicode))
+        self.assertEqual(realName.display, u'First')
+
+
+    def test_noNamesDisplay(self):
+        """
+        L{RealName.display} should be an empty unicode string if is no first or
+        last name.
+        """
+        store = Store()
+        person = Person(store=store)
+        realName = RealName(store=store, person=person)
+        self.assertTrue(isinstance(realName.display, unicode))
+        self.assertEqual(realName.display, u'')
+
+
+
+class ContactTestsMixin(object):
+    """
+    Define tests common to different L{IContactType} implementations.
+
+    Mix this in to a L{unittest.TestCase} and bind C{self.contactType} to the
+    L{IContactType} provider in C{setUp}.
+    """
+    def test_providesContactType(self):
+        """
+        C{self.contactType} should provide L{IContactType}.
+        """
+        self.assertTrue(IContactType.providedBy(self.contactType))
+
+        # I would really like to use verifyObject here.  However, the
+        # **parameters in IContactType.editContactItem causes it to fail for
+        # reasonably conformant implementations.
+        # self.assertTrue(verifyObject(IContactType, self.contactType))
+
+
+
+class NameContactTests(unittest.TestCase, ContactTestsMixin):
+    """
+    Tests for the naming parameters defined by L{NameContactType}.
+    """
+    def setUp(self):
+        """
+        Create a L{NameContactType} for use by the tests.
+        """
+        self.contactType = NameContactType()
+
+
+    def test_createContactItem(self):
+        """
+        L{NameContactType.createContactItem} should create a L{RealName} with
+        the supplied values.
+        """
+        store = Store()
+        person = Person(store=store)
+        contactType = NameContactType()
+        contactType.createContactItem(
+            person, firstname=u'First', lastname=u'Last')
+        names = list(store.query(RealName))
+        self.assertEqual(len(names), 1)
+        self.assertEqual(names[0].first, u'First')
+        self.assertEqual(names[0].last, u'Last')
+        self.assertIdentical(names[0].person, person)
+
+
+    def test_createContactItemWithoutNames(self):
+        """
+        L{NameContactType.createContactItem} should create no L{RealName} item
+        if called with empty strings.
+        """
+        store = Store()
+        person = Person(store=store)
+        contactType = NameContactType()
+        contactType.createContactItem(person, firstname=u'', lastname=u'')
+        self.assertEqual(list(store.query(RealName)), [])
+
+
+    def test_editContactItem(self):
+        """
+        L{NameContactType.editContactItem} should update the first and last
+        name fields of the L{RealName} it is passed.
+        """
+        class StubRealName(object):
+            pass
+        realName = StubRealName()
+        contactType = NameContactType()
+        contactType.editContactItem(
+            realName, firstname=u'First', lastname=u'Last')
+        self.assertEqual(realName.first, u'First')
+        self.assertEqual(realName.last, u'Last')
+
+
+    def test_getParameters(self):
+        """
+        L{NameContactType.getParameters} should return a C{list} of L{LiveForm}
+        parameters for the first and last name fields.
+        """
+        contactType = NameContactType()
+        firstName, lastName = contactType.getParameters(None)
+        self.assertEqual(firstName.name, 'firstname')
+        self.assertEqual(firstName.default, '')
+        self.assertEqual(lastName.name, 'lastname')
+        self.assertEqual(lastName.default, '')
+
+
+    def test_getParametersWithDefaults(self):
+        """
+        L{NameContactType.getParameters} should return a C{list} of L{LiveForm}
+        parameters with default values supplied from the L{RealName} item it is
+        passed.
+        """
+        store = Store()
+        person = Person(store=store)
+        contactType = NameContactType()
+        firstName, lastName = contactType.getParameters(
+            RealName(person=person, first=u'First', last=u'Last'))
+        self.assertEqual(firstName.name, 'firstname')
+        self.assertEqual(firstName.default, u'First')
+        self.assertEqual(lastName.name, 'lastname')
+        self.assertEqual(lastName.default, u'Last')
+
+
+
+class EmailContactTests(unittest.TestCase, ContactTestsMixin):
+    """
+    Tests for the email address parameters defined by L{EmailContactType}.
+    """
+    def setUp(self):
+        self.store = Store()
+        self.contactType = EmailContactType(self.store)
+
+
+    def test_createContactItem(self):
+        """
+        L{EmailContactType.createContactItem} should create an L{EmailAddress}
+        instance with the supplied values.
+        """
+        person = Person(store=self.store)
+        self.contactType.createContactItem(person, email=u'user@example.com')
+        emails = list(self.store.query(EmailAddress))
+        self.assertEqual(len(emails), 1)
+        self.assertEqual(emails[0].address, u'user@example.com')
+        self.assertIdentical(emails[0].person, person)
+
+
+    def test_createContactItemWithEmptyString(self):
+        """
+        L{EmailContactType.createContactItem} shouldn't create an
+        L{EmailAddress} instance if it is given an empty string for the
+        address.
+        """
+        person = Person(store=self.store)
+        self.contactType.createContactItem(person, email=u'')
+        emails = list(self.store.query(EmailAddress))
+        self.assertEqual(len(emails), 0)
+
+
+    def test_editContactItem(self):
+        """
+        L{EmailContactType.editContactItem} should update the address field of
+        the L{EmailAddress} it is passed.
+        """
+        person = Person(store=self.store)
+        emailAddress = EmailAddress(
+            store=self.store, person=person, address=u'wrong')
+        self.contactType.editContactItem(
+            emailAddress, email=u'user@example.com')
+        self.assertEqual(emailAddress.address, u'user@example.com')
+
+
+    def test_editContactItemRejectsDuplicate(self):
+        """
+        L{EmailContactType.editContactItem} should raise an exception if it is
+        given an email address already associated with a different
+        L{EmailAddress} item.
+        """
+        person = Person(store=self.store)
+        existing = EmailAddress(
+            store=self.store, person=person, address=u'user@example.com')
+        editing = EmailAddress(
+            store=self.store, person=person, address=u'user@example.net')
+        self.assertRaises(
+            ValueError,
+            self.contactType.editContactItem,
+            editing, email=existing.address)
+
+        # It should be possible to set an EmailAddress's address attribute to
+        # its current value, though.
+        address = editing.address
+        self.contactType.editContactItem(editing, email=address)
+        self.assertEqual(editing.address, address)
+
+
+    def test_getParameters(self):
+        """
+        L{EmailContactType.getParameters} should return a C{list} of
+        L{LiveForm} parameters for an email address.
+        """
+        email, = self.contactType.getParameters(None)
+        self.assertEqual(email.name, 'email')
+        self.assertEqual(email.default, '')
+
+
+    def test_getParametersWithDefaults(self):
+        """
+        L{EmailContactType.getParameters} should return a C{list} of
+        L{LiveForm} parameters with default values supplied from the
+        L{EmailAddress} item it is passed.
+        """
+        person = Person(store=self.store)
+        email, = self.contactType.getParameters(
+            EmailAddress(store=self.store, person=person,
+                         address=u'user@example.com'))
+        self.assertEqual(email.name, 'email')
+        self.assertEqual(email.default, u'user@example.com')
+
+
+    def test_coerce(self):
+        """
+        L{EmailContactType.coerce} should return a dictionary mapping
+        C{'email'} to the email address passed to it.
+        """
+        self.assertEqual(
+            self.contactType.coerce(email=u'user@example.com'),
+            {'email': u'user@example.com'})
+
 
 
 class PeopleModelTestCase(unittest.TestCase):
@@ -250,7 +654,7 @@ class PeopleModelTestCase(unittest.TestCase):
             secondContactPowerup, IOrganizerPlugin, priority=0)
 
         self.assertEqual(
-            list(self.organizer.getContactTypes()),
+            list(self.organizer.getContactTypes())[2:],
             firstContactTypes + secondContactTypes)
 
 
@@ -273,7 +677,7 @@ class PeopleModelTestCase(unittest.TestCase):
         finally:
             Organizer.getOrganizerPlugins = getOrganizerPlugins
 
-        self.assertEqual(contactTypes, [])
+        self.assertEqual(contactTypes[2:], [])
 
 
     def test_getContactCreationParameters(self):
@@ -283,17 +687,47 @@ class PeopleModelTestCase(unittest.TestCase):
         the system.
         """
         contactForm = object()
-        contactTypes = [StubContactType(contactForm)]
+        contactTypes = [StubContactType(contactForm, None, None)]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        self.assertEqual(len(parameters), 1)
-        self.assertTrue(isinstance(parameters[0], Parameter))
-        self.assertEqual(parameters[0].name, qual(StubContactType))
-        self.assertEqual(parameters[0].type, FORM_INPUT)
-        self.assertIdentical(parameters[0].coercer, contactForm)
+        self.assertEqual(len(parameters), 3)
+        self.assertTrue(isinstance(parameters[2], Parameter))
+        self.assertEqual(parameters[2].name, qual(StubContactType))
+        self.assertEqual(parameters[2].type, FORM_INPUT)
+        self.assertIdentical(parameters[2].coercer, contactForm)
+
+
+    def test_getContactEditorialParameters(self):
+        """
+        L{Organizer.getContactEditParameters} should return a list containing
+        C{FORM_INPUT} parameters for each contact item available in the system.
+        """
+        contactItems = [object(), object()]
+        editorialForm = object()
+        contactTypes = [StubContactType(None, editorialForm, contactItems)]
+        contactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=contactTypes)
+        self.store.powerUp(contactPowerup, IOrganizerPlugin)
+
+        person = self.organizer.createPerson(u'nickname')
+
+        parameters = list(self.organizer.getContactEditorialParameters(person))
+        self.assertEqual(len(parameters), 2)
+
+        self.assertIdentical(parameters[0][0], contactTypes[0])
+        self.assertIdentical(parameters[0][1], contactItems[0])
+        self.assertEqual(parameters[0][2].type, FORM_INPUT)
+        self.assertIdentical(parameters[0][2].coercer, editorialForm)
+
+        self.assertIdentical(parameters[1][0], contactTypes[0])
+        self.assertIdentical(parameters[1][1], contactItems[1])
+        self.assertEqual(parameters[1][2].type, FORM_INPUT)
+        self.assertIdentical(parameters[1][2].coercer, editorialForm)
+
+        self.assertNotEqual(parameters[0][2].name, parameters[1][2].name)
 
 
 
@@ -498,17 +932,19 @@ class PeopleTests(unittest.TestCase):
         adder = AddPerson(store=store)
         installOn(adder, store)
 
+        # With no plugins, only the nickname, EmailContactType, and
+        # NameContactType parameters should be returned.
         addPersonFrag = AddPersonFragment(adder)
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 4)
+        self.assertEqual(len(addPersonForm.parameters), 3)
 
-        contactTypes = [StubContactType(object())]
+        contactTypes = [StubContactType(None, None, None)]
         observer = StubOrganizerPlugin(
             store=store, contactTypes=contactTypes)
         store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 5)
+        self.assertEqual(len(addPersonForm.parameters), 4)
 
 
     def test_addPersonWithContactItems(self):
@@ -521,17 +957,22 @@ class PeopleTests(unittest.TestCase):
         installOn(adder, store)
 
         creationForm = object()
-        contactType = StubContactType(creationForm)
+        contactType = StubContactType(creationForm, None, None)
         observer = StubOrganizerPlugin(
             store=store, contactTypes=[contactType])
         store.powerUp(observer, IOrganizerPlugin)
 
         addPersonFragment = AddPersonFragment(adder)
 
-        argument = object()
+        argument = {u'stub': 'value'}
         addPersonFragment.addPerson(
-            u'nickname', u'firstname', u'lastname', u'email@example.com',
-            **{contactType.uniqueIdentifier(): argument})
+            u'nickname',
+            **{contactType.uniqueIdentifier().encode('ascii'): argument,
+               NameContactType().uniqueIdentifier().encode('ascii'): {
+                    u'firstname': u'First',
+                    u'lastname': u'Last'},
+               EmailContactType(store).uniqueIdentifier().encode('ascii'): {
+                    u'email': u'user@example.com'}})
 
         person = store.findUnique(Person)
 
@@ -544,7 +985,13 @@ class PeopleTests(unittest.TestCase):
         adder = AddPerson(store=store, organizer=organizer)
 
         addPersonFrag = AddPersonFragment(adder)
-        addPersonFrag.addPerson(u'Captain P.', u'Jean-Luc', u'Picard', u'jlp@starship.enterprise')
+        addPersonFrag.addPerson(
+            u'Captain P.',
+            **{NameContactType().uniqueIdentifier().encode('ascii'): {
+                    u'firstname': u'Jean-Luc',
+                    u'lastname': u'Picard'},
+               EmailContactType(store).uniqueIdentifier().encode('ascii'): {
+                    u'email': u'jlp@starship.enterprise'}})
 
         person = store.findUnique(Person)
         self.assertEquals(person.name, 'Captain P.')
@@ -556,24 +1003,6 @@ class PeopleTests(unittest.TestCase):
         rn = store.findUnique(RealName, RealName.person == person)
 
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
-
-
-    def test_doublePersonCreation(self):
-        """
-        Test that L{AddPersonFragment.addPerson} raises a ValueError when it is
-        called twice with the same email address. This ensures that
-        L{Organizer.personByEmailAddress} can always return a unique person.
-        """
-        # make ourselves an AddPersonFragment
-        store = Store()
-        organizer = Organizer(store=store)
-        adder = AddPerson(store=store, organizer=organizer)
-        fragment = AddPersonFragment(adder)
-
-        address = u'test@example.com'
-        fragment.addPerson(u'flast', u'First', u'Last', address)
-        self.assertRaises(ValueError, fragment.addPerson, u'foobar', u'Foo',
-                          u'Bar', address)
 
 
     def testMugshot(self):
@@ -632,6 +1061,8 @@ class StubPerson(object):
     @ivar contactItems: A list of three-tuples of the arguments passed to
     createContactInfoItem.
     """
+    name = u'person'
+
     def __init__(self, contactItems):
         self.contactItems = contactItems
 
@@ -711,3 +1142,192 @@ class ContactInfoViewTests(unittest.TestCase):
         self.assertEqual(ele.childNodes[1].childNodes[0].nodeValue, url)
         self.assertEqual(ele.childNodes[2].tagName, 'div')
         self.assertEqual(ele.childNodes[2].childNodes[0].nodeValue, number)
+
+
+class PersonScrollingFragmentTests(unittest.TestCase):
+    """
+    Tests for L{PersonScrollingFragment}.
+    """
+    def test_performAction(self):
+        """
+        L{PersonScrollingFragment.performAction} should dispatch the action to
+        the object given to the L{PersonScrollingFragment}'s initializer.
+        """
+        actionName = u'the-action'
+        rowIdentifier = u'12345'
+        item = object()
+
+        performedActions = []
+        def performAction(actionName, rowIdentifier):
+            """
+            Record an action performed.
+            """
+            performedActions.append((actionName, rowIdentifier))
+
+        class StubTranslator(object):
+            """
+            Translate between dummy row identifiers and dummy objects.
+            """
+            implements(IWebTranslator)
+            fromWebID = {rowIdentifier: item}.__getitem__
+
+        scrollingFragment = PersonScrollingFragment(
+            StubTranslator(), None, None, performAction)
+        performAction = expose.get(scrollingFragment, 'performAction')
+        performAction(actionName, rowIdentifier)
+
+        self.assertEqual(performedActions, [(actionName, item)])
+
+
+    def test_scrollingAttributes(self):
+        """
+        L{PersonScrollingFragment} should have the attributes its base class
+        wants to use.
+        """
+        baseConstraint = object()
+        sort = object()
+
+        fragment = PersonScrollingFragment(None, baseConstraint, sort, None)
+        self.assertIdentical(fragment.baseConstraint, baseConstraint)
+        self.assertIdentical(fragment.currentSortColumn, sort)
+        self.assertIdentical(fragment.itemType, Person)
+        self.assertEqual(len(fragment.columns), 1)
+        self.assertTrue(isinstance(fragment.columns['name'], PersonNameColumn))
+
+
+
+class OrganizerFragmentTests(unittest.TestCase):
+    """
+    Tests for L{OrganizerFragment}.
+    """
+    def setUp(self):
+        """
+        Create an L{OrganizerFragment} wrapped around a double for
+        L{Organizer}.
+        """
+        class StubOrganizer(object):
+            _webTranslator = None
+
+            def __init__(self, store):
+                self.store = store
+
+            def lastNameOrder(self):
+                return None
+        self.fragment = OrganizerFragment(StubOrganizer(Store()))
+
+
+    def test_peopleTable(self):
+        """
+        L{OrganizerFragment.render_peopleTable} should return a
+        L{PersonScrollingFragment}.
+        """
+        request = FakeRequest(args={})
+        scroller = self.fragment.render_peopleTable(request, None)
+        self.assertTrue(isinstance(scroller, PersonScrollingFragment))
+
+
+    def test_performAction(self):
+        """
+        L{OrganizerFragment.performAction} should dispatch to a
+        C{action_}-prefixed method.
+        """
+        ran = []
+        item = object()
+        self.fragment.action_mock = ran.append
+        self.fragment.performAction(u'mock', item)
+        self.assertEqual(ran, [item])
+
+
+    def test_editAction(self):
+        """
+        L{OrganizerFragment.action_edit} should return an L{EditPersonView}
+        wrapped around the appropriate person item.
+        """
+        item = object()
+        editView = self.fragment.action_edit(item)
+        self.assertTrue(isinstance(editView, EditPersonView))
+        self.assertIdentical(editView.person, item)
+        self.assertIdentical(editView.fragmentParent, self.fragment)
+
+
+
+class EditPersonViewTests(unittest.TestCase):
+    """
+    Tests for L{EditPersonView}.
+    """
+    def setUp(self):
+        """
+        Create an L{EditPersonView} wrapped around a stub person and stub organizer.
+        """
+        self.contactType = StubContactType(None, None, None)
+        self.contactItem = object()
+        self.contactForm = Parameter(u'contact-form', TEXT_INPUT, unicode)
+
+        class StubOrganizer(record('person contactType contactItem contactForm')):
+            """
+            L{Organizer}-alike
+            """
+            def getContactEditorialParameters(self, person):
+                return {
+                    self.person: [
+                        (self.contactType,
+                         self.contactItem,
+                         self.contactForm)]}[person]
+
+        self.person = StubPerson(None)
+        self.person.organizer = StubOrganizer(
+            self.person, self.contactType, self.contactItem, self.contactForm)
+        self.view = EditPersonView(self.person)
+
+
+    def test_editContactItems(self):
+        """
+        L{EditPersonView.editContactItems} should take a dictionary mapping
+        parameter names to values and pass those values on to the appropriate
+        L{IContactType} along with the right contact item in order to update
+        its values.
+        """
+        contactInfo = {u'stub': 'value'}
+        contactType = StubContactType(None, None, None)
+        self.view.contactItems = {'name': (contactType, self.contactItem)}
+        self.view.editContactItems(u'nick', name=contactInfo)
+        self.assertEqual(self.person.name, u'nick')
+        self.assertEqual(contactType.editedContacts, [(self.contactItem, contactInfo)])
+
+
+    def test_editorialContactForms(self):
+        """
+        L{EditPersonView.editorialContactForms} should return an instance of
+        L{EditorialContactForms} for the wrapped L{Person} as a child of the
+        tag it is passed.
+        """
+        editorialContactForms = renderer.get(
+            self.view, 'editorialContactForms')
+        tag = div()
+        forms = editorialContactForms(None, tag)
+        self.assertEqual(forms.tagName, 'div')
+        self.assertEqual(forms.attributes, {})
+        self.assertEqual(len(forms.children), 1)
+
+        form = forms.children[0]
+        self.assertTrue(isinstance(form, LiveForm))
+        self.assertEqual(form.callable, self.view.editContactItems)
+        self.assertEqual(form.parameters[1:], [self.contactForm])
+        self.assertIdentical(form.fragmentParent, self.view)
+        self.assertEqual(
+            self.view.contactItems[form.parameters[1].name],
+            (self.contactType, self.contactItem))
+
+
+    def test_rend(self):
+        """
+        L{EditPersonView} should be renderable in the typical manner.
+        """
+        # XXX I have no hope of asserting anything meaningful about the return
+        # value of renderLiveFragment.  However, even calling it at all pointed
+        # out that: there was no docFactory; the fragmentName didn't reference
+        # an extant template; the LiveForm had no fragment parent (for which I
+        # also updated test_editorialContactForms to do a direct
+        # assertion). -exarkun
+        markup = renderLiveFragment(self.view)
+        self.assertIn(self.view.jsClass, markup)

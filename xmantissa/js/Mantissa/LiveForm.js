@@ -41,14 +41,10 @@ Mantissa.LiveForm.NodeCountMismatch.methods(
                " nodes";
     });
 
-Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.FormWidget');
-Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.Platform.DOM_DESCEND;
-Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.Platform.DOM_CONTINUE;
 
 Mantissa.LiveForm.MessageFader = Divmod.Class.subclass("Divmod.Class.MessageFader");
-
 /**
-   Fade a node in, then out again.
+ * Fade a node in, then out again.
  */
 Mantissa.LiveForm.MessageFader.methods(
     function __init__(self, node) {
@@ -124,6 +120,12 @@ Mantissa.LiveForm.MessageFader.methods(
     });
 
 
+Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.FormWidget');
+/**
+ * Represent a form which can be submitted via Athena remote method calls.
+ */
+Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.Platform.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.Platform.DOM_CONTINUE;
 Mantissa.LiveForm.FormWidget.methods(
     function __init__(self, node, formName) {
         Mantissa.LiveForm.FormWidget.upcall(self, '__init__', node);
@@ -182,6 +184,26 @@ Mantissa.LiveForm.FormWidget.methods(
         self._hideMessage("success-message");
     },
 
+    /**
+     * If C{self.node} is a form element, reset its inputs to their default values.
+     *
+     * Note that this is broken if live renderer for this LiveForm is on any
+     * element other than the form element.  This should probably be
+     * implemented by keeping a structured representation of the form inputs
+     * separate from the DOM (perhaps backed by DOM objects - but the API
+     * should avoid DOM concerns) and performing such actions as form resets
+     * through that interface instead.  This will have the advantage that
+     * subforms can be handled explicitly, either to include them (as happens
+     * now, by accident) or exclude them (which is currently impossible).  This
+     * will also vastly simplify C{gatherInputs} and {setInputValues} and their
+     * associated helper methods.
+     */
+    function reset(self) {
+        if (self.node.tagName.toLowerCase() == "form") {
+            self.node.reset();
+        }
+    },
+
     function submitSuccess(self, result) {
         var resultstr;
 
@@ -193,9 +215,8 @@ Mantissa.LiveForm.FormWidget.methods(
 
         Divmod.log('liveform', 'Form submitted: ' + resultstr);
 
-        if(self.node.tagName.toLowerCase() == "form") {
-            self.node.reset();
-        }
+        self.reset();
+
         self.hideProgressMessage();
 
         var succm = self.nodeByAttribute('class', 'success-message', null);

@@ -32,3 +32,11 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         Tests the model object which tracks client-side autocomplete state
         """
         return 'Mantissa.Test.TestAutoComplete'
+
+
+    def test_people(self):
+        """
+        Tests the model objects which deal with the address book and person
+        objects.
+        """
+        return 'Mantissa.Test.TestPeople'

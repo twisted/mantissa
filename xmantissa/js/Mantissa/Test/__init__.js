@@ -390,10 +390,7 @@ Mantissa.Test.SetInputValues.methods(
     });
 
 
-Mantissa.Test.NoNickOrFirstLastNames = Mantissa.Test.Forms.subclass('Mantissa.Test.NoNickOrFirstLastNames');
-Mantissa.Test.NoNickButFirstLastNames = Mantissa.Test.Forms.subclass('Mantissa.Test.NoNickButFirstLastNames');
 Mantissa.Test.OnlyNick = Mantissa.Test.Forms.subclass('Mantissa.Test.OnlyNick');
-Mantissa.Test.OnlyEmailAddress = Mantissa.Test.Forms.subclass('Mantissa.Test.OnlyEmailAddress');
 Mantissa.Test.NickNameAndEmailAddress = Mantissa.Test.Forms.subclass('Mantissa.Test.NickNameAndEmailAddress');
 
 Mantissa.Test.ScrollTableModelTestCase = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.ScrollTableModelTestCase');

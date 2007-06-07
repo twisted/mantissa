@@ -5,9 +5,15 @@ from itertools import islice
 from string import uppercase
 from warnings import warn
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 from zope.interface import implements
 
 from twisted.python import components
+from twisted.python.reflect import qual
 
 from nevow import rend, athena, inevow, static, url
 from nevow.athena import expose
@@ -24,17 +30,13 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 from xmantissa import ixmantissa, webnav, webtheme, liveform
 from xmantissa.liveform import FORM_INPUT, Parameter
-from xmantissa.ixmantissa import IOrganizerPlugin
+from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
-
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
+from xmantissa.webtheme import ThemedElement
 
 def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
     assert Image is not None, 'you need PIL installed if you want to thumbnail things'
@@ -69,10 +71,261 @@ def iconURLForContactInfoType(itemType):
 
 
 
+def _normalizeWhitespace(text):
+    """
+    Remove leading and trailing whitespace and collapse adjacent spaces into a
+    single space.
+
+    @type text: C{unicode}
+    @rtype: C{unicode}
+    """
+    return u' '.join(text.split())
+
+
+
+class BaseContactType(object):
+    """
+    Base class for L{IContactType} implementations which provides useful
+    default behavior.
+    """
+    def uniqueIdentifier(self):
+        """
+        Uniquely identify this contact type.
+        """
+        return qual(self.__class__).decode('ascii')
+
+
+    def getParameters(self, contact):
+        """
+        Return a list of L{liveform.Parameter} objects to be used by
+        L{getCreationForm} to create a L{liveform.LiveForm}.
+
+        Override this in a subclass.
+
+        @param contact: A contact item, values from which should be used as
+            defaults in the parameters.  C{None} if the parameters are for
+            creating a new contact item.
+
+        """
+        raise NotImplementedError("%s did not implement getParameters" % (self,))
+
+
+    def coerce(self, **kw):
+        """
+        Callback for input validation.
+
+        @param **kw: Mapping of submitted parameter names to values.
+
+        @rtype: C{dict}
+        @return: Mapping of coerced parameter names to values.
+        """
+        return kw
+
+
+    def getCreationForm(self):
+        """
+        Create a L{liveform.LiveForm} for creating this kind of contact item using the
+        parameters returned by L{getParameters}.
+        """
+        return liveform.LiveForm(self.coerce, self.getParameters(None))
+
+
+    def getEditorialForm(self, contact):
+        """
+        Create a L{liveform.LiveForm} for editing an instance of this kind of
+        contact item using the parameters returned by L{getParameters}.
+        """
+        return liveform.LiveForm(self.coerce, self.getParameters(contact))
+
+
+
+class EmailContactType(BaseContactType):
+    """
+    Contact type plugin which allows a person to have an email address.
+
+    @ivar store: The L{Store} the contact items will be created in.
+    """
+    implements(IContactType)
+
+    def __init__(self, store):
+        self.store = store
+
+
+    def getParameters(self, emailAddress):
+        """
+        Return a C{list} of one L{LiveForm} parameter for editing an
+        L{EmailAddress}.
+
+        @type emailAddress: L{EmailAddress} or C{NoneType}
+        @param emailAddress: If not C{None}, an existing contact item from
+            which to get the email address default value.
+
+        @rtype: C{list}
+        @return: The parameters necessary for specifying an email address.
+        """
+        if emailAddress is not None:
+            address = emailAddress.address
+        else:
+            address = u''
+        return [
+            liveform.Parameter('email', liveform.TEXT_INPUT,
+                               _normalizeWhitespace, 'Email Address',
+                               default=address)]
+
+
+    def createContactItem(self, person, email):
+        """
+        Create a new L{EmailAddress} associated with the given person based on
+        the given email address.
+
+        @type person: L{Person}
+        @param person: The person with whom to associate the new
+            L{EmailAddress}.
+
+        @type email: C{unicode}
+        @param email: The value to use for the I{address} attribute of the
+            newly created L{EmailAddress}.  If C{''}, no L{EmailAddress} will
+            be created.
+
+        @return: C{None}
+        """
+        if email:
+            EmailAddress(store=self.store,
+                         address=email,
+                         person=person)
+
+
+    def getContactItems(self, person):
+        """
+        Return all L{EmailAddress} instances associated with the given person.
+
+        @type person: L{Person}
+        """
+        return person.store.query(
+            EmailAddress,
+            EmailAddress.person == person)
+
+
+    def editContactItem(self, contact, email):
+        """
+        Change the email address of the given L{EmailAddress} to that specified
+        by C{parameters}.
+
+        @type email: C{unicode}
+        @param email: The new value to use for the I{address} attribute of the
+            L{EmailAddress}.
+
+        @return: C{None}
+        """
+        address = self.store.findFirst(
+            EmailAddress,
+            AND(EmailAddress.address == email,
+                EmailAddress.storeID != contact.storeID))
+        if address is not None:
+            raise ValueError('There is already a person with that email '
+                             'address (%s): ' % (address.person.name,))
+        contact.address = email
+
+
+
+class NameContactType(BaseContactType):
+    """
+    Contact type plugin which allows a person to have a name.
+    """
+    implements(IContactType)
+
+    def getParameters(self, realName):
+        """
+        Return a C{list} of two L{LiveForm} parameters for editing the first
+        and last name of a L{RealName}.
+
+        @type realName: L{RealName}
+        @param realName: If not C{None}, an existing contact item from which to
+            get the default values for the first and last name parameters.
+
+        @rtype: C{list}
+        @return: The parameters necessary for specifying a person's real name.
+        """
+        if realName is not None:
+            first = realName.first
+            last = realName.last
+        else:
+            first = u''
+            last = u''
+        return [
+            liveform.Parameter('firstname', liveform.TEXT_INPUT,
+                               _normalizeWhitespace, 'First Name',
+                               default=first),
+            liveform.Parameter('lastname', liveform.TEXT_INPUT,
+                               _normalizeWhitespace, 'Last Name',
+                               default=last)]
+
+
+    def createContactItem(self, person, firstname, lastname):
+        """
+        Create a new L{RealName} associated with the given person based on the
+        given parameters.
+
+        @type person: L{Person}
+        @param person: The person with whom to associate the new L{RealName}.
+
+        @type firstname: C{unicode}
+        @param firstname: The value to use for the I{first} attribute of the
+            created L{RealName}.
+
+        @type lastname: C{unicode}
+        @param lastname: The value to use for the I{last} attribute of the
+            created L{RealName}.
+
+        @return: C{None}
+        """
+        if firstname or lastname:
+            RealName(store=person.store,
+                     person=person,
+                     first=firstname,
+                     last=lastname)
+
+
+    def getContactItems(self, person):
+        """
+        Return all L{RealName} instances associated with the given person.
+
+        @type person: L{Person}
+        @return: An iterable of L{RealName} instances.
+        """
+        return person.store.query(
+            RealName,
+            RealName.person == person)
+
+
+    def editContactItem(self, contact, firstname, lastname):
+        """
+        Change the first and last name of the given L{RealName} to the values
+        specified by C{parameters}.
+
+        @type contact: L{RealName}
+
+        @type firstname: C{unicode}
+        @param firstname: The value to use for the I{first} attribute of the
+            created L{RealName}.
+
+        @type lastname: C{unicode}
+        @param lastname: The value to use for the I{last} attribute of the
+            created L{RealName}.
+
+        @return: C{None}
+        """
+        contact.first = firstname
+        contact.last = lastname
+
+
+
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
     endowed = attributes.integer(default=0)
     powerupNames = ["xmantissa.people.AddPerson"]
+
+
 
 class Person(item.Item):
     typeName = 'mantissa_person'
@@ -286,6 +539,8 @@ class Organizer(item.Item):
         Return an iterator of L{IContactType} providers available to this
         organizer's store.
         """
+        yield NameContactType()
+        yield EmailContactType(self.store)
         for plugin in self.getOrganizerPlugins():
             getContactTypes = getattr(plugin, 'getContactTypes', None)
             if getContactTypes is not None:
@@ -301,12 +556,38 @@ class Organizer(item.Item):
     def getContactCreationParameters(self):
         """
         Yield a L{Parameter} for each L{IContactType} known.
+
+        Each yielded object can be used with a L{LiveForm} to create a new
+        instance of a particular L{IContactType}.
         """
         for contactType in self.getContactTypes():
             yield Parameter(
                 contactType.uniqueIdentifier(),
                 FORM_INPUT,
                 contactType.getCreationForm())
+
+
+    def getContactEditorialParameters(self, person):
+        """
+        Yield L{LiveForm} parameters to edit each contact item of each contact
+        type for the given person.
+
+        @type person: L{Person}
+        @return: An iterable of three-tuples.  The first element of each tuple
+            is an L{IContactType} provider.  The second element of each tuple
+            is a contact item which was created by that L{IContactType}
+            provider.  The third element of each tuple is the L{LiveForm}
+            parameter object for that copntact item.
+        """
+        counter = 0
+        for contactType in self.getContactTypes():
+            contactItems = contactType.getContactItems(person)
+            for contactItem in contactItems:
+                yield (contactType, contactItem, Parameter(
+                        str(counter),
+                        FORM_INPUT,
+                        contactType.getEditorialForm(contactItem)))
+                counter += 1
 
 
     def createPerson(self, nickname):
@@ -419,6 +700,40 @@ class PersonNameColumn(UnsortableColumn):
     def extractValue(self, model, item):
         return item.getDisplayName()
 
+
+class PersonScrollingFragment(ScrollingFragment):
+    """
+    Scrolling fragment which displays L{Person} objects and allows actions to
+    be taken on them.
+
+    @ivar _performAction: A function of two arguments which will be invoked
+        with an action name and a L{Person} to handle actions from the client.
+        Its return value will be sent back as the result of the action.
+    """
+    jsClass = u'Mantissa.People.PersonScroller'
+
+    def __init__(self, store, baseConstraint, defaultSortColumn, performAction):
+        ScrollingFragment.__init__(
+            self,
+            store,
+            Person,
+            baseConstraint,
+            [PersonNameColumn(None, 'name')],
+            defaultSortColumn=defaultSortColumn)
+        self._performAction = performAction
+
+
+    def performAction(self, actionName, rowIdentifier):
+        """
+        Dispatch the given action to C{self._performAction}.
+        """
+        return self._performAction(
+            actionName,
+            self.itemFromLink(rowIdentifier))
+    expose(performAction)
+
+
+
 class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     fragmentName = 'people-organizer'
     live = 'athena'
@@ -430,19 +745,19 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         athena.LiveFragment.__init__(self, original)
 
     def _createPeopleScrollTable(self, baseComparison, sort):
-        f = ScrollingFragment(
+        """
+        Make a L{PersonScrollingFragment} as a child of this fragment, load its
+        docFactory, and return it.
+        """
+        f = PersonScrollingFragment(
                 self.original.store,
-                Person,
                 baseComparison,
-                [PersonNameColumn(None, 'name'),
-                 Person.created],
-                defaultSortColumn=sort)
-        # use linkToPerson() to make item links so that rows point to
-        # a version of the person URL that'll highlight the people tab
-        f.linkToItem = lambda item: unicode(self.original.linkToPerson(item), 'ascii')
+                sort,
+                self.performAction)
         f.setFragmentParent(self)
         f.docFactory = webtheme.getLoader(f.fragmentName)
         return f
+
 
     def _getBaseComparison(self, ctx):
         req = inevow.IRequest(ctx)
@@ -455,15 +770,104 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
                 unichr(ord(group[-1]) + 1))
         return RealName.person == Person.storeID
 
+
     def render_peopleTable(self, ctx, data):
+        """
+        Return a L{PersonScrollingFragment} which will display the L{Person}
+        items in the wrapped organizer.
+        """
         comparison = self._getBaseComparison(ctx)
         sort = self.original.lastNameOrder()
         return self._createPeopleScrollTable(comparison, sort)
 
+
     def head(self):
         return None
 
+
+    def performAction(self, actionName, person):
+        """
+        Do something with an item by dispatching to a method suitable for the
+        action with the given name.
+
+        @type person: L{Person}
+        """
+        return getattr(self, 'action_' + actionName)(person)
+
+
+    def action_edit(self, person):
+        """
+        Create a form which can be used to edit the given person.
+        """
+        view = EditPersonView(person)
+        view.setFragmentParent(self)
+        return view
+
 components.registerAdapter(OrganizerFragment, Organizer, ixmantissa.INavigableFragment)
+
+
+
+class EditPersonView(ThemedElement):
+    """
+    Render a view for editing the contact information for a L{Person}.
+
+    @ivar person: L{Person} which can be edited.
+
+    @ivar contactItems: A mapping from parameter names to the contact items
+        those parameters will edit.
+    """
+    fragmentName = 'edit-person'
+
+    def __init__(self, person):
+        athena.LiveElement.__init__(self)
+        self.person = person
+        self.contactItems = {}
+
+
+    def editContactItems(self, nickname, **edits):
+        """
+        Update the information on the contact items associated with the wrapped
+        L{Person}.
+
+        @type nickname: C{unicode}
+        @param nickname: New value to use for the I{name} attribute of the
+            L{Person}.
+
+        @param **edits: A mapping of parameter names to edit information from
+            that parameter.
+        """
+        self.person.name = nickname
+        for paramName, contactInfo in edits.iteritems():
+            contactType, contactItem = self.contactItems.pop(paramName)
+            contactType.editContactItem(
+                contactItem, **dict([
+                        (k.encode('ascii'), v)
+                        for (k, v)
+                        in contactInfo.iteritems()]))
+
+
+    def editorialContactForms(self, request, tag):
+        """
+        Add an L{LiveForm} for editing the contact information of the wrapped
+        L{Person} to the given tag and return it.
+        """
+        organizer = self.person.organizer
+        parameters = [
+            liveform.Parameter(
+                'nickname', liveform.TEXT_INPUT,
+                _normalizeWhitespace, 'Nickname',
+                default=self.person.name)]
+        for contact in organizer.getContactEditorialParameters(self.person):
+            type, item, param = contact
+            parameters.append(param)
+            self.contactItems[param.name] = (type, item)
+        form = liveform.LiveForm(self.editContactItems, parameters)
+        form.jsClass = u'Mantissa.People.EditPersonForm'
+        form.setFragmentParent(self)
+        return tag[form]
+    renderer(editorialContactForms)
+
+
 
 class _AddressBook(item.Item):
     typeName = 'mantissa_organizer_personalized_addressbook'
@@ -520,7 +924,7 @@ class RealName(item.Item):
     last = attributes.text(indexed=True)
 
     def _getDisplay(self):
-        return ' '.join(filter(None, (self.first, self.last)))
+        return u' '.join(filter(None, (self.first, self.last)))
     display = property(_getDisplay)
 
 class EmailAddress(item.Item):
@@ -631,14 +1035,7 @@ def addPerson1to2(old):
 
 registerUpgrader(addPerson1to2, AddPerson.typeName, 1, 2)
 
-def _hasLengthOrNone(s):
-    WHITESPACE = re.compile(r'\s{2.}')
 
-    s = s.strip()
-    s = WHITESPACE.sub(' ', s)
-    if 0 == len(s):
-        return None
-    return s
 
 class AddPersonFragment(athena.LiveFragment):
     """
@@ -667,15 +1064,8 @@ class AddPersonFragment(athena.LiveFragment):
         Return some fixed fields for the person creation form as well as any
         fields from L{IOrganizerPlugin} powerups.
         """
-        def makeParam(name, desc):
-            return liveform.Parameter(
-                name, liveform.TEXT_INPUT, _hasLengthOrNone, desc)
-
-        parameters = [
-            makeParam('firstname', 'First Name'),
-            makeParam('lastname', 'Last Name'),
-            makeParam('email', 'Email Address'),
-            makeParam('nickname', 'Nickname')]
+        parameters = [liveform.Parameter('nickname', liveform.TEXT_INPUT,
+                                         _normalizeWhitespace, 'Nickname')]
         parameters.extend(self.adder.organizer.getContactCreationParameters())
         return parameters
 
@@ -693,46 +1083,26 @@ class AddPersonFragment(athena.LiveFragment):
         return addPersonForm
 
 
-    def _addPerson(self, nickname, firstname, lastname, email,
-                   **allContactInfo):
-        if not (nickname or firstname or lastname):
-            raise ValueError('please supply nickname or first/last name')
-        store = self.adder.store
-        address = store.findFirst(EmailAddress, EmailAddress.address == email)
-        if address is not None:
-            raise ValueError('There is already a person with that email '
-                             'address (%s): ' % (address.person.name,))
+    def _addPerson(self, nickname, **allContactInfo):
+        person = self.adder.organizer.createPerson(nickname)
 
-        if nickname is None:
-            nickname = u''
-        def txn():
-            person = self.adder.organizer.createPerson(nickname)
+        # XXX This has the potential for breakage, if a new contact type is
+        # returned by this call which was not returned by the call used to
+        # generate the form, or vice versa.  I'll happily fix this the very
+        # instant a button is present upon a web page which can provoke
+        # this behavior. -exarkun
+        for contactType in self.adder.organizer.getContactTypes():
+            contactInfo = allContactInfo[contactType.uniqueIdentifier()]
+            contactType.createContactItem(
+                person, **dict([
+                        (k.encode('ascii'), v)
+                        for (k, v)
+                        in contactInfo.iteritems()]))
+        return person
 
-            if email:
-                EmailAddress(store=store,
-                            address=email,
-                            person=person)
 
-            if firstname is not None or lastname is not None:
-                RealName(store=store,
-                        person=person,
-                        first=firstname,
-                        last=lastname)
-
-            # XXX This has the potential for breakage, if a new contact type is
-            # returned by this call which was not returned by the call used to
-            # generate the form, or vice versa.  I'll happily fix this the very
-            # instant a button is present upon a web page which can provoke
-            # this behavior. -exarkun
-            for contactType in self.adder.organizer.getContactTypes():
-                contactInfo = allContactInfo[contactType.uniqueIdentifier()]
-                contactType.createContactItem(person, contactInfo)
-
-            return person
-        return self.adder.store.transact(txn)
-
-    def addPerson(self, nickname, firstname, lastname, email, **contactInfo):
-        self._addPerson(nickname, firstname, lastname, email, **contactInfo)
+    def addPerson(self, nickname, **contactInfo):
+        self.adder.store.transact(self._addPerson, nickname, **contactInfo)
         return u'Made A Person!'
     expose(addPerson)
 

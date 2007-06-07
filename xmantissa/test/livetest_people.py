@@ -7,6 +7,7 @@ from axiom.store import Store
 from axiom.dependency import installOn
 
 from xmantissa import people, ixmantissa
+from xmantissa.liveform import FORM_INPUT
 from xmantissa.webtheme import getLoader
 from xmantissa.webapp import PrivateApplication
 
@@ -45,46 +46,29 @@ class AddPersonTestBase(people.AddPersonFragment):
 
     def render_addPersonForm(self, ctx, data):
         liveform = super(AddPersonTestBase, self).render_addPersonForm(ctx, data)
-        params = dict((p.name, p) for p in liveform.parameters)
-        self.mangleDefaults(params)
+
+        # XXX This is a pretty terrible hack.  The client-side of these tests
+        # just submit the form.  In order for the assertions to succeed, that
+        # means the form needs to be rendered with some values in it already.
+        # There's no actual API for putting values into the form here, though.
+        # So instead, we'll grovel over all the parameters and try to change
+        # them to reflect what we want.  Since this relies on there being no
+        # conflictingly named parameters anywhere in the form and since it
+        # relies on the parameters being traversable in order to find them all,
+        # this is rather fragile.  The tests should most likely just put values
+        # in on the client or something along those lines (it's not really
+        # clear what the intent of these tests are, anyway, so it's not clear
+        # what alternate approach would satisfy that intent).
+        params = []
+        remaining = liveform.parameters[:]
+        while remaining:
+            p = remaining.pop()
+            if p.type == FORM_INPUT:
+                remaining.extend(p.coercer.parameters)
+            else:
+                params.append((p.name, p))
+        self.mangleDefaults(dict(params))
         return liveform
-
-
-
-class NoNickOrFirstLastNames(AddPersonTestBase, TestCase):
-    jsClass = u'Mantissa.Test.NoNickOrFirstLastNames'
-
-    def checkResult(self):
-        self.assertEqual(self.exc_info[0], ValueError)
-        for cls in (people.Person, people.EmailAddress):
-            self.assertEqual(self.store.count(cls), 0)
-
-
-
-class NoNickButFirstLastNames(AddPersonTestBase, TestCase):
-    jsClass = u'Mantissa.Test.NoNickButFirstLastNames'
-
-    def mangleDefaults(self, params):
-        params['firstname'].default = u'FIRSTNAME'
-        params['lastname'].default = u'LASTNAME'
-
-
-    def checkResult(self):
-        self.assertEqual(self.exc_info, None)
-
-        p = self.store.findUnique(people.Person)
-        self.assertEqual(p.name, '')
-        self.assertEqual(p.organizer, self.adder.organizer)
-
-        rn = self.store.findUnique(people.RealName)
-        self.assertEqual(rn.first, 'FIRSTNAME')
-        self.assertEqual(rn.last, 'LASTNAME')
-        self.assertEqual(rn.person, p)
-
-        rn.deleteFromStore()
-        p.deleteFromStore()
-
-        self.assertEqual(self.store.count(people.EmailAddress), 0)
 
 
 
@@ -105,21 +89,6 @@ class OnlyNick(AddPersonTestBase, TestCase):
 
         self.assertEqual(self.store.count(people.EmailAddress), 0)
         self.assertEqual(self.store.count(people.RealName), 0)
-
-
-
-class OnlyEmailAddress(AddPersonTestBase, TestCase):
-    jsClass = u'Mantissa.Test.OnlyEmailAddress'
-
-    def mangleDefaults(self, params):
-        params['email'].default = u'bob@the.internet'
-
-
-    def checkResult(self):
-        self.assertEqual(self.exc_info[0], ValueError)
-
-        for cls in (people.Person, people.RealName, people.EmailAddress):
-            self.assertEqual(self.store.count(cls), 0)
 
 
 

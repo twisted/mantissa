@@ -1,3 +1,12 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveFragment">
-  <nevow:invisible nevow:render="peopleTable" />
+  <table width="100%">
+    <tbody>
+      <tr>
+        <td id="people" width="20%">
+          <nevow:invisible nevow:render="peopleTable" />
+        </td>
+        <td id="detail" />
+      </tr>
+    </tbody>
+  </table>
 </div>
