@@ -1,5 +1,12 @@
-0.6.2 (2007-04-27): 
+0.6.3 (2007-05-24):
 
+  - Added a method to IOrganizerPlugin to allow notification of
+    creation of new person objects.
+  - Added a method to IOrganizerPlugin to allow extension of the
+    add-person form with new contact information types.
+  - Liveform refactoring.
+
+0.6.2 (2007-04-27): 
   - Data passed to Lucene for indexing or search queries is now
     filtered to prevent email addresses and URLs from being recognized
     as single tokens.
