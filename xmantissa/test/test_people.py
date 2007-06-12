@@ -38,7 +38,8 @@ from xmantissa.people import (
     setIconURLForContactInfoType, iconURLForContactInfoType,
     _CONTACT_INFO_ICON_URLS, AddPerson, PersonScrollingFragment,
     PersonNameColumn, OrganizerFragment, EditPersonView, NameContactType,
-    BaseContactType, EmailContactType, _normalizeWhitespace)
+    BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
+    PostalContactType)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import TEXT_INPUT, FORM_INPUT, Parameter, LiveForm
@@ -343,6 +344,20 @@ class NameContactTests(unittest.TestCase, ContactTestsMixin):
         self.contactType = NameContactType()
 
 
+    def test_organizerIncludesIt(self):
+        """
+        L{Organizer.getContactTypes} should include an instance of
+        L{NameContactType} in its return value.
+        """
+        store = Store()
+        organizer = Organizer(store=store)
+        self.assertTrue([
+                contactType
+                for contactType
+                in organizer.getContactTypes()
+                if isinstance(contactType, NameContactType)])
+
+
     def test_createContactItem(self):
         """
         L{NameContactType.createContactItem} should create a L{RealName} with
@@ -427,6 +442,19 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         self.contactType = EmailContactType(self.store)
 
 
+    def test_organizerIncludesIt(self):
+        """
+        L{Organizer.getContactTypes} should include an instance of
+        L{EmailContactType} in its return value.
+        """
+        organizer = Organizer(store=self.store)
+        self.assertTrue([
+                contactType
+                for contactType
+                in organizer.getContactTypes()
+                if isinstance(contactType, EmailContactType)])
+
+
     def test_createContactItem(self):
         """
         L{EmailContactType.createContactItem} should create an L{EmailAddress}
@@ -493,7 +521,7 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         L{EmailContactType.getParameters} should return a C{list} of
         L{LiveForm} parameters for an email address.
         """
-        email, = self.contactType.getParameters(None)
+        (email,) = self.contactType.getParameters(None)
         self.assertEqual(email.name, 'email')
         self.assertEqual(email.default, '')
 
@@ -505,7 +533,7 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         L{EmailAddress} item it is passed.
         """
         person = Person(store=self.store)
-        email, = self.contactType.getParameters(
+        (email,) = self.contactType.getParameters(
             EmailAddress(store=self.store, person=person,
                          address=u'user@example.com'))
         self.assertEqual(email.name, 'email')
@@ -520,6 +548,121 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         self.assertEqual(
             self.contactType.coerce(email=u'user@example.com'),
             {'email': u'user@example.com'})
+
+
+
+class PostalContactTests(unittest.TestCase):
+    """
+    Tests for snail-mail address contact information represented by
+    L{PostalContactType}.
+    """
+    def setUp(self):
+        """
+        Create a L{Store}, L{PostalContactType}, and L{Person} for use by
+        tests.
+        """
+        self.store = Store()
+        self.person = Person(store=self.store)
+        self.contactType = PostalContactType()
+
+
+    def test_organizerIncludesIt(self):
+        """
+        L{Organizer.getContactTypes} should include an instance of
+        L{PostalContactType} in its return value.
+        """
+        organizer = Organizer(store=self.store)
+        self.assertTrue([
+                contactType
+                for contactType
+                in organizer.getContactTypes()
+                if isinstance(contactType, PostalContactType)])
+
+
+    def test_createContactItem(self):
+        """
+        L{PostalContactType.createContactItem} should create a L{PostalAddress}
+        instance with the supplied values.
+        """
+        self.contactType.createContactItem(
+            self.person, address=u'123 Street Rd')
+        addresses = list(self.store.query(PostalAddress))
+        self.assertEqual(len(addresses), 1)
+        self.assertEqual(addresses[0].address, u'123 Street Rd')
+        self.assertIdentical(addresses[0].person, self.person)
+
+
+    def test_createContactItemWithEmptyString(self):
+        """
+        L{PostalContactType.createContactItem} shouldn't create a
+        L{PostalAddress} instance if it is given an empty string for the
+        address.
+        """
+        self.contactType.createContactItem(self.person, address=u'')
+        addresses = list(self.store.query(PostalAddress))
+        self.assertEqual(len(addresses), 0)
+
+
+    def test_editContactItem(self):
+        """
+        L{PostalContactType.editContactItem} should update the address field of
+        the L{PostalAddress} it is passed.
+        """
+        postalAddress = PostalAddress(
+            store=self.store, person=self.person, address=u'wrong')
+        self.contactType.editContactItem(
+            postalAddress, address=u'123 Street Rd')
+        self.assertEqual(postalAddress.address, u'123 Street Rd')
+
+
+    def test_getParameters(self):
+        """
+        L{PostalContactType.getParameters} should return a C{list} of
+        L{LiveForm} parameters for a mailing address.
+        """
+        (address,) = self.contactType.getParameters(None)
+        self.assertEqual(address.name, 'address')
+        self.assertEqual(address.default, '')
+
+
+    def test_getParametersWithDefaults(self):
+        """
+        L{PostalContactType.getParameters} should return a C{list} of
+        L{LiveForm} parameters with default values supplied from the
+        L{PostalAddress} item it is passed.
+        """
+        (address,) = self.contactType.getParameters(
+            PostalAddress(store=self.store, person=self.person,
+                          address=u'123 Street Rd'))
+        self.assertEqual(address.name, 'address')
+        self.assertEqual(address.default, u'123 Street Rd')
+
+
+    def test_getContactItems(self):
+        """
+        L{PostalContactType.getContactItems} should return a C{list} of all
+        the L{PostalAddress} instances associated with the specified person.
+        """
+        firstAddress = PostalAddress(
+            store=self.store, person=self.person, address=u'123 Street Rd')
+        secondAddress = PostalAddress(
+            store=self.store, person=self.person, address=u'456 Street Rd')
+        anotherPerson = Person(store=self.store)
+        anotherAddress = PostalAddress(
+            store=self.store, person=anotherPerson, address=u'789 Street Rd')
+        self.assertEqual(
+            list(self.contactType.getContactItems(self.person)),
+            [firstAddress, secondAddress])
+
+
+    def test_coerce(self):
+        """
+        L{PostalContactType.coerce} should return a dictionary mapping
+        C{'address'} to the postal address passed to it.
+        """
+        self.assertEqual(
+            self.contactType.coerce(address=u'123 Street Rd'),
+            {'address': u'123 Street Rd'})
 
 
 
@@ -654,7 +797,7 @@ class PeopleModelTestCase(unittest.TestCase):
             secondContactPowerup, IOrganizerPlugin, priority=0)
 
         self.assertEqual(
-            list(self.organizer.getContactTypes())[2:],
+            list(self.organizer.getContactTypes())[3:],
             firstContactTypes + secondContactTypes)
 
 
@@ -677,7 +820,7 @@ class PeopleModelTestCase(unittest.TestCase):
         finally:
             Organizer.getOrganizerPlugins = getOrganizerPlugins
 
-        self.assertEqual(contactTypes[2:], [])
+        self.assertEqual(contactTypes[3:], [])
 
 
     def test_getContactCreationParameters(self):
@@ -693,11 +836,11 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        self.assertEqual(len(parameters), 3)
-        self.assertTrue(isinstance(parameters[2], Parameter))
-        self.assertEqual(parameters[2].name, qual(StubContactType))
-        self.assertEqual(parameters[2].type, FORM_INPUT)
-        self.assertIdentical(parameters[2].coercer, contactForm)
+        self.assertEqual(len(parameters), 4)
+        self.assertTrue(isinstance(parameters[3], Parameter))
+        self.assertEqual(parameters[3].name, qual(StubContactType))
+        self.assertEqual(parameters[3].type, FORM_INPUT)
+        self.assertIdentical(parameters[3].coercer, contactForm)
 
 
     def test_getContactEditorialParameters(self):
@@ -932,11 +1075,11 @@ class PeopleTests(unittest.TestCase):
         adder = AddPerson(store=store)
         installOn(adder, store)
 
-        # With no plugins, only the nickname, EmailContactType, and
-        # NameContactType parameters should be returned.
+        # With no plugins, only the NameContactType, EmailContactType, and
+        # PostalContactType parameters should be returned.
         addPersonFrag = AddPersonFragment(adder)
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 3)
+        self.assertEqual(len(addPersonForm.parameters), 4)
 
         contactTypes = [StubContactType(None, None, None)]
         observer = StubOrganizerPlugin(
@@ -944,7 +1087,7 @@ class PeopleTests(unittest.TestCase):
         store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 4)
+        self.assertEqual(len(addPersonForm.parameters), 5)
 
 
     def test_addPersonWithContactItems(self):
@@ -972,10 +1115,11 @@ class PeopleTests(unittest.TestCase):
                     u'firstname': u'First',
                     u'lastname': u'Last'},
                EmailContactType(store).uniqueIdentifier().encode('ascii'): {
-                    u'email': u'user@example.com'}})
+                    u'email': u'user@example.com'},
+               PostalContactType().uniqueIdentifier().encode('ascii'): {
+                    u'address': u'123 Street Rd'}})
 
         person = store.findUnique(Person)
-
         self.assertEqual(contactType.createdContacts, [(person, argument)])
 
 
@@ -991,18 +1135,21 @@ class PeopleTests(unittest.TestCase):
                     u'firstname': u'Jean-Luc',
                     u'lastname': u'Picard'},
                EmailContactType(store).uniqueIdentifier().encode('ascii'): {
-                    u'email': u'jlp@starship.enterprise'}})
+                    u'email': u'jlp@starship.enterprise'},
+               PostalContactType().uniqueIdentifier().encode('ascii'): {
+                    u'address': u'123 Street Rd'}})
 
         person = store.findUnique(Person)
         self.assertEquals(person.name, 'Captain P.')
 
         email = store.findUnique(EmailAddress, EmailAddress.person == person)
-
         self.assertEquals(email.address, 'jlp@starship.enterprise')
 
         rn = store.findUnique(RealName, RealName.person == person)
-
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
+
+        pa = store.findUnique(PostalAddress, PostalAddress.person == person)
+        self.assertEqual(pa.address, u'123 Street Rd')
 
 
     def testMugshot(self):

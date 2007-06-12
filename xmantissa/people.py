@@ -209,7 +209,7 @@ class EmailContactType(BaseContactType):
     def editContactItem(self, contact, email):
         """
         Change the email address of the given L{EmailAddress} to that specified
-        by C{parameters}.
+        by C{email}.
 
         @type email: C{unicode}
         @param email: The new value to use for the I{address} attribute of the
@@ -541,6 +541,7 @@ class Organizer(item.Item):
         """
         yield NameContactType()
         yield EmailContactType(self.store)
+        yield PostalContactType()
         for plugin in self.getOrganizerPlugins():
             getContactTypes = getattr(plugin, 'getContactTypes', None)
             if getContactTypes is not None:
@@ -1002,6 +1003,79 @@ class PostalAddress(item.Item):
 
 setIconURLForContactInfoType(PostalAddress, '/Mantissa/images/PostalAddress-icon.png')
 
+
+
+class PostalContactType(BaseContactType):
+    """
+    Contact type plugin which allows a person to have a snail-mail address.
+    """
+    def getParameters(self, postalAddress):
+        """
+        Return a C{list} of one L{LiveForm} parameter for editing a
+        L{PostalAddress}.
+
+        @type postalAddress: L{PostalAddress} or C{NoneType}
+
+        @param emailAddress: If not C{None}, an existing contact item from
+            which to get the postal address default value.
+
+        @rtype: C{list}
+        @return: The parameters necessary for specifying a postal address.
+        """
+        address = u''
+        if postalAddress is not None:
+            address = postalAddress.address
+        return [
+            liveform.Parameter('address', liveform.TEXT_INPUT,
+                               unicode, 'Postal Address', default=address)]
+
+
+    def createContactItem(self, person, address):
+        """
+        Create a new L{PostalAddress} associated with the given person based on
+        the given postal address.
+
+        @type person: L{Person}
+        @param person: The person with whom to associate the new
+            L{EmailAddress}.
+
+        @type address: C{unicode}
+        @param address: The value to use for the I{address} attribute of the
+            newly created L{PostalAddress}.  If C{''}, no L{PostalAddress} will
+            be created.  create.
+
+        @return: C{None}
+        """
+        if address:
+            PostalAddress(
+                store=person.store, person=person, address=address)
+
+
+    def editContactItem(self, contact, address):
+        """
+        Change the postal address of the given L{PostalAddress} to that
+        specified by C{address}.
+
+        @type contact: L{PostalAddress}
+        @param contact: The existing contact item to modify.
+
+        @type address: C{unicode}
+        @param address: The new value to use for the I{address} attribute of
+            the L{PostalAddress}.
+
+        @return: C{None}
+        """
+        contact.address = address
+
+
+    def getContactItems(self, person):
+        """
+        Return a C{list} of the L{PostalAddress} items associated with the
+        given person.
+
+        @type person: L{Person}
+        """
+        return person.store.query(PostalAddress, PostalAddress.person == person)
 
 
 class Notes(item.Item):
