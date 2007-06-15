@@ -271,6 +271,41 @@ class BaseContactTests(unittest.TestCase):
         self.assertEqual(form.callable(**params), params)
 
 
+class EmailAddressTests(unittest.TestCase):
+    """
+    Tests for L{EmailAddress}.
+    """
+    def test_deletedWithPerson(self):
+        """
+        An L{EmailAddress} should be deleted when the L{Person} it is
+        associated with is deleted.
+        """
+        store = Store()
+        person = Person(store=store)
+        email = EmailAddress(
+            store=store, person=person, address=u'testuser@example.com')
+        person.deleteFromStore()
+        self.assertEqual(store.query(EmailAddress).count(), 0)
+
+
+
+class PostalAddressTests(unittest.TestCase):
+    """
+    Tests for L{PostalAddress}.
+    """
+    def test_deletedWithPerson(self):
+        """
+        A L{PostalAddress} should be deleted when the L{Person} it is
+        associated with is deleted.
+        """
+        store = Store()
+        person = Person(store=store)
+        address = PostalAddress(
+            store=store, person=person, address=u'123 Street Rd')
+        person.deleteFromStore()
+        self.assertEqual(store.query(PostalAddress).count(), 0)
+
+
 
 class RealNameTests(unittest.TestCase):
     """
@@ -310,6 +345,18 @@ class RealNameTests(unittest.TestCase):
         realName = RealName(store=store, person=person)
         self.assertTrue(isinstance(realName.display, unicode))
         self.assertEqual(realName.display, u'')
+
+
+    def test_deletedWithPerson(self):
+        """
+        A L{RealName} should be deleted when the L{Person} it is associated
+        with is deleted.
+        """
+        store = Store()
+        person = Person(store=store)
+        realName = RealName(store=store, person=person)
+        person.deleteFromStore()
+        self.assertEqual(store.query(RealName).count(), 0)
 
 
 
@@ -731,6 +778,16 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertEqual(person.name, nickname)
         self.assertIdentical(person.organizer, self.organizer)
         self.assertTrue(beforeCreation <= person.created <= afterCreation)
+
+
+    def test_deletePerson(self):
+        """
+        L{Organizer.deletePerson} should delete the specified person from the
+        store.
+        """
+        person = Person(store=self.store)
+        self.organizer.deletePerson(person)
+        self.assertEqual(self.store.query(Person, Person.storeID == person.storeID).count(), 0)
 
 
     def test_getOrganizerPlugins(self):
@@ -1352,6 +1409,7 @@ class OrganizerFragmentTests(unittest.TestCase):
         Create an L{OrganizerFragment} wrapped around a double for
         L{Organizer}.
         """
+        deletedPeople = []
         class StubOrganizer(object):
             _webTranslator = None
 
@@ -1360,7 +1418,12 @@ class OrganizerFragmentTests(unittest.TestCase):
 
             def lastNameOrder(self):
                 return None
+
+            def deletePerson(self, person):
+                deletedPeople.append(person)
+
         self.fragment = OrganizerFragment(StubOrganizer(Store()))
+        self.deletedPeople = deletedPeople
 
 
     def test_peopleTable(self):
@@ -1395,6 +1458,16 @@ class OrganizerFragmentTests(unittest.TestCase):
         self.assertTrue(isinstance(editView, EditPersonView))
         self.assertIdentical(editView.person, item)
         self.assertIdentical(editView.fragmentParent, self.fragment)
+
+
+    def test_deleteAction(self):
+        """
+        L{OrganizerFragment.action_delete} should call L{deletePerson} on the
+        object it wraps, passing it the person object it received.
+        """
+        person = object()
+        self.fragment.action_delete(person)
+        self.assertEqual(self.deletedPeople, [person])
 
 
 

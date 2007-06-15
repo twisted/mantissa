@@ -24,6 +24,29 @@ Mantissa.People.EditAction.methods(
             });
     });
 
+
+
+/**
+ * ScrollTable action which allows the user to delete the selected person.
+ */
+Mantissa.People.DeleteAction = Mantissa.ScrollTable.Action.subclass(
+    'Mantissa.People.DeleteAction');
+Mantissa.People.DeleteAction.methods(
+    /**
+     * Initialize the action by calling the base initializer with
+     * delete-specific values.
+     */
+    function __init__(self) {
+        Mantissa.People.DeleteAction.upcall(
+            self, '__init__', 'delete', 'Delete',
+            function(peopleScroller, row, ignored) {
+                var index = peopleScroller.model.findIndex(row.__id__);
+                peopleScroller.removeRow(index);
+            });
+    });
+
+
+
 /**
  * Container for person interaction user interface elements.
  *
@@ -79,7 +102,8 @@ Mantissa.People.PersonScroller = Mantissa.ScrollTable.FlexHeightScrollingWidget.
     'Mantissa.People.PersonScroller');
 Mantissa.People.PersonScroller.methods(
     function __init__(self, node, metadata) {
-        self.actions = [Mantissa.People.EditAction()];
+        self.actions = [Mantissa.People.EditAction(),
+                        Mantissa.People.DeleteAction()];
         Mantissa.People.PersonScroller.upcall(
             self, '__init__', node, metadata, 10);
     });

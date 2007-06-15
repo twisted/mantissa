@@ -617,6 +617,13 @@ class Organizer(item.Item):
         return person
 
 
+    def deletePerson(self, person):
+        """
+        Delete the given person from the store.
+        """
+        person.deleteFromStore()
+
+
     def personByName(self, name):
         """
         Retrieve the L{Person} item for the given Q2Q address,
@@ -804,6 +811,13 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         view.setFragmentParent(self)
         return view
 
+
+    def action_delete(self, person):
+        """
+        Delete the given person.
+        """
+        self.original.deletePerson(person)
+
 components.registerAdapter(OrganizerFragment, Organizer, ixmantissa.INavigableFragment)
 
 
@@ -921,7 +935,10 @@ class RealName(item.Item):
     typeName = 'mantissa_organizer_addressbook_realname'
     schemaVersion = 1
 
-    person = attributes.reference(allowNone=False)
+    person = attributes.reference(
+        allowNone=False,
+        whenDeleted=attributes.reference.CASCADE,
+        reftype=Person)
 
     first = attributes.text()
     last = attributes.text(indexed=True)
@@ -930,12 +947,17 @@ class RealName(item.Item):
         return u' '.join(filter(None, (self.first, self.last)))
     display = property(_getDisplay)
 
+
+
 class EmailAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_emailaddress'
     schemaVersion = 3
 
     address = attributes.text(allowNone=False)
-    person = attributes.reference(allowNone=False)
+    person = attributes.reference(
+        allowNone=False,
+        whenDeleted=attributes.reference.CASCADE,
+        reftype=Person)
     label = attributes.text(
         """
         This is a label for the role of the email address, usually something like
@@ -1001,7 +1023,10 @@ class PostalAddress(item.Item):
     typeName = 'mantissa_organizer_addressbook_postaladdress'
 
     address = attributes.text(allowNone=False)
-    person = attributes.reference(allowNone=False)
+    person = attributes.reference(
+        allowNone=False,
+        whenDeleted=attributes.reference.CASCADE,
+        reftype=Person)
 
 setIconURLForContactInfoType(PostalAddress, '/Mantissa/images/PostalAddress-icon.png')
 
