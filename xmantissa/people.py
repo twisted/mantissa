@@ -837,14 +837,16 @@ class EditPersonView(ThemedElement):
         @param **edits: A mapping of parameter names to edit information from
             that parameter.
         """
-        self.person.name = nickname
-        for paramName, contactInfo in edits.iteritems():
-            contactType, contactItem = self.contactItems.pop(paramName)
-            contactType.editContactItem(
-                contactItem, **dict([
+        def editPerson():
+            self.person.name = nickname
+            for paramName, contactInfo in edits.iteritems():
+                contactType, contactItem = self.contactItems.pop(paramName)
+                contactInfo = dict([
                         (k.encode('ascii'), v)
                         for (k, v)
-                        in contactInfo.iteritems()]))
+                        in contactInfo.iteritems()])
+                contactType.editContactItem(contactItem, **contactInfo)
+        self.person.store.transact(editPerson)
 
 
     def editorialContactForms(self, request, tag):

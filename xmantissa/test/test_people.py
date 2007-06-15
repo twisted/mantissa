@@ -1430,16 +1430,27 @@ class EditPersonViewTests(unittest.TestCase):
     def test_editContactItems(self):
         """
         L{EditPersonView.editContactItems} should take a dictionary mapping
-        parameter names to values and pass those values on to the appropriate
-        L{IContactType} along with the right contact item in order to update
-        its values.
+        parameter names to values and update its person's contact information
+        in a transaction.
         """
+        transactions = []
+        transaction = record('function args kwargs')
+        class StubStore(object):
+            def transact(self, f, *a, **kw):
+                transactions.append(transaction(f, a, kw))
+        self.person.store = StubStore()
         contactInfo = {u'stub': 'value'}
         contactType = StubContactType(None, None, None)
         self.view.contactItems = {'name': (contactType, self.contactItem)}
         self.view.editContactItems(u'nick', name=contactInfo)
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(self.person.name, StubPerson.name)
+        self.assertEqual(contactType.editedContacts, [])
+        transactions[0].function(
+            *transactions[0].args, **transactions[0].kwargs)
         self.assertEqual(self.person.name, u'nick')
-        self.assertEqual(contactType.editedContacts, [(self.contactItem, contactInfo)])
+        self.assertEqual(
+            contactType.editedContacts, [(self.contactItem, contactInfo)])
 
 
     def test_editorialContactForms(self):
