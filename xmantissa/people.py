@@ -190,9 +190,9 @@ class EmailContactType(BaseContactType):
         @return: C{None}
         """
         if email:
-            EmailAddress(store=self.store,
-                         address=email,
-                         person=person)
+            return EmailAddress(store=self.store,
+                                address=email,
+                                person=person)
 
 
     def getContactItems(self, person):
@@ -280,10 +280,10 @@ class NameContactType(BaseContactType):
         @return: C{None}
         """
         if firstname or lastname:
-            RealName(store=person.store,
-                     person=person,
-                     first=firstname,
-                     last=lastname)
+            return RealName(store=person.store,
+                            person=person,
+                            first=firstname,
+                            last=lastname)
 
 
     def getContactItems(self, person):
@@ -605,16 +605,53 @@ class Organizer(item.Item):
             created=extime.Time(),
             organizer=self,
             name=nickname)
+        self._callOnOrganizerPlugins('personCreated', person)
+        return person
+
+
+    def createContactItem(self, contactType, person, contactInfo):
+        """
+        Create a new contact item for the given person with the given contact
+        type.  Broadcast a creation to all L{IOrganizerPlugin} powerups.
+
+        @type contactType: L{IContactType}
+        @param contactType: The contact type which will be used to create the
+            contact item.
+
+        @type person: L{Person}
+        @param person: The person with whom the contact item will be
+            associated.
+
+        @type contactInfo: C{dict}
+        @param contactInfo: The contact information to use to create the
+            contact item.
+
+        @return: The contact item, as created by the given contact type.
+        """
+        contactItem = contactType.createContactItem(
+            person, **dict([
+                    (k.encode('ascii'), v)
+                    for (k, v)
+                    in contactInfo.iteritems()]))
+        if contactItem is not None:
+            self._callOnOrganizerPlugins('contactItemCreated', contactItem)
+
+
+    def _callOnOrganizerPlugins(self, methodName, *args):
+        """
+        Call a method on all L{IOrganizerPlugin} powerups on C{self.store}, or
+        emit a deprecation warning for each one which does not implement that
+        method.
+        """
         for observer in self.getOrganizerPlugins():
-            personCreated = getattr(observer, 'personCreated', None)
-            if personCreated is not None:
-                personCreated(person)
+            method = getattr(observer, methodName, None)
+            if method is not None:
+                method(*args)
             else:
                 warn(
-                    "IOrganizerPlugin now has the personCreated method, %s "
-                    "did not implement it" % (observer.__class__,),
+                    "IOrganizerPlugin now has the %s method, %s "
+                    "did not implement it" % (methodName, observer.__class__,),
                     category=PendingDeprecationWarning)
-        return person
 
 
     def deletePerson(self, person):
@@ -1074,7 +1111,7 @@ class PostalContactType(BaseContactType):
         @return: C{None}
         """
         if address:
-            PostalAddress(
+            return PostalAddress(
                 store=person.store, person=person, address=address)
 
 
@@ -1185,7 +1222,8 @@ class AddPersonFragment(athena.LiveFragment):
 
 
     def _addPerson(self, nickname, **allContactInfo):
-        person = self.adder.organizer.createPerson(nickname)
+        organizer = self.adder.organizer
+        person = organizer.createPerson(nickname)
 
         # XXX This has the potential for breakage, if a new contact type is
         # returned by this call which was not returned by the call used to
@@ -1194,11 +1232,7 @@ class AddPersonFragment(athena.LiveFragment):
         # this behavior. -exarkun
         for contactType in self.adder.organizer.getContactTypes():
             contactInfo = allContactInfo[contactType.uniqueIdentifier()]
-            contactType.createContactItem(
-                person, **dict([
-                        (k.encode('ascii'), v)
-                        for (k, v)
-                        in contactInfo.iteritems()]))
+            organizer.createContactItem(contactType, person, contactInfo)
         return person
 
 

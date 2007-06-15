@@ -111,11 +111,18 @@ class StubOrganizerPlugin(Item):
         A list of L{IContact} implementors to return from L{getContactTypes}.
         """)
 
+    createdContactItems = inmemory(
+        doc="""
+        A list of contact items created since this item was last loaded from
+        the database.
+        """)
+
     def activate(self):
         """
-        Initialize C{createdPeople} to an empty list.
+        Initialize C{createdPeople} and C{createdContactItems} to empty lists.
         """
         self.createdPeople = []
+        self.createdContactItems = []
 
 
     def personCreated(self, person):
@@ -123,6 +130,13 @@ class StubOrganizerPlugin(Item):
         Record the creation of a L{Person}.
         """
         self.createdPeople.append(person)
+
+
+    def contactItemCreated(self, contactItem):
+        """
+        Record the creation of a contact item.
+        """
+        self.createdContactItems.append(contactItem)
 
 
     def getContactTypes(self):
@@ -151,10 +165,14 @@ class StubContactType(object):
         L{getContactItems}.
     @ivar editedContacts: A list of two-tuples of the arguments passed to
         L{editContactItem}.
+    @ivar createContactItems: A boolean indicating whether C{createContactItem}
+        will return an object pretending to be a new contact item (C{True}) or
+        C{None} to indicate no contact item was created (C{False}).
     """
     implements(IContactType)
 
-    def __init__(self, creationForm, editorialForm, contactItems):
+    def __init__(self, creationForm, editorialForm, contactItems,
+                 createContactItems=True):
         self.creationForm = creationForm
         self.createdContacts = []
         self.editorialForm = editorialForm
@@ -162,6 +180,7 @@ class StubContactType(object):
         self.contactItems = contactItems
         self.queriedPeople = []
         self.editedContacts = []
+        self.createContactItems = createContactItems
 
 
     def uniqueIdentifier(self):
@@ -194,7 +213,11 @@ class StubContactType(object):
         Record an attempt to create a new contact item of this type for the
         given person.
         """
-        self.createdContacts.append((person, parameters))
+        contactItem = (person, parameters)
+        self.createdContacts.append(contactItem)
+        if self.createContactItems:
+            return contactItem
+        return None
 
 
     def getContactItems(self, person):
@@ -413,13 +436,13 @@ class NameContactTests(unittest.TestCase, ContactTestsMixin):
         store = Store()
         person = Person(store=store)
         contactType = NameContactType()
-        contactType.createContactItem(
+        contactItem = contactType.createContactItem(
             person, firstname=u'First', lastname=u'Last')
         names = list(store.query(RealName))
-        self.assertEqual(len(names), 1)
-        self.assertEqual(names[0].first, u'First')
-        self.assertEqual(names[0].last, u'Last')
-        self.assertIdentical(names[0].person, person)
+        self.assertEqual(names, [contactItem])
+        self.assertEqual(contactItem.first, u'First')
+        self.assertEqual(contactItem.last, u'Last')
+        self.assertIdentical(contactItem.person, person)
 
 
     def test_createContactItemWithoutNames(self):
@@ -430,7 +453,9 @@ class NameContactTests(unittest.TestCase, ContactTestsMixin):
         store = Store()
         person = Person(store=store)
         contactType = NameContactType()
-        contactType.createContactItem(person, firstname=u'', lastname=u'')
+        contactItem = contactType.createContactItem(
+            person, firstname=u'', lastname=u'')
+        self.assertIdentical(contactItem, None)
         self.assertEqual(list(store.query(RealName)), [])
 
 
@@ -508,11 +533,12 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         instance with the supplied values.
         """
         person = Person(store=self.store)
-        self.contactType.createContactItem(person, email=u'user@example.com')
+        contactItem = self.contactType.createContactItem(
+            person, email=u'user@example.com')
         emails = list(self.store.query(EmailAddress))
-        self.assertEqual(len(emails), 1)
-        self.assertEqual(emails[0].address, u'user@example.com')
-        self.assertIdentical(emails[0].person, person)
+        self.assertEqual(emails, [contactItem])
+        self.assertEqual(contactItem.address, u'user@example.com')
+        self.assertIdentical(contactItem.person, person)
 
 
     def test_createContactItemWithEmptyString(self):
@@ -522,8 +548,10 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         address.
         """
         person = Person(store=self.store)
-        self.contactType.createContactItem(person, email=u'')
+        contactItem = self.contactType.createContactItem(
+            person, email=u'')
         emails = list(self.store.query(EmailAddress))
+        self.assertIdentical(contactItem, None)
         self.assertEqual(len(emails), 0)
 
 
@@ -631,12 +659,12 @@ class PostalContactTests(unittest.TestCase):
         L{PostalContactType.createContactItem} should create a L{PostalAddress}
         instance with the supplied values.
         """
-        self.contactType.createContactItem(
+        contactItem = self.contactType.createContactItem(
             self.person, address=u'123 Street Rd')
         addresses = list(self.store.query(PostalAddress))
-        self.assertEqual(len(addresses), 1)
-        self.assertEqual(addresses[0].address, u'123 Street Rd')
-        self.assertIdentical(addresses[0].person, self.person)
+        self.assertEqual(addresses, [contactItem])
+        self.assertEqual(contactItem.address, u'123 Street Rd')
+        self.assertIdentical(contactItem.person, self.person)
 
 
     def test_createContactItemWithEmptyString(self):
@@ -645,8 +673,10 @@ class PostalContactTests(unittest.TestCase):
         L{PostalAddress} instance if it is given an empty string for the
         address.
         """
-        self.contactType.createContactItem(self.person, address=u'')
+        contactItem = self.contactType.createContactItem(
+            self.person, address=u'')
         addresses = list(self.store.query(PostalAddress))
+        self.assertIdentical(contactItem, None)
         self.assertEqual(len(addresses), 0)
 
 
@@ -799,6 +829,43 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(observer, IOrganizerPlugin)
         self.assertEqual(
             list(self.organizer.getOrganizerPlugins()), [observer])
+
+
+    def test_createContactItemNotifiesPlugins(self):
+        """
+        L{Organizer.createContactItem} should call L{contactItemCreated} on all
+        L{IOrganizerPlugin} powerups on the store.
+        """
+        nickname = u'test person'
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        person = self.organizer.createPerson(nickname)
+        contactType = StubContactType(None, None, None)
+        parameters = {'key': u'value'}
+        contactItem = self.organizer.createContactItem(
+            contactType, person, parameters)
+        self.assertEqual(len(observer.createdContactItems), 1)
+        [(observedPerson, observedParameters)] = observer.createdContactItems
+        self.assertIdentical(person, observedPerson)
+        self.assertEqual(parameters, observedParameters)
+
+
+    def test_notificationSkippedForUncreatedContactItems(self):
+        """
+        L{Organizer.createContactItem} should not call L{contactItemCreated} on
+        any L{IOrganizerPlugin} powerups on the store if
+        L{IContactType.createContactItem} returns C{None} to indicate that it
+        is not creating a contact item.
+        """
+        nickname = u'test person'
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        person = self.organizer.createPerson(nickname)
+        contactType = StubContactType(None, None, None, False)
+        parameters = {'key': u'value'}
+        contactItem = self.organizer.createContactItem(
+            contactType, person, parameters)
+        self.assertEqual(observer.createdContactItems, [])
 
 
     def test_createPersonNotifiesPlugins(self):

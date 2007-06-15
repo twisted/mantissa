@@ -581,6 +581,9 @@ class IContactType(Interface):
 
         @param parameters: The form input key/value pairs as returned by the
             L{LiveForm} returned by L{getCreationForm}.
+
+        @return: The created contact item or C{None} if one was not created for
+            any reason.
         """
 
 
@@ -643,6 +646,15 @@ class IOrganizerPlugin(Interface):
     def personCreated(person):
         """
         Called when a new L{Person} is created.
+        """
+
+
+    def contactItemCreated(contact):
+        """
+        Called when a new contact item is created.
+
+        @param contact: The new contact item.  It may be any object returned by
+            an L{IContactType.createContactItem} implementation.
         """
 
 
