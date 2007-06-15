@@ -1,4 +1,11 @@
+
+"""
+Test cases for the L{xmantissa.webadmin} module.
+"""
+
+
 from twisted.trial.unittest import TestCase
+
 
 from nevow.athena import LivePage
 from nevow.context import WovenContext
@@ -8,14 +15,20 @@ from nevow.tags import html, head, body, directive
 from nevow.inevow import IRequest
 
 from axiom.store import Store
-from axiom.userbase import LoginSystem
+from axiom.userbase import LoginSystem, LoginMethod
 from axiom.dependency import installOn
 
-from xmantissa.webadmin import (LocalUserBrowser,
+from axiom.plugins.mantissacmd import Mantissa
+
+from xmantissa.webadmin import (
+    LocalUserBrowser, LocalUserBrowserFragment,
     UserInteractionFragment, EndowFragment, DepriveFragment,
     SuspendFragment, UnsuspendFragment)
 
 from xmantissa.product import Product
+
+
+
 class UserInteractionFragmentTestCase(TestCase):
     def setUp(self):
         """
@@ -71,10 +84,73 @@ class UserInteractionFragmentTestCase(TestCase):
 
 
 
-class EndowDepriveTestCase(TestCase):
+class ActionsTestCase(TestCase):
+    """
+    Tests to verify that actions behave as expected.
+
+    @ivar siteStore: A site store containing an administrative user's account.
+
+    @ivar siteAccount: The L{axiom.userbase.LoginAccount} for the
+    administrator, in the site store.
+
+    @ivar siteMethod: The single L{axiom.userbase.LoginMethod} for the
+    administrator, in the site store.
+
+    @ivar localUserBrowserFragment: A L{LocalUserBrowserFragment} examining the
+    administrator's L{LocalUserBrowser} powerup.
+    """
+
+    def setUp(self):
+        """
+        Construct a site and user store with an administrator that can invoke the
+        web administrative tools, setting the instance variables described in
+        this class's docstring.
+        """
+        self.siteStore = Store(self.mktemp())
+
+        Mantissa().installSite(self.siteStore, None)
+        Mantissa().installAdmin(self.siteStore, u'admin@localhost', u'asdf')
+
+        self.siteMethod = self.siteStore.findUnique(
+            LoginMethod, LoginMethod.localpart == u'admin')
+        self.siteAccount = self.siteMethod.account
+        userStore = self.siteAccount.avatars.open()
+        lub = userStore.findUnique(LocalUserBrowser)
+        self.localUserBrowserFragment = LocalUserBrowserFragment(lub)
+
+
+    def test_actionTypes(self):
+        """
+        Verify that all the action methods expose the appropriate fragment
+        objects, with their attributes set to indicate the correct objects to
+        manipulate.
+        """
+        myRowID = self.localUserBrowserFragment.linkToItem(self.siteMethod)
+        actionMap = [('installOn', EndowFragment),
+                     ('uninstallFrom', DepriveFragment),
+                     ('suspend', SuspendFragment),
+                     ('unsuspend', UnsuspendFragment)]
+        for action, fragmentType in actionMap:
+            resultFragment = self.localUserBrowserFragment.performAction(
+                action, myRowID)
+            self.failUnless(isinstance(resultFragment, fragmentType),
+                            "%s does not return a %s" %
+                            (action, fragmentType))
+            self.assertEquals(resultFragment.fragmentParent,
+                              self.localUserBrowserFragment)
+            self.assertEquals(resultFragment.account, self.siteAccount)
+
+
+
+class RenderingTestCase(TestCase):
+    """
+    Test cases for HTML rendering of various fragments.
+    """
+
     def doRendering(self, fragmentClass):
         """
-        Ensure that the actions on the LocalUserBrowser scrolltable all render properly.
+        Verify that the given fragment class will render without raising an
+        exception.
         """
         sitedir = self.mktemp()
         siteStore = Store(sitedir)
@@ -104,12 +180,33 @@ class EndowDepriveTestCase(TestCase):
         d.addCallback(rendered)
         return d
 
+
     def test_endowRendering(self):
+        """
+        Verify that L{EndowFragment} can render without raising an exception.
+        """
         return self.doRendering(EndowFragment)
+
+
     def test_depriveRendering(self):
+        """
+        Verify that L{DepriveFragment} can render without raising an exception.
+        """
         return self.doRendering(DepriveFragment)
 
+
     def test_suspendRendering(self):
+        """
+        Verify that L{SuspendFragment} can render without raising an exception.
+        """
         return self.doRendering(SuspendFragment)
+
+
     def test_unsuspendRendering(self):
+        """
+        Verify that L{UnsuspendFragment} can render without raising an
+        exception.
+        """
         return self.doRendering(UnsuspendFragment)
+
+
