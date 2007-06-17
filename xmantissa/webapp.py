@@ -66,12 +66,28 @@ class NavMixin(object):
     searchPattern = None
 
     def __init__(self, webapp, pageComponents):
+        self._themes = getAllThemes()
         self.webapp = webapp
         self.pageComponents = pageComponents
         setTabURLs(self.pageComponents.navigation, webapp)
 
     def getDocFactory(self, fragmentName, default=None):
-        return self.webapp.getDocFactory(fragmentName, default)
+        """
+        Retrieve a Nevow document factory for the given name. This
+        implementation merely defers to the underlying L{PrivateApplication}.
+
+        @param fragmentName: a short string that names a fragment template.
+
+        @param default: value to be returned if the named template is not
+        found.
+        """
+        return self.webapp.getDocFactory(fragmentName, default, _themeCache=self)
+
+    def getAllThemes(self):
+        """
+        Return a copy of the themes collection, using a cached lookup.
+        """
+        return list(self._themes)
 
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
@@ -543,10 +559,25 @@ class PrivateApplication(Item, PrefixURLMixin):
         return storeIDToWebID(self.privateKey, item.storeID)
 
 
-    def getDocFactory(self, fragmentName, default=None):
-        l = getAllThemes()
-        _reorderForPreference(l, self.preferredTheme)
-        for t in l:
+    def getDocFactory(self, fragmentName, default=None, _themeCache=None):
+        """
+        Retrieve a Nevow document factory for the given name.
+
+        @param fragmentName: a short string that names a fragment template.
+
+        @param default: value to be returned if the named template is not
+        found.
+
+        @param _themeCache: an object with a C{getAllThemes} method, to be
+        optionally used for retrieving the themes collection.
+        """
+        if _themeCache is not None:
+            themes = _themeCache.getAllThemes()
+        else:
+            themes = getAllThemes()
+
+        _reorderForPreference(themes, self.preferredTheme)
+        for t in themes:
             fact = t.getDocFactory(fragmentName, None)
             if fact is not None:
                 return fact

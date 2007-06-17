@@ -16,6 +16,7 @@ from nevow.testutil import FakeRequest
 from nevow.inevow import IRequest, IResource
 
 from xmantissa import website, webapp
+from xmantissa.webtheme import getAllThemes
 
 
 class FakeResourceItem(Item):
@@ -146,3 +147,52 @@ class AthenaNavigationTestCase(TestCase):
             result,
             '/* Hello, world. /*\n')
 
+
+
+class _TestNavMixin(webapp.NavMixin):
+    """
+    L{webapp.NavMixin} subclass instrumented for test purposes.
+    """
+    called = False
+
+    def getAllThemes(self):
+        self.called = True
+        return super(_TestNavMixin, self).getAllThemes()
+
+
+
+class NavMixinTestCase(TestCase):
+    """
+    Test aspects of L{webapp.NavMixin}.
+    """
+    def setUp(self):
+        s = Store()
+        s.parent = s
+        self.privateApp = webapp.PrivateApplication(store=s)
+        installOn(self.privateApp, s)
+        self.navMixin = _TestNavMixin(self.privateApp, self.privateApp.getPageComponents())
+
+
+    def test_themeCache(self):
+        """
+        Test that NavMixin caches themes correctly.
+        """
+        self.assertEqual(self.navMixin.getAllThemes(), getAllThemes())
+
+
+    def test_privateAppUsesCache(self):
+        """
+        Test that PrivateApplication can use a theme cache, but also works
+        without one.
+        """
+        self.assertNotEqual(self.privateApp.getDocFactory('shell'), None)
+        self.assertNotEqual(self.privateApp.getDocFactory('shell', _themeCache=self.navMixin), None)
+
+
+    def test_navMixinUsesCache(self):
+        """
+        Test that the theme cache is actually used when calling
+        L{NavMixin.getDocFactory}.
+        """
+        self.navMixin.getDocFactory('shell')
+        self.assertEqual(self.navMixin.called, True)
