@@ -13,6 +13,8 @@
  * Stub implementation of L{Nevow.Athena.Widget} used by tests to verify that
  * the correct remote calls are made.
  *
+ * @ivar node: The widget's node.
+ *
  * @ivar results: An array with one object for each time callRemote has been
  *     invoked.  The objects have the following properties::
  *
@@ -20,15 +22,22 @@
  *              corresponding callRemote call.
  *    method: The name of the remote method which was invoked.
  *    args: An array of the remaining arguments given to the callRemote call.
+ *
+ * @ivar wasDetached: A flag indicating whether C{detach} was called.
  */
 Mantissa.Test.TestPeople.StubWidget = Divmod.Class.subclass(
     'Mantissa.Test.TestPeople.StubWidget');
 Mantissa.Test.TestPeople.StubWidget.methods(
     function __init__(self) {
+        self.node = document.createElement('span');
         self.results = [];
         self.removedRows = [];
+        self.wasDetached = false;
     },
 
+    /**
+     * Record an attempt to call a method on the server.
+     */
     function callRemote(self, method) {
         var result = {};
         result.deferred = Divmod.Defer.Deferred();
@@ -47,6 +56,13 @@ Mantissa.Test.TestPeople.StubWidget.methods(
      */
     function removeRow(self, index) {
         self.removedRows.push(index);
+    },
+
+    /**
+     * Record an attempt to detach this widget.
+     */
+    function detach(self) {
+        self.wasDetached = true;
     });
 
 
@@ -149,32 +165,80 @@ Mantissa.Test.TestPeople.OrganizerTests = Divmod.UnitTest.TestCase.subclass(
     'Mantissa.Test.TestPeople.OrganizerTests');
 Mantissa.Test.TestPeople.OrganizerTests.methods(
     /**
+     * Create an Organizer for use by test methods.
+     */
+    function setUp(self) {
+        self.node = document.createElement('span');
+        self.detail = document.createElement('span');
+        self.existing = document.createElement('img');
+        /*
+         * XXX - Athena ought to have a public API for constructing these
+         * strings, perhaps? -exarkun
+         */
+        self.node.id = 'athena:123';
+        self.detail.id = 'athenaid:123-detail';
+        self.detail.appendChild(self.existing);
+        self.node.appendChild(self.detail);
+        document.body.appendChild(self.node);
+        self.organizer = Mantissa.People.Organizer(self.node);
+    },
+
+    /**
      * L{Mantissa.People.Organizer.setDetailWidget} should remove the children
      * of the detail node and add the node for the L{Nevow.Athena.Widget} it is
      * passed as a child of it.
      */
     function test_setDetailWidget(self) {
-        var identifier = 'athena:123';
-        var node = document.createElement('span');
-        var detail = document.createElement('span');
-        var existing = document.createElement('img');
-        node.id = identifier;
-        /*
-         * XXX - Athena ought to have a public API for constructing this
-         * string, perhaps? -exarkun
-         */
-        detail.id = 'athenaid:123-detail';
-        node.appendChild(detail);
-        detail.appendChild(existing);
-
-        document.body.appendChild(node);
-
-        var organizer = Mantissa.People.Organizer(node);
         var widget = {};
         widget.node = document.createElement('table');
-        organizer.setDetailWidget(widget);
-        self.assertIdentical(detail.childNodes.length, 1);
-        self.assertIdentical(detail.childNodes[0], widget.node);
+        self.organizer.setDetailWidget(widget);
+        self.assertIdentical(self.detail.childNodes.length, 1);
+        self.assertIdentical(self.detail.childNodes[0], widget.node);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.setDetailWidget} should destroy the previous
+     * detail widget.
+     */
+    function test_oldDetailWidgetDiscarded(self) {
+        var firstWidget = Mantissa.Test.TestPeople.StubWidget();
+        var secondWidget = Mantissa.Test.TestPeople.StubWidget();
+        self.organizer.setDetailWidget(firstWidget);
+        self.organizer.setDetailWidget(secondWidget);
+        self.assertIdentical(firstWidget.wasDetached, true);
+        self.assertIdentical(secondWidget.wasDetached, false);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.getAddPerson} should call I{getAddPerson} on
+     * the server and set the resulting widget as the detail widget.
+     */
+    function test_getAddPerson(self) {
+        var calls = [];
+        self.organizer.callRemote = function(name) {
+            var args = [];
+            for (var i = 1; i < arguments.length; ++i) {
+                args.push(arguments[i]);
+            }
+            var result = Divmod.Defer.Deferred();
+            calls.push({name: name, args: args, result: result});
+            return result;
+        }
+        var result = self.organizer.displayAddPerson();
+        self.assertIdentical(calls.length, 1);
+        self.assertIdentical(calls[0].name, 'getAddPerson');
+        self.assertIdentical(calls[0].args.length, 0);
+
+        var detailWidget = null;
+        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            return widgetInfo;
+        };
+        self.organizer.setDetailWidget = function(widget) {
+            detailWidget = widget;
+        };
+        var resultingWidget = {};
+        calls[0].result.callback(resultingWidget);
+        self.assertIdentical(resultingWidget, detailWidget);
     });
 
 

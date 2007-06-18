@@ -52,10 +52,21 @@ Mantissa.People.DeleteAction.methods(
  *
  * This also provides APIs for different parts of the UI to interact with each
  * other so they they don't directly depend on each other.
+ *
+ * @ivar existingDetailWidget: The current widget displayed in the detail area,
+ *     or C{null} if there is none.
  */
 Mantissa.People.Organizer = Nevow.Athena.Widget.subclass(
     'Mantissa.People.Organizer');
 Mantissa.People.Organizer.methods(
+    /**
+     * Initialize C{existingDetailWidget} to C{null}.
+     */
+    function __init__(self, node) {
+        Mantissa.People.Organizer.upcall(self, '__init__', node);
+        self.existingDetailWidget = null;
+    },
+
     function cbPersonError(self, err) {
         alert("Sorry something broke: " + new String(err));
     },
@@ -70,6 +81,25 @@ Mantissa.People.Organizer.methods(
             detail.removeChild(detail.childNodes[0]);
         }
         detail.appendChild(widget.node);
+        if (self.existingDetailWidget !== null) {
+            self.existingDetailWidget.detach();
+        }
+        self.existingDetailWidget = widget;
+    },
+
+    /**
+     * Get an add person widget from the server and put it in the detail area.
+     */
+    function displayAddPerson(self) {
+        var result = self.callRemote('getAddPerson');
+        result.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.setDetailWidget(widget);
+            });
     },
 
     function replaceTDB(self, data) {

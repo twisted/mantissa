@@ -6,7 +6,6 @@ Tests for L{xmantissa.people}.
 from xml.dom.minidom import parseString
 
 from zope.interface import implements
-from zope.interface.verify import verifyObject
 
 from string import lowercase
 
@@ -36,7 +35,7 @@ from xmantissa.people import (
     addContactInfoType, contactInfoItemTypeFromClassName,
     _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PhoneNumber,
     setIconURLForContactInfoType, iconURLForContactInfoType,
-    _CONTACT_INFO_ICON_URLS, AddPerson, PersonScrollingFragment,
+    _CONTACT_INFO_ICON_URLS, PersonScrollingFragment,
     PersonNameColumn, OrganizerFragment, EditPersonView, NameContactType,
     BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
     PostalContactType)
@@ -1004,12 +1003,18 @@ class POBox(Item):
 
 
 class PeopleTests(unittest.TestCase):
-    def testPersonCreation(self):
-        s = Store()
-        o = Organizer(store=s)
+    def setUp(self):
+        """
+        Create an in-memory store and organizer.
+        """
+        self.store = Store()
+        self.organizer = Organizer(store=self.store)
+        installOn(self.organizer, self.store)
 
+
+    def testPersonCreation(self):
         beforeCreation = extime.Time()
-        p = o.personByName(u'testuser')
+        p = self.organizer.personByName(u'testuser')
         afterCreation = extime.Time()
 
         self.assertEquals(p.name, u'testuser')
@@ -1019,7 +1024,7 @@ class PeopleTests(unittest.TestCase):
 
         # Make sure people from that organizer don't collide with
         # people from a different organizer
-        another = Organizer(store=s)
+        another = Organizer(store=self.store)
         q = another.personByName(u'testuser')
         self.failIfIdentical(p, q)
         self.assertEquals(q.name, u'testuser')
@@ -1037,10 +1042,9 @@ class PeopleTests(unittest.TestCase):
         Verify that getEmailAddresses yields the associated email address
         strings for a person.
         """
-        s = Store()
-        p = Person(store=s)
-        EmailAddress(store=s, person=p, address=u'a@b.c')
-        EmailAddress(store=s, person=p, address=u'c@d.e')
+        p = Person(store=self.store)
+        EmailAddress(store=self.store, person=p, address=u'a@b.c')
+        EmailAddress(store=self.store, person=p, address=u'c@d.e')
         # Ordering is undefined, so let's use a set.
         self.assertEquals(set(p.getEmailAddresses()),
                           set([u'a@b.c', u'c@d.e']))
@@ -1053,10 +1057,9 @@ class PeopleTests(unittest.TestCase):
         info items are installed on their person item.
         """
         email = u'username@hostname'
-        s = Store()
-        person = Person(store=s)
+        person = Person(store=self.store)
         person.createContactInfoItem(EmailAddress, 'address', email)
-        contacts = list(s.query(EmailAddress))
+        contacts = list(self.store.query(EmailAddress))
         self.assertEqual(len(contacts), 1)
         self.assertEqual(contacts[0].person, person)
         self.assertEqual(contacts[0].address, email)
@@ -1069,10 +1072,9 @@ class PeopleTests(unittest.TestCase):
         L{Person.findContactInfoItem}.
         """
         email = u'username@hostname'
-        s = Store()
-        alice = Person(store=s)
-        bob = Person(store=s)
-        emailObj = EmailAddress(store=s, person=alice, address=email)
+        alice = Person(store=self.store)
+        bob = Person(store=self.store)
+        emailObj = EmailAddress(store=self.store, person=alice, address=email)
         self.assertEqual(alice.findContactInfoItem(EmailAddress, 'address', email), emailObj)
         self.assertEqual(bob.findContactInfoItem(EmailAddress, 'address', email), None)
 
@@ -1084,13 +1086,13 @@ class PeopleTests(unittest.TestCase):
         """
         oldEmail = u'username@hostname'
         newEmail = u'notusername@hostname'
-        store = Store()
 
-        alice = Person(store=store)
-        bob = Person(store=store)
+        alice = Person(store=self.store)
+        bob = Person(store=self.store)
 
-        aliceEmail = EmailAddress(store=store, person=alice, address=oldEmail)
-        bobEmail = EmailAddress(store=store, person=bob, address=oldEmail)
+        aliceEmail = EmailAddress(
+            store=self.store, person=alice, address=oldEmail)
+        bobEmail = EmailAddress(store=self.store, person=bob, address=oldEmail)
 
         alice.editContactInfoItem(
             EmailAddress, 'address', oldEmail, newEmail)
@@ -1105,17 +1107,16 @@ class PeopleTests(unittest.TestCase):
         """
         email = u'username@hostname'
 
-        store = Store()
-
-        alice = Person(store=store)
-        bob = Person(store=store)
-        aliceEmail = EmailAddress(store=store, person=alice, address=email)
-        bobEmail = EmailAddress(store=store, person=bob, address=email)
+        alice = Person(store=self.store)
+        bob = Person(store=self.store)
+        aliceEmail = EmailAddress(
+            store=self.store, person=alice, address=email)
+        bobEmail = EmailAddress(store=self.store, person=bob, address=email)
 
         alice.deleteContactInfoItem(
             EmailAddress, 'address', email)
 
-        emails = list(store.query(EmailAddress))
+        emails = list(self.store.query(EmailAddress))
         self.assertEqual(len(emails), 1)
         self.assertIdentical(emails[0], bobEmail)
 
@@ -1125,13 +1126,14 @@ class PeopleTests(unittest.TestCase):
         Verify that L{Person.getContactInfoItems} returns the values
         of all contact info items that belong to it.
         """
-        store = Store()
-
-        alice = Person(store=store)
-        bob = Person(store=store)
-        aliceEmail1 = EmailAddress(store=store, person=alice, address=u'alice1@host')
-        aliceEmail2 = EmailAddress(store=store, person=alice, address=u'alice2@host')
-        bobEmail = EmailAddress(store=store, person=bob, address=u'bob@host')
+        alice = Person(store=self.store)
+        bob = Person(store=self.store)
+        aliceEmail1 = EmailAddress(
+            store=self.store, person=alice, address=u'alice1@host')
+        aliceEmail2 = EmailAddress(
+            store=self.store, person=alice, address=u'alice2@host')
+        bobEmail = EmailAddress(
+            store=self.store, person=bob, address=u'bob@host')
 
         self.assertEqual(
             list(sorted(alice.getContactInfoItems(EmailAddress, 'address'))),
@@ -1175,18 +1177,14 @@ class PeopleTests(unittest.TestCase):
         Verify that getEmailAddress yields the only associated email address
         for a person if it is the only one.
         """
-        s = Store()
-        p = Person(store=s)
-        EmailAddress(store=s, person=p, address=u'a@b.c')
+        p = Person(store=self.store)
+        EmailAddress(store=self.store, person=p, address=u'a@b.c')
         self.assertEquals(p.getEmailAddress(), u'a@b.c')
 
     def testPersonRetrieval(self):
-        s = Store()
-        o = Organizer(store=s)
-
         name = u'testuser'
-        firstPerson = o.personByName(name)
-        self.assertIdentical(firstPerson, o.personByName(name))
+        firstPerson = self.organizer.personByName(name)
+        self.assertIdentical(firstPerson, self.organizer.personByName(name))
 
 
     def test_addPersonParameters(self):
@@ -1195,20 +1193,16 @@ class PeopleTests(unittest.TestCase):
         with several fixed parameters and any parameters from available
         powerups.
         """
-        store = Store()
-        adder = AddPerson(store=store)
-        installOn(adder, store)
-
         # With no plugins, only the NameContactType, EmailContactType, and
         # PostalContactType parameters should be returned.
-        addPersonFrag = AddPersonFragment(adder)
+        addPersonFrag = AddPersonFragment(self.organizer)
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
         self.assertEqual(len(addPersonForm.parameters), 4)
 
         contactTypes = [StubContactType(None, None, None)]
         observer = StubOrganizerPlugin(
-            store=store, contactTypes=contactTypes)
-        store.powerUp(observer, IOrganizerPlugin)
+            store=self.store, contactTypes=contactTypes)
+        self.store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
         self.assertEqual(len(addPersonForm.parameters), 5)
@@ -1219,60 +1213,60 @@ class PeopleTests(unittest.TestCase):
         L{AddPersonFragment.addPerson} should give the L{IContactType} plugins
         their information from the form submission.
         """
-        store = Store()
-        adder = AddPerson(store=store)
-        installOn(adder, store)
-
         creationForm = object()
         contactType = StubContactType(creationForm, None, None)
         observer = StubOrganizerPlugin(
-            store=store, contactTypes=[contactType])
-        store.powerUp(observer, IOrganizerPlugin)
+            store=self.store, contactTypes=[contactType])
+        self.store.powerUp(observer, IOrganizerPlugin)
 
-        addPersonFragment = AddPersonFragment(adder)
+        addPersonFragment = AddPersonFragment(self.organizer)
+
+        def keyword(contactType):
+            return contactType.uniqueIdentifier().encode('ascii')
 
         argument = {u'stub': 'value'}
         addPersonFragment.addPerson(
             u'nickname',
             **{contactType.uniqueIdentifier().encode('ascii'): argument,
-               NameContactType().uniqueIdentifier().encode('ascii'): {
+               keyword(NameContactType()): {
                     u'firstname': u'First',
                     u'lastname': u'Last'},
-               EmailContactType(store).uniqueIdentifier().encode('ascii'): {
+               keyword(EmailContactType(self.store)): {
                     u'email': u'user@example.com'},
-               PostalContactType().uniqueIdentifier().encode('ascii'): {
+               keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
 
-        person = store.findUnique(Person)
+        person = self.store.findUnique(Person)
         self.assertEqual(contactType.createdContacts, [(person, argument)])
 
 
     def testPersonCreation2(self):
-        store = Store()
-        organizer = Organizer(store=store)
-        adder = AddPerson(store=store, organizer=organizer)
+        def keyword(contactType):
+            return contactType.uniqueIdentifier().encode('ascii')
 
-        addPersonFrag = AddPersonFragment(adder)
+        addPersonFrag = AddPersonFragment(self.organizer)
         addPersonFrag.addPerson(
             u'Captain P.',
-            **{NameContactType().uniqueIdentifier().encode('ascii'): {
+            **{keyword(NameContactType()): {
                     u'firstname': u'Jean-Luc',
                     u'lastname': u'Picard'},
-               EmailContactType(store).uniqueIdentifier().encode('ascii'): {
+               keyword(EmailContactType(self.store)): {
                     u'email': u'jlp@starship.enterprise'},
-               PostalContactType().uniqueIdentifier().encode('ascii'): {
+               keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
 
-        person = store.findUnique(Person)
+        person = self.store.findUnique(Person)
         self.assertEquals(person.name, 'Captain P.')
 
-        email = store.findUnique(EmailAddress, EmailAddress.person == person)
+        email = self.store.findUnique(
+            EmailAddress, EmailAddress.person == person)
         self.assertEquals(email.address, 'jlp@starship.enterprise')
 
-        rn = store.findUnique(RealName, RealName.person == person)
+        rn = self.store.findUnique(RealName, RealName.person == person)
         self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
 
-        pa = store.findUnique(PostalAddress, PostalAddress.person == person)
+        pa = self.store.findUnique(
+            PostalAddress, PostalAddress.person == person)
         self.assertEqual(pa.address, u'123 Street Rd')
 
 
@@ -1308,20 +1302,12 @@ class PeopleTests(unittest.TestCase):
         self.assertEqual(smallerimg.size, (m.smallerSize, m.smallerSize))
 
     def testLinkToPerson(self):
-        s = Store()
-
-        privapp = PrivateApplication(store=s)
-        installOn(privapp, s)
-
-        o = Organizer(store=s)
-        installOn(o, s)
-
-        p = Person(store=s)
-
-        self.assertEqual(o.linkToPerson(p),
-                         (privapp.linkTo(o.storeID)
-                             + '/'
-                             + privapp.toWebID(p)))
+        privapp = self.store.findUnique(PrivateApplication)
+        p = Person(store=self.store)
+        self.assertEqual(self.organizer.linkToPerson(p),
+                         (privapp.linkTo(self.organizer.storeID)
+                          + '/'
+                          + privapp.toWebID(p)))
 
 
 
@@ -1489,7 +1475,8 @@ class OrganizerFragmentTests(unittest.TestCase):
             def deletePerson(self, person):
                 deletedPeople.append(person)
 
-        self.fragment = OrganizerFragment(StubOrganizer(Store()))
+        self.organizer = StubOrganizer(Store())
+        self.fragment = OrganizerFragment(self.organizer)
         self.deletedPeople = deletedPeople
 
 
@@ -1501,6 +1488,17 @@ class OrganizerFragmentTests(unittest.TestCase):
         request = FakeRequest(args={})
         scroller = self.fragment.render_peopleTable(request, None)
         self.assertTrue(isinstance(scroller, PersonScrollingFragment))
+
+
+    def test_getAddPerson(self):
+        """
+        L{OrganizerFragment.getAddPerson} should return an
+        L{AddPersonFragment}.
+        """
+        addPersonFragment = expose.get(self.fragment, 'getAddPerson')()
+        self.assertTrue(isinstance(addPersonFragment, AddPersonFragment))
+        self.assertIdentical(addPersonFragment.organizer, self.organizer)
+        self.assertIdentical(addPersonFragment.fragmentParent, self.fragment)
 
 
     def test_performAction(self):
@@ -1535,6 +1533,22 @@ class OrganizerFragmentTests(unittest.TestCase):
         person = object()
         self.fragment.action_delete(person)
         self.assertEqual(self.deletedPeople, [person])
+
+
+
+class AddPersonFragmentTests(unittest.TestCase):
+    """
+    Tests for L{AddPersonFragment}.
+    """
+    def test_renders(self):
+        """
+        An L{AddPersonFragment} should be renderable.
+        """
+        store = Store()
+        organizer = Organizer(store=store)
+        fragment = AddPersonFragment(organizer)
+        result = renderLiveFragment(fragment)
+        self.assertTrue(isinstance(result, str))
 
 
 

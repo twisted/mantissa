@@ -36,7 +36,7 @@ from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
-from xmantissa.webtheme import ThemedElement
+from xmantissa.webtheme import ThemedFragment, ThemedElement
 
 def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
     assert Image is not None, 'you need PIL installed if you want to thumbnail things'
@@ -780,14 +780,20 @@ class PersonScrollingFragment(ScrollingFragment):
 
 
 class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
+    """
+    @type organizer: L{Organizer}
+    @ivar organizer: The organizer for which this is a view.
+    """
     fragmentName = 'people-organizer'
     live = 'athena'
     title = 'People'
     jsClass = u'Mantissa.People.Organizer'
 
-    def __init__(self, original):
-        self.wt = original._webTranslator
-        athena.LiveFragment.__init__(self, original)
+    def __init__(self, organizer):
+        self.organizer = organizer
+        self.wt = organizer._webTranslator
+        athena.LiveFragment.__init__(self)
+
 
     def _createPeopleScrollTable(self, baseComparison, sort):
         """
@@ -795,7 +801,7 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         docFactory, and return it.
         """
         f = PersonScrollingFragment(
-                self.original.store,
+                self.organizer.store,
                 baseComparison,
                 sort,
                 self.performAction)
@@ -810,10 +816,21 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         if group:
             # We assume the only groups being shown consist of consecutive
             # letters.  If someone gives us something else, too bad for them.
-            return self.original.lastNamesBetweenComparison(
+            return self.organizer.lastNamesBetweenComparison(
                 group[0],
                 unichr(ord(group[-1]) + 1))
         return RealName.person == Person.storeID
+
+
+    def getAddPerson(self):
+        """
+        Return an L{AddPersonFragment} which is a child of this fragment and
+        which will add a person to C{self.organizer}.
+        """
+        fragment = AddPersonFragment(self.organizer)
+        fragment.setFragmentParent(self)
+        return fragment
+    expose(getAddPerson)
 
 
     def render_peopleTable(self, ctx, data):
@@ -822,7 +839,7 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         items in the wrapped organizer.
         """
         comparison = self._getBaseComparison(ctx)
-        sort = self.original.lastNameOrder()
+        sort = self.organizer.lastNameOrder()
         return self._createPeopleScrollTable(comparison, sort)
 
 
@@ -853,7 +870,7 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         """
         Delete the given person.
         """
-        self.original.deletePerson(person)
+        self.organizer.deletePerson(person)
 
 components.registerAdapter(OrganizerFragment, Organizer, ixmantissa.INavigableFragment)
 
@@ -1162,9 +1179,9 @@ class AddPerson(item.Item):
     organizer = dependsOn(Organizer)
 
     def getTabs(self):
-        return [webnav.Tab('People', self.storeID, 0.0, children=[
-                    webnav.Tab('Add Person', self.storeID, 0.2)],
-                           authoritative=False)]
+        return []
+
+
 
 def addPerson1to2(old):
     ap = old.upgradeVersion(old.typeName, 1, 2)
@@ -1175,19 +1192,20 @@ registerUpgrader(addPerson1to2, AddPerson.typeName, 1, 2)
 
 
 
-class AddPersonFragment(athena.LiveFragment):
+class AddPersonFragment(ThemedFragment):
     """
     View class for L{AddPerson}, presenting a user interface for creating a new
     L{Person}.
 
-    @ivar adder: The L{AddPerson} instance this instance adapts.
+    @ivar organizer: The L{Organizer} instance which will be used to add the
+        person.
     """
     fragmentName = 'add-person'
     live = 'athena'
 
-    def __init__(self, addPerson):
+    def __init__(self, organizer):
         athena.LiveFragment.__init__(self)
-        self.adder = addPerson
+        self.organizer = organizer
 
 
     def head(self):
@@ -1204,7 +1222,7 @@ class AddPersonFragment(athena.LiveFragment):
         """
         parameters = [liveform.Parameter('nickname', liveform.TEXT_INPUT,
                                          _normalizeWhitespace, 'Nickname')]
-        parameters.extend(self.adder.organizer.getContactCreationParameters())
+        parameters.extend(self.organizer.getContactCreationParameters())
         return parameters
 
 
@@ -1222,7 +1240,7 @@ class AddPersonFragment(athena.LiveFragment):
 
 
     def _addPerson(self, nickname, **allContactInfo):
-        organizer = self.adder.organizer
+        organizer = self.organizer
         person = organizer.createPerson(nickname)
 
         # XXX This has the potential for breakage, if a new contact type is
@@ -1230,18 +1248,18 @@ class AddPersonFragment(athena.LiveFragment):
         # generate the form, or vice versa.  I'll happily fix this the very
         # instant a button is present upon a web page which can provoke
         # this behavior. -exarkun
-        for contactType in self.adder.organizer.getContactTypes():
+        for contactType in organizer.getContactTypes():
             contactInfo = allContactInfo[contactType.uniqueIdentifier()]
             organizer.createContactItem(contactType, person, contactInfo)
         return person
 
 
     def addPerson(self, nickname, **contactInfo):
-        self.adder.store.transact(self._addPerson, nickname, **contactInfo)
+        self.organizer.store.transact(self._addPerson, nickname, **contactInfo)
         return u'Made A Person!'
     expose(addPerson)
 
-components.registerAdapter(AddPersonFragment, AddPerson, ixmantissa.INavigableFragment)
+
 
 class AddressBook(item.Item):
     implements(ixmantissa.IOrganizerPlugin)
