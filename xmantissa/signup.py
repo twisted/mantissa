@@ -87,12 +87,11 @@ class PasswordResetResource(Page):
             if 'username' in req.args:
                 user = unicode(usernameFromRequest(req), 'ascii')
                 self.handleRequestForUser(user, URL.fromContext(ctx))
-                self.docFactory = loaders.stan(tags.h1['Check your email'])
+                self.docFactory = getLoader('reset-check-email')
             else:
                 (password,) = req.args['password1']
                 self.resetPassword(self.attempt, unicode(password))
-                self.docFactory = loaders.stan(tags.h1['Password reset, you can now ',
-                                                       tags.a(href='/login')['Login']])
+                self.docFactory = getLoader('reset-done')
         elif self.attempt:
             self.docFactory = getLoader('reset-step-two')
 
