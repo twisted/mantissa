@@ -15,11 +15,63 @@ import warnings
 from zope.interface import implements
 
 from axiom import userbase, attributes
+from axiom.item import Item
+from axiom.attributes import text, integer
 
 from nevow import inevow, url, rend
 
 from xmantissa import ixmantissa
 from xmantissa import sharing
+
+class _DefaultShareID(Item):
+    """
+    Item which holds a default share ID for a user's store.  Default share IDs
+    are associated with a priority, and the highest-priority ID identifies the
+    share which will be selected if the user browsing a substore doesn't
+    provide their own share ID.
+    """
+    shareID = text(doc="""
+    A default share ID for the store this item lives in.
+    """, allowNone=False)
+
+    priority = integer(doc="""
+    The priority of this default.  Higher means more important.
+    """)
+
+
+
+
+def addDefaultShareID(store, shareID, priority):
+    """
+    Add a default share ID to C{store}, pointing to C{shareID} with a
+    priority C{priority}.  The highest-priority share ID identifies the share
+    that will be retrieved when a user does not explicitly provide a share ID
+    in their URL (e.g. /host/by/username/).
+
+    @param shareID: A share ID.
+    @type shareID: C{unicode}
+
+    @param priority: The priority of this default.  Higher means more
+    important.
+    @type priority: C{int}
+    """
+    _DefaultShareID(store=store, shareID=shareID, priority=priority)
+
+
+
+def getDefaultShareID(store):
+    """
+    Get the highest-priority default share ID for C{store}.
+
+    @return: the default share ID, or u'' if one has not been set.
+    @rtype: C{unicode}
+    """
+    defaultShareID = store.findFirst(
+        _DefaultShareID, sort=_DefaultShareID.priority.desc)
+    if defaultShareID is None:
+        return u''
+    return defaultShareID.shareID
+
 
 
 def linkTo(sharedProxyOrItem, store=None):
@@ -151,6 +203,29 @@ class SharingIndex(object):
         return url.URL.fromContext(ctx).child('')
 
 
+    def _makeShareResource(self, sharedItem):
+        """
+        Construct a resource around the L{ixmantissa.INavigableFragment}
+        adapter of C{sharedItem}.
+
+        @type sharedItem: L{sharing.SharedProxy}.
+        @rtype: L{xmantissa.publicweb.PublicAthenaLivePage}
+        """
+        fragment = ixmantissa.INavigableFragment(sharedItem)
+        # If you're shared, you MUST implement customizeFor (maybe this should
+        # be a different interface? ugh.
+        fragment = fragment.customizeFor(self.avatarName)
+        if fragment.fragmentName is not None:
+            fragDocFactory = ixmantissa.IWebTranslator(
+                self.userStore).getDocFactory(fragment.fragmentName, None)
+            if fragDocFactory is not None:
+                fragment.docFactory = fragDocFactory
+        # inner import due to websharing->publicweb->website circularity
+        from xmantissa.publicweb import PublicAthenaLivePage
+        return PublicAthenaLivePage(
+            self.userStore.parent, fragment, forUser=self.avatarName)
+
+
     def locateChild(self, ctx, segments):
         """
         Look up a shared item for the role viewing this SharingIndex and return a
@@ -174,21 +249,23 @@ class SharingIndex(object):
 
         role = sharing.getPrimaryRole(self.userStore, self.avatarName)
 
-        try:
-            sharedItem = sharing.getShare(self.userStore, role, shareID)
-        except sharing.NoSuchShare:
-            return rend.NotFound
-        fragment = ixmantissa.INavigableFragment(sharedItem)
-        # If you're shared, you MUST implement customizeFor (maybe this should
-        # be a different interface? ugh.
-        fragment = fragment.customizeFor(self.avatarName)
-        if fragment.fragmentName is not None:
-            fragDocFactory = ixmantissa.IWebTranslator(
-                self.userStore).getDocFactory(fragment.fragmentName, None)
-            if fragDocFactory is not None:
-                fragment.docFactory = fragDocFactory
-        # inner import due to websharing->publicweb->website circularity
-        from xmantissa.publicweb import PublicAthenaLivePage
-        result = PublicAthenaLivePage(
-            self.userStore.parent, fragment, forUser=self.avatarName)
-        return result, segments[1:]
+        # if there is an empty segment
+        if shareID == u'':
+            # then we want to return the default share.  if we find one, then
+            # let's use that
+            defaultShareID = getDefaultShareID(self.userStore)
+            try:
+                sharedItem = sharing.getShare(
+                    self.userStore, role, defaultShareID)
+            except sharing.NoSuchShare:
+                return rend.NotFound
+        # otherwise the user is trying to access some other share
+        else:
+            # let's see if it's a real share
+            try:
+                sharedItem = sharing.getShare(self.userStore, role, shareID)
+            # oops it's not
+            except sharing.NoSuchShare:
+                return rend.NotFound
+
+        return (self._makeShareResource(sharedItem), segments[1:])
