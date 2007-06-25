@@ -1,17 +1,34 @@
 # -*- test-case-name: xmantissa.test.test_tdb -*-
+
+"""
+This module is a deprecated version of the code present in
+L{xmantissa.scrolltable}.  Look there instead.
+"""
+
 import operator
 import math
-
-from zope.interface import implements
-from twisted.python.components import registerAdapter
+import warnings
 
 from xmantissa.ixmantissa import IColumn
+from xmantissa.error import Unsortable
+from xmantissa.scrolltable import AttributeColumn as _STAttributeColumn
 
-from axiom.attributes import AND, SQLAttribute
+class AttributeColumn(_STAttributeColumn):
+    """
+    This a deprecated name for L{xmantissa.scrolltable.AttributeColumn}.  Use
+    that instead.
+    """
+
+    def __init__(self, *a, **k):
+        super(AttributeColumn, self).__init__(*a, **k)
+        warnings.warn("tdb.AttributeColumn is deprecated.  "
+                      "Use scrolltable.AttributeColumn instead.",
+                      DeprecationWarning,
+                      stacklevel=2)
+
+
+from axiom.attributes import AND
 from axiom.queryutil import AttributeTuple
-
-class Unsortable(Exception):
-    pass
 
 class TabularDataModel:
     """
@@ -271,24 +288,3 @@ class PaginationParameters:
         import pprint
         pprint.pprint(self.__dict__)
 
-class AttributeColumn(object):
-    implements(IColumn)
-
-    def __init__(self, attribute, attributeID=None):
-        self.attribute = attribute
-        if attributeID is None:
-            attributeID = attribute.attrname
-        self.attributeID = attributeID
-
-    def extractValue(self, model, item):
-        return self.attribute.__get__(item)
-
-    def sortAttribute(self):
-        return self.attribute
-
-    def getType(self):
-        sortattr = self.sortAttribute()
-        if sortattr is not None:
-            return sortattr.__class__.__name__
-
-registerAdapter(AttributeColumn, SQLAttribute, IColumn)

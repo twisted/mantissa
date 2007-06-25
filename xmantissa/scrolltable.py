@@ -1,39 +1,136 @@
 # -*- test-case-name: xmantissa.test.test_scrolltable -*-
 
+"""
+Scrollable tabular data-display area.
+
+This module provides an API for displaying data from a Twisted server in a
+Nevow Athena front-end.
+"""
+
+import warnings
+
 from zope.interface import implements
+
+from twisted.python.components import registerAdapter
 
 from nevow.athena import LiveElement, expose
 
-from axiom.attributes import timestamp
+from axiom.attributes import timestamp, SQLAttribute, AND
 
 from xmantissa.ixmantissa import IWebTranslator, IColumn
-from xmantissa.tdb import AttributeColumn, Unsortable
+from xmantissa.error import Unsortable
+
+
 
 TYPE_FRAGMENT = 'fragment'
+
+
+
+class AttributeColumn(object):
+    """
+    Implement a mapping between Axiom attributes and the scrolltable-based
+    L{IColumn}.
+    """
+    implements(IColumn)
+
+    def __init__(self, attribute, attributeID=None):
+        """
+        Create an L{AttributeColumn} from an Axiom attribute.
+
+        @param attribute: an axiom L{SQLAttribute} subclass.
+
+        @param attributeID: an optional client-side identifier for this
+        attribute.  Normally this will be this attribute's name; it isn't
+        visible to the user on the client, it's simply the client-side internal
+        identifier.
+        """
+        self.attribute = attribute
+        if attributeID is None:
+            attributeID = attribute.attrname
+        self.attributeID = attributeID
+
+
+    def extractValue(self, model, item):
+        """
+        Extract a simple value for this column from a given item, suitable for
+        serialization via Athena's client-communication layer.
+
+        @param model: The scrollable view object requesting the value.
+        Unfortunately due to the long history of this code, this has no clear
+        interface, and might be a L{ScrollingElement}, L{ScrollingFragment}, or
+        L{xmantissa.tdb.TabularDataModel}, depending on which type this
+        L{AttributeColumn} was passed to.
+
+        @param item: An instance of the class that this L{AttributeColumn}'s
+        L{attribute} was taken from, to retrieve the value from.
+
+        @return: a value of an attribute of C{item}, of a type dependent upon
+        this L{AttributeColumn}'s L{attribute}.
+        """
+        return self.attribute.__get__(item)
+
+
+    def sortAttribute(self):
+        """
+        @return: an L{axiom.attributes.Comparable} that can be used to adjust an
+        axiom query to sort the table by this column, or None, if this column
+        cannot be sorted by.
+        """
+        return self.attribute
+
+
+    def getType(self):
+        """
+        @return: a string to identify the browser-side type of this column to the
+        JavaScript code in Mantissa.ScrollTable.ScrollTable.__init__.
+        @rtype: L{str}
+        """
+        sortattr = self.sortAttribute()
+        if sortattr is not None:
+            return sortattr.__class__.__name__
+
+registerAdapter(AttributeColumn, SQLAttribute, IColumn)
+
+
 
 # these objects aren't for view junk - they allow the model
 # to inform the javascript controller about which columns are
 # sortable, as well as supporting non-attribute columns
 
 class TimestampAttributeColumn(AttributeColumn):
-    # timestamps are a special case; we need to get the posix timestamp
-    # so we can send the attribute value to javascript.  we don't register
-    # an adapter for attributes.timestamp because the TDB model uses
-    # IColumn.extractValue() to determine the value of the query pivot,
-    # and so it needs an extime.Time instance, not a float
-
+    """
+    Timestamps are a special case; we need to get the posix timestamp so we can
+    send the attribute value to javascript.  we don't register an adapter for
+    attributes.timestamp because the TDB model uses IColumn.extractValue() to
+    determine the value of the query pivot, and so it needs an extime.Time
+    instance, not a float.
+    """
     def extractValue(self, model, item):
         val = AttributeColumn.extractValue(self, model, item)
         if val is None:
             raise AttributeError("%r was None" % (self.attribute,))
         return val.asPOSIXTimestamp()
 
+
     def getType(self):
         return 'timestamp'
 
+
+
 class UnsortableColumn(AttributeColumn):
-    def sortAttribute(self):
+    """
+    An axiom attribute column which does not allow server-side sorting for
+    policy or performance reasons.
+    """
+
+    def sortAttribute(pelf):
+        """
+        UnsortableColumns are not sortable, so this will always return L{None}.
+        See L{AttributeColumn.sortAttribute}.
+        """
         return None
+
+
 
 class UnsortableColumnWrapper:
     """
@@ -57,23 +154,17 @@ class UnsortableColumnWrapper:
     def getType(self):
         return self.col.getType()
 
-class Scrollable(object):
+
+class _ScrollableBase(object):
     """
-    Mixin for "model" implementations of an in-browser scrollable list of
-    elements.
+    _ScrollableBase is an internal base class holding logic for dealing with
+    lists of L{xmantissa.ixmantissa.IColumn}s, sorting, and link generation.
 
-    @ivar webTranslator: A L{IWebTranslator} provider for resolving and
-    creating web links for items.
-
-    @ivar columns: A mapping of attribute identifiers to L{IColumn}
-    providers.
-
-    @ivar columnNames: A list of attribute identifiers.
-
-    @ivar isAscending: A boolean indicating the current order of the sort.
-
-    @ivar currentSortColumn: A L{axiom.attributes.SQLAttribute} representing
-    the current sort key.
+    This logic is shared by two quite different implementations of
+    client-server communication about rows: L{InequalityModel}, which uses
+    techniques specific to the performance characteristics of Axiom queries,
+    and L{IndexingModel}, which uses simple indexin logic suitable for
+    sequences.
     """
     def __init__(self, webTranslator, columns, defaultSortColumn,
                  defaultSortAscending):
@@ -96,60 +187,6 @@ class Scrollable(object):
 
         self.currentSortColumn = defaultSortColumn
         self.isAscending = defaultSortAscending
-
-
-    # Override these two in a subclass
-    def performCount(self):
-        """
-        Override this in a subclass.
-
-        @rtype: C{int}
-        @return: The total number of elements in this scrollable.
-        """
-        raise NotImplementedError()
-
-
-    def performQuery(self, rangeBegin, rangeEnd):
-        """
-        Override this in a subclass.
-
-        @rtype: C{list}
-        @return: Elements from C{rangeBegin} to C{rangeEnd} of the
-        underlying data set, as ordered by the value of
-        C{currentSortColumn} sort column in the order indicated by
-        C{isAscending}.
-        """
-        raise NotImplementedError()
-
-
-    # The rest takes care of responding to requests from the client.
-    def getTableMetadata(self):
-        """
-        Retrieve a description of the various properties of this scrolltable.
-
-        @return: A sequence containing 5 elements.  They are, in order, a
-        list of the names of the columns present, a mapping of column names
-        to two-tuples of their type and a boolean indicating their
-        sortability, the total number of rows in the scrolltable, the name
-        of the default sort column, and a boolean indicating whether or not
-        the current sort order is ascending.
-        """
-        coltypes = {}
-        for (colname, column) in self.columns.iteritems():
-            sortable = column.sortAttribute() is not None
-            coltype = column.getType()
-            if coltype is not None:
-                coltype = unicode(coltype, 'ascii')
-            coltypes[colname] = (coltype, sortable)
-
-        if self.currentSortColumn:
-            csc = unicode(self.currentSortColumn.attrname, 'ascii')
-        else:
-            csc = None
-
-        return [self.columnNames, coltypes, self.requestCurrentSize(),
-                csc, self.isAscending]
-    expose(getTableMetadata)
 
 
     def resort(self, columnName):
@@ -191,12 +228,300 @@ class Scrollable(object):
         return self.webTranslator.fromWebID(link)
 
 
+
+def _webTranslator(store, fallback):
+    """
+    Discover a web translator based on an Axiom store and a specified default.
+    Prefer the specified default.
+
+    This is an implementation detail of various initializers in this module
+    which require an L{IWebTranslator} provider.  Some of those initializers
+    did not previously require a webTranslator, so this function will issue a
+    L{UserWarning} if no L{IWebTranslator} powerup exists for the given store
+    and no fallback is provided.
+
+    @param store: an L{axiom.store.Store}
+    @param fallback: a provider of L{IWebTranslator}, or None
+
+    @return: 'fallback', if it is provided, or the L{IWebTranslator} powerup on
+    'store'.
+    """
+    if fallback is None:
+        fallback = IWebTranslator(store, None)
+        if fallback is None:
+            warnings.warn(
+                "No IWebTranslator plugin when creating Scrolltable - broken "
+                "configuration, now deprecated!  Try passing webTranslator "
+                "keyword argument.", category=DeprecationWarning)
+    return fallback
+
+
+
+class InequalityModel(_ScrollableBase):
+    """
+    This is a utility base class for things which want to communicate about
+    large sets of Axiom items with a remote client.
+
+    The first such implementation is L{ScrollingElement}, which communicates
+    with a Nevow Athena JavaScript client.
+    """
+
+    def __init__(self, store, itemType, baseConstraint, columns,
+                 defaultSortColumn, defaultSortAscending,
+                 webTranslator=None):
+        """
+        Create a new InequalityModel.
+
+        @param store: the store to perform queries against when the client asks
+        for data.
+        @type store: L{axiom.store.Store}
+
+        @param itemType: the type of item that will be returned by this
+        L{InequalityModel}.
+        @type itemType: a subclass of L{axiom.item.Item}.
+
+        @param baseConstraint: an L{IQuery} provider that specifies the set of
+        rows within this model.
+
+        @param columns: a list of L{IColumn} providers listing the columns to
+        be sent to the client.
+
+        @param defaultSortColumn: an element of the C{columns} argument to sort
+        by, by default.
+
+        @param defaultSortAscending: is the sort ascending?  XXX: this is not
+        implemented and may not even be a good idea to implement.
+
+        @param webTranslator: an L{IWebTranslator} provider used to generate
+        IDs for the client from the C{itemType}'s storeID.
+        """
+        super(InequalityModel, self).__init__(
+            _webTranslator(store, webTranslator), columns,
+            defaultSortColumn, defaultSortAscending)
+        self.store = store
+        self.itemType = itemType
+        self.baseConstraint = baseConstraint
+
+
+    def _inequalityQuery(self, constraint, count, isAscending):
+        """
+        Perform a query to obtain some rows from the table represented by this
+        model, at the behest of a networked client.
+
+        @param constraint: an additional constraint to apply to the query, an
+        L{IComparison} provider.
+
+        @param count: an integer, the maximum number of rows to reutrn.
+
+        @param isAscending: a boolean describing whether the query should be
+        yielding ascending or descending results.
+
+        @return: an L{IQuery} provider which will yield some results from this
+        model.
+        """
+        if self.baseConstraint is not None:
+            if constraint is not None:
+                constraint = AND(self.baseConstraint, constraint)
+            else:
+                constraint = self.baseConstraint
+        # build the sort
+        if isAscending:
+            sort = (self.currentSortColumn.ascending,
+                    self.itemType.storeID.ascending)
+        else:
+            sort = (self.currentSortColumn.descending,
+                    self.itemType.storeID.descending)
+        return self.store.query(self.itemType, constraint, sort=sort,
+                                limit=count).distinct()
+
+
+    def rowsAfterValue(self, value, count):
+        """
+        Retrieve some rows at or after a given sort-column value.
+
+        @param value: Starting value in the index for the current sort column
+        at which to start returning results.  Rows with a column value for the
+        current sort column which is greater than or equal to this value will
+        be returned.
+
+        @type value: Some type compatible with the current sort column, or
+        None, to specify the beginning of the data.
+
+        @param count: The maximum number of rows to return.
+        @type count: C{int}
+
+        @return: A list of row data, ordered by the current sort column,
+        beginning at C{value} and containing at most C{count} elements.
+        """
+        if value is None:
+            query = self._inequalityQuery(None, count, True)
+        else:
+            query = self._inequalityQuery(self.currentSortColumn >= value, count, True)
+        return self.constructRows(query)
+    expose(rowsAfterValue)
+
+
+    def rowsAfterItem(self, item, count):
+        """
+        Retrieve some rows after a given item, not including the given item.
+
+        @param item: then L{Item} to request something after.
+        @type item: this L{InequalityModel}'s L{itemType} attribute.
+
+        @param count: The maximum number of rows to return.
+        @type count: L{int}
+
+        @return: A list of row data, ordered by the current sort column,
+        beginning immediately after C{item}.
+        """
+        value = self.currentSortColumn.__get__(item, type(item))
+        firstQuery = self._inequalityQuery(
+            AND(self.currentSortColumn == value,
+                self.itemType.storeID > item.storeID),
+            count, True)
+        results = self.constructRows(firstQuery)
+        count -= len(results)
+        if count:
+            secondQuery = self._inequalityQuery(
+                self.currentSortColumn > value,
+                count, True)
+            results.extend(self.constructRows(secondQuery))
+        return results
+
+
+    def rowsAfterRow(self, rowObject, count):
+        """
+        Wrapper around L{rowsAfterItem} which accepts the web ID for a item
+        instead of the item itself.
+
+        @param rowObject: a dictionary mapping strings to column values, sent
+        from the client.  One of those column values must be C{__id__} to
+        uniquely identify a row.
+
+        @param count: an integer, the number of rows to return.
+        """
+        webID = rowObject['__id__']
+        return self.rowsAfterItem(
+            self.webTranslator.fromWebID(webID),
+            count)
+    expose(rowsAfterRow)
+
+
+    def rowsBeforeValue(self, value, count):
+        """
+        Retrieve display data for rows with sort-column values less than the given
+        value.
+
+        @type value: Some type compatible with the current sort column.
+        @param value: Starting value in the index for the current sort column
+        at which to start returning results.  Rows with a column value for the
+        current sort column which is less than this value will be returned.
+
+        @type count: C{int}
+        @param count: The number of rows to return.
+
+        @return: A list of row data, ordered by the current sort column, ending
+        at C{value} and containing at most C{count} elements.
+        """
+        if value is None:
+            query = self._inequalityQuery(None, count, False)
+        else:
+            query = self._inequalityQuery(
+                self.currentSortColumn < value, count, False)
+        return self.constructRows(query)[::-1]
+    expose(rowsBeforeValue)
+
+
+    def rowsBeforeItem(self, item, count):
+        """
+        The inverse of rowsAfterItem.
+
+        @param item: then L{Item} to request rows before.
+        @type item: this L{InequalityModel}'s L{itemType} attribute.
+
+        @param count: The maximum number of rows to return.
+        @type count: L{int}
+
+        @return: A list of row data, ordered by the current sort column,
+        beginning immediately after C{item}.
+        """
+        value = self.currentSortColumn.__get__(item, type(item))
+        firstQuery = self._inequalityQuery(
+            AND(self.currentSortColumn == value,
+                self.itemType.storeID < item.storeID),
+            count, False)
+        results = self.constructRows(firstQuery)
+        count -= len(results)
+        if count:
+            secondQuery = self._inequalityQuery(self.currentSortColumn < value,
+                                                count, False)
+            results.extend(self.constructRows(secondQuery))
+        return results[::-1]
+
+
+
+class IndexingModel(_ScrollableBase):
+    """
+    Mixin for "model" implementations of an in-browser scrollable list of
+    elements.
+
+    @ivar webTranslator: A L{IWebTranslator} provider for resolving and
+    creating web links for items.
+
+    @ivar columns: A mapping of attribute identifiers to L{IColumn}
+    providers.
+
+    @ivar columnNames: A list of attribute identifiers.
+
+    @ivar isAscending: A boolean indicating the current order of the sort.
+
+    @ivar currentSortColumn: A L{axiom.attributes.SQLAttribute} representing
+    the current sort key.
+    """
     def requestRowRange(self, rangeBegin, rangeEnd):
         """
         Retrieve display data for the given range of rows.
+
+        @type rangeBegin: C{int}
+        @param rangeBegin: The index of the first row to retrieve.
+
+        @type rangeEnd: C{int}
+        @param rangeEnd: The index of the last row to retrieve.
+
+        @return: A C{list} of C{dict}s giving row data.
         """
         return self.constructRows(self.performQuery(rangeBegin, rangeEnd))
     expose(requestRowRange)
+
+
+    # The rest takes care of responding to requests from the client.
+    def getTableMetadata(self):
+        """
+        Retrieve a description of the various properties of this scrolltable.
+
+        @return: A sequence containing 5 elements.  They are, in order, a
+        list of the names of the columns present, a mapping of column names
+        to two-tuples of their type and a boolean indicating their
+        sortability, the total number of rows in the scrolltable, the name
+        of the default sort column, and a boolean indicating whether or not
+        the current sort order is ascending.
+        """
+        coltypes = {}
+        for (colname, column) in self.columns.iteritems():
+            sortable = column.sortAttribute() is not None
+            coltype = column.getType()
+            if coltype is not None:
+                coltype = unicode(coltype, 'ascii')
+            coltypes[colname] = (coltype, sortable)
+
+        if self.currentSortColumn:
+            csc = unicode(self.currentSortColumn.attrname, 'ascii')
+        else:
+            csc = None
+
+        return [self.columnNames, coltypes, self.requestCurrentSize(),
+                csc, self.isAscending]
+    expose(getTableMetadata)
 
 
     def requestCurrentSize(self):
@@ -211,19 +536,58 @@ class Scrollable(object):
     expose(performAction)
 
 
+    # Override these two in a subclass
+    def performCount(self):
+        """
+        Override this in a subclass.
+
+        @rtype: C{int}
+        @return: The total number of elements in this scrollable.
+        """
+        raise NotImplementedError()
+
+
+    def performQuery(self, rangeBegin, rangeEnd):
+        """
+        Override this in a subclass.
+
+        @rtype: C{list}
+        @return: Elements from C{rangeBegin} to C{rangeEnd} of the
+        underlying data set, as ordered by the value of
+        C{currentSortColumn} sort column in the order indicated by
+        C{isAscending}.
+        """
+        raise NotImplementedError()
+
+Scrollable = IndexingModel      # The old (deprecated) name of this class.
+
 class ScrollableView(object):
     """
     Mixin for structuring model data in the way expected by
     Mantissa.ScrollTable.ScrollingWidget.
+
+    Subclasses must also mix in L{_ScrollableBase} to provide required attributes
+    and methods.
     """
+
     jsClass = u'Mantissa.ScrollTable.ScrollingWidget'
     fragmentName = 'scroller'
 
     def constructRows(self, items):
+        """
+        Build row objects that are serializable using Athena for sending to the
+        client.
+
+        @param items: an iterable of objects compatible with my columns'
+        C{extractValue} methods.
+
+        @return: a list of dictionaries, where each dictionary has a string key
+        for each column name in my list of columns.
+        """
         rows = []
         for item in items:
             row = dict((colname, col.extractValue(self, item))
-                            for (colname, col) in self.columns.iteritems())
+                       for (colname, col) in self.columns.iteritems())
             link = self.linkToItem(item)
             if link is not None:
                 row[u'__id__'] = link
@@ -233,23 +597,33 @@ class ScrollableView(object):
 
 
 
-class _ScrollingElement(LiveElement):
-    def getInitialArguments(self):
-        return [self.getTableMetadata()]
+class ItemQueryScrollingFragment(IndexingModel, ScrollableView, LiveElement):
+    """
+    An L{ItemQueryScrollingFragment} is an Athena L{LiveElement} that can
+    display an Axiom query using an inefficient, but precise, method for
+    counting rows and getting data at given offsets when requested.
 
-
-
-class ItemQueryScrollingFragment(Scrollable, ScrollableView, _ScrollingElement):
+    New code which wants to display a scrollable list of data should probably
+    use L{ScrollingElement} instead.
+    """
     def __init__(self, store, itemType, baseConstraint, columns,
                  defaultSortColumn=None, defaultSortAscending=True,
+                 webTranslator=None,
                  *a, **kw):
-
-        Scrollable.__init__(self, IWebTranslator(store, None), columns,
-                            defaultSortColumn, defaultSortAscending)
+        IndexingModel.__init__(
+            self,
+            _webTranslator(store, webTranslator),
+            columns,
+            defaultSortColumn,
+            defaultSortAscending)
         LiveElement.__init__(self, *a, **kw)
         self.store = store
         self.itemType = itemType
         self.baseConstraint = baseConstraint
+
+
+    def getInitialArguments(self):
+        return [self.getTableMetadata()]
 
 
     def performCount(self):
@@ -265,20 +639,26 @@ class ItemQueryScrollingFragment(Scrollable, ScrollableView, _ScrollingElement):
                                      self.baseConstraint,
                                      offset=rangeBegin,
                                      limit=rangeEnd - rangeBegin,
-                              sort=sort))
+                                     sort=sort))
 ScrollingFragment = ItemQueryScrollingFragment
 
 
 
-class SequenceScrollingFragment(Scrollable, ScrollableView, _ScrollingElement):
+class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
     """
     Scrolltable implementation backed by any Python L{axiom.item.Item}
     sequence.
     """
-    def __init__(self, store, elements, columns, defaultSortColumn=None,
-                 defaultSortAscending=True, *a, **kw):
-        Scrollable.__init__(self, IWebTranslator(store, None), columns,
-                            defaultSortColumn, defaultSortAscending)
+    def __init__(self, store, elements, columns,
+                 defaultSortColumn=None,
+                 defaultSortAscending=True,
+                 webTranslator=None, *a, **kw):
+        IndexingModel.__init__(
+            self,
+            _webTranslator(store, webTranslator),
+            columns,
+            defaultSortColumn,
+            defaultSortAscending)
 
         LiveElement.__init__(self, *a, **kw)
         self.store = store
@@ -307,7 +687,8 @@ class SequenceScrollingFragment(Scrollable, ScrollableView, _ScrollingElement):
             if rangeEnd == -1:
                 rangeEnd = None
             step = -1
-        return self.elements[rangeBegin:rangeEnd:step]
+        result = self.elements[rangeBegin:rangeEnd:step]
+        return result
 
 
 
@@ -339,3 +720,52 @@ class SearchResultScrollingFragment(SequenceScrollingFragment):
             self.store.getItemByID(int(hit.uniqueIdentifier))
             for hit
             in results]
+
+
+
+class ScrollingElement(InequalityModel, ScrollableView, LiveElement):
+    """
+    Element for scrolling lists of items, which uses L{InequalityModel}.
+    """
+    jsClass = u'Mantissa.ScrollTable.ScrollTable'
+    fragmentName = 'inequality-scroller'
+
+    def __init__(self, store, itemType, baseConstraint, columns,
+                 defaultSortColumn=None, defaultSortAscending=True,
+                 webTranslator=None,
+                 *a, **kw):
+        InequalityModel.__init__(
+            self, store, itemType, baseConstraint, columns,
+            defaultSortColumn, defaultSortAscending, webTranslator)
+        LiveElement.__init__(self, *a, **kw)
+
+
+    def _getColumnList(self):
+        """
+        Get a list of serializable objects that describe the interesting columns on
+        our item type.
+
+        @rtype: C{list} of C{dict}
+        """
+        columnList = []
+        for columnName in self.columnNames:
+            column = self.columns[columnName]
+            columnList.append(
+                {u'name': columnName,
+                 u'type': column.getType().decode('utf-8')})
+        return columnList
+
+
+    def getInitialArguments(self):
+        """
+        Return the constructor arguments required for the JavaScript client class,
+        Mantissa.ScrollTable.ScrollTable.
+
+        @return: a 2-tuple of the unicode attribute ID of my current sort
+        column, and a list of dictionaries with 'name' and 'type' keys which
+        are strings describing the name and type of all the columns in this
+        table.
+        """
+        ic = IColumn(self.currentSortColumn)
+        return [ic.attributeID.decode('ascii'), self._getColumnList(),
+                self.isAscending]

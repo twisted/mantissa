@@ -33,3 +33,10 @@ class InvalidTrailingBytes(ArgumentError):
     Exception raised when there are extra bytes at the end of an address.
     """
 
+
+
+class Unsortable(Exception):
+    """
+    This exception is raised when a client invalidly attempts to sort a table
+    view by a column that is not available for sorting.
+    """

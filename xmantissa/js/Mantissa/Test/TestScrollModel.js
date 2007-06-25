@@ -1,3 +1,4 @@
+// -*- test-case-name: xmantissa.test.test_javascript -*-
 // Copyright (c) 2007 Divmod.
 // See LICENSE for details.
 
@@ -8,12 +9,12 @@
 // import Divmod.UnitTest
 // import Mantissa.ScrollTable
 
+Mantissa.Test.TestScrollModel.StubObserver = Divmod.Class.subclass(
+    'Mantissa.Test.TestScrollModel.StubObserver');
 /**
  * Dummy observer which records all events broadcast to it.  This record is
  * later inspected by test methods to verify the correct thing has happend.
  */
-Mantissa.Test.TestScrollModel.StubObserver = Divmod.Class.subclass(
-    'Mantissa.Test.TestScrollModel.StubObserver');
 Mantissa.Test.TestScrollModel.StubObserver.methods(
     function __init__(self) {
         self.events = [];
@@ -36,14 +37,31 @@ Mantissa.Test.TestScrollModel.StubObserver.methods(
     });
 
 
+Mantissa.Test.TestScrollModel.StubBackend = Divmod.Class.subclass(
+    'Mantissa.Test.TestScrollModel.StubBackend');
+/**
+ * Extremely simple, test-friendly row backend implementation.
+ */
+Mantissa.Test.TestScrollModel.StubBackend.methods(
+    function __init__(self) {
+        self.requests = [];
+    },
+
+    function requestRowRange(self, offset, count) {
+        self.requests.push(Divmod.Defer.Deferred());
+        return self.requests[self.requests.length - 1];
+    });
+
+
+Mantissa.Test.TestScrollModel.ScrollModelTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestScrollModel.ScrollModelTests');
 /**
  * Tests for the underlying model object, L{Mantissa.ScrollTable.ScrollModel}.
  */
-Mantissa.Test.TestScrollModel.ScrollModelTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestScrollModel.ScrollModelTests');
 Mantissa.Test.TestScrollModel.ScrollModelTests.methods(
     function setUp(self) {
-        self.model = Mantissa.ScrollTable.ScrollModel();
+        self.backend = Mantissa.Test.TestScrollModel.StubBackend();
+        self.model = Mantissa.ScrollTable.ScrollModel(self.backend);
         self.model.setRowData(0, {'__id__': 'a'});
     },
 

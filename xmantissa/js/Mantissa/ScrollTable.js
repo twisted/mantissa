@@ -1,3 +1,6 @@
+// -*- test-case-name: xmantissa.test.test_javascript -*-
+
+// import Divmod.Runtime
 // import Mantissa
 // import MochiKit
 // import MochiKit.Base
@@ -132,6 +135,153 @@ Mantissa.ScrollTable.Action.methods(
 
 
 /**
+ * Base class for shared ("legacy") methods between old (index-based)
+ * ScrollModel and new (inequality-based) RegionModel.
+ */
+
+Mantissa.ScrollTable._ModelBase = Divmod.Class.subclass(
+    "Mantissa.Scrolltable._ModelBase");
+Mantissa.ScrollTable._ModelBase.methods(
+    function __init__(self) {
+        self._activeRow = null;
+        self._selectionObservers = [];
+    },
+
+    /**
+     * Mark the specified row as active.  Activation differs from selection in
+     * that only a single row can be active at a time.
+     *
+     * @type identifier: String
+     * @param identifier: The unique identifier for the row to activate.
+     *
+     * @throw NoSuchWebID: Thrown if the given identifier is not found.
+     */
+    function activateRow(self, identifier) {
+        if (self._activeRow != null) {
+            self.deactivateRow();
+        }
+        self._activeRow = self.findRowData(identifier);
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowActivated(self._activeRow);
+        }
+    },
+
+    /**
+     * Set up an object to receive notification of selection changes.
+     */
+    function addObserver(self, observer) {
+        self._selectionObservers.push(observer);
+    },
+
+    /**
+     * Check whether or not a particular row is selected.
+     */
+    function isSelected(self, identifier) {
+        var row = self.findRowData(identifier);
+        return (row.__selected__ === true);
+    },
+
+    /**
+     * Call a function with each selected row or with the active row if there
+     * is one and there are no selected rows.
+     *
+     * @param visitor: A one-argument function which will be invoked once for
+     * each selected row, or once with the active row if there is one and there
+     * are no selected rows.
+     *
+     * @return: undefined
+     */
+    function visitSelectedRows(self, visitor) {
+        var row;
+        var anySelected = false;
+        var indices = self.getRowIndices();
+        for (var i = 0; i < indices.length; ++i) {
+            row = self._rows[indices[i]];
+            if (row.__selected__) {
+                visitor(row);
+                anySelected = true;
+            }
+        }
+        if (!anySelected) {
+            row = self.activeRow();
+            if (row !== null) {
+                visitor(row);
+            }
+        }
+    },
+
+    /**
+     * Add the specified row to the selection.  Any number of rows may be
+     * selected at once.
+     *
+     * @type identifier: String
+     * @param identifier: The unique identifier for the row to select.
+     *
+     * @throw Error: Thrown if the given identifier is not found.
+     */
+    function selectRow(self, identifier) {
+        var row = self.findRowData(identifier);
+        row.__selected__ = true;
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowSelected(row);
+        }
+    },
+
+    /**
+     * Remove the specified row from the selection.
+     *
+     * @type identifier: String
+     * @param identifier: The unique identifier for the row to unselect.
+     *
+     * @throw Error: Thrown if the given identifier is not found.
+     */
+    function unselectRow(self, identifier) {
+        var row = self.findRowData(identifier);
+        row.__selected__ = false;
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowUnselected(row);
+        }
+    },
+
+    /**
+     * Make the currently active row non-active.
+     *
+     * @throw NoActiveRow: Thrown if there is no active row.
+     */
+    function deactivateRow(self) {
+        if (self._activeRow == null) {
+            throw Mantissa.ScrollTable.NoActiveRow();
+        }
+        for (var i = 0; i < self._selectionObservers.length; ++i) {
+            self._selectionObservers[i].rowDeactivated(self._activeRow);
+        }
+        self._activeRow = null;
+    },
+
+    /**
+     * @return: The currently active row object, or C{null} if no row is
+     * active.
+     */
+    function activeRow(self) {
+        return self._activeRow;
+    },
+
+    /**
+     * Find the row data for the row with web id C{webID}.
+     *
+     * @type webID: string
+     *
+     * @rtype: object
+     * @return: The structured data associated with the given webID.
+     *
+     * @throw Error: Thrown if the given webID is not found.
+     */
+    function findRowData(self, webID) {
+        return self.getRowData(self.findIndex(webID));
+    }
+);
+
+/**
  * Structured representation of the rows in a scrolltable.
  *
  * @ivar _rows: A sparse array of row data for this table.
@@ -149,13 +299,13 @@ Mantissa.ScrollTable.Action.methods(
  * selection observers using the addObserver method.  These will be notified of
  * changes to the active row and the row selection group.
  */
-Mantissa.ScrollTable.ScrollModel = Divmod.Class.subclass('Mantissa.ScrollTable.ScrollModel');
+Mantissa.ScrollTable.ScrollModel = Mantissa.ScrollTable._ModelBase.subclass(
+    'Mantissa.ScrollTable.ScrollModel');
 Mantissa.ScrollTable.ScrollModel.methods(
     function __init__(self) {
+        Mantissa.ScrollTable.ScrollModel.upcall(self, "__init__");
         self._rows = [];
-        self._activeRow = null;
         self._totalRowCount = 0;
-        self._selectionObservers = [];
     },
 
     /**
@@ -285,20 +435,6 @@ Mantissa.ScrollTable.ScrollModel.methods(
     },
 
     /**
-     * Find the row data for the row with web id C{webID}.
-     *
-     * @type webID: string
-     *
-     * @rtype: object
-     * @return: The structured data associated with the given webID.
-     *
-     * @throw Error: Thrown if the given webID is not found.
-     */
-    function findRowData(self, webID) {
-        return self.getRowData(self.findIndex(webID));
-    },
-
-    /**
      * Find the first row which appears after C{row} in the scrolltable and
      * satisfies C{predicate}
      *
@@ -341,125 +477,6 @@ Mantissa.ScrollTable.ScrollModel.methods(
             }
         }
         return null;
-    },
-
-    /**
-     * Set up an object to receive notification of selection changes.
-     */
-    function addObserver(self, observer) {
-        self._selectionObservers.push(observer);
-    },
-
-    /**
-     * Check whether or not a particular row is selected.
-     */
-    function isSelected(self, identifier) {
-        var row = self.findRowData(identifier);
-        return (row.__selected__ === true);
-    },
-
-    /**
-     * Call a function with each selected row or with the active row if there
-     * is one and there are no selected rows.
-     *
-     * @param visitor: A one-argument function which will be invoked once for
-     * each selected row, or once with the active row if there is one and there
-     * are no selected rows.
-     *
-     * @return: undefined
-     */
-    function visitSelectedRows(self, visitor) {
-        var row;
-        var anySelected = false;
-        var indices = self.getRowIndices();
-        for (var i = 0; i < indices.length; ++i) {
-            row = self._rows[indices[i]];
-            if (row.__selected__) {
-                visitor(row);
-                anySelected = true;
-            }
-        }
-        if (!anySelected) {
-            row = self.activeRow();
-            if (row !== null) {
-                visitor(row);
-            }
-        }
-    },
-
-    /**
-     * Add the specified row to the selection.  Any number of rows may be
-     * selected at once.
-     *
-     * @type identifier: String
-     * @param identifier: The unique identifier for the row to select.
-     *
-     * @throw Error: Thrown if the given identifier is not found.
-     */
-    function selectRow(self, identifier) {
-        var row = self.findRowData(identifier);
-        row.__selected__ = true;
-        for (var i = 0; i < self._selectionObservers.length; ++i) {
-            self._selectionObservers[i].rowSelected(row);
-        }
-    },
-
-    /**
-     * Remove the specified row from the selection.
-     *
-     * @type identifier: String
-     * @param identifier: The unique identifier for the row to unselect.
-     *
-     * @throw Error: Thrown if the given identifier is not found.
-     */
-    function unselectRow(self, identifier) {
-        var row = self.findRowData(identifier);
-        row.__selected__ = false;
-        for (var i = 0; i < self._selectionObservers.length; ++i) {
-            self._selectionObservers[i].rowUnselected(row);
-        }
-    },
-
-    /**
-     * Mark the specified row as active.  Activation differs from selection in
-     * that only a single row can be active at a time.
-     *
-     * @type identifier: String
-     * @param identifier: The unique identifier for the row to activate.
-     *
-     * @throw NoSuchWebID: Thrown if the given identifier is not found.
-     */
-    function activateRow(self, identifier) {
-        if (self._activeRow != null) {
-            self.deactivateRow();
-        }
-        self._activeRow = self.findRowData(identifier);
-        for (var i = 0; i < self._selectionObservers.length; ++i) {
-            self._selectionObservers[i].rowActivated(self._activeRow);
-        }
-    },
-
-    /**
-     * Make the currently active row non-active.
-     *
-     * @throw NoActiveRow: Thrown if there is no active row.
-     */
-    function deactivateRow(self) {
-        if (self._activeRow == null) {
-            throw Mantissa.ScrollTable.NoActiveRow();
-        }
-        for (var i = 0; i < self._selectionObservers.length; ++i) {
-            self._selectionObservers[i].rowDeactivated(self._activeRow);
-        }
-        self._activeRow = null;
-    },
-
-    /**
-     * @return: The currently active row object, or C{null} if no row is
-     * active.
-     */
-    function activeRow(self) {
-        return self._activeRow;
     },
 
     /**
@@ -682,6 +699,332 @@ Mantissa.ScrollTable.PlaceholderModel.methods(
 
 
 /**
+ * This class defines DOM behaviors which are held in common between the
+ * index-based ScrollingWidget and the value-based ScrollTable.
+ *
+ * Currently, subclasses must set all of these instance variables during
+ * initialization.
+ *
+ * @ivar columnNames: an ordered list of the names of the columns provided.
+ *
+ * @ivar _rowHeight: an integer, the number of pixels that represents one row height.
+ *
+ * @ivar columnTypes: an object, with attributes named by the strings in
+ * columnNames, and values that identify the types of the columns.
+ */
+
+Mantissa.ScrollTable._ScrollingBase = Nevow.Athena.Widget.subclass(
+    'Mantissa.ScrollTable._ScrollingBase');
+
+Mantissa.ScrollTable._ScrollingBase.methods(
+    /**
+     * @param name: column name
+     * @return: boolean, indicating whether this column should not be rendered
+     */
+    function skipColumn(self, name) {
+        if (name == 'toString') {
+            /* YOU ARE NOT INVITED TO MY PIZZA PARTY JAVASCRIPT */
+            return true;
+        }
+        return false;
+    },
+
+    /**
+     * @type rowData: object
+     *
+     * @return: actions that are enabled for row C{rowData}
+     * @rtype: array of L{Mantissa.ScrollTable.Action} instances
+     */
+    function getActionsForRow(self, rowData) {
+        var enabled = [];
+        for(var i = 0; i < self.actions.length; i++) {
+            if(self.actions[i].enableForRow(rowData)) {
+                enabled.push(self.actions[i]);
+            }
+        }
+        return enabled;
+    },
+
+    /**
+     * Make a node with some event handlers to perform actions on the row
+     * specified by C{rowData}.
+     *
+     * @param rowData: Some data received from the server.
+     *
+     * @return: A DOM node.
+     */
+    function _makeActionsCells(self, rowData) {
+        var actions = self.getActionsForRow(rowData);
+        for(var i = 0; i < actions.length; i++) {
+            actions[i] = actions[i].toNode(self, rowData);
+        }
+        var attrs = {"class": "scroll-cell"};
+        if(self.columnWidths && "actions" in self.columnWidths) {
+            attrs["style"] = "width:" + self.columnWidths["actions"];
+        }
+        return MochiKit.DOM.TD(attrs, actions);
+    },
+
+    /**
+     * Make a DOM node for the given row.
+     *
+     * @param rowOffset: The (possibly approximate) index in the scroll model
+     * of the row data being rendered.  This parameter will be removed in the
+     * future, as it is sometimes impossible to predict an exact offset, which
+     * is needed to do what this is attempting to (color the rows with
+     * alternating colors).
+     *
+     * @param rowData: The row data for which to make an element.
+     *
+     * @return: A DOM node.
+     */
+    function _createRow(self, rowOffset, rowData) {
+        var cells = [];
+
+        for (var colName in rowData) {
+            if(!(colName in self._columnOffsets) || self.skipColumn(colName)) {
+                continue;
+            }
+            cells.push([colName, self.makeCellElement(colName, rowData)]);
+        }
+        if(self.actions && 0 < self.actions.length) {
+            cells.push(["actions", self._makeActionsCells(rowData)]);
+        }
+
+        cells = cells.sort(
+            function(data1, data2) {
+                var a = self._columnOffsets[data1[0]];
+                var b = self._columnOffsets[data2[0]];
+
+                if (a<b) {
+                    return -1;
+                }
+                if (a>b) {
+                    return 1;
+                }
+                return 0;
+            });
+
+        var nodes = [];
+        for (var i = 0; i < cells.length; ++i) {
+            nodes.push(cells[i][1]);
+        }
+        return self.makeRowElement(rowOffset, rowData, nodes);
+    },
+
+    /**
+     * Create a element to represent the given row data in the scrolling
+     * widget.
+     *
+     * @param rowOffset: The index in the scroll model of the row data being
+     * rendered.
+     *
+     * @param rowData: The row data for which to make an element.
+     *
+     * @param cells: Array of elements (DOM nodes) which represent the column
+     * data for this row.
+     *
+     * @return: An element
+     */
+    function makeRowElement(self, rowOffset, rowData, cells) {
+        var style = "height: " + self._rowHeight + "px";
+        if (self._rowHeight === 0) {
+            style = "";
+        }
+        if(rowOffset % 2) {
+            style += "; background-color: #F0F0F0";
+        }
+        return MochiKit.DOM.TR(
+            {"class": "scroll-row",
+             "style": style,
+             "valign": "center"},
+            cells);
+    },
+
+    /**
+     * Return an object the properties of which are named like columns and
+     * refer to those columns' display indices.
+     */
+    function _getColumnOffsets(self, columnNames) {
+        var columnOffsets = {};
+        for( var i = 0; i < columnNames.length; i++ ) {
+            if(self.skipColumn(columnNames[i])) {
+                continue;
+            }
+            columnOffsets[columnNames[i]] = i;
+        }
+        return columnOffsets;
+    },
+
+    /**
+     * Convert a Date instance to a human-readable string.
+     *
+     * @type when: C{Date}
+     * @param when: The time to format as a string.
+     *
+     * @type now: C{Date}
+     * @param now: If specified, the date which will be used to determine how
+     * much context to provide in the returned string.
+     *
+     * @rtype: C{String}
+     * @return: A string describing the date C{when} with as much information
+     * included as is required by context.
+     */
+    function formatDate(self, date, /* optional */ now) {
+        return date.toUTCString();
+    },
+
+    /**
+     * @param columnName: The name of the column for which this is a value.
+     *
+     * @param columnType: A string which might indicate the data type of the
+     * values in this column (if you have the secret decoder ring).
+     *
+     * @param columnValue: An object received from the server.
+     *
+     * @return: The object to put into the DOM for this value.
+     */
+    function massageColumnValue(self, columnName, columnType, columnValue) {
+        if(columnType == 'timestamp') {
+            return self.formatDate(new Date(columnValue * 1000));
+        }
+	if(columnValue ==  null) {
+            return '';
+	}
+        return columnValue;
+    },
+
+    /**
+     * Update internal state associated with displaying column data, including:
+     *
+     * - _columnOffsets
+     * - _rowHeight
+     * - the _headerRow node.
+     *
+     * Call this whenever the return value of skipColumn might have changed.
+     */
+    function resetColumns(self) {
+        /* set _columnOffsets before calling _getRowHeight() so that
+         * _getRowGuineaPig() can call _createRow() */
+        self._columnOffsets = self._getColumnOffsets(self.columnNames);
+        self._rowHeight = self._getRowHeight();
+
+        while (self._headerRow.firstChild) {
+            self._headerRow.removeChild(self._headerRow.firstChild);
+        }
+
+        self._headerNodes = self._createRowHeaders(self.columnNames);
+        for (var i = 0; i < self._headerNodes.length; ++i) {
+            self._headerRow.appendChild(self._headerNodes[i]);
+        }
+    },
+
+    /**
+     * Return an Array of nodes to be used as column headers.
+     *
+     * @param columnNames: An Array of strings naming the columns in this
+     * table.
+     */
+    function _createRowHeaders(self, columnNames) {
+        var capitalize = function(s) {
+            var words = s.split(/ /);
+            var capped = "";
+            for(var i = 0; i < words.length; i++) {
+                capped += words[i].substr(0, 1).toUpperCase();
+                capped += words[i].substr(1, words[i].length) + " ";
+            }
+            return capped;
+        }
+
+        var headerNodes = [];
+        var sortable, attrs;
+
+        for (var i = 0; i < columnNames.length; i++ ) {
+            if(self.skipColumn(columnNames[i])) {
+                continue;
+            }
+
+            var columnName = columnNames[i];
+            var displayName;
+
+            if(self.columnAliases && columnName in self.columnAliases) {
+                displayName = self.columnAliases[columnName];
+            } else {
+                displayName = capitalize(columnName);
+            }
+
+            attrs = {"class": "scroll-column-header"};
+
+            if(self.columnWidths && columnName in self.columnWidths) {
+                attrs["style"] = "width:" + self.columnWidths[columnName];
+            }
+
+            if(columnName == "actions") {
+                attrs["class"] = "actions-column-header";
+            } else {
+                sortable = self.columnTypes[columnName][1];
+
+                if(sortable) {
+                    attrs["class"] = "sortable-" + attrs["class"];
+                    /*
+                    * Bind the current value of columnName instead of just closing
+                    * over it, since we're mutating the local variable in a loop.
+                    */
+                    attrs["onclick"] = (function(whichColumn) {
+                            return function() {
+                                /* XXX real-time feedback, ugh */
+                                self.resort(whichColumn);
+                            }
+                        })(columnName);
+                }
+            }
+
+            var headerNode = MochiKit.DOM.TD(attrs, displayName);
+            headerNodes.push(headerNode);
+
+        }
+        return headerNodes;
+    },
+
+    /**
+     * Make an element which will be displayed for the value of one column in
+     * one row.
+     *
+     * @param colName: The name of the column for which to make an element.
+     *
+     * @param rowData: An object received from the server.
+     *
+     * @return: A DOM node.
+     */
+    function makeCellElement(self, colName, rowData) {
+        var attrs = {"class": "scroll-cell"};
+        if(self.columnWidths && colName in self.columnWidths) {
+            attrs["style"] = "width:" + self.columnWidths[colName];
+        }
+        var node = MochiKit.DOM.TD(
+            attrs,
+            /* unfortunately we have to put a link inside each cell - IE
+             * doesn't seem to display rows if they are anchors with
+             * display: table-row
+             */
+            MochiKit.DOM.A({"style": "display: block",
+                            "href": rowData.__id__},
+                self.massageColumnValue(
+                    colName,
+                    self.columnTypes[colName][0],
+                    rowData[colName])));
+
+        if (self.columnTypes[colName][0] == "fragment") {
+            Divmod.Runtime.theRuntime.setNodeContent(
+                node.firstChild,
+                '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName]
+                + '</div>');
+        }
+        return node;
+    });
+
+
+/**
  * @ivar actions: An array of L{Mantissa.ScrollTable.Action} instances which
  * define ways which a user can interact with rows in this scrolltable.  May
  * be undefined to indicate there are no possible actions.
@@ -698,7 +1041,8 @@ Mantissa.ScrollTable.PlaceholderModel.methods(
  * scrolling region after the most recent scroll event.  C{0} initially and
  * after being emptied.
  */
-Mantissa.ScrollTable.ScrollingWidget = Nevow.Athena.Widget.subclass('Mantissa.ScrollTable.ScrollingWidget');
+Mantissa.ScrollTable.ScrollingWidget = Mantissa.ScrollTable._ScrollingBase.subclass(
+    'Mantissa.ScrollTable.ScrollingWidget');
 
 Mantissa.ScrollTable.ScrollingWidget.methods(
     function __init__(self, node, metadata) {
@@ -772,7 +1116,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
      *
      * @return: C{undefined}
      */
-    function setTableMetadata(self, columnNames, columnTypes, rowCount, currentSort, isAscendingNow) {
+    function setTableMetadata(self, columnNames, columnTypes, rowCount,
+                              currentSort, isAscendingNow) {
         self.columnNames = columnNames;
         self.columnTypes = columnTypes;
 
@@ -784,27 +1129,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         self._setSortHeader(currentSort, isAscendingNow);
         self.model.setTotalRowCount(rowCount);
         self.padViewportWithPlaceholderRow(rowCount);
-    },
-
-    /**
-     * Update internal state associated with displaying column data.
-     *
-     * Call this whenever the return value of skipColumn might have changed.
-     */
-    function resetColumns(self) {
-        /* set _columnOffsets before calling _getRowHeight() so that
-         * _getRowGuineaPig() can call _createRow() */
-        self._columnOffsets = self._getColumnOffsets(self.columnNames);
-        self._rowHeight = self._getRowHeight();
-
-        while (self._headerRow.firstChild) {
-            self._headerRow.removeChild(self._headerRow.firstChild);
-        }
-
-        self._headerNodes = self._createRowHeaders(self.columnNames);
-        for (var i = 0; i < self._headerNodes.length; ++i) {
-            self._headerRow.appendChild(self._headerNodes[i]);
-        }
     },
 
     /**
@@ -1091,79 +1415,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * Convert a Date instance to a human-readable string.
-     *
-     * @type when: C{Date}
-     * @param when: The time to format as a string.
-     *
-     * @type now: C{Date}
-     * @param now: If specified, the date which will be used to determine how
-     * much context to provide in the returned string.
-     *
-     * @rtype: C{String}
-     * @return: A string describing the date C{when} with as much information
-     * included as is required by context.
-     */
-    function formatDate(self, date, /* optional */ now) {
-        return date.toUTCString();
-    },
-
-    /**
-     * @param columnName: The name of the column for which this is a value.
-     *
-     * @param columnType: A string which might indicate the data type of the
-     * values in this column (if you have the secret decoder ring).
-     *
-     * @param columnValue: An object received from the server.
-     *
-     * @return: The object to put into the DOM for this value.
-     */
-    function massageColumnValue(self, columnName, columnType, columnValue) {
-        if(columnType == 'timestamp') {
-            return self.formatDate(new Date(columnValue * 1000));
-        }
-	if(columnValue ==  null) {
-            return '';
-	}
-        return columnValue;
-    },
-
-    /**
-     * Make an element which will be displayed for the value of one column in
-     * one row.
-     *
-     * @param colName: The name of the column for which to make an element.
-     *
-     * @param rowData: An object received from the server.
-     *
-     * @return: A DOM node.
-     */
-    function makeCellElement(self, colName, rowData) {
-        var attrs = {"class": "scroll-cell"};
-        if(self.columnWidths && colName in self.columnWidths) {
-            attrs["style"] = "width:" + self.columnWidths[colName];
-        }
-        var node = MochiKit.DOM.TD(
-            attrs,
-            /* unfortunately we have to put a link inside each cell - IE
-             * doesn't seem to display rows if they are anchors with
-             * display: table-row
-             */
-            MochiKit.DOM.A({"style": "display: block",
-                            "href": rowData.__id__},
-                self.massageColumnValue(
-                    colName,
-                    self.columnTypes[colName][0],
-                    rowData[colName])));
-
-        if (self.columnTypes[colName][0] == "fragment") {
-            Divmod.Runtime.theRuntime.setNodeContent(node.firstChild,
-                '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName] + '</div>');
-        }
-        return node;
-    },
-
-    /**
      * Remove all row nodes, including placeholder nodes from the scrolltable
      * viewport node.  Also empty the model.
      */
@@ -1248,112 +1499,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
     },
 
     /**
-     * @type rowData: object
-     *
-     * @return: actions that are enabled for row C{rowData}
-     * @rtype: array of L{Mantissa.ScrollTable.Action} instances
-     */
-    function getActionsForRow(self, rowData) {
-        var enabled = [];
-        for(var i = 0; i < self.actions.length; i++) {
-            if(self.actions[i].enableForRow(rowData)) {
-                enabled.push(self.actions[i]);
-            }
-        }
-        return enabled;
-    },
-
-    /**
-     * Make a node with some event handlers to perform actions on the row
-     * specified by C{rowData}.
-     *
-     * @param rowData: Some data received from the server.
-     *
-     * @return: A DOM node.
-     */
-    function _makeActionsCells(self, rowData) {
-        var actions = self.getActionsForRow(rowData);
-        for(var i = 0; i < actions.length; i++) {
-            actions[i] = actions[i].toNode(self, rowData);
-        }
-        var attrs = {"class": "scroll-cell"};
-        if(self.columnWidths && "actions" in self.columnWidths) {
-            attrs["style"] = "width:" + self.columnWidths["actions"];
-        }
-        return MochiKit.DOM.TD(attrs, actions);
-    },
-
-    /**
-     * Make a DOM node for the given row.
-     *
-     * @param rowOffset: The index in the scroll model of the row data being
-     * rendered.
-     *
-     * @param rowData: The row data for which to make an element.
-     *
-     * @return: A DOM node.
-     */
-    function _createRow(self, rowOffset, rowData) {
-        var cells = [];
-
-        for(var colName in rowData) {
-            if(!(colName in self._columnOffsets) || self.skipColumn(colName)) {
-                continue;
-            }
-            cells.push([colName, self.makeCellElement(colName, rowData)]);
-        }
-        if(self.actions && 0 < self.actions.length) {
-            cells.push(["actions", self._makeActionsCells(rowData)]);
-        }
-
-        cells = cells.sort(
-            function(data1, data2) {
-                var a = self._columnOffsets[data1[0]];
-                var b = self._columnOffsets[data2[0]];
-
-                if (a<b) {
-                    return -1;
-                }
-                if (a>b) {
-                    return 1;
-                }
-                return 0;
-            });
-
-        var nodes = [];
-        for (var i = 0; i < cells.length; ++i) {
-            nodes.push(cells[i][1]);
-        }
-        return self.makeRowElement(rowOffset, rowData, nodes);
-    },
-
-    /**
-     * Create a element to represent the given row data in the scrolling
-     * widget.
-     *
-     * @param rowOffset: The index in the scroll model of the row data being
-     * rendered.
-     *
-     * @param rowData: The row data for which to make an element.
-     *
-     * @param cells: Array of elements which represent the column data for this
-     * row.
-     *
-     * @return: An element
-     */
-    function makeRowElement(self, rowOffset, rowData, cells) {
-        var style = "height: " + self._rowHeight + "px";
-        if(rowOffset % 2) {
-            style += "; background-color: #F0F0F0";
-        }
-        return MochiKit.DOM.TR(
-            {"class": "scroll-row",
-             "style": style,
-             "valign": "center"},
-            cells);
-    },
-
-    /**
      * Make a placeholder row
      *
      * @type height: integer
@@ -1366,96 +1511,6 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                 {"class": "placeholder-scroll-row",
                  "style": "height: " + height + "px"},
                 MochiKit.DOM.TD({"class": "placeholder-cell"}));
-    },
-
-    /**
-     * @param name: column name
-     * @return: boolean, indicating whether this column should not be rendered
-     */
-    function skipColumn(self, name) {
-        return false;
-    },
-
-    /**
-     * Return an object the properties of which are named like columns and
-     * refer to those columns' display indices.
-     */
-    function _getColumnOffsets(self, columnNames) {
-        var columnOffsets = {};
-        for( var i = 0; i < columnNames.length; i++ ) {
-            if(self.skipColumn(columnNames[i])) {
-                continue;
-            }
-            columnOffsets[columnNames[i]] = i;
-        }
-        return columnOffsets;
-    },
-
-    /**
-     * Return an Array of nodes to be used as column headers.
-     *
-     * @param columnNames: An Array of strings naming the columns in this
-     * table.
-     */
-    function _createRowHeaders(self, columnNames) {
-        var capitalize = function(s) {
-            var words = s.split(/ /);
-            var capped = "";
-            for(var i = 0; i < words.length; i++) {
-                capped += words[i].substr(0, 1).toUpperCase();
-                capped += words[i].substr(1, words[i].length) + " ";
-            }
-            return capped;
-        }
-
-        var headerNodes = [];
-        var sortable, attrs;
-
-        for (var i = 0; i < columnNames.length; i++ ) {
-            if(self.skipColumn(columnNames[i])) {
-                continue;
-            }
-
-            var columnName = columnNames[i];
-            var displayName;
-
-            if(self.columnAliases && columnName in self.columnAliases) {
-                displayName = self.columnAliases[columnName];
-            } else {
-                displayName = capitalize(columnName);
-            }
-
-            attrs = {"class": "scroll-column-header"};
-
-            if(self.columnWidths && columnName in self.columnWidths) {
-                attrs["style"] = "width:" + self.columnWidths[columnName];
-            }
-
-            if(columnName == "actions") {
-                attrs["class"] = "actions-column-header";
-            } else {
-                sortable = self.columnTypes[columnName][1];
-
-                if(sortable) {
-                    attrs["class"] = "sortable-" + attrs["class"];
-                    /*
-                    * Bind the current value of columnName instead of just closing
-                    * over it, since we're mutating the local variable in a loop.
-                    */
-                    attrs["onclick"] = (function(whichColumn) {
-                            return function() {
-                                /* XXX real-time feedback, ugh */
-                                self.resort(whichColumn);
-                            }
-                        })(columnName);
-                }
-            }
-
-            var headerNode = MochiKit.DOM.TD(attrs, displayName);
-            headerNodes.push(headerNode);
-
-        }
-        return headerNodes;
     },
 
     /**
@@ -1561,7 +1616,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                         self._requestWaiting = false;
                         if (self._moreAfterRequest) {
                             self._moreAfterRequest = false;
-                            self.scrolled();
+                            selfs.crolled();
                         } else {
                             finishDeferreds(null);
                         }
@@ -1669,3 +1724,1411 @@ Mantissa.ScrollTable.FlexHeightScrollingWidget.methods(
                 return passThrough;
             });
     })
+
+
+/// CUT HERE: there is too much stuff in this file, but the latency involved
+/// in requesting JavaScript files from Mantissa is getting to be
+/// excruciating, and every new file adds to that.  Really this should be
+/// dealt with in some kind of smooshing-stuff-together layer inside Nevow,
+/// but for the time being we're not going to make things worse.  Put this
+/// into a new file once all the JS can be efficiently served up as one
+/// monolithic, compressed pile.
+
+
+Mantissa.ScrollTable.Column = Divmod.Class.subclass(
+    'Mantissa.ScrollTable.Column');
+
+/**
+ * Describes a type of column.
+ *
+ * @ivar name: a String giving the name of the row property by which rows are
+ * sorted.
+ */
+Mantissa.ScrollTable.Column.methods(
+    /**
+     * Create a Column with a given name.
+     *
+     * @param name: the name, or attribute ID, of this column within a
+     * scrolltable.
+     */
+    function __init__(self, name) {
+        self.name = name;
+    },
+
+    /**
+     * Map a column value to a number.  Abstract: implement in subclasses.
+     *
+     * @param value: a column value depending on the type of this column, as
+     * returned by this Column's extractValue method.
+     *
+     * @rtype: number
+     */
+    function toNumber(self, value) {
+        throw Divmod.Error(self.__class__.__name__ + ".toNumber not implemented");
+    },
+
+    /**
+     * Map a number to a column value.  Abstract: implement in subclasses.
+     *
+     * @param ordinal: a number returned by my toNumber method.
+     *
+     * @rtype: Dependent on the value of this column; same as extractValue.
+     */
+    function fromNumber(self, ordinal) {
+        throw Divmod.Error(self.__class__.__name__ + ".fromNumber not implemented");
+    },
+
+    /**
+     * Return a representative value object for this column type.  Abstract:
+     * implement in subclasses.
+     *
+     * @rtype: Dependent on the value of this column; same as extractValue.
+     */
+    function fakeValue(self) {
+        throw new Error("fakeValue not implemented");
+    },
+
+    /**
+     * Extract the value of this column from a row.
+     *
+     * @param row: An object representing a row within a RegionModel, returned
+     * by dataAsRow.
+     *
+     * @return: a value dependent on the type of this column.
+     */
+    function extractValue(self, row) {
+        return row[self.name];
+    });
+
+
+Mantissa.ScrollTable.IntegerColumn = Mantissa.ScrollTable.Column.subclass(
+    'Mantissa.ScrollTable.IntegerColumn');
+
+/**
+ * A column which can hold integers.
+ *
+ * @ivar name: a String giving the name of the row property by which rows are
+ * sorted.
+ */
+Mantissa.ScrollTable.IntegerColumn.methods(
+    /**
+     * Override base implementation to pass through the underlying value.
+     */
+    function toNumber(self, value) {
+        return value;
+    },
+
+    /**
+     * Return a representative integer.
+     */
+    function fakeValue(self) {
+        return 1234;
+    },
+
+    /**
+     * Override base implementation to leave the number as-is.
+     */
+    function fromNumber(self, ordinal) {
+        return Math.floor(ordinal);
+    });
+
+
+Mantissa.ScrollTable.TextColumn = Mantissa.ScrollTable.Column.subclass(
+    'Mantissa.ScrollTable.TextColumn');
+
+/**
+ * A column which can hold a string, but cannot (yet) be sorted.
+ *
+ * @ivar name: a String giving the name of the row property by which rows are
+ * sorted.
+ */
+Mantissa.ScrollTable.TextColumn.methods(
+    /**
+     * Return a representative string.
+     */
+    function fakeValue(self) {
+        return "A string with a few words in it.";
+    });
+
+Mantissa.ScrollTable.BooleanColumn = Mantissa.ScrollTable.Column.subclass(
+    'Mantissa.ScrollTable.BooleanColumn');
+
+/**
+ * A column which can hold a boolean, but cannot be sorted.
+ *
+ * @ivar name: a String giving the name of the row property by which rows are
+ * sorted.
+ */
+Mantissa.ScrollTable.BooleanColumn.methods(
+    /**
+     * Return a representative boolean.
+     */
+    function fakeValue(self) {
+        return true;
+    });
+
+Mantissa.ScrollTable.TimestampColumn = Mantissa.ScrollTable.IntegerColumn.subclass(
+    'Mantissa.ScrollTable.TimestampColumn');
+
+/**
+ * A column which can hold timestamps.
+ *
+ * @ivar name: a String giving the name of the row property by which rows are
+ * sorted.
+ */
+Mantissa.ScrollTable.TimestampColumn.methods(
+    /**
+     * Return a representative Date object.
+     */
+    function fakeValue(self) {
+        return new Date();
+    });
+
+Mantissa.ScrollTable.RowRegion = Divmod.Class.subclass(
+    'Mantissa.ScrollTable.RowRegion');
+
+/**
+ * Represent a range of rows at a particular offset.
+ *
+ * @ivar regionModel: a reference to a L{RegionModel} that this region
+ * participates in.
+ *
+ * @ivar offset: an integer giving the location of the rows in this range in a
+ * larger container.
+ *
+ * @ivar viewPeer: a DOMRegionView instance which deals with rendering this
+ * region into to DOM nodes.
+ *
+ * @ivar rows: an array of objects representing row data.
+ */
+Mantissa.ScrollTable.RowRegion.methods(
+    /**
+     * Create a RowRegion from a given region model, at a given offset, with
+     * the given data from the server.  Also create its view peer.
+     */
+    function __init__(self, regionModel, offset, data) {
+        if (data.length == 0) {
+            throw new Error("Invalid empty row array passed to RowRegion");
+        } else if (offset < 0) {
+            throw new Error("Invalid negative offset passed to RowRegion");
+        }
+        self.regionModel = regionModel;
+        self._offset = offset;
+        self.rows = [];
+        for (var i=0; i<data.length; i++) {
+            var dataElement = data[i];
+            var rowElement = regionModel.dataAsRow(dataElement);
+            self.rows.push(dataElement);
+        }
+        self.viewPeer = self.regionModel.view.createRegionView(self);
+    },
+
+    /**
+     * Remove a row from this region.
+     *
+     * @param offset: the offset within the entire data set (i.e. this
+     * RowRegion's RegionModel).
+     */
+    function removeRegionRow(self, offset) {
+        if (self.rows.length === 1) {
+            self.destroy();
+        } else {
+            var innerOffset = offset - self.firstOffset();
+            self.rows.splice(innerOffset, 1);
+            self.viewPeer.removeViewRow(innerOffset);
+        }
+    },
+
+    /**
+     * Does this region follow the given region?
+     */
+    function followsRegion(self, otherRegion) {
+        if (self.regionModel._sortAscending) {
+            return (otherRegion.lastValue() < self.firstValue());
+        } else {
+            return (otherRegion.firstValue() > self.lastValue());
+        }
+    },
+
+    /**
+     * Remove this region from its model and eliminate its view peer from its
+     * view.
+     */
+
+    function destroy(self) {
+        for (var i = 0; i < self.regionModel._regions.length; i++) {
+            if (self.regionModel._regions[i] === self) {
+                self.regionModel._regions.splice(i, 1);
+                break;
+            }
+        }
+        self.viewPeer.destroy();
+    },
+
+    /**
+     * Return a string representation that describes this region to aid with
+     * debugging.
+     */
+    function toString(self) {
+        return 'RowRegion(' + self._offset + ', ' + self.rows.toString() + ')';
+    },
+
+    /**
+     * Helper method to pull a value out from a row object.  The type depends
+     * on the type of the sort column.
+     */
+    function _extractValue(self, row) {
+        return self.regionModel.sortColumn.extractValue(row);
+    },
+
+    /**
+     * Return the current sort column value for the row for the lowest
+     * offset in this region. The type depends on the column type.
+     */
+    function firstValue(self) {
+        return self._extractValue(self.rows[0]);
+    },
+
+    /**
+     * Return the current sort column value for the highest offset in this
+     * region.  The type depends on the column type.
+     */
+    function lastValue(self) {
+        return self._extractValue(self.rows[self.rows.length - 1]);
+    },
+
+    /**
+     * Return the current sort column for the row with the lowest sort value
+     * in this region.  The type depends on the column type.
+     */
+    function lowestValue(self) {
+        if (self.regionModel._sortAscending) {
+            return self.firstValue();
+        } else {
+            return self.lastValue();
+        }
+    },
+
+    /**
+     * Return the current sort column for the row with the highest sort value
+     * in this region.  The type depends on the column type.
+     */
+    function highestValue(self) {
+        if (self.regionModel._sortAscending) {
+            return self.lastValue();
+        } else {
+            return self.firstValue();
+        }
+    },
+
+    /**
+     * Retrieve the first offset within this region.
+     */
+    function firstOffset(self) {
+        return self._offset;
+    },
+
+    /**
+     * Retrieve the last offset within this region.
+     */
+    function lastOffset(self) {
+        return self._offset + self.rows.length - 1;
+    },
+
+    /**
+     * Determine whether the given sort-column value occurs within this
+     * region.
+     *
+     * @param value: a value of the type described by this region's model's
+     * sort column.
+     *
+     * @return: a boolean; true if the value is present within the range
+     * defined by this region, false otherwise.
+     */
+    function overlapsValue(self, value) {
+        return ((self.lowestValue() <= value) &&
+                (value <= self.highestValue()));
+    },
+
+    /**
+     * Compare this region to an offset, and return a value representing how
+     * it relates to that offset.
+     *
+     * @param offset: an offset to compare against this region.
+     *
+     * @return: an integer, 1 to indicate that offset occurs before this
+     * region, 0 to indicate that offset occurs within this region (i.e. it
+     * overlaps it), and -1 to indicate that the offset occurs after this
+     * region.a
+     */
+    function compareToOffset(self, offset) {
+        if (offset < self._offset) {
+            return 1;
+        } else if ((self._offset <= offset) &&
+                   (offset <= (self._offset + self.rows.length - 1))) {
+            return 0;
+        } else {
+            return -1;
+        }
+    },
+
+    /**
+     * Acquire the data from another region which is contiguous with the end
+     * of this region.
+     *
+     * @param region: another L{RowRegion}, one which overlaps the end of this
+     * region.  By the end of this method, this parameter will be removed from
+     * the RegionModel, while 'self' will remain with additional rows.
+     *
+     * @throws: L{Error} if the supplied region does not have any rows which
+     * are also present in this region.
+     *
+     * @return: null
+     */
+    function coalesceAtMyEnd(self, region) {
+        var rowCount = self.rows.length;
+        for (var j = 0; j < rowCount; ++j) {
+            if (self.rows[j].exactlyEqualTo(region.rows[0])) {
+                // FOUND THE OVERLAP AT J
+                var overlappingRows = rowCount - j;
+                if (overlappingRows < region.rows.length) {
+                    self.rows.splice.apply(
+                        self.rows,
+                        [j, overlappingRows].concat(region.rows));
+                    self.viewPeer.mergeWithRegionView(
+                        region.viewPeer, overlappingRows);
+                } else {
+                    // There is no new information in this new region.  Just
+                    // clean up its view portion and don't bother!
+                    region.viewPeer.destroy();
+                }
+                return;
+            }
+        }
+        throw new Error("attempted to coalesce region with no overlap");
+    },
+
+    /**
+     * Adjust the offset of this region, moving it by the specified amount.
+     */
+    function adjustOffset(self, amount) {
+        self._offset += amount;
+        self.viewPeer.refreshViewOffset();
+    });
+
+
+Mantissa.ScrollTable.OffsetOutOfBounds = Divmod.Error.subclass(
+    'Mantissa.ScrollTable.OffsetOutOfBounds');
+
+/**
+ * Error raised when the view exposes an invalid area.
+ */
+Mantissa.ScrollTable.RegionModel = Mantissa.ScrollTable._ModelBase.subclass(
+    'Mantissa.ScrollTable.RegionModel');
+
+/**
+ * Model for interacting with the server using inequality-based queries.
+ *
+ * @ivar _rows: An C{Array} of C{Mantissa.ScrollTable.RowRegion} objects which
+ * contains all locally available row data.
+ */
+Mantissa.ScrollTable.RegionModel.methods(
+    /**
+     * Create a RegionModel with a RegionModelServer.
+     *
+     * @param server: an IRegionModelServer provider.
+     *
+     * @param sortColumn: An L{Mantissa.ScrollTable.Column} instance.
+     */
+    function __init__(self, view, server, sortColumn,
+                      /*optional: default true*/ sortAscending) {
+        Mantissa.ScrollTable.RegionModel.upcall(self, "__init__");
+        self.server = server;
+        self.sortColumn = sortColumn;
+        self.view = view;
+        self._regions = [];
+        // XXX needs to scale based on table height; this should be able to
+        // scale at runtime just fine though
+        self._pagesize = 2;
+        self._initialized = false;
+        if (sortAscending === undefined) {
+            // By default, sort ascending; don't accept just a random truth value.
+            sortAscending = true;
+        }
+        self._sortAscending = sortAscending;
+    },
+
+    ////// Compatibility methods for older ScrollTable API
+
+    // These methods aren't _necessarily_ bad, but the design was copied
+    // verbatim from the older ScrollModel.  They are only around as long as
+    // the existing Mantissa / Quotient views need them.
+
+    /**
+     * Retrieve an array of indices for which local data is available.
+     */
+    function getRowIndices(self) {
+        var region, firstOffset, lastOffset;
+        var indices = [];
+        for (var i = 0; i < self._regions.length; i++) {
+            region = self._regions[i];
+            firstOffset = region.firstOffset();
+            lastOffset = region.lastOffset();
+            for (var j = firstOffset; j <= lastOffset; j++) {
+                indices.push(j);
+            }
+        }
+        return indices;
+    },
+
+    /**
+     * Remove a row at a given index.
+     *
+     * @param index: an integer describing the index that the offset is at.
+     */
+    function removeRow(self, index) {
+        var reg = self._regionContainingOffset(index);
+        reg.removeRegionRow(index);
+    },
+
+    /**
+     * Retrieve the row data for the row at the given index.
+     *
+     * @type index: integer
+     *
+     * @rtype: object
+     * @return: The structured data associated with the row at the given index.
+     *
+     * @throw Divmod.IndexError: Thrown if the given index is out of bounds.
+     */
+    function getRowData(self, index) {
+        var lastRegion = self._regions[self._regions.length - 1];
+        if (index < 0 || lastRegion === undefined || lastRegion.lastOffset() < index) {
+            throw Divmod.IndexError("Specified index (" + index + ") out of bounds in getRowData.");
+        }
+        var region;
+        for (var i = 0; i < self._regions.length; i++) {
+            region = self._regions[i];
+            if (region.firstOffset() <= index && index <= region.lastOffset()) {
+                return region.rows[index - region.firstOffset()];
+            }
+        }
+        return undefined; // ha
+    },
+
+    /**
+     * Retrieve the index for the row data associated with the given webID.
+     *
+     * @type webID: string
+     *
+     * @rtype: integer
+     *
+     * @throw NoSuchWebID: Thrown if the given webID corresponds to no row in
+     * the model.
+     */
+    function findIndex(self, webID) {
+        var region;
+        for (var i = 0; i < self._regions.length; i++) {
+            region = self._regions[i];
+            for (var j = 0; j < region.rows.length; j++) {
+                if (region.rows[j].__id__ == webID) {
+                    return j + region.firstOffset();
+                }
+            }
+        }
+        throw Mantissa.ScrollTable.NoSuchWebID(webID);
+    },
+
+    /**
+     * @rtype: integer
+     * @return: The number of rows in the model which we have already fetched.
+     */
+    function rowCount(self) {
+        /* note that the previous implementation of this method included rows
+           that hadn't been retrieved yet */
+        var count = 0;
+        for (var i = 0; i < self._regions.length; i++) {
+            count += self._regions[i].rows.length;
+        }
+        return count;
+    },
+
+    /**
+     * Completely clear the data out of this RegionModel; re-set it to the
+     * state it was in when it was originally displayed.
+     */
+
+    function empty(self) {
+        while (self._regions.length !== 0) {
+            var eachRegion = self._regions[0];
+            // Do something with it
+            eachRegion.destroy();
+        }
+    },
+
+
+    ////// End Compatibility Section
+
+    /**
+     * This method is a notification from the view that a set of rows has been
+     * exposed to the user and should now be loaded.
+     *
+     * @param offset: a non-negative integer, the index of the first row
+     * exposed.
+     *
+     * @return: a Deferred which will fire when all the requests required to
+     * satisfy the exposure at the supplied offset have been satisfied.
+     *
+     * @throw Mantissa.ScrollTable.OffsetOutOfBounds: If C{offset} is less than
+     * zero or greater than the maximum known offset.
+     */
+    function expose(self, offset) {
+        if (offset < 0) {
+            throw Mantissa.ScrollTable.OffsetOutOfBounds();
+        }
+        var madeRequest = null;
+        if (!self._initialized) {
+            madeRequest = self._initialize().addCallback(function () {
+                /* We haven't been initialized.  Issue the expose() call again
+                 * once the assumptions about our model have been verified.
+                 */
+                return self.expose(offset);
+            });
+        } else {
+            /* Did I expose any rows which might actually need requesting?
+             * First, let's look for a row which contains the offset I'm
+             * looking for.
+             */
+            var startRegion = self._regionContainingOffset(offset);
+            if (startRegion !== null) {
+                // OK, is the region long enough to cover my end as well?
+                var alreadyThere = ((startRegion.firstOffset() - offset) +
+                                    startRegion.rows.length);
+                if (self._pagesize > alreadyThere) {
+                    // ask for some rows after the end of that region.
+                    var lastRow = startRegion.rows[
+                        startRegion.rows.length - 1];
+                    madeRequest = self.rowsFollowingRow(
+                        lastRow).addCallback(
+                            function (rows) {
+                                self.insertRowData(offset, rows);
+                            });
+                }
+            } else {
+                /* Is there a region *exactly* adjacent to the area just
+                 * exposed which isn't visible?
+                 */
+                var adjacentPreviousRegion = self._regionBefore(offset);
+                if (adjacentPreviousRegion !== null &&
+                    adjacentPreviousRegion.lastOffset() === (offset-1)) {
+                    /* Oh goody!  Just grab the contiguous rows.
+                     */
+                    var adjacentPreviousRow = adjacentPreviousRegion.rows[
+                        adjacentPreviousRegion.rows.length - 1];
+                    madeRequest = self.rowsFollowingRow(
+                        adjacentPreviousRow,
+                        /* Expose is telling us that we need to fill up
+                         * pagesize rows worth of data on the screen, but one
+                         * of the rows is _off_ the screen, specifically the
+                         * contiguous row that we selected before.  Ask the
+                         * server for one additional row to compensate.
+                         */
+                        true).addCallback(
+                            function (rows) {
+                                self.insertRowData(offset - 1, rows);
+                            });
+                } else {
+                    /* We've exposed an area that isn't contiguous with
+                     * another region.  We need to request a new group of rows
+                     * based on an estimate of the value being identified.
+                     */
+                    var evao = self.estimateValueAtOffset(offset);
+                    madeRequest = self.rowsFollowingValue(
+                        evao).addCallback(
+                            function (rows) {
+                                self.insertRowData(offset, rows);
+                            });
+                }
+            }
+        }
+        if (madeRequest === null) {
+            madeRequest = Divmod.Defer.Deferred();
+            madeRequest.callback(null);
+        }
+        return madeRequest;
+    },
+
+    /**
+     * Return a set of rows including the given row by requesting from our
+     * server whose offsets follow those the given existing row.  The rows
+     * returned depends on the current sort order.
+     */
+    function rowsFollowingRow(self, row, /* optional */ exactlyAdjacent) {
+        var result = null;
+        var pagesize = self._pagesize;
+        if (!exactlyAdjacent) {
+            pagesize--;
+        }
+        if (self._sortAscending) {
+            result = self.server.rowsAfterRow(row, pagesize);
+        } else {
+            result = self.server.rowsBeforeRow(
+                row, pagesize).addCallback(function (result) {
+                    return result.reverse();
+                });
+        }
+        result.addCallback(function (data) {
+            data.splice(0, 0, row);
+            return data;
+        });
+        return result;
+    },
+
+    /**
+     * Return a set of rows from our server including and following the given
+     * value.  The rows returned depends on the current sort order.
+     */
+    function rowsFollowingValue(self, value) {
+        var result = null;
+        if (self._sortAscending) {
+            return self.server.rowsAfterValue(value, self._pagesize);
+        } else {
+            return self.server.rowsBeforeValue(value, self._pagesize
+                ).addCallback(function (result) {
+                    return result.reverse();
+                });
+        }
+    },
+
+    /**
+     * Estimate the value at a given offset based on the values in the regions
+     * before and after it.
+     *
+     * @param offset: a row offset.
+     * @return: a scroll column value.
+     */
+    function estimateValueAtOffset(self, offset) {
+        var r1 = self._regionBefore(offset);
+        var r2 = self._regionAfter(offset);
+        var n1 = self.sortColumn.toNumber(r1.lastValue());
+        var n2 = self.sortColumn.toNumber(r2.firstValue());
+        var offsetCount = (r2.lastOffset() - r1.firstOffset());
+        var changePerOffset = ((n2 - n1) / offsetCount);
+        var estimateNumber = (changePerOffset * (offset - r1.firstOffset())) + n1;
+        var estimateValue = self.sortColumn.fromNumber(estimateNumber);
+        return estimateValue;
+    },
+
+    function _regionBefore(self, offset) {
+        var lastRegionSeen = null;
+        for (var i = 0; i < self._regions.length; i++) {
+            var region = self._regions[i];
+            var cmp = region.compareToOffset(offset);
+            if (cmp === 1 || cmp === 0) {
+                return lastRegionSeen;
+            } else if (cmp === -1) {
+                lastRegionSeen = region;
+            }
+        }
+        return lastRegionSeen;
+        // throw new Error("shouldn't be possible to get here");
+    },
+
+    function _regionAfter(self, offset) {
+        for (var i = 0; i < self._regions.length; i++) {
+            var region = self._regions[i];
+            var cmp = region.compareToOffset(offset);
+            if (cmp === 1) {
+                return region;
+            }
+        }
+        return null;
+    },
+
+    function _regionContainingOffset(self, offset) {
+        for (var i = 0; i < self._regions.length; i++) {
+            var region = self._regions[i];
+            if (region.compareToOffset(offset) === 0) {
+                // HIT
+                return region;
+            }
+        }
+        return null;
+    },
+
+
+    /**
+     * Add the given amount to the offset of all regions at or after
+     * startingFromIndex.
+     */
+    function _adjustRegionOffsets(self, startingFromIndex, amount) {
+        for (var i = startingFromIndex; i < self._regions.length; ++i) {
+            self._regions[i].adjustOffset(amount);
+        }
+    },
+
+    /**
+     * Figure out if there is offset overlap between two regions and push the
+     * rightmost one and all those to its right even further to the right if
+     * there is.  Return true if any adjustment is made, false otherwise.
+     */
+    function _pushRegionsRight(self, startingFromIndex) {
+        if ((startingFromIndex >= 0) && (startingFromIndex < self._regions.length - 1)) {
+            var end = self._regions[startingFromIndex].firstOffset() + self._regions[startingFromIndex].rows.length;
+            var offsetOverlap = self._regions[startingFromIndex + 1].firstOffset() - end;
+            if (offsetOverlap <= 0) {
+                self._adjustRegionOffsets(startingFromIndex + 1, (-offsetOverlap) + 1);
+                return true;
+            }
+            return false;
+        } else {
+            return false;
+        }
+    },
+
+    /**
+     * Convert an element of data from the server into a row object.
+     */
+    function dataAsRow(self, dataElement) {
+        dataElement.exactlyEqualTo = function (otherElement) {
+            return dataElement.__id__ === otherElement.__id__;
+        }
+        return dataElement;
+    },
+
+    /**
+     * Integrate the given rows into the model at the given offset.
+     *
+     * @param offset: an integer, the logical offset into the table where we
+     * guess they might go.
+     *
+     * @param data: a list of simple objects retrieved from the server.
+     */
+    function insertRowData(self, offset, data) {
+        var newRegion = Mantissa.ScrollTable.RowRegion(self, offset, data);
+        for (var i = 0; i < self._regions.length; ++i) {
+            var thisRegion = self._regions[i];
+            if (thisRegion.overlapsValue(newRegion.firstValue())) {
+                var originalRegionLength = thisRegion.rows.length;
+                thisRegion.coalesceAtMyEnd(newRegion);
+                var newRegionLength = thisRegion.rows.length;
+                var offsetChange;
+                /* /Also/ check to see if the end overlaps with the next
+                 * region, if there is a next region.  First: *is* there a
+                 * next region?
+                 */
+                if (i < self._regions.length - 1) {
+                    /* There is a next region.  Figure out the distance
+                     * between the beginning of this region and the end of the
+                     * next region.  It may be important later when
+                     * determining if regions to the right of this one need to
+                     * be shifted to the left, as is the case when a gap of N
+                     * indices is replaced with M rows, where M < N.
+                     */
+                    var nextRegion = self._regions[i + 1];
+                    if (newRegion.lastValue() >= nextRegion.firstValue()) {
+                        /* It does.  Join the current region together with the
+                         * next one, dropping any overlapping rows.
+                         */
+                        var oldOffsetDistance =
+                            ((nextRegion.firstOffset() + nextRegion.rows.length)
+                             - thisRegion.firstOffset());
+                        thisRegion.coalesceAtMyEnd(nextRegion);
+                        self._regions.splice(i + 1, 1);
+                        var newOffsetDistance = thisRegion.rows.length;
+                        offsetChange = newOffsetDistance - oldOffsetDistance;
+                    } else {
+                        offsetChange = newRegionLength - originalRegionLength;
+                    }
+                    /* repeat the check because we may have just coalesced the
+                     * _last_ region.
+                     */
+                    if (i < self._regions.length - 1) {
+                        /* Check to see if the next region's offset now
+                         * overlaps.
+                         */
+                        if (!self._pushRegionsRight(i)) {
+                            self._adjustRegionOffsets(i + 1, offsetChange);
+                        }
+                    }
+                }
+                return;
+            } else if (thisRegion.overlapsValue(newRegion.lastValue())) {
+                newRegion.coalesceAtMyEnd(thisRegion);
+                var existingRowCount = thisRegion.rows.length;
+                var newRowCount = newRegion.rows.length;
+                var adjustAmount = (
+                    (thisRegion.firstOffset() -
+                     (newRowCount - existingRowCount)) -
+                    newRegion.firstOffset());
+                newRegion.adjustOffset(adjustAmount);
+                self._regions[i] = newRegion;
+                /* This is not the first region, so we may have collided to
+                 * the left.
+                 */
+                self._pushRegionsRight(i - 1);
+                return;
+            } else {
+                /* The given rows are entirely outside of this region.
+                 */
+            }
+        }
+        /* The given rows are entirely outside of all regions.  Find the
+         * regions they are between and insert them there.
+         */
+        for (var i = 0; i < self._regions.length; ++i) {
+            // XXX I should test this more directly
+            if (self._regions[i].followsRegion(newRegion)) {
+                self._regions.splice(i, 0, newRegion);
+                if (i > 0) {
+                    var offsetOverlapBefore = (
+                        self._regions[i].firstOffset() -
+                        (self._regions[i - 1].firstOffset() +
+                         self._regions[i - 1].rows.length));
+                    if (offsetOverlapBefore <= 0) {
+                        self._regions[i].adjustOffset((-offsetOverlapBefore) + 1);
+                    }
+                }
+                self._pushRegionsRight(i);
+                return;
+            }
+        }
+        /* The new region didn't overlap any existing regions or fit before
+         * any of them, so it belongs exactly at the end.  Put it there.
+         */
+        self._regions.push(newRegion);
+        /* And make sure that it has a reasonable offset.
+         */
+        self._pushRegionsRight(self._regions.length - 2);
+    },
+
+    /**
+     * Find the RowRegion instance which contains the given offset.  This is a
+     * utility method used by tests.
+     *
+     * @param offset: a row offset into the table.
+     *
+     * @return: a L{RowRegion}.
+     */
+    function _rangeContainingOffset(self, offset) {
+        for (var i = 0; i < self._regions.length; ++i) {
+            if (offset >= self._regions[i].firstOffset()) {
+                return i;
+            }
+        }
+        throw new Error("Invalid offset!");
+    },
+
+    /**
+     * Determine the number of indices initially in the model.
+     *
+     * The strategy used is to load the first and last rows from the server so
+     * that the approximate size of the data set is known.  From this, the
+     * total number of rows is estimated.
+     *
+     * @return: A L{Divmod.Defer.Deferred} which will be called back with the
+     * number of row indices initially present in this RegionModel.  This is
+     * just an estimate, so it may change later.
+     */
+
+    function _initialize(self) {
+        var pagesize = self._pagesize;
+        if (self._outstandingInitRequest !== undefined) {
+            return self._outstandingInitRequest;
+        }
+        var valueRequests;
+        if (self._sortAscending) {
+            valueRequests = Divmod.Defer.gatherResults(
+                [self.server.rowsAfterValue(null, pagesize),
+                 self.server.rowsBeforeValue(null, pagesize)]);
+        } else {
+            var swap = function (x) {
+                x.reverse();
+                return x;
+            }
+            var x1 = self.server.rowsBeforeValue(null, pagesize).addCallback(swap);
+            var x2 = self.server.rowsAfterValue(null, pagesize).addCallback(swap);
+            valueRequests = Divmod.Defer.gatherResults([x1, x2]);
+        }
+        self._outstandingInitRequest = valueRequests;
+        valueRequests.addCallback(function (result) {
+            var firstRows = result[0];
+            var lastRows = result[1];
+
+            if (firstRows.length === 0) {
+                return 0;
+            }
+            if (firstRows.length < pagesize) {
+                /* This is the "very little data" case.  We asked for N rows,
+                 * and got back fewer than N, which means that we have seen
+                 * the end of the data set in the same result as the
+                 * beginning.  Store the rows and then say that we're done.
+                 */
+                self.insertRowData(0, firstRows);
+                return firstRows.length;
+            } else if (firstRows.length === pagesize) {
+                /* This is the average case.  We requested some rows and got
+                 * back exactly that many, which means there may be some more
+                 * rows.  It's also possilbe that the entire data-set matches
+                 * the page size exactly.
+                 */
+                self.insertRowData(0, firstRows);
+                // XXX TODO: I need to estimate a reasonable number here; 1000
+                // isn't particularly good.
+                self.insertRowData(1000, lastRows); 
+                var lastRegion = self._regions[self._regions.length - 1];
+                return lastRegion.firstOffset() + lastRegion.rows.length;
+            } else {
+                throw new Error("The server returned more rows than we asked for.");
+            }
+        });
+        valueRequests.addBoth(function (result) {
+            delete self._outstandingInitRequest;
+            self._initialized = true;
+            return result;
+        });
+        return valueRequests;
+    });
+
+
+Mantissa.ScrollTable.DOMRegionView = Divmod.Class.subclass(
+    'Mantissa.ScrollTable.DOMRegionView');
+
+/**
+ * A DOMRegionView is the DOM-manipulating view class for a single RowRegion
+ * within a RegionModel.
+ *
+ * @ivar tableView: a L{ScrollTable} representing the view of the entire table
+ * that this view is a member of.
+ *
+ * @ivar rowRegion: a L{RegionModel} instance containing row data for the
+ * region that this view is rendering.
+ *
+ * @ivar node: an absolutely-positioned node within my tableView which
+ * contains nodes for rows in this region and nodes for groups of rows merged
+ * from other regions.
+ */
+Mantissa.ScrollTable.DOMRegionView.methods(
+    /**
+     * Create a DOMRegionView with a ScrollTable and a RowRegion.
+     *
+     * @param tableView: a L{ScrollTable} used to initialize the tableView
+     * attribute.  (See class docstring.)
+     *
+     * @param rowRegion: a L{RowRegion} used to initialize the L{rowRegion}
+     * attribute.  (See class docstring.)
+     */
+    function __init__(self, tableView, rowRegion) {
+        self.tableView = tableView;
+        self.rowRegion = rowRegion;
+        self.node = self._makeNodeForRegion();
+        self.tableView.node.appendChild(self.node);
+        self.node.appendChild(self._makeNodeForRows());
+        self.refreshViewOffset();
+    },
+
+    /**
+     * Create a DOM element to represent a region and return it.
+     *
+     * @return: an unparented DOM node with no padding, margin, or borders,
+     * which is absolutely positioned at an appropriate offset from the top of
+     * the scrolling area.
+     */
+    function _makeNodeForRegion(self) {
+        var regionNode = document.createElement('div');
+        regionNode.style.border = '0px';
+        regionNode.style.margin = '0px';
+        regionNode.style.padding = '0px';
+        regionNode.style.position = 'absolute';
+        return regionNode;
+    },
+
+    /**
+     * Make a container node to hold rows.
+     */
+    function _makeRowContainerNode(self) {
+        var rowsNode = MochiKit.DOM.DIV({"class": "row-container-node"});
+        rowsNode.style.border = '0px';
+        rowsNode.style.margin = '0px';
+        rowsNode.style.padding = '0px';
+        return rowsNode;
+    },
+
+    /**
+     * Create an inner DOM node containing all the rows within this region, as
+     * distinct from the region itself, so that the rows can be migrated as a
+     * group.
+     */
+    function _makeNodeForRows(self) {
+        var rowsNode = self._makeRowContainerNode();
+        var row, rowNode;
+        for(var i = 0; i < self.rowRegion.rows.length; i++) {
+            row = self.rowRegion.rows[i];
+            /* XXX _createRow shouldn't really take an offset argument; we
+             * need to figure out another way to make the rows alternate
+             * colors. */
+            rowNode = self.tableView._createRow(self.rowRegion.offset + i,
+                                                row);
+            rowsNode.appendChild(rowNode);
+        }
+        return rowsNode;
+    },
+
+    /* "public" region view interface, for interacting with RegionModel */
+
+    /**
+     * Merge this DOMRegionView with another that follows it by subsuming its
+     * only DOM child, the row-containing node.
+     *
+     * @param regionView: another DOMRegionView object, which is contiguous
+     * with this one.
+     *
+     * @param newDataStart: an integer, the local offset into the regionView
+     * argument where new data begins.
+     */
+    function mergeWithRegionView(self, regionView, newDataStart) {
+        for(var i = 0; i < newDataStart; i++) {
+            regionView.removeViewRow(0);
+        }
+        var otherRegionViewNode = regionView.node.childNodes[0];
+        otherRegionViewNode.parentNode.removeChild(otherRegionViewNode);
+        self.node.childNodes[0].appendChild(otherRegionViewNode);
+        regionView.destroy();
+    },
+
+    /**
+     * Determine if a row node is a container node.
+     */
+    function _isRowContainerNode(self, node) {
+        return MochiKit.DOM.hasElementClass(node, "row-container-node");
+    },
+
+    /**
+     * Remove a row node from this DOMRegionView's row content node.
+     *
+     * @param localOffset: an integer representing an offset into this
+     * DOMRegionView's data.  The first row in this region is at local offset
+     * 0.
+     */
+    function removeViewRow(self, localOffset) {
+        var plat = Divmod.Runtime.Platform;
+        var topRegionContainer = self.node.childNodes[0];
+        var currentOffset = 0;
+        Divmod.Runtime.theRuntime.traverse(
+            topRegionContainer,
+            function (aNode) {
+                if (self._isRowContainerNode(aNode)) {
+                    return plat.DOM_DESCEND;
+                } else {
+                    if (currentOffset === localOffset) {
+                        aNode.parentNode.removeChild(aNode);
+                        return plat.DOM_TERMINATE;
+                    }
+                    currentOffset++;
+                    return plat.DOM_CONTINUE;
+                }
+        });
+    },
+
+    /**
+     * Update this region's node's pixel offset within its parent node to
+     * reflect a new offset of its region.
+     */
+    function refreshViewOffset(self) {
+        var topNum = (self.rowRegion.firstOffset() *
+                      self.tableView._getRowHeight());
+        var topStyle = topNum.toString() + 'px';
+        self.node.style.top = topStyle;
+    },
+
+    /**
+     * Destroy this region view, removing it from the DOM.
+     */
+    function destroy(self) {
+        self.node.parentNode.removeChild(self.node);
+    });
+
+
+/**
+ * This object maps column type names (sent from the server) to column classes
+ * on the client.
+ */
+
+Mantissa.ScrollTable._columnTypes = {
+    'integer': Mantissa.ScrollTable.IntegerColumn,
+    'text': Mantissa.ScrollTable.TextColumn,
+    'timestamp': Mantissa.ScrollTable.TimestampColumn,
+    'boolean': Mantissa.ScrollTable.BooleanColumn
+};
+
+Mantissa.ScrollTable.ScrollTable = Mantissa.ScrollTable._ScrollingBase.subclass(
+    'Mantissa.ScrollTable.ScrollTable');
+
+/**
+ * A ScrollTable is a scrolling viewport which can view a collection of data
+ * on the server.  It is designed around the notion that the server's
+ * representation is a large B-tree, and it requests data by values in that
+ * tree rather than by offset.
+ *
+ * This is the newest, best scrolling table implementation that everything
+ * should use from now on.  L{Mantissa.TDB} and, to a lesser extent,
+ * L{Mantissa.ScrollTable.ScrollingWidget} are both sub-optimal
+ * implementations of this and will eventually be removed.
+ */
+Mantissa.ScrollTable.ScrollTable.methods(
+    /**
+     * Create a scrolltable.
+     *
+     * @param node: a DOM node, which will be used for the scrolling viewport.
+     *
+     * @param currentSortColumn: a L{String}, the name of the column that is
+     * initially used for sorting.
+     *
+     * @param columnList: an L{Array} of objects with 'type' and 'name'
+     * attributes.
+     *
+     * @param defaultSortAscending: a boolean, the initial sort ordering of
+     * the scroll model; true for ascending, false for descending.
+     */
+    function __init__(self, node, currentSortColumn, columnList,
+                      defaultSortAscending) {
+        Mantissa.ScrollTable.ScrollTable.upcall(self, '__init__', node);
+        var column, columnClass;
+        var columns = {};
+
+        var legacyColumnNames = [];
+        var legacyColumnTypes = {};
+
+        for (var i = 0; i < columnList.length; ++i) {
+            column = columnList[i];
+            columnClass = Mantissa.ScrollTable._columnTypes[column.type];
+            if (columnClass === undefined) {
+                throw new Error('no handler for column type: ' + column.type);
+            }
+            columns[column.name] = columnClass(column.name);
+
+            legacyColumnTypes[column.name] = [column.type, false]; // type, sortable
+            legacyColumnNames.push(column.name);
+        }
+
+        /* These are set for _ScrollingBase.  Hopefully they can be removed
+         * when the offending subclass in Mailbox.js stops depending on them.
+         * See its docstring.
+         */
+        self.columnTypes = legacyColumnTypes;
+        self.columnNames = legacyColumnNames;
+        /* end legacy crap */
+
+        self.columns = columns;
+        self.sortColumn = columns[currentSortColumn];
+        self.model = Mantissa.ScrollTable.RegionModel(
+            self, self, self.sortColumn, defaultSortAscending);
+
+        /* Treat this widget's node to convert it into a scrolling table.
+         */
+        self.node.style.overflow = 'auto';
+        self.node.style.position = 'relative';
+        self.node.style.height = '300px'; // provide hooks to calculate this
+                                          // better
+
+        self.connectDOMEvent("onscroll");
+        self._debounceInterval = 0.5;
+        self._processingScrollEvent = null;
+    },
+
+    ////// Begin compatibility with old scrolltable for easier replacement of
+    ////// the Quotient Mailbox view
+
+    /**
+     * Upon inserting the node into the DOM, calculate heights for headers,
+     * rows, and the table itself.
+     */
+    function loaded(self) {
+        /* XXX This is fakery.  We don't support headers yet, this node is
+         * just for satisfying the base class.
+         */
+        self._headerRow = document.createElement("div");
+        /* More legacy attributes are set within resetColumns, and we'll need
+         * them for rendering things.
+         */
+        self.resetColumns();
+        self._detectPageSize();
+        self.model._initialize();
+    },
+
+    /**
+     * Invalidate this scrolltable and re-request its seed data from the
+     * server.
+     */
+    function emptyAndRefill(self) {
+        self.model.empty();
+        return self.model._initialize();
+    },
+
+    /**
+     * Remove a row at the given offset from the local data-set and DOM.  This
+     * method does not affect the server.
+     */
+    function removeRow(self, offset) {
+        self.model.removeRow(offset);
+    },
+
+    /**
+     * This is invoked internally to get a test row since it is overridden in
+     * subclasses, but it should no longer be necessary.
+     */
+    function _getRowGuineaPig(self) {
+        return self._createRow(0, self._makeFakeData());
+    },
+
+    /**
+     * Override row creation to simplify it from the base implementation,
+     * since we require a <DIV> container, not a <TABLE>, for the DOM
+     * techniques employed in this scroll area.
+     */
+    function makeRowElement(self, rowOffset, rowData, cells) {
+        return MochiKit.DOM.DIV({"class": "scroll-row",
+                "style": "clear: both; border: 0px; padding: 0px; margin: 0px"},
+                                cells);
+    },
+
+    /**
+     * Override cell creation to simplify it from the base implementation,
+     * since we require a <DIV> row container, not a <TR>, for the DOM
+     * techniques employed in this scroll area.
+     */
+    function makeCellElement(self, colName, rowData) {
+        var attrs = {"class": "scroll-cell",
+                     'style': "padding-left: 5px;"};
+        if(self.columnWidths && colName in self.columnWidths) {
+            attrs["style"] += "width:" + self.columnWidths[colName];
+        }
+        var node = MochiKit.DOM.SPAN(
+            attrs,
+            /* there is an IE bug (See other implementation of makeCellElement
+             * above) which required a containing node.  Perhaps we can
+             * abandon the SPAN at some point once we have verified it does
+             * not affect IE?
+             */
+            MochiKit.DOM.A({"href": rowData.__id__},
+            self.massageColumnValue(
+                colName,
+                self.columnTypes[colName][0],
+                rowData[colName])));
+        if (self.columnTypes[colName][0] == "fragment") {
+            Divmod.Runtime.theRuntime.setNodeContent(
+                node.firstChild,
+                '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName]
+                + '</div>');
+        }
+        return node;
+    },
+
+    ////// End compatibility with old scrolltable for Mailbox view
+
+    /**
+     * Detect the height of our node and the height of one row, and from that
+     * extrapolate the smallest number of rows we must request per page.  Save
+     * that value as the model's "_pagesize" attribute.
+     */
+    function _detectPageSize(self) {
+        var rowHeight = self._getRowHeight();
+        var viewportHeight = (
+            Divmod.Runtime.theRuntime.getElementSize(self.node).h);
+        if (viewportHeight !== 0) {
+            self.model._pagesize = Math.max(
+                Math.ceil(viewportHeight / rowHeight), 2);
+        }
+    },
+
+    /**
+     * event handler for 'onscroll' DOM event, which requests more rows if the
+     * scrollbar remains in the same position for long enough.
+     */
+    function onscroll(self, event) {
+        if (self._processingScrollEvent !== null) {
+            self._processingScrollEvent.cancel();
+        }
+        self._processingScrollEvent = self.callLater(
+            self._debounceInterval, function () {
+                self._processingScrollEvent = null;
+                /* The user has remained still on a particular row for
+                 * _debounceInterval seconds.  Time to issue a real scroll
+                 * event to our model.
+                 */
+                self.model.expose(Math.floor(self.node.scrollTop /
+                                             self._getRowHeight()));
+        });
+    },
+
+    /**
+     * @return: a fake data object which has all the values from the columns
+     * described by this table.  This is used to generate representative data
+     * suitable for creating a sample row view with the DOM creation methods,
+     * which is used to calculate the height of a single row.
+     */
+    function _makeFakeData(self) {
+        var fakeRow = {};
+        for (var columnName in self.columns) {
+            var colObj = self.columns[columnName];
+            fakeRow[columnName] = colObj.fakeValue();
+        }
+        return fakeRow;
+    },
+
+    /**
+     * Calculate the height of a 'standard' row, and return it.
+     */
+
+    function _getRowHeight(self) {
+        // XXX What should probably happen here is we should look for real
+        // rows and only create the fake one if we really need it, caching the
+        // value...
+        var fakeNode = self._getRowGuineaPig();
+        var enclosing = document.createElement("div");
+
+        enclosing.appendChild(fakeNode);
+
+        /* Don't show this to the user.  We need to add it to the document to
+         * realize it and give it real height and width attributes, but that's
+         * all!
+         */
+        enclosing.style.position = 'absolute';
+        enclosing.style.visibility = 'hidden';
+
+        /* Since browsers have an inconsistent box model, we need to make sure
+         * that none of the elements which may get involved in calculation of
+         * the height of this element have any value whatsoever.
+         */
+        enclosing.style.border = '0px';
+        enclosing.style.margin = '0px';
+        enclosing.style.padding = '0px';
+
+        /* Finally the enclosing node must be actually in the document
+         * somewhere in order to be measured.  Let's put it within our node so
+         * that all the styles and so on apply to it.
+         */
+        self.node.appendChild(enclosing);
+        var theHeight = enclosing.clientHeight;
+        /* No reason to leave it there, though. */
+        self.node.removeChild(enclosing);
+        return theHeight;
+    },
+
+    /* server methods */
+    function rowsBeforeValue(self, value, count) {
+        return self.callRemote('rowsBeforeValue', value, count);
+    },
+
+    function rowsAfterValue(self, value, count) {
+        return self.callRemote('rowsAfterValue', value, count);
+    },
+
+    function rowsAfterRow(self, row, count) {
+        return self.callRemote('rowsAfterRow', row, count);
+    },
+
+    /* view methods */
+    function createRegionView(self, rowRegion) {
+        return Mantissa.ScrollTable.DOMRegionView(self, rowRegion);
+    });

@@ -27,11 +27,20 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         """
         return 'Mantissa.Test.TestPlaceholder'
 
+
     def test_autocomplete(self):
         """
         Tests the model object which tracks client-side autocomplete state
         """
         return 'Mantissa.Test.TestAutoComplete'
+
+
+    def test_region(self):
+        """
+        Test the model objects which track placeholder nodes in the message
+        scrolltable.
+        """
+        return 'Mantissa.Test.TestRegionModel'
 
 
     def test_people(self):

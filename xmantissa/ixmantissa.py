@@ -11,13 +11,14 @@ from nevow.inevow import IRenderer
 
 class IColumn(Interface):
     """
-    Represents a column, and provides hints & metadata about the column
+    Represents a column that can be viewed via a scrolling table, and provides
+    hints & metadata about the column.
     """
 
     def sortAttribute():
         """
-        return a sortable axiom.attribute, or None if this column
-        cannot be sorted
+        @return: a sortable axiom.attribute, or None if this column cannot be
+        sorted
         """
 
     def extractValue(model, item):
@@ -25,7 +26,7 @@ class IColumn(Interface):
         @type model: L{xmantissa.tdb.TabularDataModel}
         @param item: the L{axiom.item.Item} from which to extract column value
 
-        returns the underlying value for this column
+        @return: the underlying value for this column
         """
 
     def getType():

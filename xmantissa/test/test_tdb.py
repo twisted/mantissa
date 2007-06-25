@@ -1,9 +1,14 @@
+
+from epsilon.hotfix import require
+
+require("twisted", "trial_assertwarns")
+
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer, text, AND
 from twisted.trial import unittest
 
-from xmantissa import tdb
+from xmantissa import tdb, scrolltable
 
 class X(Item):
     typeName = 'test_tdb_model_dummy'
@@ -27,6 +32,32 @@ digits = ['zero',
 def breakdown(x):
     for c in x:
         yield digits[int(c)]
+
+
+class UnsortableColumn(scrolltable.AttributeColumn):
+    def sortAttribute(self):
+        return None
+
+
+class DeprecatedNamesTest(unittest.TestCase):
+    """
+    Verify that deprecated names in the 'tdb' module warn appropriately.
+    """
+
+    def test_attributeColumn(self):
+        """
+        Verify that using the AttributeColumn name imported from 'tdb' will warn
+        the user when it is instantiated.
+        """
+        def function():
+            attrcol = tdb.AttributeColumn(X.number)
+        self.assertWarns(
+            DeprecationWarning,
+            ("tdb.AttributeColumn is deprecated.  "
+             "Use scrolltable.AttributeColumn instead.",),
+            __file__, function)
+
+
 
 class ModelTest(unittest.TestCase):
 
@@ -378,10 +409,6 @@ class ModelTest(unittest.TestCase):
         _assertNumbersAre(list(reversed(range(15))))
 
     def testUnsortableColumns(self):
-        class UnsortableColumn(tdb.AttributeColumn):
-            def sortAttribute(self):
-                return None
-
         tdm = tdb.TabularDataModel(self.store,
                 X, [X.number,
                     UnsortableColumn(X.textNumber),
@@ -389,8 +416,10 @@ class ModelTest(unittest.TestCase):
                 itemsPerPage=15)
 
         self.assertNumbersAre(tdm, range(15))
-        self.assertRaises(tdb.Unsortable, lambda: tdm.resort('textNumber'))
-        self.assertRaises(tdb.Unsortable, lambda: tdm.resort('phoneticDigits'))
+        self.assertRaises(scrolltable.Unsortable,
+                          lambda: tdm.resort('textNumber'))
+        self.assertRaises(scrolltable.Unsortable,
+                          lambda: tdm.resort('phoneticDigits'))
         # check to see if the last valid state remains
         self.assertNumbersAre(tdm, range(15))
 
