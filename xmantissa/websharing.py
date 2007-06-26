@@ -10,8 +10,6 @@ Users' publicly shared objects are exposed at the url::
 
 """
 
-import warnings
-
 from zope.interface import implements
 
 from axiom import userbase, attributes
@@ -74,28 +72,104 @@ def getDefaultShareID(store):
 
 
 
-def linkTo(sharedProxyOrItem, store=None):
+class _ShareURL(url.URL):
+    """
+    An L{url.URL} subclass which inserts share ID as a path segment in the URL
+    just before the first call to L{child} modifies it.
+    """
+    def __init__(self, shareID, *a, **k):
+        """
+        @param shareID: The ID of the share we are generating a URL for.
+        @type shareID: C{unicode}.
+        """
+        self._shareID = shareID
+        url.URL.__init__(self, *a, **k)
+
+
+    def child(self, path):
+        """
+        Override the base implementation to inject the share ID our
+        constructor was passed.
+        """
+        if self._shareID is not None:
+            self = url.URL.child(self, self._shareID.encode('ascii'))
+            self._shareID = None
+        return url.URL.child(self, path)
+
+
+    def cloneURL(self, scheme, netloc, pathsegs, querysegs, fragment):
+        """
+        Override the base implementation to pass along the share ID our
+        constructor was passed.
+        """
+        return self.__class__(
+            self._shareID, scheme, netloc, pathsegs, querysegs, fragment)
+
+
+    # there is no point providing an implementation of any these methods which
+    # accepts a shareID argument; they don't really mean anything in this
+    # context.
+
+    def fromString(cls, string):
+        """
+        Override the base implementation to throw L{NotImplementedError}.
+
+        @raises L{NotImplementedError}: always.
+        """
+        raise NotImplementedError(
+            'fromString is not implemented on %r' % (cls.__name__,))
+    fromString = classmethod(fromString)
+
+
+    def fromRequest(cls, req):
+        """
+        Override the base implementation to throw L{NotImplementedError}.
+
+        @raises L{NotImplementedError}: always.
+        """
+        raise NotImplementedError(
+            'fromRequest is not implemented on %r' % (cls.__name__,))
+    fromRequest = classmethod(fromRequest)
+
+
+    def fromContext(cls, ctx):
+        """
+        Override the base implementation to throw L{NotImplementedError}.
+
+        @raises L{NotImplementedError}: always.
+        """
+        raise NotImplementedError(
+            'fromContext is not implemented on %r' % (cls.__name__,))
+    fromContext = classmethod(fromContext)
+
+
+
+def linkTo(sharedProxyOrItem):
     """
     Generate the path part of a URL to link to a share item or its proxy.
 
     @param sharedProxy: a L{sharing.SharedProxy} or L{sharing.Share}
 
-    @param store: this argument was redundant and is now deprecated.
-
-    @return: an absolute path URL string, which looks like
-    '/users/user@host/shareID'
+    @return: a URL object, which when converted to a string will look
+    something like '/users/user@host/shareID'
+    @rtype: L{nevow.url.URL}
 
     @rtype: str
     """
-    if store is not None:
-        warnings.warn("Do not pass store argument.", DeprecationWarning, stacklevel=2)
     if isinstance(sharedProxyOrItem, sharing.SharedProxy):
         userStore = sharing.itemFromProxy(sharedProxyOrItem).store
     else:
         userStore = sharedProxyOrItem.store
     for lm in userbase.getLoginMethods(userStore):
         if lm.internal:
-            return '/users/' + lm.localpart.encode('ascii') + '/' + sharedProxyOrItem.shareID.encode("ascii")
+            path = ['users', lm.localpart.encode('ascii')]
+            if sharedProxyOrItem.shareID == getDefaultShareID(userStore):
+                shareID = sharedProxyOrItem.shareID
+                path.append('')
+            else:
+                shareID = None
+                path.append(sharedProxyOrItem.shareID)
+            return _ShareURL(shareID, scheme='', netloc='', pathsegs=path)
 
 
 

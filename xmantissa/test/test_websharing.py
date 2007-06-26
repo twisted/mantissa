@@ -7,7 +7,7 @@ from twisted.python.components import registerAdapter
 
 from twisted.trial.unittest import TestCase
 
-from nevow import inevow, rend
+from nevow import inevow, rend, url
 from nevow.athena import LiveElement
 from nevow.testutil import FakeRequest
 
@@ -79,24 +79,102 @@ class WebSharingTestCase(TestCase):
         self._verifyPath(websharing.linkTo(self.share))
 
 
-    def _verifyPath(self, linkPath):
+    def _verifyPath(self, linkURL):
         """
-        Verify that the given path matches the test's expectations.
+        Verify that the given url matches the test's expectations.
         """
-        self.failUnless(isinstance(linkPath, str),
-                        "linkTo should return a str, not %r" %
-                        (type(linkPath)))
-        self.assertEquals(linkPath, '/users/right/loginsystem')
+        self.failUnless(isinstance(linkURL, url.URL),
+                        "linkTo should return a nevow.url.URL, not %r" %
+                        (type(linkURL)))
+        self.assertEquals(str(linkURL), '/users/right/loginsystem')
 
 
     def test_linkToProxy(self):
         """
-        Test that L{xmantissa.websharing.linkTo} generates an URL that I can
+        Test that L{xmantissa.websharing.linkTo} generates a URL that I can
         link to.
         """
         self._verifyPath(
             websharing.linkTo(sharing.getShare(self.s, sharing.getEveryoneRole(
                         self.s), u'loginsystem')))
+
+
+    def test_shareURLInjectsShareID(self):
+        """
+        Test that L{xmantissa.websharing._ShareURL} injects the share ID the
+        constructor is passed when C{child} is called.
+        """
+        shareURL = websharing._ShareURL(u'a', netloc='', scheme='')
+        self.assertEqual(str(shareURL.child('c')), '/a/c')
+        # make sure subsequent child calls on the original have the same
+        # behaviour
+        self.assertEqual(str(shareURL.child('d')), '/a/d')
+        # and that child calls on the returned urls don't (i.e. not
+        # '/a/c/a/d'
+        self.assertEqual(str(shareURL.child('c').child('d')), '/a/c/d')
+
+
+    def test_shareURLNoStoreID(self):
+        """
+        Test that L{xmantissa.websharing._ShareURL} behaves like a regular
+        L{nevow.url.URL} when no store ID is passed.
+        """
+        shareURL = websharing._ShareURL(None, netloc='', scheme='')
+        self.assertEqual(str(shareURL.child('a')), '/a')
+        self.assertEqual(str(shareURL.child('a').child('b')), '/a/b')
+
+
+    def test_shareURLNoClassmethodConstructors(self):
+        """
+        Verify that the C{fromRequest}, C{fromContext} and C{fromString}
+        constructors on L{xmantissa.websharing._ShareURL} throw
+        L{NotImplementedError}.
+        """
+        for meth in (websharing._ShareURL.fromRequest,
+                     websharing._ShareURL.fromString,
+                     websharing._ShareURL.fromContext):
+            self.assertRaises(
+                NotImplementedError,
+                lambda: meth(None))
+
+
+    def test_shareURLCloneMaintainsShareID(self):
+        """
+        Test that L{xmantissa.websharing._ShareURL} can be cloned, and that
+        clones will remember the share ID.
+        """
+        shareURL = websharing._ShareURL(u'a', netloc='', scheme='')
+        shareURL = shareURL.cloneURL('', '', None, None, '')
+        self.assertEqual(shareURL._shareID, u'a')
+
+
+    def test_defaultShareIDInteractionMatching(self):
+        """
+        Verify that L{websharing.linkTo} does not explicitly include a share
+        ID in the URL if the ID of the share it is passed matches the default.
+        """
+        websharing.addDefaultShareID(self.s, u'share-id', 0)
+        sharing.shareItem(Shareable(store=self.s), shareID=u'share-id')
+        share = sharing.getShare(
+            self.s, sharing.getEveryoneRole(self.s), u'share-id')
+        url = websharing.linkTo(share)
+        self.assertEqual(str(url), '/users/right/')
+        # and if we call child()
+        self.assertEqual(str(url.child('child')), '/users/right/share-id/child')
+
+
+    def test_defaultShareIDInteractionNoMatch(self):
+        """
+        Verify that L{websharing.linkTo} explicitly includes a share ID in the
+        URL if the ID of the share it is passed doesn't match the default.
+        """
+        websharing.addDefaultShareID(self.s, u'share-id', 0)
+        shareable = Shareable(store=self.s)
+        sharing.shareItem(Shareable(store=self.s), shareID=u'not-the-share-id')
+        share = sharing.getShare(
+            self.s, sharing.getEveryoneRole(self.s), u'not-the-share-id')
+        url = websharing.linkTo(share)
+        self.assertEqual(str(url), '/users/right/not-the-share-id')
 
 
 
@@ -294,7 +372,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         localpart of the account's internal L{axiom.userbase.LoginMethod}
         """
         websharing.addDefaultShareID(self.userStore, u'ashare', 0)
-        pathString = websharing.linkTo(self.share)
+        pathString = str(websharing.linkTo(self.share))
         self.assertEquals(pathString[0], "/") # sanity check
         segments = tuple(pathString[1:].split("/"))
         self._verifySegmentsMatch(segments)
