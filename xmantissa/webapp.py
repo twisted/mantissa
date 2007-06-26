@@ -35,12 +35,14 @@ from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.offering import getInstalledOfferings
 
-from xmantissa.ixmantissa import INavigableFragment, INavigableElement,\
-    ISiteRootPlugin, IWebTranslator, IStaticShellContent
+from xmantissa.ixmantissa import (
+    INavigableFragment, INavigableElement, ISiteRootPlugin, IWebTranslator,
+    IStaticShellContent, ITemplateNameResolver)
 
 from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
 from xmantissa.search import SearchAggregator
+
 
 def _reorderForPreference(themeList, preferredThemeName):
     """
@@ -481,11 +483,10 @@ class PrivateApplication(Item, PrefixURLMixin):
 
     implements(ISiteRootPlugin, IWebTranslator)
 
-    powerupInterfaces = (IWebTranslator,)
+    powerupInterfaces = (IWebTranslator, ITemplateNameResolver)
 
     typeName = 'private_web_application'
-    schemaVersion = 3
-
+    schemaVersion = 4
 
     preferredTheme = text()
     hitCount = integer(default=0)
@@ -591,6 +592,19 @@ declareLegacyItem(PrivateApplication.typeName, 2, dict(
     privateIndexPage = reference(),
     ))
 
+PrivateApplicationV3 = declareLegacyItem(PrivateApplication.typeName, 3, dict(
+    preferredTheme=text(),
+    hitCount=integer(default=0),
+    privateKey=integer(),
+    privateIndexPage=reference(),
+    customizedPublicPage=reference("dependsOn(CustomizedPublicPage)"),
+    authenticationApplication=reference("dependsOn(AuthenticationApplication)"),
+    preferenceAggregator=reference("dependsOn(PreferenceAggregator)"),
+    defaultPreferenceCollection=reference("dependsOn(DefaultPreferenceCollection)"),
+    searchAggregator=reference("dependsOn(SearchAggregator)"),
+    website=reference(),
+    ))
+
 def upgradePrivateApplication1To2(oldApp):
     newApp = oldApp.upgradeVersion(
         'private_web_application', 1, 2,
@@ -619,3 +633,34 @@ def _upgradePrivateApplication2to3(old):
     pa.website = old.store.findOrCreate(WebSite)
 
 upgrade.registerUpgrader(_upgradePrivateApplication2to3, PrivateApplication.typeName, 2, 3)
+
+def upgradePrivateApplication3to4(old):
+    """
+    Upgrade L{PrivateApplication} from schema version 3 to schema version 4.
+
+    Copy all existing attributes to the new version and use the
+    L{PrivateApplication} to power up the item it is installed on for
+    L{ITemplateNameResolver}.
+    """
+    new = old.upgradeVersion(
+        PrivateApplication.typeName, 3, 4,
+        preferredTheme=old.preferredTheme,
+        hitCount=old.hitCount,
+        privateKey=old.privateKey,
+        website=old.website,
+        customizedPublicPage=old.customizedPublicPage,
+        authenticationApplication=old.authenticationApplication,
+        preferenceAggregator=old.preferenceAggregator,
+        defaultPreferenceCollection=old.defaultPreferenceCollection,
+        searchAggregator=old.searchAggregator)
+    # Almost certainly this would be more correctly expressed as
+    # installedOn(new).powerUp(...), however the 2 to 3 upgrader failed to
+    # translate the installedOn attribute to state which installedOn can
+    # recognize, consequently installedOn(new) will return None for an item
+    # which was created at schema version 2 or earlier.  It's not worth dealing
+    # with this inconsistency, since PrivateApplication is always only
+    # installed on its store. -exarkun
+    new.store.powerUp(new, ITemplateNameResolver)
+    return new
+
+upgrade.registerUpgrader(upgradePrivateApplication3to4, PrivateApplication.typeName, 3, 4)

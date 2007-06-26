@@ -15,6 +15,7 @@ from nevow.rend import WovenContext
 from nevow.testutil import FakeRequest
 from nevow.inevow import IRequest, IResource
 
+from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa import website, webapp
 from xmantissa.webtheme import getAllThemes
 
@@ -30,6 +31,16 @@ class WebIDLocationTest(TestCase):
         ss = SubStore.createNew(store, ['test']).open()
         self.pa = webapp.PrivateApplication(store=ss)
         installOn(self.pa, ss)
+
+
+    def test_powersUpTemplateNameResolver(self):
+        """
+        L{PrivateApplication} implements L{ITemplateNameResolver} and should
+        power up the store it is installed on for that interface.
+        """
+        self.assertIn(
+            self.pa,
+            self.pa.store.powerupsFor(ITemplateNameResolver))
 
 
     def test_suchWebID(self):
