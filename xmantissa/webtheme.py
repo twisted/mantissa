@@ -32,9 +32,15 @@ def getInstalledThemes(store):
 
 _marker = object()
 
-def getLoader(n, default=_marker):
+def _realGetLoader(n, default=_marker):
     """
-    Deprecated.  Don't call this.
+    Search all themes for a template named C{n}, returning a loader
+    for it if found. If not found and a default is passed, the default
+    will be returned. Otherwise C{RuntimeError} will be raised.
+
+    This function is deprecated in favor of using a L{ThemedElement}
+    for your view code, or calling
+    ITemplateNameResolver(userStore).getDocFactory.
     """
     for t in getAllThemes():
         fact = t.getDocFactory(n, None)
@@ -43,6 +49,24 @@ def getLoader(n, default=_marker):
     if default is _marker:
         raise RuntimeError("No loader for %r anywhere" % (n,))
     return default
+
+_loaderCache = {}
+def _memoizedGetLoader(n, default=_marker):
+    """
+
+    Find a loader for a template named C{n}, returning C{default} if
+    it is provided. Otherwise raise an error. This function caches
+    loaders it finds.
+
+    This function is deprecated in favor of using a L{ThemedElement}
+    for your view code, or calling
+    ITemplateNameResolver(userStore).getDocFactory.
+    """
+    if n not in _loaderCache:
+        _loaderCache[n] = _realGetLoader(n, default)
+    return _loaderCache[n]
+
+getLoader = _memoizedGetLoader
 
 class XHTMLDirectoryTheme(object):
     """

@@ -22,6 +22,7 @@ from axiom.substore import SubStore
 from axiom.dependency import installOn
 
 from xmantissa.port import TCPPort
+from xmantissa import webtheme
 from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
@@ -29,6 +30,7 @@ from xmantissa.webtheme import (
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
+from zope.interface import implements
 
 from xmantissa.publicweb import PublicAthenaLivePage
 from xmantissa.webapp import (GenericNavigationAthenaPage, _PageComponents,
@@ -36,7 +38,7 @@ from xmantissa.webapp import (GenericNavigationAthenaPage, _PageComponents,
 
 def testHead(theme):
     """
-    Check that the head method of the given them doesn't explode.
+    Check that the head method of the given theme doesn't explode.
     @param theme: probably an L{xmantissa.webtheme.XHTMLDirectoryTheme}
     """
     store = Store()
@@ -46,6 +48,28 @@ def testHead(theme):
     installOn(port, store)
     flatten(theme.head(makeRequest(), site))
 
+
+
+class FakeTheme:
+    """
+    Stub theme object for template-loader tests.
+    """
+    implements(ITemplateNameResolver)
+    def __init__(self, name, priority):
+        self.name = name
+        self.priority = priority
+
+    def getDocFactory(self, n, default):
+        """
+        Doesn't have to return anything meaningful, just something
+        recognizable for assertions.
+        """
+        return [self.name, n]
+
+
+class FakeOffering:
+    def __init__(self, name, priority):
+        self.themes = [FakeTheme(name, priority)]
 
 class WebThemeTestCase(TestCase):
     def _render(self, element):
@@ -81,7 +105,7 @@ class WebThemeTestCase(TestCase):
         L{xmantissa.ixmantissa.IOffering} plugins in priority order.
         """
         lastPriority = None
-        for theme in getAllThemes():
+        for theme in webtheme.getAllThemes():
             if lastPriority is None:
                 lastPriority = theme.priority
             else:
@@ -107,6 +131,22 @@ class WebThemeTestCase(TestCase):
         installedThemes = getInstalledThemes(s)
         self.assertEquals(len(installedThemes), 1)
         self.failUnless(isinstance(installedThemes[0], MantissaTheme))
+
+
+    def test_getAllThemes(self):
+        """
+        getAllThemes should collect themes from available offerings.
+        """
+        _getOfferings = webtheme.getOfferings
+        try:
+            webtheme.getOfferings = (lambda: [FakeOffering('foo', 7),
+                                              FakeOffering('baz', 2),
+                                              FakeOffering('boz', 5)])
+            ths = getAllThemes()
+            self.assertEqual([theme.name for theme in ths],
+                             ['foo', 'boz', 'baz'])
+        finally:
+            webtheme.getOfferings = _getOfferings
 
 
     def _defaultThemedRendering(self, cls):
@@ -317,10 +357,13 @@ class WebThemeTestCase(TestCase):
     def test_head(self):
         testHead(MantissaTheme(''))
 
+
+
 CUSTOM_MSG = xmlstr('<div>Athena unsupported here</div>')
 BASE_MSG =  file(sibpath(__file__,
                          "../themes/base/athena-unsupported.html")
                  ).read().strip()
+
 class StubThemeProvider(Item):
     """
     Trivial implementation of a theme provider, for testing that custom
@@ -406,3 +449,35 @@ class AthenaUnsupported(TestCase):
                                                         None, None))
         self.assertEqual(p.renderUnsupported(None).replace('\n ', ''),
                          BASE_MSG)
+
+
+
+class Loader(TestCase):
+    def setUp(self):
+        self._getAllThemes = webtheme.getAllThemes
+        self.gATcalled = 0
+        def fakeGetAllThemes():
+            self.gATcalled += 1
+            return [FakeTheme('foo', 7),
+                    FakeTheme('baz', 2)]
+        webtheme._loaderCache.clear()
+        webtheme.getAllThemes = fakeGetAllThemes
+
+    def tearDown(self):
+        webtheme.getAllThemes = self._getAllThemes
+
+    def test_getLoader(self):
+        """
+        getLoader should search available themes for the named
+        template and return it.
+        """
+        self.assertEquals(webtheme.getLoader('template'),
+                          ['foo', 'template'])
+
+    def test_getLoaderCaching(self):
+        """
+        getLoader should return identical loaders for equal arguments.
+        """
+        self.assertIdentical(webtheme.getLoader('template'),
+                             webtheme.getLoader('template'))
+        self.assertEqual(self.gATcalled, 1)

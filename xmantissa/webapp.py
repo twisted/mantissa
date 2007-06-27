@@ -35,9 +35,9 @@ from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.offering import getInstalledOfferings
 
-from xmantissa.ixmantissa import (
-    INavigableFragment, INavigableElement, ISiteRootPlugin, IWebTranslator,
-    IStaticShellContent, ITemplateNameResolver)
+from xmantissa.ixmantissa import (INavigableFragment, INavigableElement,
+                                  ISiteRootPlugin, IWebTranslator,
+                                  IStaticShellContent, ITemplateNameResolver)
 
 from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
@@ -496,7 +496,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     'root' page, /private/.
     """
 
-    implements(ISiteRootPlugin, IWebTranslator)
+    implements(ISiteRootPlugin, IWebTranslator, ITemplateNameResolver)
 
     powerupInterfaces = (IWebTranslator, ITemplateNameResolver)
 
@@ -574,7 +574,7 @@ class PrivateApplication(Item, PrefixURLMixin):
     def toWebID(self, item):
         return storeIDToWebID(self.privateKey, item.storeID)
 
-
+    #ITemplateNameResolver
     def getDocFactory(self, fragmentName, default=None, _themeCache=None):
         """
         Retrieve a Nevow document factory for the given name.
