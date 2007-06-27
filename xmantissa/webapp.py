@@ -271,7 +271,20 @@ _moduleToHash = {}
 _hashToFile = {}
 class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
     def __init__(self, webapp, fragment, pageComponents):
+        """
+        Top-level container for Mantissa application views.
 
+        @param webapp: a C{PrivateApplication}.
+        @param fragment: The C{Element} or C{Fragment} to display as content.
+        @param pageComponents a C{_PageComponent}.
+
+        This page draws its HTML from the 'shell' template in the preferred
+        theme for the store.  If loaded in a browser that does not support
+        Athena, the page provided by the 'athena-unsupported' template will be
+        displayed instead.
+
+        @see: L{PrivateApplication.preferredTheme}
+        """
         userStore = webapp.store
         siteStore = userStore.parent
         self.website = IResource(siteStore)
@@ -285,6 +298,8 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
             docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
+        self.unsupportedBrowserLoader = (webapp
+                                         .getDocFactory("athena-unsupported"))
 
 
     def _setJSModuleRoot(self, ctx):

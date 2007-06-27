@@ -741,6 +741,11 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
 
         @param fragment: The L{INavigableFragment} provider which will be
         displayed on this page.
+
+        This page draws its HTML from the 'public-shell' template in the active
+        theme.  If loaded in a browser that does not support Athena, the page
+        provided by the 'athena-unsupported' template will be displayed
+        instead.
         """
         self.store = store
         super(PublicAthenaLivePage, self).__init__(
@@ -758,6 +763,12 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
         if forUser is not None:
             assert isinstance(forUser, unicode), forUser
         self.username = forUser
+        resolver = ixmantissa.ITemplateNameResolver(self.store, None)
+        if resolver is not None:
+            self.unsupportedBrowserLoader = (resolver
+                                         .getDocFactory("athena-unsupported"))
+        else:
+            self.unsupportedBrowserLoader = getLoader("athena-unsupported")
 
 
     def render_head(self, ctx, data):

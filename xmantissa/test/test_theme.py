@@ -1,10 +1,11 @@
-
+from zope.interface import implements
 from twisted.web import microdom
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
+from twisted.python.util import sibpath
 
 from nevow.athena import LivePage
-from nevow.loaders import stan
+from nevow.loaders import stan, xmlstr
 from nevow.tags import (
     html, head, body, img, script, link, invisible, directive)
 from nevow.context import WovenContext
@@ -12,18 +13,26 @@ from nevow.testutil import FakeRequest, AccumulatingFakeRequest as makeRequest
 from nevow.flat import flatten
 from nevow.inevow import IRequest
 from nevow.page import renderer
+from nevow.athena import LiveFragment
 
+from axiom.item import Item
+from axiom.attributes import integer
 from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.dependency import installOn
 
 from xmantissa.port import TCPPort
+from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
     ThemedElement, _ThemedMixin)
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
+
+from xmantissa.publicweb import PublicAthenaLivePage
+from xmantissa.webapp import (GenericNavigationAthenaPage, _PageComponents,
+                              PrivateApplication)
 
 def testHead(theme):
     """
@@ -307,3 +316,93 @@ class WebThemeTestCase(TestCase):
 
     def test_head(self):
         testHead(MantissaTheme(''))
+
+CUSTOM_MSG = xmlstr('<div>Athena unsupported here</div>')
+BASE_MSG =  file(sibpath(__file__,
+                         "../themes/base/athena-unsupported.html")
+                 ).read().strip()
+class StubThemeProvider(Item):
+    """
+    Trivial implementation of a theme provider, for testing that custom
+    Athena-unsupported pages can be used.
+    """
+    _attribute = integer(doc="exists to pacify Axiom's hunger for attributes")
+    implements(ITemplateNameResolver)
+    powerupInterfaces = (ITemplateNameResolver,)
+    def getDocFactory(self, name):
+        """
+        Return the page indicating Athena isn't available, if requested.
+        """
+        if name == 'athena-unsupported':
+            return CUSTOM_MSG
+
+
+
+class AthenaUnsupported(TestCase):
+    """
+    Tests for proper treatment of browsers that don't support Athena.
+    """
+    def test_publicPage(self):
+        """
+        Test that L{publicpage.PublicAthenaLivePage} supports themeing of
+        Athena's unsupported-browser page.
+        """
+        store = Store()
+        stp = StubThemeProvider(store=store)
+        installOn(stp, store)
+        p = PublicAthenaLivePage(store, None)
+        self.assertEqual(p.renderUnsupported(None),
+                         flatten(CUSTOM_MSG))
+
+
+    def test_publicPageUncustomized(self):
+        """
+        Test that L{publicpage.PublicAthenaLivePage} renders something when
+        Athena is unsupported, even if there's no customization installed.
+        """
+        store = Store()
+        privapp = PrivateApplication(store=store)
+        installOn(privapp, store)
+        p = PublicAthenaLivePage(store, None)
+        self.assertEqual(p.renderUnsupported(None).replace('\n ', ''),
+                         BASE_MSG)
+
+
+    def test_navPage(self):
+        """
+        Test that L{webapp.GenericNavigationLivePage} supports themeing
+        of Athena's unsupported-browser page.
+        """
+        s = Store(self.mktemp())
+        installOn(WebSite(store=s), s)
+        s.parent = s
+        ss = SubStore.createNew(s, ['athena', 'unsupported'])
+        ss = ss.open()
+        stp = StubThemeProvider(store=ss)
+        installOn(stp, ss)
+        p = GenericNavigationAthenaPage(stp,
+                                        LiveFragment(),
+                                        _PageComponents([], None, None,
+                                                        None, None))
+        self.assertEqual(p.renderUnsupported(None),
+                         flatten(CUSTOM_MSG))
+
+
+    def test_navPageUncustomized(self):
+        """
+        Test that L{webapp.GenericNavigationLivePage} renders something when
+        Athena is unsupported, even if there's no customization installed.
+        """
+        s = Store(self.mktemp())
+        installOn(WebSite(store=s), s)
+        s.parent = s
+        ss = SubStore.createNew(s, ['athena', 'unsupported'])
+        ss = ss.open()
+        privapp = PrivateApplication(store=ss)
+        installOn(privapp, ss)
+        p = GenericNavigationAthenaPage(privapp,
+                                        LiveFragment(),
+                                        _PageComponents([], None, None,
+                                                        None, None))
+        self.assertEqual(p.renderUnsupported(None).replace('\n ', ''),
+                         BASE_MSG)
