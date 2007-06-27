@@ -8,6 +8,7 @@ from twisted.python.components import registerAdapter
 from twisted.trial.unittest import TestCase
 
 from nevow import inevow, rend, url
+from nevow.context import WovenContext
 from nevow.athena import LiveElement
 from nevow.testutil import FakeRequest
 
@@ -455,6 +456,22 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
         res = sharingIndex._makeShareResource(self.shareable)
         self.assertEqual(res.fragment.customizedFor, u'bill@net')
+
+
+    def test_jsModuleURLs(self):
+        """
+        Public pages should use the same JS module URL structure that private
+        pages do, rooted at /__jsmodule__/, so that they can be cached by the
+        browser intelligently.
+        """
+        sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
+        res = sharingIndex._makeShareResource(self.shareable)
+        ctx = WovenContext()
+        req = FakeRequest()
+        ctx.remember(req, inevow.IRequest)
+        res.beforeRender(ctx)
+        urlObj = res.getJSModuleURL('Mantissa')
+        self.assertEqual(urlObj.pathList()[0], '__jsmodule__')
 
 
     def test_shareResourceStore(self):

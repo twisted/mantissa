@@ -1,4 +1,5 @@
 
+import sha
 import socket
 
 from zope.interface import implements
@@ -15,7 +16,9 @@ from nevow.testutil import AccumulatingFakeRequest, renderPage
 from nevow.testutil import renderLivePage, FakeRequest
 from nevow.url import URL
 from nevow.guard import LOGIN_AVATAR
-from nevow.inevow import IResource
+from nevow.inevow import IResource, IRequest
+from nevow.rend import WovenContext
+from nevow.athena import LivePage
 
 from epsilon.scripts import certcreate
 
@@ -29,6 +32,13 @@ from xmantissa import website, signup, publicweb
 from xmantissa.publicweb import LoginPage
 from xmantissa.product import Product
 
+from xmantissa.website import SiteRootMixin, WebSite
+from xmantissa.website import MantissaLivePage
+
+from xmantissa.cachejs import HashedJSModuleProvider
+
+# Secure port number used for testing.
+TEST_SECURE_PORT = 9123
 
 
 def createStore(testCase):
@@ -522,8 +532,151 @@ class UnguardedWrapperTests(unittest.TestCase):
         child, segments = wrapper.locateChild(request, ('login', 'foo'))
         self.assertTrue(isinstance(child, URL))
 
-        # XXX FakeRequest hardcodes `localhost' as the netloc.
         self.assertEqual(
             str(child),
-            str(URL('https', 'localhost:%d' % (port,), ['login', 'foo'])))
+            str(URL('https', 'example.org:%d' % (port,), ['login', 'foo'])))
         self.assertEqual(segments, ())
+
+
+
+class AthenaResourcesTestCase(unittest.TestCase):
+    """
+    Test aspects of L{GenericNavigationAthenaPage}.
+    """
+
+    hostname = 'test-mantissa-live-page-mixin.example.com'
+    def _preRender(self, resource):
+        """
+        Test helper which executes beforeRender on the given resource.
+
+        This is used on live resources so that they don't start message queue
+        timers.
+        """
+        ctx = WovenContext()
+        req = FakeRequest(headers={'host': self.hostname})
+        ctx.remember(req, IRequest)
+        resource.beforeRender(ctx)
+
+
+    def test_jsmodules(self):
+        """
+        Test that the C{__jsmodule__} child of the site's root is an object which
+        will serve up JavaScript modules for Athena applications.
+        """
+        topResource = SiteRootMixin()
+        # Don't even need to provide a store - this data is retrieved from
+        # code, not the database, and it _should never_ touch the database on
+        # the way to getting it.
+        resource, segments = topResource.locateChild(None, ('__jsmodule__',))
+        self.failUnless(isinstance(resource, HashedJSModuleProvider))
+        self.assertEquals(segments, ())
+
+
+    def test_live(self):
+        """
+        Test that the C{live} child of the site's root is a L{LivePage}
+        object.
+        """
+        topResource = SiteRootMixin()
+        (resource, segments) = topResource.locateChild(None, ('live',))
+        self.failUnless(isinstance(resource, LivePage))
+        self.assertEqual(segments, ())
+
+
+    def test_liveNoHitCount(self):
+        """
+        Test that accessing the C{live} child of the site's root does not
+        increment the C{hitCount} attribute.
+        """
+        topResource = SiteRootMixin()
+        topResource.locateChild(None, ('live',))
+        self.assertEqual(topResource.hitCount, 0)
+
+
+    def test_hitsCountedByDefault(self):
+        """
+        Test that children of the site's root will contribute to the hit count
+        if they don't explicitly state otherwise.
+        """
+        topResource = SiteRootMixin()
+        topResource.child_x = lambda *a: (None, ())
+        topResource.locateChild(None, ('x',))
+        self.assertEqual(topResource.hitCount, 1)
+
+
+    def test_hitsCountedifTrue(self):
+        """
+        Test that children of the site's root will contribute to the hit count
+        if they express an interest in doing that.
+        """
+        topResource = SiteRootMixin()
+        topResource.child_x = lambda *a: (None, ())
+        topResource.child_x.countHits = True
+        topResource.locateChild(None, ('x',))
+        self.assertEqual(topResource.hitCount, 1)
+
+
+    def test_hitsNotCountedIfFalse(self):
+        """
+        Test that children of the site's root won't contribute to the hit
+        count if they ask not to.
+        """
+        topResource = SiteRootMixin()
+        topResource.child_x = lambda *a: (None, ())
+        topResource.child_x.countHits = False
+        topResource.locateChild(None, ('x',))
+        self.assertEqual(topResource.hitCount, 0)
+
+
+    def test_transportRoot(self):
+        """
+        The transport root should always point at the '/live' transport root
+        provided to avoid database interaction while invoking the transport.
+        """
+        livePage = self.makeLivePage()
+        self.assertEquals(flatten(livePage.transportRoot), 'http://localhost/live')
+
+
+    def makeLivePage(self):
+        """
+        Create a MantissaLivePage instance for testing.
+        """
+        store = Store()
+        webSite = WebSite(store=store, hostname=self.hostname.decode('ascii'))
+        installOn(webSite, store)
+        SSLPort(store=store, factory=webSite, portNumber=TEST_SECURE_PORT)
+        return MantissaLivePage(webSite)
+
+
+    def test_debuggableMantissaLivePage(self):
+        """
+        L{MantissaLivePage.getJSModuleURL}'s depends on state from page
+        rendering, but it should provide a helpful error message in the case
+        where that state has not yet been set up.
+        """
+        livePage = self.makeLivePage()
+        self.assertRaises(NotImplementedError, livePage.getJSModuleURL, 'Mantissa')
+
+
+    def test_mantissaLivePageMixin(self):
+        """
+        All athena LivePages in Mantissa or Mantissa applications should inherit
+        from MantissaLivePage.  Those pages should all share a getJSModuleURL
+        implementation which provides a URL including 3 segments::
+            https://<hostname>:<ssl port>/__jsmodule__/
+                <SHA1 digest of module contents>/Package.ModuleName
+        """
+        livePage = self.makeLivePage()
+        self._preRender(livePage)
+        jsurl = livePage.getJSModuleURL('Mantissa')
+        self.assertEqual(jsurl.scheme, 'https')
+        self.assertEqual(jsurl.netloc,
+                         self.hostname + ':' + str(TEST_SECURE_PORT))
+        segments = jsurl.pathList()
+        self.assertEqual(segments[0], '__jsmodule__')
+        expect = sha.new(
+            FilePath(__file__).parent().parent()
+            .child("js").child("Mantissa").child("__init__.js")
+            .open().read()).hexdigest()
+        self.assertEqual(segments[1], expect)
+        self.assertEqual(segments[2], "Mantissa")

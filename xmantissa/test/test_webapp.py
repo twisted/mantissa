@@ -77,9 +77,37 @@ class TestFragment(LiveFragment):
         return rend.NotFound
 
 
+class TestClientFactory(object):
+    """
+    Dummy L{LivePageFactory}.
 
-class FragmentWrappingTestCase(TestCase):
-    def test_childLookup(self):
+    @ivar magicSegment: The segment for which to return L{returnValue} from
+    L{getClient}.
+    @type magicSegment: C{str}
+
+    @ivar returnValue: The value to return from L{getClient} when it is passed
+    L{magicSegment}.
+    @type returnValue: C{str}.
+    """
+    def __init__(self, magicSegment, returnValue):
+        self.magicSegment = magicSegment
+        self.returnValue = returnValue
+
+
+    def getClient(self, seg):
+        if seg == self.magicSegment:
+            return self.returnValue
+
+
+class GenericNavigationAthenaPageTests(TestCase):
+    """
+    Tests for L{GenericNavigationAthenaPage}.
+    """
+
+    def setUp(self):
+        """
+        Set up a site store, user store, and page instance to test with.
+        """
         s = Store(self.mktemp())
         installOn(website.WebSite(store=s), s)
         s.parent = s
@@ -90,73 +118,41 @@ class FragmentWrappingTestCase(TestCase):
         privapp = webapp.PrivateApplication(store=ss)
         installOn(privapp, ss)
 
-        class factory:
-            def getClient(self, seg):
-                if seg == 'client-of-livepage':
-                    return 'I AM A CLIENT OF THE LIVEPAGE'
-
-        navpage = webapp.GenericNavigationAthenaPage(
-                        privapp,
-                        TestFragment(),
-                        privapp.getPageComponents())
-
-        navpage.factory = factory()
-
-        self.assertEqual(navpage.locateChild(None, ('child-of-fragment',)),
-                         ('I AM A CHILD OF THE FRAGMENT', ()))
-        self.assertEqual(navpage.locateChild(None, ('client-of-livepage',)),
-                         ('I AM A CLIENT OF THE LIVEPAGE', ()))
+        self.navpage = webapp.GenericNavigationAthenaPage(
+            privapp,
+            TestFragment(),
+            privapp.getPageComponents())
 
 
-
-class AthenaNavigationTestCase(TestCase):
-    """
-    Test aspects of L{GenericNavigationAthenaPage}.
-    """
-    def _render(self, resource):
+    def test_childLookup(self):
         """
-        Test helper which tries to render the given resource.
+        L{GenericNavigationAthenaPage} should delegate to its fragment and its
+        L{LivePageFactory} when it cannot find a child itself.
+        """
+        self.navpage.factory = tcf = TestClientFactory(
+            'client-of-livepage', 'I AM A CLIENT OF THE LIVEPAGE')
+
+        self.assertEqual(self.navpage.locateChild(None,
+                                                 ('child-of-fragment',)),
+                         ('I AM A CHILD OF THE FRAGMENT', ()))
+        self.assertEqual(self.navpage.locateChild(None,
+                                             (tcf.magicSegment,)),
+                        (tcf.returnValue, ()))
+
+
+    def test_jsModuleLocation(self):
+        """
+        L{GenericNavigationAthenaPage} should share its Athena JavaScript module
+        location with all other pages that use L{xmantissa.cachejs}, and
+        provide links to /__jsmodule__/.
         """
         ctx = WovenContext()
         req = FakeRequest()
         ctx.remember(req, IRequest)
-        return req, resource.renderHTTP(ctx)
+        self.navpage.beforeRender(ctx)
+        urlObj = self.navpage.getJSModuleURL('Mantissa')
+        self.assertEqual(urlObj.pathList()[0], '__jsmodule__')
 
-
-    def test_jsmodules(self):
-        """
-        Test that the C{jsmodule} child of a L{webapp.PrivateRootPage} is an
-        object which will serve up JavaScript modules.
-        """
-        s = Store()
-        s.parent = s
-        a = webapp.PrivateApplication(store=s)
-        installOn(a, s)
-        p = webapp.PrivateRootPage(a, a.getPageComponents())
-        resource, segments = p.locateChild(None, ('jsmodule',))
-        self.failUnless(isinstance(resource, webapp.HashedJSModuleNames))
-        self.assertEquals(segments, ())
-
-
-    def test_resourceFactory(self):
-        """
-        Test that L{HashedJSModuleNames.resourceFactory} returns a
-        L{static.Data} with the right C{expires} value.
-        """
-        f = self.mktemp()
-        fObj = file(f, 'w')
-        fObj.write('/* Hello, world. /*\n')
-        fObj.close()
-        m = webapp.HashedJSModuleNames({'module': f})
-        d = m.resourceFactory(f)
-        d.time = lambda: 12345
-        req, result = self._render(d)
-        self.assertEquals(
-            req.headers['expires'],
-            'Tue, 31 Dec 1974 03:25:45 GMT')
-        self.assertEquals(
-            result,
-            '/* Hello, world. /*\n')
 
 
 

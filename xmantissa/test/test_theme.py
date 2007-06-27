@@ -391,6 +391,7 @@ class AthenaUnsupported(TestCase):
         Athena's unsupported-browser page.
         """
         store = Store()
+        installOn(WebSite(store=store), store)
         stp = StubThemeProvider(store=store)
         installOn(stp, store)
         p = PublicAthenaLivePage(store, None)

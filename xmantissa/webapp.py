@@ -7,11 +7,9 @@ integration of the extensible hierarchical navigation system defined in
 xmantissa.webnav
 """
 
-import os, sha
+import os
 
 from zope.interface import implements
-
-from twisted.python.filepath import FilePath
 
 from epsilon.structlike import record
 
@@ -25,10 +23,11 @@ from nevow.rend import Page, NotFound
 from nevow import livepage, athena
 from nevow.inevow import IRequest, IResource, IQ
 from nevow import tags as t
-from nevow import url, static
+from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite
+from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
 from xmantissa.webnav import getTabs, getSelectedTab, setTabURLs
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
@@ -50,10 +49,10 @@ def _reorderForPreference(themeList, preferredThemeName):
 
     Returns None.
     """
-    for t in themeList:
-        if preferredThemeName == t.themeName:
-            themeList.remove(t)
-            themeList.insert(0,t)
+    for theme in themeList:
+        if preferredThemeName == theme.themeName:
+            themeList.remove(theme)
+            themeList.insert(0, theme)
             return
 
 class _WebIDFormatException(TypeError):
@@ -267,9 +266,13 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixi
 
 
 
-_moduleToHash = {}
-_hashToFile = {}
-class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixin):
+class GenericNavigationAthenaPage(MantissaLivePage,
+                                  FragmentWrapperMixin,
+                                  NavMixin):
+    """
+    This class provides the generic navigation elements for surrounding all
+    pages navigated under the /private/ namespace.
+    """
     def __init__(self, webapp, fragment, pageComponents):
         """
         Top-level container for Mantissa application views.
@@ -287,37 +290,17 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
         """
         userStore = webapp.store
         siteStore = userStore.parent
-        self.website = IResource(siteStore)
 
-        athena.LivePage.__init__(
-            self,
+        MantissaLivePage.__init__(
+            self, IResource(siteStore),
             getattr(fragment, 'iface', None),
             fragment,
             jsModuleRoot=None,
-            transportRoot=url.root.child('live'),
             docFactory=webapp.getDocFactory('shell'))
         NavMixin.__init__(self, webapp, pageComponents)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
         self.unsupportedBrowserLoader = (webapp
                                          .getDocFactory("athena-unsupported"))
-
-
-    def _setJSModuleRoot(self, ctx):
-        req = IRequest(ctx)
-        hostname = req.getHeader('host')
-        root = self.website.encryptedRoot(hostname)
-        if root is None:
-            root = url.URL.fromString('/')
-        self.jsModuleRoot = root.child('private').child('jsmodule')
-
-
-    def renderHTTP(self, ctx):
-        """
-        Capture the value of the C{Host} header for this request so that we can
-        generate URLs with it later on during the page render.
-        """
-        self._setJSModuleRoot(ctx)
-        return super(GenericNavigationAthenaPage, self).renderHTTP(ctx)
 
 
     def render_head(self, ctx, data):
@@ -332,28 +315,6 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
             return ctx.tag[f]
         else:
             return ''
-
-
-    def getJSModuleURL(self, moduleName):
-        """
-        Retrieve an URL at which the given module can be found.
-
-        The default L{athena.LivePage} behavior is overridden here to give each
-        module a permanent, unique, totally cachable URL based on its named and
-        its contents.  This lets browser skip any requests for this module
-        after the first as long as it hasn't changed, and forces it to
-        re-request it as soon as it changes.
-        """
-        fp = FilePath(self.jsModules.mapping[moduleName])
-        lastHash, lastTime = _moduleToHash.get(moduleName, (None, 0))
-        if lastTime != fp.getmtime():
-            thisHash = sha.new(fp.open().read()).hexdigest()
-            _moduleToHash[moduleName] = (fp.getmtime(), thisHash)
-            _hashToFile[thisHash] = fp.path
-        else:
-            thisHash = lastHash
-
-        return self.jsModuleRoot.child(thisHash).child(moduleName)
 
 
     def locateChild(self, ctx, segments):
@@ -377,27 +338,15 @@ class GenericNavigationAthenaPage(athena.LivePage, FragmentWrapperMixin, NavMixi
 
 
 
-class HashedJSModuleNames(athena.JSModules):
-    """
-    An Athena module-serving resource which handles hashed names instead of
-    regular module names.
-    """
-    def resourceFactory(self, fileName):
-        """
-        Retrieve an L{inevow.IResource} to render the contents of the given
-        file.
-
-        Override the default behavior to return a resource which can be cached
-        for a long dang time.
-        """
-        return static.Data(
-            file(fileName).read(),
-            'text/javascript',
-            expires=(60 * 60 * 24 * 365 * 5))
-
-
 
 class PrivateRootPage(Page, NavMixin):
+    """
+    L{PrivateRootPage} is the resource present for logged-in users at
+    "/private", providing a direct interface to the objects located in the
+    user's personal user-store.
+
+    It is created by L{PrivateApplication.createResource}.
+    """
     addSlash = True
 
     def __init__(self, webapp, pageComponents):
@@ -419,14 +368,10 @@ class PrivateRootPage(Page, NavMixin):
         don't know what to do.
         """
 
+
     def render_title(self, ctx, data):
         return ctx.tag['Private Root Page (You Should Not See This)']
 
-    def child_jsmodule(self, ctx):
-        """
-        Retrieve a resource with JavaScript modules as child resources.
-        """
-        return HashedJSModuleNames(_hashToFile)
 
     def childFactory(self, ctx, name):
         try:

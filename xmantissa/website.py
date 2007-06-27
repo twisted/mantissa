@@ -11,7 +11,8 @@ command-line 'axiomatic' program using the 'web' subcommand.
 
 """
 
-import socket, warnings
+import socket
+import warnings
 
 from zope.interface import implements
 
@@ -27,6 +28,7 @@ from nevow import inevow
 from nevow.appserver import NevowSite, NevowRequest
 from nevow.static import File
 from nevow.url import URL
+from nevow import url
 from nevow import athena
 
 from axiom import upgrade
@@ -40,29 +42,168 @@ from xmantissa.ixmantissa import (
 from xmantissa import websession
 from xmantissa.port import TCPPort, SSLPort
 
+from xmantissa.cachejs import theHashModuleProvider
+
 
 class WebConfigurationError(RuntimeError):
-    """You specified some invalid configuration.
+    """
+    You specified some invalid configuration.
     """
 
+class MantissaLivePage(athena.LivePage):
+    """
+    An L{athena.LivePage} which supports the global JavaScript modules
+    collection that Mantissa provides as a root resource.
+
+    All L{athena.LivePage} usages within and derived from Mantissa should
+    subclass this.
+
+    @ivar webSite: a L{WebSite} instance which provides site configuration
+    information for generating links.
+
+    @ivar currentHostName: set before rendering, the host name that this page
+    is being rendered for.
+    @type currentHostName: L{str}
+
+    @ivar hashCache: a cache which maps JS module names to
+    L{xmantissa.cachejs.CachedJSModule} objects.
+    @type hashCache: L{xmantissa.cachejs.HashedJSModuleProvider}
+    """
+
+    hashCache = theHashModuleProvider
+
+    currentHostName = None
+
+    def __init__(self, webSite, *a, **k):
+        """
+        Create a L{MantissaLivePage}.
+
+        @param webSite: a L{WebSite} with a usable secure port implementation.
+        """
+        self.webSite = webSite
+        athena.LivePage.__init__(self, transportRoot=url.root.child('live'),
+                                 *a, **k)
+
+
+    def beforeRender(self, ctx):
+        """
+        Before rendering, retrieve the hostname that we are rendering for so
+        that we can generate JavaScript links.
+        """
+        self.currentHostName = URL.fromContext(ctx).netloc
+
+
+    def getJSModuleURL(self, moduleName):
+        """
+        Retrieve an L{URL} object which references the given module name.
+
+        This makes a 'best effort' guess as to an fully qualified HTTPS URL
+        based on the hostname provided during rendering and the configuration
+        of the site.  This is to avoid unnecessary duplicate retrieval of the
+        same scripts from two different URLs by the browser.
+
+        If such configuration does not exist, however, it will simply return an
+        absolute path URL with no hostname or port.
+
+        @raise NotImplementedError: if rendering has not begun yet and
+        therefore beforeRender has not provided us with a usable hostname.
+        """
+        if self.currentHostName is None:
+            raise NotImplementedError(
+                "JS module URLs cannot be requested before rendering.")
+        root = self.webSite.maybeEncryptedRoot(self.currentHostName)
+        if root is None:
+            root = URL.fromString("/")
+        return root.child("__jsmodule__").child(
+            self.hashCache.getModule(moduleName).hashValue).child(
+            moduleName)
+
+
+
 class SiteRootMixin(object):
+    """
+    Mixin class providing useful methods for the very top of the Mantissa site
+    hierarchy, both private and public.
+
+    Any page which provides a resource for "/" on a Mantissa server should
+    inherit from this, since many other Mantissa features depend upon resources
+    provided as children of this one.
+
+    Subclasses are expected to provide various instance attributes.
+
+    @ivar hitCount: The number of times this SiteRootMixin provider has had one
+    of its pages retrieved.
+
+    @ivar hashCache: a refererence to a L{HashedJSModuleProvider} which will
+    provide javascript cacheability for this site.
+
+    @ivar powerupInterface: The interface to search for powerups by.
+
+    @ivar store: the store to query for powerups in.
+    """
     implements(inevow.IResource)
 
     powerupInterface = ISiteRootPlugin
 
+    hitCount = 0
+
+    hashCache = theHashModuleProvider
+
     def renderHTTP(self, ctx):
+        """
+        This page is not renderable, because it is the very root of the server.
+
+        @raise NotImplementedError: Always.
+        """
         raise NotImplementedError(
             "This _must_ be installed at the root of a server.")
 
-    def locateChild(self, ctx, segments):
-        if segments[0] == 'live':
-            return athena.LivePage(None, None), segments[1:]
 
-        self.hitCount += 1
+    def child___jsmodule__(self, ignored):
+        """
+        __jsmodule__ child which provides support for Athena applications to
+        use a centralized URL to deploy JavaScript code.
+        """
+        return self.hashCache
+
+
+    def child_live(self, ctx):
+        """
+        The 'live' namespace is reserved for Athena LivePages.  By default in
+        Athena applications these resources are child resources of whatever URL
+        the live page ends up at, but this root URL is provided so that the
+        reliable message queuing logic can sidestep all resource traversal, and
+        therefore, all database queries.  This is an important optimization,
+        since Athena's implementation assumes that HTTP hits to the message
+        queue resource are cheap.
+
+        @return: an L{athena.LivePage} instance.
+        """
+        return athena.LivePage(None, None)
+    child_live.countHits = False
+
+
+    def locateChild(self, ctx, segments):
+        """
+        Locate a page on a Mantissa site.
+
+        First, look up child_ methods as normal.
+
+        Then, look for all powerups for the interface described by the
+        L{powerupInterface} attribute and call their L{resourceFactory}
+        methods.
+
+        If neither of these techniques yields a result, return L{NotFound}.
+
+        This will increment hitCount, except for child_ methods explicitly
+        annotated with a 'countHits = False' attribute.
+        """
         shortcut = getattr(self, 'child_'+segments[0], None)
         if shortcut:
             # what is it, like the 80th implementation of this?
             res = shortcut(ctx)
+            if getattr(shortcut, 'countHits', True):
+                self.hitCount += 1
             if res is not None:
                 return res, segments[1:]
         s = self.store

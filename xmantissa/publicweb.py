@@ -10,8 +10,8 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.python import util
 
-from nevow import rend, athena, tags, inevow, static
-from nevow.inevow import IRequest
+from nevow import rend, tags, inevow, static
+from nevow.inevow import IRequest, IResource
 from nevow.url import URL
 
 from axiom import item, attributes, upgrade, userbase
@@ -726,7 +726,7 @@ class FrontPage(item.Item, website.PrefixURLMixin):
 
 
 
-class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
+class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
     """
     PublicAthenaLivePage is a publicly viewable Athena-enabled page which slots
     a single fragment into the center of the page.
@@ -737,7 +737,8 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
         """
         Create a PublicAthenaLivePage.
 
-        @param store: an L{axiom.store.Store}.
+        @param store: a site store containing a L{WebSite}.
+        @type store: L{axiom.store.Store}.
 
         @param fragment: The L{INavigableFragment} provider which will be
         displayed on this page.
@@ -749,6 +750,7 @@ class PublicAthenaLivePage(PublicPageMixin, athena.LivePage):
         """
         self.store = store
         super(PublicAthenaLivePage, self).__init__(
+            IResource(store),
             docFactory=getLoader("public-shell"),
             *a, **k)
         if fragment is not None:
