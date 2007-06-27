@@ -51,9 +51,11 @@ except ImportError:
 
 from twisted.application.service import IService, IServiceCollection
 from twisted.internet.ssl import PrivateCertificate, CertificateOptions
+from twisted.python.reflect import qual
 
-from axiom.item import Item
-from axiom.attributes import inmemory, integer, reference, path
+from axiom.item import Item, declareLegacyItem, normalize
+from axiom.attributes import inmemory, integer, reference, path, text
+from axiom.upgrade import registerAttributeCopyingUpgrader
 
 
 class PortMixin:
@@ -129,9 +131,15 @@ class TCPPort(PortMixin, Item):
     An Axiom Service Item which will bind a TCP port to a protocol factory when
     it is started.
     """
+    schemaVersion = 2
+
     portNumber = integer(doc="""
     The TCP port number on which to listen.
     """)
+
+    interface = text(doc="""
+    The hostname to bind to.
+    """, default=u'')
 
     factory = reference(doc="""
     An Item with a C{getFactory} method which returns a Twisted protocol
@@ -161,7 +169,20 @@ class TCPPort(PortMixin, Item):
         else:
             from twisted.internet import reactor
             _listen = reactor.listenTCP
-        return _listen(self.portNumber, self.factory.getFactory())
+        return _listen(self.portNumber, self.factory.getFactory(),
+                       interface=self.interface.encode('ascii'))
+
+declareLegacyItem(
+    typeName=normalize(qual(TCPPort)),
+    schemaVersion=1,
+    attributes=dict(
+        portNumber=integer(),
+        factory=reference(),
+        parent=inmemory(),
+        _listen=inmemory(),
+        listeningPort=inmemory()))
+
+registerAttributeCopyingUpgrader(TCPPort, 1, 2)
 
 
 
@@ -170,9 +191,15 @@ class SSLPort(PortMixin, Item):
     An Axiom Service Item which will bind a TCP port to a protocol factory when
     it is started.
     """
+    schemaVersion = 2
+
     portNumber = integer(doc="""
     The TCP port number on which to listen.
     """)
+
+    interface = text(doc="""
+    The hostname to bind to.
+    """, default=u'')
 
     certificatePath = path(doc="""
     Name of the file containing the SSL certificate to use for this server.
@@ -223,7 +250,21 @@ class SSLPort(PortMixin, Item):
         return _listen(
             self.portNumber,
             self.factory.getFactory(),
-            self.getContextFactory())
+            self.getContextFactory(),
+            interface=self.interface.encode('ascii'))
+
+declareLegacyItem(
+    typeName=normalize(qual(SSLPort)),
+    schemaVersion=1,
+    attributes=dict(
+        portNumber=integer(),
+        certificatePath=path(),
+        factory=reference(),
+        parent=inmemory(),
+        _listen=inmemory(),
+        listeningPort=inmemory()))
+
+registerAttributeCopyingUpgrader(SSLPort, 1, 2)
 
 
 

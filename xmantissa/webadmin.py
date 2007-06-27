@@ -17,7 +17,8 @@ from nevow.athena import expose
 
 from epsilon import extime
 
-from axiom.attributes import integer, boolean, timestamp, bytes, reference, inmemory, AND, OR
+from axiom.attributes import (integer, boolean, timestamp, bytes, reference,
+    inmemory, AND, OR)
 from axiom.item import Item, declareLegacyItem
 from axiom import userbase
 from axiom.batch import BatchManholePowerup
@@ -790,7 +791,7 @@ class PortConfiguration(Item):
                            authoritative=False)]
 
 
-    def createPort(self, portNumber, ssl, certPath, factory):
+    def createPort(self, portNumber, ssl, certPath, factory, interface=u''):
         """
         Create a new listening port.
 
@@ -811,9 +812,12 @@ class PortConfiguration(Item):
         """
         store = self.store.parent
         if ssl:
-            port = SSLPort(store=store, portNumber=portNumber, certificatePath=FilePath(certPath), factory=factory)
+            port = SSLPort(store=store, portNumber=portNumber,
+                           certificatePath=FilePath(certPath), factory=factory,
+                           interface=interface)
         else:
-            port = TCPPort(store=store, portNumber=portNumber, factory=factory)
+            port = TCPPort(store=store, portNumber=portNumber, factory=factory,
+                           interface=interface)
         installOn(port, store)
 
 
@@ -939,6 +943,7 @@ class PortConfigurationFragment(webtheme.ThemedElement):
             self.store,
             TCPPort,
             (TCPPort.portNumber,
+             TCPPort.interface,
              FactoryColumn(TCPPort.factory)))
         f.setFragmentParent(self)
         f.docFactory = webtheme.getLoader(f.fragmentName)
@@ -955,6 +960,7 @@ class PortConfigurationFragment(webtheme.ThemedElement):
             self.store,
             SSLPort,
             (SSLPort.portNumber,
+             SSLPort.interface,
              CertificateColumn(SSLPort.certificatePath),
              FactoryColumn(SSLPort.factory)))
         f.setFragmentParent(self)
@@ -984,6 +990,9 @@ class PortConfigurationFragment(webtheme.ThemedElement):
             self.portConf.createPort,
             [Parameter('portNumber', TEXT_INPUT, port, 'Port Number',
                        'Integer 0 <= n <= 65535 giving the TCP port to bind.'),
+
+             Parameter('interface', TEXT_INPUT, unicode, 'Interface',
+                       'Hostname to bind to, or blank for all interfaces.'),
 
              Parameter('ssl', CHECKBOX_INPUT, bool, 'SSL',
                        'Select to indicate port should use SSL.'),

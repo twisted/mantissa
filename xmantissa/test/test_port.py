@@ -24,10 +24,11 @@ class DummyPort(object):
     """
     stopping = None
 
-    def __init__(self, portNumber, factory, contextFactory=None):
+    def __init__(self, portNumber, factory, contextFactory=None, interface=''):
         self.portNumber = portNumber
         self.factory = factory
         self.contextFactory = contextFactory
+        self.interface = interface
 
 
     def stopListening(self):
@@ -83,6 +84,7 @@ class PortTestsMixin:
 
     lowPortNumber = 123
     highPortNumber = 1234
+    someInterface = u'127.0.0.1'
 
     dbdir = None
 
@@ -130,6 +132,15 @@ class PortTestsMixin:
         """
         port = self.port(store=self.store, portNumber=self.lowPortNumber)
         self.assertEqual(port.portNumber, self.lowPortNumber)
+
+
+    def test_interfaceAttribute(self):
+        """
+        Test that C{self.portType} remembers the interface it is told to listen
+        on.
+        """
+        port = self.port(store=self.store, interface=self.someInterface)
+        self.assertEqual(port.interface, self.someInterface)
 
 
     def test_factoryAttribute(self):
@@ -223,7 +234,7 @@ class PortTestsMixin:
     def test_startServiceLow(self):
         """
         Test that C{self.portType} binds a low-numbered port with the reactor
-        when it is started without privileged.
+        when it is started without privilege.
         """
         ports = self._startService(self.lowPortNumber)
         self.assertEqual(len(ports), 1)
@@ -232,12 +243,34 @@ class PortTestsMixin:
 
     def test_startServiceHigh(self):
         """
-        Test that C{self.portType} binds a low-numbered port with the reactor
-        when it is started without privileged.
+        Test that C{self.portType} binds a high-numbered port with the reactor
+        when it is started without privilege.
         """
         ports = self._startService(self.highPortNumber)
         self.assertEqual(len(ports), 1)
         self.checkPort(ports[0], self.highPortNumber)
+
+
+    def test_startServiceNoInterface(self):
+        """
+        Test that C{self.portType} binds to all interfaces if no interface is
+        explicitly specified.
+        """
+        port = self.port(store=self.store, portNumber=self.highPortNumber, factory=self.factory)
+        port._listen = self.listen
+        port.startService()
+        self.assertEqual(self.ports[0].interface, '')
+
+
+    def test_startServiceInterface(self):
+        """
+        Test that C{self.portType} binds to only the specified interface when
+        instructed to.
+        """
+        port = self.port(store=self.store, portNumber=self.highPortNumber, factory=self.factory, interface=self.someInterface)
+        port._listen = self.listen
+        port.startService()
+        self.assertEqual(self.ports[0].interface, self.someInterface)
 
 
     def test_startedOnce(self):
@@ -304,8 +337,8 @@ class TCPPortTests(PortTestsMixin, TestCase):
         self.assertEqual(port.factory, self.realFactory)
 
 
-    def listen(self, port, factory):
-        self.ports.append(DummyPort(port, factory))
+    def listen(self, port, factory, interface=''):
+        self.ports.append(DummyPort(port, factory, interface=interface))
         return self.ports[-1]
 
 
@@ -375,8 +408,8 @@ Y+O7ib90LsqfQ8r0GUphQVi4EA4QMJqaF7ZxKms79qA=
         return self.portType(certificatePath=certificatePath, **kw)
 
 
-    def listen(self, port, factory, contextFactory):
-        self.ports.append(DummyPort(port, factory, contextFactory))
+    def listen(self, port, factory, contextFactory, interface=''):
+        self.ports.append(DummyPort(port, factory, contextFactory, interface=interface))
         return self.ports[-1]
 
 
