@@ -3,6 +3,10 @@
 This module includes tests for the L{xmantissa.scrolltable} module.
 """
 
+from epsilon.hotfix import require
+
+require("twisted", "trial_assertwarns")
+
 from zope.interface import implements
 
 from twisted.trial import unittest
@@ -386,6 +390,24 @@ class ScrollingElementTests(unittest.TestCase):
     """
     Test cases for the ultimate client-facing subclass, L{ScrollingElement}.
     """
+    def test_deprecatedMissingWebTranslator(self):
+        """
+        Instantiating a L{ScrollingElement} without supplying an
+        L{IWebTranslator}, either explicitly or via a store powerup, will
+        emit a L{DeprecationWarning} explaining that this should not be
+        done.
+        """
+        def makeScrollingElement():
+            return ScrollingElement(
+                Store(), DataThunk, None, [], DataThunk.a, True)
+        self.assertWarns(
+            DeprecationWarning,
+            "No IWebTranslator plugin when creating Scrolltable - broken "
+            "configuration, now deprecated!  Try passing webTranslator "
+            "keyword argument.",
+            __file__,
+            makeScrollingElement)
+
 
     def test_initialWidgetArguments(self):
         """

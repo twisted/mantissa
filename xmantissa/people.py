@@ -173,6 +173,17 @@ class EmailContactType(BaseContactType):
                                default=address)]
 
 
+    def _existing(self, email):
+        """
+        Return the existing L{EmailAddress} item with the given address, or
+        C{None} if there isn't one.
+        """
+        return self.store.findUnique(
+            EmailAddress,
+            EmailAddress.address == email,
+            default=None)
+
+
     def createContactItem(self, person, email):
         """
         Create a new L{EmailAddress} associated with the given person based on
@@ -190,6 +201,10 @@ class EmailContactType(BaseContactType):
         @return: C{None}
         """
         if email:
+            address = self._existing(email)
+            if address is not None:
+                raise ValueError('There is already a person with that email '
+                                 'address (%s): ' % (address.person.name,))
             return EmailAddress(store=self.store,
                                 address=email,
                                 person=person)
@@ -217,11 +232,8 @@ class EmailContactType(BaseContactType):
 
         @return: C{None}
         """
-        address = self.store.findFirst(
-            EmailAddress,
-            AND(EmailAddress.address == email,
-                EmailAddress.storeID != contact.storeID))
-        if address is not None:
+        address = self._existing(email)
+        if address is not None and address is not contact:
             raise ValueError('There is already a person with that email '
                              'address (%s): ' % (address.person.name,))
         contact.address = email
@@ -757,14 +769,16 @@ class PersonScrollingFragment(ScrollingFragment):
     """
     jsClass = u'Mantissa.People.PersonScroller'
 
-    def __init__(self, store, baseConstraint, defaultSortColumn, performAction):
+    def __init__(self, store, baseConstraint, defaultSortColumn,
+                 webTranslator, performAction):
         ScrollingFragment.__init__(
             self,
             store,
             Person,
             baseConstraint,
             [PersonNameColumn(None, 'name')],
-            defaultSortColumn=defaultSortColumn)
+            defaultSortColumn=defaultSortColumn,
+            webTranslator=webTranslator)
         self._performAction = performAction
 
 
@@ -804,6 +818,7 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
                 self.organizer.store,
                 baseComparison,
                 sort,
+                self.wt,
                 self.performAction)
         f.setFragmentParent(self)
         f.docFactory = webtheme.getLoader(f.fragmentName)

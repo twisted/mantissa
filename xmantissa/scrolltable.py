@@ -252,7 +252,8 @@ def _webTranslator(store, fallback):
             warnings.warn(
                 "No IWebTranslator plugin when creating Scrolltable - broken "
                 "configuration, now deprecated!  Try passing webTranslator "
-                "keyword argument.", category=DeprecationWarning)
+                "keyword argument.", category=DeprecationWarning,
+                stacklevel=4)
     return fallback
 
 

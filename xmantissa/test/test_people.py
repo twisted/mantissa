@@ -554,6 +554,22 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         self.assertEqual(len(emails), 0)
 
 
+    def test_createContactItemRejectsDuplicate(self):
+        """
+        L{EmailContactType.createContactItem} should raise an exception if it
+        is given an email address already associated with an existing
+        L{EmailAddress} item.
+        """
+        email = u'user@example.com'
+        person = Person(store=self.store)
+        emailAddress = EmailAddress(
+            store=self.store, person=person, address=email)
+        self.assertRaises(
+            ValueError,
+            self.contactType.createContactItem,
+            person, email=email)
+
+
     def test_editContactItem(self):
         """
         L{EmailContactType.editContactItem} should update the address field of
@@ -565,6 +581,21 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         self.contactType.editContactItem(
             emailAddress, email=u'user@example.com')
         self.assertEqual(emailAddress.address, u'user@example.com')
+
+
+    def test_editContactItemAcceptsSame(self):
+        """
+        L{EmailContactType.editContactItem} should update the address field of
+        the L{EmailAddress} it is passed, even if it is passed the same value
+        which is already set on the item.
+        """
+        address = u'user@example.com'
+        person = Person(store=self.store)
+        emailAddress = EmailAddress(
+            store=self.store, person=person, address=address)
+        self.contactType.editContactItem(
+            emailAddress, email=address)
+        self.assertEqual(emailAddress.address, address)
 
 
     def test_editContactItemRejectsDuplicate(self):
@@ -1401,6 +1432,18 @@ class ContactInfoViewTests(unittest.TestCase):
         self.assertEqual(ele.childNodes[2].childNodes[0].nodeValue, number)
 
 
+
+class StubTranslator(object):
+    """
+    Translate between a dummy row identifier and a dummy object.
+    """
+    implements(IWebTranslator)
+
+    def __init__(self, rowIdentifier, item):
+        self.fromWebID = {rowIdentifier: item}.__getitem__
+
+
+
 class PersonScrollingFragmentTests(unittest.TestCase):
     """
     Tests for L{PersonScrollingFragment}.
@@ -1421,15 +1464,10 @@ class PersonScrollingFragmentTests(unittest.TestCase):
             """
             performedActions.append((actionName, rowIdentifier))
 
-        class StubTranslator(object):
-            """
-            Translate between dummy row identifiers and dummy objects.
-            """
-            implements(IWebTranslator)
-            fromWebID = {rowIdentifier: item}.__getitem__
-
         scrollingFragment = PersonScrollingFragment(
-            StubTranslator(), None, None, performAction)
+            None, None, None,
+            StubTranslator(rowIdentifier, item),
+            performAction)
         performAction = expose.get(scrollingFragment, 'performAction')
         performAction(actionName, rowIdentifier)
 
@@ -1444,7 +1482,9 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         baseConstraint = object()
         sort = object()
 
-        fragment = PersonScrollingFragment(None, baseConstraint, sort, None)
+        fragment = PersonScrollingFragment(
+            None, baseConstraint, sort,
+            StubTranslator(None, None), None)
         self.assertIdentical(fragment.baseConstraint, baseConstraint)
         self.assertIdentical(fragment.currentSortColumn, sort)
         self.assertIdentical(fragment.itemType, Person)
@@ -1464,7 +1504,7 @@ class OrganizerFragmentTests(unittest.TestCase):
         """
         deletedPeople = []
         class StubOrganizer(object):
-            _webTranslator = None
+            _webTranslator = StubTranslator(None, None)
 
             def __init__(self, store):
                 self.store = store
