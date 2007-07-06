@@ -1,3 +1,7 @@
+0.6.4 (2007-06-06):
+  - LoginPage now remembers and passes on query arguments.
+  - Removed use of deprecated API from webadmin.DeveloperSite.
+
 0.6.3 (2007-05-24):
 
   - Added a method to IOrganizerPlugin to allow notification of
