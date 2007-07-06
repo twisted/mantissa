@@ -53,8 +53,8 @@ class DeprecatedNamesTest(unittest.TestCase):
             attrcol = tdb.AttributeColumn(X.number)
         self.assertWarns(
             DeprecationWarning,
-            ("tdb.AttributeColumn is deprecated.  "
-             "Use scrolltable.AttributeColumn instead.",),
+            "tdb.AttributeColumn is deprecated.  "
+            "Use scrolltable.AttributeColumn instead.",
             __file__, function)
 
 
