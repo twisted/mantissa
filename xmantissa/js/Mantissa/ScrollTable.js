@@ -1616,7 +1616,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                         self._requestWaiting = false;
                         if (self._moreAfterRequest) {
                             self._moreAfterRequest = false;
-                            selfs.crolled();
+                            self.scrolled();
                         } else {
                             finishDeferreds(null);
                         }
