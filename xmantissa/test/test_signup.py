@@ -108,6 +108,24 @@ class SignupCreationTestCase(unittest.TestCase):
                           [False, u"Username too short"])
 
 
+    def test_userInfoSignupUserInfo(self):
+        """
+        Check that {CcreateUser} creates a L{signup.UserInfo} item with the
+        C{email}, C{firstName} and C{lastName} attributes set.
+        """
+        freeSignup = self.createFreeSignup(free_signup.userInfo.itemClass)
+        freeSignup.createUser(
+            u'Frank', u'Jones', u'fjones', u'divmod.com',
+            u'asdf', u'fj@example.com')
+        account = self.ls.accountByAddress(u'fjones', u'divmod.com')
+        substore = account.avatars.open()
+        userInfos = list(substore.query(signup.UserInfo))
+        self.assertEqual(len(userInfos), 1)
+        userInfo = userInfos[0]
+        self.assertEqual(userInfo.firstName, u'Frank')
+        self.assertEqual(userInfo.lastName, u'Jones')
+
+
     def test_userInfoLoginMethods(self):
         """
         Check that C{createUser} creates only two L{LoginMethod}s on the

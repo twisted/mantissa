@@ -617,6 +617,20 @@ class ValidatingSignupForm(liveform.LiveForm):
         return self.userInfoSignup.usernameAvailable(username, domain)
     athena.expose(usernameAvailable)
 
+
+
+class UserInfo(Item):
+    """
+    An Item which stores information gleaned from the signup process of
+    L{UserInfoSignup}.  The L{UserInfo} will reside in the substore of the
+    user (which was created during the signup process), and will record
+    information about its owner.
+    """
+    firstName = text(doc="The first name of the user.", allowNone=False)
+    lastName = text(doc="The last name of the user.", allowNone=False)
+
+
+
 class UserInfoSignup(Item, PrefixURLMixin):
     """
     This signup page provides a way to sign up while including some relevant
@@ -679,7 +693,33 @@ class UserInfoSignup(Item, PrefixURLMixin):
     def createUser(self, firstName, lastName, username, domain,
                    password, emailAddress):
         """
-        Create a user with some associated metadata.
+        Create a user, storing some associated metadata in the user's store,
+        i.e. their first and last names (as a L{UserInfo} item), and a
+        L{axiom.userbase.LoginMethod} allowing them to login with their email
+        address.
+
+        @param firstName: the first name of the user.
+        @type firstName: C{unicode}
+
+        @param lastName: the last name of the user.
+        @type lastName: C{unicode}
+
+        @param username: the user's username.  they will be able to login with
+        this.
+        @type username: C{unicode}
+        
+        @param domain: the local domain - used internally to turn C{username}
+        into a localpart@domain style string .
+        @type domain: C{unicode}
+
+        @param password: the password to be used for the user's account.
+        @type password: C{unicode}
+
+        @param emailAddress: the user's external email address.  they will be
+        able to login with this also.
+        @type emailAdress: C{unicode}
+
+        @rtype: C{NoneType}
         """
         # what do I do with firstName and lastName?
         def _():
@@ -692,7 +732,11 @@ class UserInfoSignup(Item, PrefixURLMixin):
             emailPart, emailDomain = emailAddress.split("@")
             acct.addLoginMethod(emailPart, emailDomain, protocol=u"email",
                                 verified=False, internal=False)
-            self.product.installProductOn(IBeneficiary(acct))
+            substore = IBeneficiary(acct)
+            self.product.installProductOn(substore)
+            UserInfo(store=substore,
+                     firstName=firstName,
+                     lastName=lastName)
         self.store.transact(_)
 
 declareLegacyItem(typeName=UserInfoSignup.typeName,
