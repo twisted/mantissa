@@ -398,7 +398,7 @@ class StatsService(item.Item, service.Service):
 
         if self.parent is None:
             self.setServiceParent(self.store)
-            self.startService()
+
 
     def startService(self):
         service.Service.startService(self)
