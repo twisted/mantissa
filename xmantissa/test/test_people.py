@@ -840,6 +840,58 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertTrue(beforeCreation <= person.created <= afterCreation)
 
 
+    def test_createPersonDuplicateNickname(self):
+        """
+        L{Organizer.createPerson} raises an exception when passed a nickname
+        which is already associated with a L{Person} in the database.
+        """
+        nickname = u'test person'
+        self.organizer.createPerson(nickname)
+        self.assertRaises(
+            ValueError,
+            self.organizer.createPerson, nickname)
+
+
+    def test_editPerson(self):
+        """
+        L{Organizer.editPerson} should change the I{name} of the given
+        L{Person} and call I{editContactItem} on each element of the edits
+        sequence it is passed.
+        """
+        person = self.organizer.createPerson(u'alice')
+        contactType = StubContactType(None, None, None)
+        contactItem = object()
+        contactInfo = {'foo': 'bar'}
+        self.organizer.editPerson(
+            person,
+            u'bob',
+            [(contactType, contactItem, contactInfo)])
+        self.assertEqual(
+            contactType.editedContacts,
+            [(contactItem, contactInfo)])
+
+
+    def test_editPersonDuplicateNickname(self):
+        """
+        L{Organizer.editPerson} raises an exception when passed a nickname
+        which is already associated with a different L{Person} in the database.
+        """
+        alice = self.organizer.createPerson(u'alice')
+        bob = self.organizer.createPerson(u'bob')
+        self.assertRaises(ValueError,
+                          self.organizer.editPerson, bob, alice.name, [])
+
+
+    def test_editPersonSameName(self):
+        """
+        L{Organizer.editPerson} allows the new nickname it is passed to be the
+        same as the existing name for the given L{Person}.
+        """
+        alice = self.organizer.createPerson(u'alice')
+        self.organizer.editPerson(alice, alice.name, [])
+        self.assertEqual(alice.name, u'alice')
+
+
     def test_deletePerson(self):
         """
         L{Organizer.deletePerson} should delete the specified person from the
@@ -917,6 +969,7 @@ class PeopleModelTestCase(unittest.TestCase):
         method was added after the interface was initially defined so there may
         be implementations which have not yet been updated).
         """
+        store = Store()
         class OldOrganizerPlugin(object):
             """
             An L{IOrganizerPlugin} which does not implement C{getContactTypes}.
@@ -925,7 +978,7 @@ class PeopleModelTestCase(unittest.TestCase):
         plugins = [OldOrganizerPlugin(), StubOrganizerPlugin(createdPeople=[])]
         Organizer.getOrganizerPlugins = lambda self: plugins
         try:
-            organizer = Organizer()
+            organizer = Organizer(store=store)
             person = organizer.createPerson(u'nickname')
         finally:
             Organizer.getOrganizerPlugins = getOrganizerPlugins
@@ -1607,7 +1660,18 @@ class EditPersonViewTests(unittest.TestCase):
         class StubOrganizer(record('person contactType contactItem contactForm')):
             """
             L{Organizer}-alike
+
+            @ivar edits: A list of three-tuples giving the arguments passed to
+                editPerson.
             """
+            def __init__(self, *a, **kw):
+                super(StubOrganizer, self).__init__(*a, **kw)
+                self.edits = []
+
+            def editPerson(self, person, nickname, edits):
+                self.edits.append((person, nickname, edits))
+
+
             def getContactEditorialParameters(self, person):
                 return {
                     self.person: [
@@ -1642,9 +1706,10 @@ class EditPersonViewTests(unittest.TestCase):
         self.assertEqual(contactType.editedContacts, [])
         transactions[0].function(
             *transactions[0].args, **transactions[0].kwargs)
-        self.assertEqual(self.person.name, u'nick')
         self.assertEqual(
-            contactType.editedContacts, [(self.contactItem, contactInfo)])
+            self.person.organizer.edits,
+            [(self.person, u'nick',
+              [(contactType, self.contactItem, contactInfo)])])
 
 
     def test_editorialContactForms(self):

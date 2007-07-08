@@ -612,6 +612,8 @@ class Organizer(item.Item):
 
         @rtype: L{Person}
         """
+        for person in self.store.query(Person, Person.name == nickname):
+            raise ValueError("Person with nickname %r exists already." % (nickname,))
         person = Person(
             store=self.store,
             created=extime.Time(),
@@ -664,6 +666,30 @@ class Organizer(item.Item):
                     "IOrganizerPlugin now has the %s method, %s "
                     "did not implement it" % (methodName, observer.__class__,),
                     category=PendingDeprecationWarning)
+
+    def editPerson(self, person, nickname, edits):
+        """
+        Change the name and contact information associated with the given
+        L{Person}.
+
+        @type person: L{Person}
+        @param person: The person which will be modified.
+
+        @type nickname: C{unicode}
+        @param nickname: The new value for L{Person.name}
+
+        @param edits: A list of three-tuples of a L{IContactType} provider, a
+            contact item created by that provider, and a C{dict} giving
+            arguments for the I{editContactItem} method.
+        """
+        for existing in self.store.query(Person, Person.name == nickname):
+            if existing is person:
+                continue
+            raise ValueError(
+                "A person with the nickname %r exists already." % (nickname,))
+        person.name = nickname
+        for contactType, contactItem, contactInfo in edits:
+            contactType.editContactItem(contactItem, **contactInfo)
 
 
     def deletePerson(self, person):
@@ -920,16 +946,17 @@ class EditPersonView(ThemedElement):
         @param **edits: A mapping of parameter names to edit information from
             that parameter.
         """
-        def editPerson():
-            self.person.name = nickname
-            for paramName, contactInfo in edits.iteritems():
-                contactType, contactItem = self.contactItems.pop(paramName)
-                contactInfo = dict([
-                        (k.encode('ascii'), v)
-                        for (k, v)
-                        in contactInfo.iteritems()])
-                contactType.editContactItem(contactItem, **contactInfo)
-        self.person.store.transact(editPerson)
+        editedContacts = []
+        for paramName, contactInfo in edits.iteritems():
+            contactType, contactItem = self.contactItems.pop(paramName)
+            contactInfo = dict([
+                    (k.encode('ascii'), v)
+                    for (k, v)
+                    in contactInfo.iteritems()])
+            editedContacts.append((contactType, contactItem, contactInfo))
+        self.person.store.transact(
+            self.person.organizer.editPerson,
+            self.person, nickname, editedContacts)
 
 
     def editorialContactForms(self, request, tag):
