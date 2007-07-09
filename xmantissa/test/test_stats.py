@@ -1,28 +1,70 @@
-import StringIO
+"""
+Tests for L{xmantissa.stats}.
+"""
+
 from twisted.python import log
 from twisted.internet import defer
 from twisted.trial import unittest
-from axiom import store, attributes, scheduler, iaxiom
+from twisted.application.service import IService
+
+from epsilon.extime import Time
+from epsilon import juice
+
+from axiom.store import Store
+from axiom.scheduler import Scheduler
+from axiom import attributes, iaxiom
 from axiom.dependency import installOn
 
 from xmantissa import stats
-from epsilon.extime import Time
-from epsilon import juice
-class StatCollectorTest(unittest.TestCase):
+from xmantissa.stats import StatsService
 
-    def testStatCollectionAndRecording(self):
-        s = store.Store()
-        s.parent = s #should this break something? it should break something.
-        installOn(scheduler.Scheduler(store=s), s)
-        svc = stats.StatsService(store=s)
-        installOn(svc, s)
+
+class StatCollectorTest(unittest.TestCase):
+    """
+    Tests for L{xmantissa.stats.StatsService}.
+    """
+    def setUp(self):
+        """
+        Create a store with a scheduler and a stats service and start the
+        store's service.
+        """
+        self.store = Store()
+        # should this break something? it should break something.
+        self.store.parent = self.store
+
+        self.scheduler = Scheduler(store=self.store)
+        installOn(self.scheduler, self.store)
+
+        self.statService = StatsService(store=self.store)
+        installOn(self.statService, self.store)
+
+        IService(self.store).startService()
+
+
+    def tearDown(self):
+        """
+        Stop the store's service.
+        """
+        return IService(self.store).stopService()
+    
+
+    def test_statCollectionAndRecording(self):
+        """
+        Logging an L{iaxiom.IStatEvent} should result in the creation of a
+        L{stats.StatBucket} with minute resolution and a type corresponding
+        to the C{stat_} key in the log event dictionary.
+        """
         log.msg(interface=iaxiom.IStatEvent, stat_foo=17)
-        s.findUnique(stats.StatSampler).run()
-        minutebucket = list(s.query(stats.StatBucket, attributes.AND(stats.StatBucket.type == u"foo",
-                                                                     stats.StatBucket.interval == u"minute")))
+        self.store.findUnique(stats.StatSampler).run()
+        minutebucket = list(
+            self.store.query(
+                stats.StatBucket,
+                attributes.AND(stats.StatBucket.type == u"foo",
+                               stats.StatBucket.interval == u"minute")))
         self.assertEquals(len(minutebucket), 1)
         self.assertEquals(minutebucket[0].value, 17)
-        svc.stopService()
+
+
 
 class FakeProtocol(juice.Juice):
     sent = False
