@@ -1283,7 +1283,7 @@ class PeopleTests(unittest.TestCase):
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
         self.assertEqual(len(addPersonForm.parameters), 4)
 
-        contactTypes = [StubContactType(None, None, None)]
+        contactTypes = [StubContactType(LiveForm('foo', []), None, None)]
         observer = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(observer, IOrganizerPlugin)

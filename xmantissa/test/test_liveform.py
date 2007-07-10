@@ -16,9 +16,10 @@ from nevow.flat import flatten
 from nevow.inevow import IQ
 
 from xmantissa.liveform import (
-    TEXT_INPUT, PASSWORD_INPUT, CHOICE_INPUT, Parameter,
+    FORM_INPUT, TEXT_INPUT, PASSWORD_INPUT, CHOICE_INPUT, Parameter,
     TextParameterView, PasswordParameterView, ChoiceParameter,
-    ChoiceParameterView, Option, OptionView, LiveForm)
+    ChoiceParameterView, Option, OptionView, LiveForm,
+    ListParameter,)
 
 from xmantissa.webtheme import getLoader
 from xmantissa.test.rendertools import renderLiveFragment
@@ -428,6 +429,34 @@ class LiveFormTests(TestCase, TagTestingMixin):
         span(pattern='password-input-container'),
         span(pattern='liveform', _class='liveform-container'),
         span(pattern='subform', _class='subform-container')]
+
+
+    def test_compact(self):
+        """
+        L{LiveForm.compact} should replace the existing C{docFactory} with one
+        for the I{compact} version of the live form template.
+        """
+        form = LiveForm(None, [])
+        form.compact()
+        self.assertTrue(form.docFactory.template.endswith('/liveform-compact.html'))
+
+
+    def test_recursiveCompact(self):
+        """
+        L{LiveForm.compact} should also call C{compact} on all of its subforms.
+        """
+        class StubChild(object):
+            compacted = False
+            def compact(self):
+                self.compacted = True
+        child = StubChild()
+        form = LiveForm(None, [Parameter('foo', FORM_INPUT, child),
+                               Parameter('bar', TEXT_INPUT, int),
+                               ListParameter('baz', None, 3),
+                               ChoiceParameter('quux', [])])
+        form.compact()
+        self.assertTrue(child.compacted)
+
 
     def test_descriptionSlot(self):
         """

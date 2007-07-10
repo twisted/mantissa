@@ -975,6 +975,7 @@ class EditPersonView(ThemedElement):
             parameters.append(param)
             self.contactItems[param.name] = (type, item)
         form = liveform.LiveForm(self.editContactItems, parameters)
+        form.compact()
         form.jsClass = u'Mantissa.People.EditPersonForm'
         form.setFragmentParent(self)
         return tag[form]
@@ -1276,7 +1277,7 @@ class AddPersonFragment(ThemedFragment):
             self.addPerson,
             self._addPersonParameters(),
             description='Add Person')
-        addPersonForm.docFactory = webtheme.getLoader('liveform-compact')
+        addPersonForm.compact()
         addPersonForm.setFragmentParent(self)
         return addPersonForm
 

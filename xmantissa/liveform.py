@@ -62,6 +62,14 @@ class Parameter(record('name type coercer label description default '
         argument.  The default should be returned if no view can be provided
         for the given parameter.
     """
+    def compact(self):
+        """
+        Compact FORM_INPUTs by calling their C{compact} method.  Don't do
+        anything for other types of input.
+        """
+        if self.type == FORM_INPUT:
+            self.coercer.compact()
+
 
 MULTI_TEXT_INPUT = 'multi-text'
 
@@ -73,6 +81,11 @@ class ListParameter(record('name coercer count label description defaults '
                            viewFactory=IParameterView)):
 
     type = MULTI_TEXT_INPUT
+    def compact(self):
+        """
+        Don't do anything.
+        """
+
 
 CHOICE_INPUT = 'choice'
 MULTI_CHOICE_INPUT = 'multi-choice'
@@ -125,6 +138,11 @@ class ChoiceParameter(record('name choices label description multiple '
         if self.multiple:
             return tuple(self.choices[int(v)].value for v in value)
         return self.choices[int(value)].value
+
+    def compact(self):
+        """
+        Don't do anything.
+        """
 
 
 
@@ -218,12 +236,26 @@ class _LiveFormMixin(record('callable parameters description',
     subFormName = None
 
     fragmentName = 'liveform'
+    compactFragmentName = 'liveform-compact'
 
     def __init__(self, *a, **k):
         super(_LiveFormMixin, self).__init__(*a, **k)
         if self.docFactory is None:
             # Give subclasses a chance to assign their own docFactory.
             self.docFactory = webtheme.getLoader(self.fragmentName)
+
+
+    def compact(self):
+        """
+        Switch to the compact variant of the live form template.
+
+        By default, this will simply create a loader for the
+        C{self.compactFragmentName} template and compact all of this form's
+        parameters.
+        """
+        self.docFactory = webtheme.getLoader(self.compactFragmentName)
+        for param in self.parameters:
+            param.compact()
 
 
     def getInitialArguments(self):
