@@ -1,4 +1,6 @@
 from zope.interface import implements
+from zope.interface import classProvides
+
 from twisted.web import microdom
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
@@ -21,12 +23,13 @@ from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.dependency import installOn
 
+from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.port import TCPPort
 from xmantissa import webtheme
 from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.webtheme import (
     getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
-    ThemedElement, _ThemedMixin)
+    ThemedElement, _ThemedMixin, ThemedDocumentFactory)
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
@@ -35,6 +38,35 @@ from zope.interface import implements
 from xmantissa.publicweb import PublicAthenaLivePage
 from xmantissa.webapp import (GenericNavigationAthenaPage, _PageComponents,
                               PrivateApplication)
+
+
+class ThemedDocumentFactoryTests(TestCase):
+    """
+    Tests for the automatic document factory descriptor,
+    L{ThemedDocumentFactory}.
+    """
+    def test_getter(self):
+        """
+        Retrieving the value of a L{ThemedDocumentFactory} descriptor should
+        cause an L{ITemplateNameResolver} to be requested from the supplied
+        callable and a loader for the template for the fragment name the
+        descriptor was created with to be created and returned.
+        """
+        docFactory = object()
+        loadAttempts = []
+        fragmentName = 'abc'
+        class Dummy(object):
+            class StubResolver(object):
+                classProvides(ITemplateNameResolver)
+                def getDocFactory(name):
+                    loadAttempts.append(name)
+                    return docFactory
+                getDocFactory = staticmethod(getDocFactory)
+            docFactory = ThemedDocumentFactory(fragmentName, 'StubResolver')
+        self.assertIdentical(Dummy().docFactory, docFactory)
+        self.assertEqual(loadAttempts, [fragmentName])
+
+
 
 def testHead(theme):
     """

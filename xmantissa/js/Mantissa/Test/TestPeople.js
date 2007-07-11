@@ -66,6 +66,32 @@ Mantissa.Test.TestPeople.StubWidget.methods(
     });
 
 
+/**
+ * Stub implementation of L{Mantissa.People.AddPersonForm}.
+ *
+ * @ivar creationObservers: An array of the objects passed to
+ *     L{observePersonCreation}.
+ */
+Mantissa.Test.TestPeople.StubAddPersonForm = Divmod.Class.subclass(
+    'Mantissa.Test.TestPeople.StubAddPersonForm');
+Mantissa.Test.TestPeople.StubAddPersonForm.methods(
+    function __init__(self) {
+        self.creationObservers = [];
+    },
+
+    /**
+     * Ignore the widget hierarchy.
+     */
+    function setWidgetParent(self, parent) {
+    },
+
+    /**
+     * Remember a person creation observer in C{self.observers}.
+     */
+    function observePersonCreation(self, observer) {
+        self.creationObservers.push(observer);
+    });
+
 
 /**
  * Tests for L{Mantissa.People.EditAction}.
@@ -181,6 +207,17 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         self.node.appendChild(self.detail);
         document.body.appendChild(self.node);
         self.organizer = Mantissa.People.Organizer(self.node);
+
+        self.calls = [];
+        self.organizer.callRemote = function(name) {
+            var args = [];
+            for (var i = 1; i < arguments.length; ++i) {
+                args.push(arguments[i]);
+            }
+            var result = Divmod.Defer.Deferred();
+            self.calls.push({name: name, args: args, result: result});
+            return result;
+        };
     },
 
     /**
@@ -210,24 +247,15 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
-     * L{Mantissa.People.Organizer.getAddPerson} should call I{getAddPerson} on
-     * the server and set the resulting widget as the detail widget.
+     * L{Mantissa.People.Organizer.displayAddPerson} should call
+     * I{getAddPerson} on the server and set the resulting widget as the detail
+     * widget.
      */
     function test_getAddPerson(self) {
-        var calls = [];
-        self.organizer.callRemote = function(name) {
-            var args = [];
-            for (var i = 1; i < arguments.length; ++i) {
-                args.push(arguments[i]);
-            }
-            var result = Divmod.Defer.Deferred();
-            calls.push({name: name, args: args, result: result});
-            return result;
-        }
         var result = self.organizer.displayAddPerson();
-        self.assertIdentical(calls.length, 1);
-        self.assertIdentical(calls[0].name, 'getAddPerson');
-        self.assertIdentical(calls[0].args.length, 0);
+        self.assertIdentical(self.calls.length, 1);
+        self.assertIdentical(self.calls[0].name, 'getAddPerson');
+        self.assertIdentical(self.calls[0].args.length, 0);
 
         var detailWidget = null;
         self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
@@ -236,9 +264,72 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         self.organizer.setDetailWidget = function(widget) {
             detailWidget = widget;
         };
-        var resultingWidget = {};
-        calls[0].result.callback(resultingWidget);
+        var resultingWidget = Mantissa.Test.TestPeople.StubAddPersonForm();
+        self.calls[0].result.callback(resultingWidget);
         self.assertIdentical(resultingWidget, detailWidget);
+    },
+
+    /**
+     * L{Organizer} should add an observer to L{AddPersonForm} which calls
+     * L{Organizer.displayPersonInfo} with the nickname it is passed.
+     */
+    function test_personCreationObservation(self) {
+        var result = self.organizer.displayAddPerson();
+        var nickname = 'test nick';
+        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            return widgetInfo;
+        };
+        self.organizer.displayPersonInfo = function(nickname) {
+            displaying = nickname;
+        };
+        var addPersonForm = Mantissa.Test.TestPeople.StubAddPersonForm();
+        self.calls[0].result.callback(addPersonForm);
+        addPersonForm.creationObservers[0](nickname);
+        self.assertIdentical(displaying, nickname);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.displayPersonInfo} should call
+     * I{getContactInformation} with the nickname it is passed put the
+     * resulting markup in the detail area.
+     */
+    function test_displayPersonInfo(self) {
+        var nickname = 'testuser';
+        var result = self.organizer.displayPersonInfo(nickname);
+
+        self.assertIdentical(self.calls.length, 1);
+        self.assertIdentical(self.calls[0].name, 'getContactInformation');
+        self.assertIdentical(self.calls[0].args.length, 1);
+        self.assertIdentical(self.calls[0].args[0], nickname);
+
+        var detailNodes = null;
+        self.organizer.setDetailNodes = function(nodes) {
+            detailNodes = nodes;
+        };
+
+        var resultingFragments = [{}, {}];
+
+        var parsedStrings = [];
+        var returnedNodes = [];
+        var parseXHTMLString = Divmod.Runtime.theRuntime.parseXHTMLString;
+        Divmod.Runtime.theRuntime.parseXHTMLString = function(xhtml) {
+            parsedStrings.push(xhtml);
+            returnedNodes.push(document.createElement('span'));
+            var doc = {};
+            doc.documentElement = returnedNodes[returnedNodes.length - 1];
+            return doc;
+        };
+        try {
+            self.calls[0].result.callback(resultingFragments);
+        } finally {
+            Divmod.Runtime.theRuntime.parseXHTMLString = parseXHTMLString;
+        }
+        self.assertIdentical(detailNodes.length, 2);
+        self.assertIdentical(detailNodes[0], returnedNodes[0]);
+        self.assertIdentical(detailNodes[1], returnedNodes[1]);
+        self.assertIdentical(parsedStrings.length, 2);
+        self.assertIdentical(parsedStrings[0], resultingFragments[0]);
+        self.assertIdentical(parsedStrings[1], resultingFragments[1]);
     });
 
 
@@ -246,7 +337,7 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
  * Tests for L{Mantissa.People.EditPersonForm}.
  */
 Mantissa.Test.TestPeople.EditPersonFormTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.EDitPersonFormTests');
+    'Mantissa.Test.TestPeople.EditPersonFormTests');
 Mantissa.Test.TestPeople.EditPersonFormTests.methods(
     /**
      * L{Mantissa.People.EditPersonForm.reset} shouldn't reset the values of
@@ -263,4 +354,60 @@ Mantissa.Test.TestPeople.EditPersonFormTests.methods(
         var form = Mantissa.People.EditPersonForm(node, 'name');
         form.reset();
         self.assertIdentical(wasReset, false);
+    });
+
+
+/**
+ * Tests for L{Mantissa.People.AddPersonForm}.
+ */
+Mantissa.Test.TestPeople.AddPersonFormTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.AddPersonFormTests');
+Mantissa.Test.TestPeople.AddPersonFormTests.methods(
+    /**
+     * After successful submission, the form widget should notify all
+     * registered person creation observers of the nickname of the person which
+     * was just created.
+     */
+    function test_personCreationNotification(self) {
+        var createdPeople = [];
+        function personCreationObserver(nickname) {
+            createdPeople.push(nickname);
+        };
+        var nickname = 'test nick';
+        var node = document.createElement('form');
+        node.id = 'athena:123';
+        var input = document.createElement('input');
+        input.name = 'nickname';
+        input.value = nickname;
+        input.type = 'text';
+        node.appendChild(input);
+        var form = Mantissa.People.AddPersonForm(node, 'name');
+        form.observePersonCreation(personCreationObserver);
+        form.submitSuccess(null);
+        self.assertIdentical(createdPeople.length, 1);
+        self.assertIdentical(createdPeople[0], nickname);
+    });
+
+
+/**
+ * Tests for L{Mantissa.People.AddPerson}.
+ */
+Mantissa.Test.TestPeople.AddPersonTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.AddPersonTests');
+Mantissa.Test.TestPeople.AddPersonTests.methods(
+    /**
+     * L{AddPerson.observePersonCreation} should pass the observer it is called
+     * with to the C{observePersonCreation} method of the L{AddPersonForm}
+     * instance it contains.
+     */
+    function test_observePersonCreation(self) {
+        var node = document.createElement('span');
+        node.id = 'athena:123';
+        var addPerson = Mantissa.People.AddPerson(node);
+        var addPersonForm = Mantissa.Test.TestPeople.StubAddPersonForm();
+        addPerson.addChildWidget(addPersonForm);
+        var observer = {};
+        addPerson.observePersonCreation(observer);
+        self.assertIdentical(addPersonForm.creationObservers.length, 1);
+        self.assertIdentical(addPersonForm.creationObservers[0], observer);
     });

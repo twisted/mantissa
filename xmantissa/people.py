@@ -1,6 +1,5 @@
 # -*- test-case-name: xmantissa.test.test_people -*-
 
-import re
 from itertools import islice
 from string import uppercase
 from warnings import warn
@@ -18,7 +17,7 @@ from twisted.python.reflect import qual
 from nevow import rend, athena, inevow, static, url
 from nevow.athena import expose
 from nevow.loaders import stan
-from nevow.page import renderer
+from nevow.page import Element, renderer
 
 from epsilon import extime
 
@@ -28,6 +27,7 @@ from axiom.attributes import AND
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 
+from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform
 from xmantissa.liveform import FORM_INPUT, Parameter
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
@@ -36,7 +36,8 @@ from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
-from xmantissa.webtheme import ThemedFragment, ThemedElement
+from xmantissa.webtheme import (
+    ThemedDocumentFactory, ThemedFragment, ThemedElement)
 
 def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
     assert Image is not None, 'you need PIL installed if you want to thumbnail things'
@@ -239,6 +240,38 @@ class EmailContactType(BaseContactType):
         contact.address = email
 
 
+    def getReadOnlyView(self, contact):
+        """
+        Return a L{ReadOnlyEmailView} for the given L{EmailAddress}.
+        """
+        return ReadOnlyEmailView(contact)
+
+
+
+class ReadOnlyEmailView(Element):
+    """
+    Display an email address.
+
+    @type email: L{EmailAddress}
+    @ivar email: The email address which will be displayed.
+    """
+    docFactory = ThemedDocumentFactory(
+        'person-contact-read-only-email-view', 'store')
+
+    def __init__(self, email):
+        self.email = email
+        self.store = email.store
+
+
+    def address(self, request, tag):
+        """
+        Add the value of the C{address} attribute of the wrapped
+        L{EmailAddress} as a child to the given tag.
+        """
+        return tag[self.email.address]
+    renderer(address)
+
+
 
 class NameContactType(BaseContactType):
     """
@@ -331,6 +364,47 @@ class NameContactType(BaseContactType):
         contact.last = lastname
 
 
+    def getReadOnlyView(self, contact):
+        """
+        Return a L{ReadOnlyNameView} for the given L{RealName}.
+        """
+        return ReadOnlyNameView(contact)
+
+
+
+class ReadOnlyNameView(Element):
+    """
+    Display an name.
+
+    @type name: L{RealName}
+    @ivar name: The real name which will be displayed.
+    """
+    docFactory = ThemedDocumentFactory(
+        'person-contact-read-only-name-view', 'store')
+
+    def __init__(self, name):
+        self.name = name
+        self.store = name.store
+
+
+    def firstName(self, request, tag):
+        """
+        Add the value of the C{first} attribute of the wrapped L{RealName} as a
+        child to the given tag.
+        """
+        return tag[self.name.first]
+    renderer(firstName)
+
+
+    def lastName(self, request, tag):
+        """
+        Add the value of the C{last} attribute of the wrapped L{RealName} as a
+        child to the given tag.
+        """
+        return tag[self.name.last]
+    renderer(lastName)
+
+
 
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
@@ -384,6 +458,16 @@ class Person(item.Item):
         """
         for a in self.getEmailAddresses():
             return a
+
+
+    def getMugshot(self):
+        """
+        Return the L{Mugshot} associated with this L{Person} or C{None} if
+        there isn't one.
+        """
+        return self.store.findUnique(
+            Mugshot, Mugshot.person == self, default=None)
+
 
     def registerExtract(self, extract, timestamp=None):
         """
@@ -746,7 +830,7 @@ class Organizer(item.Item):
         return (
             p.personalize(person)
             for p
-            in self.powerupsFor(ixmantissa.IOrganizerPlugin))
+            in self.getOrganizerPlugins())
 
     def linkToPerson(self, person):
         """
@@ -886,6 +970,39 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def head(self):
         return None
+
+
+    def getContactInformation(self, nickname):
+        """
+        Return a list of fragments giving information about the L{Person} with
+        the given C{nickname}.
+
+        @type nickname: C{unicode}
+        @param nickname: A value which corresponds to the I{nickname} attribute
+            of an extant L{Person}.
+
+        @rtype: L{list}
+        @return: A list of view objects which will display contact information
+            for the specified person.
+        """
+        person = self.organizer.personByName(nickname)
+        information = [
+            contactType.getReadOnlyView(item)
+            for contactType
+            in self.organizer.getContactTypes()
+            for item
+            in contactType.getContactItems(person)]
+        # At the moment, this whole list is just blobs of opaque view garbage.
+        # So, there's not really any reason to want to have contact view
+        # objects separate from `personalize' stuff.  However, if these stop
+        # being blobs and become structured objects, it might make sense to
+        # have two different methods, one for each kind of thing. -exarkun
+        information.extend([
+                IPersonFragment(plugin)
+                for plugin
+                in self.organizer.peoplePlugins(person)])
+        return information
+    expose(getContactInformation)
 
 
     def performAction(self, actionName, person):
@@ -1133,6 +1250,8 @@ class PostalContactType(BaseContactType):
     """
     Contact type plugin which allows a person to have a snail-mail address.
     """
+    implements(IContactType)
+
     def getParameters(self, postalAddress):
         """
         Return a C{list} of one L{LiveForm} parameter for editing a
@@ -1202,6 +1321,39 @@ class PostalContactType(BaseContactType):
         return person.store.query(PostalAddress, PostalAddress.person == person)
 
 
+    def getReadOnlyView(self, contact):
+        """
+        Return a L{ReadOnlyPostalAddressView} for the given L{PostalAddress}.
+        """
+        return ReadOnlyPostalAddressView(contact)
+
+
+
+class ReadOnlyPostalAddressView(Element):
+    """
+    Display a postal address.
+
+    @type _address: L{PostalAddress}
+    @ivar _address: The postal address which will be displayed.
+    """
+    docFactory = ThemedDocumentFactory(
+        'person-contact-read-only-postal-address-view', 'store')
+
+    def __init__(self, address):
+        self._address = address
+        self.store = address.store
+
+
+    def address(self, request, tag):
+        """
+        Add the wrapped L{PostalAddress} item's C{address} attribute as a child
+        of the given tag.
+        """
+        return tag[self._address.address]
+    renderer(address)
+
+
+
 class Notes(item.Item):
     typeName = 'mantissa_organizer_addressbook_notes'
 
@@ -1244,7 +1396,7 @@ class AddPersonFragment(ThemedFragment):
         person.
     """
     fragmentName = 'add-person'
-    live = 'athena'
+    jsClass = u'Mantissa.People.AddPerson'
 
     def __init__(self, organizer):
         athena.LiveFragment.__init__(self)
@@ -1278,11 +1430,17 @@ class AddPersonFragment(ThemedFragment):
             self._addPersonParameters(),
             description='Add Person')
         addPersonForm.compact()
+        addPersonForm.jsClass = u'Mantissa.People.AddPersonForm'
         addPersonForm.setFragmentParent(self)
         return addPersonForm
 
 
     def _addPerson(self, nickname, **allContactInfo):
+        """
+        Implementation of L{Person} creation.
+
+        This method must be called in a transaction.
+        """
         organizer = self.organizer
         person = organizer.createPerson(nickname)
 
@@ -1298,8 +1456,13 @@ class AddPersonFragment(ThemedFragment):
 
 
     def addPerson(self, nickname, **contactInfo):
+        """
+        Create a new L{Person} with the given C{nickname} and contact items.
+
+        @type nickname: C{unicode}
+        @return: C{None}
+        """
         self.organizer.store.transact(self._addPerson, nickname, **contactInfo)
-        return u'Made A Person!'
     expose(addPerson)
 
 
@@ -1514,7 +1677,7 @@ def contactInfoItemTypeFromClassName(className):
 
 
 
-class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
+class ContactInfoFragment(ThemedFragment, rend.ChildLookupMixin):
     """
     Renderer for contact information about a L{Person}.
     """
@@ -1550,8 +1713,7 @@ class ContactInfoFragment(athena.LiveFragment, rend.ChildLookupMixin):
                         Mugshot, Mugshot.person == self.person))
 
     def render_mugshotLink(self, ctx, data):
-        self.mugshot = self.person.store.findUnique(
-                            Mugshot, Mugshot.person == self.person, default=None)
+        self.mugshot = self.person.getMugshot()
         if self.mugshot is None:
             return '/Mantissa/images/mugshot-placeholder.png'
         return self.getMyURL() + '/mugshot'

@@ -626,6 +626,12 @@ class IContactType(Interface):
         """
 
 
+    def getReadOnlyView(contact):
+        """
+        Return an L{IRenderer} which will display the given contact.
+        """
+
+
 
 class IOrganizerPlugin(Interface):
     """

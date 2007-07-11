@@ -22,7 +22,7 @@ from xmantissa.liveform import (
     ListParameter,)
 
 from xmantissa.webtheme import getLoader
-from xmantissa.test.rendertools import renderLiveFragment
+from xmantissa.test.rendertools import TagTestingMixin, renderLiveFragment
 from xmantissa.ixmantissa import IParameterView
 
 
@@ -39,20 +39,6 @@ class StubView(object):
         """
         Ignore the default template tag.
         """
-
-
-
-class TagTestingMixin:
-    """
-    Mixin defining various useful tag-related testing functionality.
-    """
-    def assertTag(self, tag, name, attributes, children):
-        """
-        Assert that the given tag has the given name, attributes, and children.
-        """
-        self.assertEqual(tag.tagName, name)
-        self.assertEqual(tag.attributes, attributes)
-        self.assertEqual(tag.children, children)
 
 
 

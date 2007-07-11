@@ -7,11 +7,14 @@ from zope.interface import implements
 from twisted.python import reflect
 from twisted.python.util import sibpath
 
+from epsilon.structlike import record
+
 from nevow.loaders import xmlfile
 from nevow import inevow, tags, athena, page, stan
 from nevow.url import URL
 
 from xmantissa import ixmantissa
+from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.offering import getInstalledOfferings, getOfferings
 
 def getAllThemes():
@@ -151,6 +154,45 @@ class MantissaTheme(XHTMLDirectoryTheme):
             rel='stylesheet',
             type='text/css',
             href=root.child('Mantissa').child('mantissa.css'))
+
+
+
+class ThemedDocumentFactory(record('fragmentName resolverAttribute')):
+    """
+    A descriptor which finds a template loader based on the Mantissa theme
+    system.
+
+    Use this to have the appropriate template loaded automatically at the time
+    of first access::
+
+        class YourElement(Element):
+            '''
+            An element for showing something.
+            '''
+            docFactory = ThemedDocumentFactory('template-name', 'userStore')
+
+            def __init__(self, store):
+                self.userStore = store
+
+
+    When C{docFactory} is looked up on an instance of YourElement, the
+    ITemplateNameResolver powerup on its C{'userStore'} attribute will
+    be loaded and asked for the C{'template-name'} template loader.  The
+    C{docFactory} attribute access will result in the object in which
+    this results.
+
+    @ivar fragmentName: A C{str} giving the name of the template which should
+        be loaded.
+    @ivar resolverAttribute: A C{str} giving the name of the attribute on
+        instances which is adaptable to L{ITemplateNameResolver}.
+    """
+    def __get__(self, oself, type):
+        """
+        Get the document loader for C{self.fragmentName}.
+        """
+        resolver = ITemplateNameResolver(
+            getattr(oself, self.resolverAttribute))
+        return resolver.getDocFactory(self.fragmentName)
 
 
 

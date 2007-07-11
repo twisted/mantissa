@@ -72,15 +72,27 @@ Mantissa.People.Organizer.methods(
     },
 
     /**
-     * Replace the current detail view with the node from the given
-     * L{Nevow.Athena.Widget}.
+     * Remove the existing detail nodes and insert the specified ones in their
+     * place.
+     *
+     * @type nodes: An Array of DOM Nodes.
      */
-    function setDetailWidget(self, widget) {
+    function setDetailNodes(self, nodes) {
         var detail = self.nodeById('detail');
         while (detail.childNodes.length) {
             detail.removeChild(detail.childNodes[0]);
         }
-        detail.appendChild(widget.node);
+        for (var i = 0; i < nodes.length; ++i) {
+            detail.appendChild(nodes[i]);
+        }
+    },
+
+    /**
+     * Detach the existing detail widget, if there is one, and replace the
+     * existing detail nodes with the node for the given widget.
+     */
+    function setDetailWidget(self, widget) {
+        self.setDetailNodes([widget.node]);
         if (self.existingDetailWidget !== null) {
             self.existingDetailWidget.detach();
         }
@@ -98,7 +110,33 @@ Mantissa.People.Organizer.methods(
             });
         result.addCallback(
             function(widget) {
+                widget.observePersonCreation(
+                    function(nickname) {
+                        self.displayPersonInfo(nickname);
+                    });
                 self.setDetailWidget(widget);
+            });
+    },
+
+    /**
+     * Get a person info widget for the person with the specified nickname and
+     * put it in the detail area.
+     *
+     * @type nickname: String
+     * @param nickname: The I{nickname} of the L{xmantissa.people.Person} for
+     *     which to load an info widget.
+     */
+    function displayPersonInfo(self, nickname) {
+        var result = self.callRemote('getContactInformation', nickname);
+        result.addCallback(
+            function(contactInformation) {
+                var nodes = [];
+                for (var i = 0; i < contactInformation.length; ++i) {
+                    nodes.push(
+                        Divmod.Runtime.theRuntime.parseXHTMLString(
+                            contactInformation[i]).documentElement);
+                }
+                self.setDetailNodes(nodes);
             });
     },
 
@@ -110,17 +148,6 @@ Mantissa.People.Organizer.methods(
         if(tdbc) {
             tdbc._setTableContent(data[0]);
         }
-    },
-
-    function addPerson(self, form) {
-        var d = self.callRemote('addPerson', form.firstname.value,
-                                             form.lastname.value,
-                                             form.email.value);
-        form.firstname.value = "";
-        form.lastname.value = "";
-        form.email.value = "";
-
-        d.addCallback(self.replaceTDB).addErrback(self.cbPersonError);
     });
 
 
@@ -324,4 +351,55 @@ Mantissa.People.EditPersonForm.methods(
      * the form, since they are the values which are present on the server.
      */
     function reset(self) {
+    });
+
+
+/**
+ * Overall representation of the interface for adding a new person.  Doesn't do
+ * much except expose a method of the L{AddPersonForm} it contains to outside
+ * widgets.
+ */
+Mantissa.People.AddPerson = Nevow.Athena.Widget.subclass(
+    'Mantissa.People.AddPerson');
+Mantissa.People.AddPerson.methods(
+    /**
+     * Add a person creation observer to my L{AddPersonForm}.
+     */
+    function observePersonCreation(self, observer) {
+        self.childWidgets[0].observePersonCreation(observer);
+    });
+
+
+/**
+ * Specialized L{Mantissa.LiveForm.FormWidget} which registered observer
+ * functions with the nickname of each newly created person.
+ *
+ * @ivar observer: An array of observer functions which have been registered.
+ */
+Mantissa.People.AddPersonForm = Mantissa.LiveForm.FormWidget.subclass(
+    'Mantissa.People.AddPersonForm');
+Mantissa.People.AddPersonForm.methods(
+    function __init__(self, node) {
+        Mantissa.People.AddPersonForm.upcall(self, '__init__', node);
+        self.observers = [];
+    },
+    /**
+     * Register a callable to be invoked with the nickname of any new person
+     * created with this form.
+     *
+     * @param observer: A one-argument callable.
+     */
+    function observePersonCreation(self, observer) {
+        self.observers.push(observer);
+    },
+
+    /**
+     * Handle creation success by invoking C{personCreated} on any registered
+     * observers.
+     */
+    function submitSuccess(self, result) {
+        var nickname = self.gatherInputAccessors().nickname[0].get();
+        for (var i = 0; i < self.observers.length; ++i) {
+            self.observers[i](nickname);
+        }
     });

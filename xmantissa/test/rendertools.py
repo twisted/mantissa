@@ -12,6 +12,20 @@ from nevow.context import WovenContext
 from nevow.inevow import IRequest
 
 
+class TagTestingMixin:
+    """
+    Mixin defining various useful tag-related testing functionality.
+    """
+    def assertTag(self, tag, name, attributes, children):
+        """
+        Assert that the given tag has the given name, attributes, and children.
+        """
+        self.assertEqual(tag.tagName, name)
+        self.assertEqual(tag.attributes, attributes)
+        self.assertEqual(tag.children, children)
+
+
+
 def _makeContext():
     """
     Create the request and context objects necessary for rendering a page.
