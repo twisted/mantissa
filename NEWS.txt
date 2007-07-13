@@ -1,3 +1,18 @@
+0.6.5 (2007-07-06):
+  - People are now editable.
+  - Add/delete buttons added to the person scrolltable.
+  - People now include 'postal contact' fields.
+  - Multiple email-address contact items' creation is now prevented.
+  - An event publisher for the creation of new contacts has been
+    added.
+  - Theme lookup now cached during page rendering, both for calls to
+    the deprecated webtheme.getLoader and via ThemedElement.
+  - New inequality-based scrolltable implementation.
+  - Themeing support for Athena's "unsupported browser" page now
+    provided.
+  - JavaScript modules now served from a centralized location for
+    public and private pages.
+
 0.6.4 (2007-06-06):
   - LoginPage now remembers and passes on query arguments.
   - Removed use of deprecated API from webadmin.DeveloperSite.
