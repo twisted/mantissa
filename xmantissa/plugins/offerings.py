@@ -2,7 +2,7 @@ from xmantissa import people, offering, website
 
 peopleOffering = offering.Offering(
     name=u'People',
-    description=u'Mantissa People',
+    description=u'Basic organizer and addressbook support.',
 
     siteRequirements=((None, website.WebSite),),
     appPowerups=(),
