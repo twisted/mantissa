@@ -21,6 +21,7 @@ class IColumn(Interface):
         sorted
         """
 
+
     def extractValue(model, item):
         """
         @type model: L{xmantissa.tdb.TabularDataModel}
@@ -29,10 +30,22 @@ class IColumn(Interface):
         @return: the underlying value for this column
         """
 
+
     def getType():
         """
         returns a string describing the type of this column, or None
         """
+
+
+    def toComparableValue(value):
+        """
+        Convert a value received from the client into one that can be compared
+        like-for-like with L{sortAttribute}, when executing an axiom query.
+
+        (Callers should note that this is new as of Mantissa 0.6.6, and be
+        prepared to deal with its absence in legacy code.)
+        """
+
 
     attributeID = Attribute(
         """

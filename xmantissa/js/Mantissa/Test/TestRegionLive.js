@@ -100,6 +100,33 @@ Mantissa.Test.TestRegionLive.ScrollingElementTestCase.methods(
     },
 
     /**
+     * Verify that rowsBeforeRow returns the correct number of rows that appear
+     * before the reference row.
+     */
+    function test_rowsBeforeRow(self) {
+        var ROW_COUNT = 9;
+        var result = self._getScrollingElement(ROW_COUNT);
+        var elt;
+        result.addCallback(
+            function (theElt) {
+                elt = theElt;
+                return elt.model._initialize();
+            });
+        result.addCallback(
+            function (ign) {
+                var lastRegion = elt.model._regions[
+                    elt.model._regions.length - 1];
+                var lastRow = lastRegion.rows[lastRegion.rows.length - 1];
+                return elt.model.server.rowsBeforeRow(lastRow, 10);
+            });
+        result.addCallback(
+            function (rows) {
+                self.assertEqual(rows.length, ROW_COUNT - 1);
+            });
+        return result;
+    },
+
+    /**
      * Verify that initializing the scroll model will result in 2 regions
      * being created.  This test is a sanity check, to make sure that
      * adjustments to default page sizes, etc, will not invalidate the results
@@ -213,6 +240,10 @@ Mantissa.Test.TestRegionLive.ScrollingElementTestCase.methods(
                         }
                     };
                 };
+
+                // RowRegion's constructor is going to look at this, we just
+                // want it to forget about it.
+                self._regions = [];
 
                 /* We need to pad out the scrolltable's height so that there
                  * will actually be a scrollbar that can move.  Otherwise,

@@ -18,7 +18,8 @@ from axiom.dependency import installOn
 from axiom.test.util import QueryCounter
 
 from xmantissa.webapp import PrivateApplication
-from xmantissa.ixmantissa import IWebTranslator
+from xmantissa.ixmantissa import IWebTranslator, IColumn
+from xmantissa.error import Unsortable
 
 
 from xmantissa.scrolltable import (
@@ -142,7 +143,8 @@ class ScrollingFragmentTestCase(ScrollTestMixin,
                 self.store, DataThunk, None,
                 (DataThunk.a, UnsortableColumn(DataThunk.b)))
 
-        self.assertEquals(sf.currentSortColumn, DataThunk)
+        self.assertIdentical(sf.currentSortColumn.sortAttribute(),
+                             DataThunk.a)
 
 
     def testTestNoSortables(self):
@@ -282,6 +284,17 @@ class InequalityModelTestCase(unittest.TestCase):
             True)
 
 
+    def test_noSortableColumns(self):
+        """
+        Attempting to construct a L{InequalityModel} without any sortable columns
+        should result in a L{Unsortable} exception being thrown.
+        """
+        makeModel = lambda: InequalityModel(self.store, DataThunk, None,
+                                            [UnsortableColumn(DataThunk.a)],
+                                            None, True)
+        self.assertRaises(Unsortable, makeModel)
+
+
     def test_rowsAtStart(self):
         """
         Verify that retrieving rows after the "None" value will retrieve rows at
@@ -322,13 +335,33 @@ class InequalityModelTestCase(unittest.TestCase):
         Verify that the exposed method, L{rowsAfterRow}, returns results comparable
         to the logical method, L{rowsAfterItem}.
         """
-        for count in range(1, len(self.data)):
-            for value in range(1, len(self.data)):
-                expected = self.data[value:value + count]
-                row = list(ScrollableView.constructRows.im_func(
-                        self.model, [self.data[value - 1]]))[0]
-                self.assertEqual(
-                    self.model.rowsAfterRow(row, count), expected)
+        args = []
+        def rowsAfterItem(item, count):
+            args.append((item, count))
+        self.model.rowsAfterItem = rowsAfterItem
+        theItem = object()
+        theTranslator = FakeTranslator()
+        theTranslator.fromWebID = lambda webID: theItem
+        self.model.webTranslator = theTranslator
+        self.model.rowsAfterRow({u'__id__': u'webid!'}, 10)
+        self.assertEqual(args, [(theItem, 10)])
+
+
+    def test_rowsBeforeRow(self):
+        """
+        Verify that the exposed method, L{rowsBeforeRow}, return results comparable
+        to the logical method, L{rowsBeforeItem}.
+        """
+        args = []
+        def rowsBeforeItem(item, count):
+            args.append((item, count))
+        self.model.rowsBeforeItem = rowsBeforeItem
+        theItem = object()
+        theTranslator = FakeTranslator()
+        theTranslator.fromWebID = lambda webID: theItem
+        self.model.webTranslator = theTranslator
+        self.model.rowsBeforeRow({u'__id__': u'webid!'}, 10)
+        self.assertEqual(args, [(theItem, 10)])
 
 
     def test_rowsAfterItem(self):
@@ -370,6 +403,8 @@ class InequalityModelTestCase(unittest.TestCase):
                     self.model.rowsBeforeItem(self.data[value], count),
                     expected)
 
+
+
 class FakeTranslator:
     """
     A fake implementation of the L{IWebTranslator} interface, for tests which
@@ -399,7 +434,7 @@ class ScrollingElementTests(unittest.TestCase):
         """
         def makeScrollingElement():
             return ScrollingElement(
-                Store(), DataThunk, None, [], DataThunk.a, True)
+                Store(), DataThunk, None, [DataThunk.a], DataThunk.a, True)
         self.assertWarns(
             DeprecationWarning,
             "No IWebTranslator plugin when creating Scrolltable - broken "
@@ -407,6 +442,65 @@ class ScrollingElementTests(unittest.TestCase):
             "keyword argument.",
             __file__,
             makeScrollingElement)
+
+
+    def test_callComparableValue(self):
+        """
+        L{ScrollingElement} should attempt to call L{IColumn.toComparableValue} to
+        translate input from JavaScript if it is provided by the sort column.
+        """
+        calledWithValues = []
+        column = AttributeColumn(DataThunk.a)
+        column.toComparableValue = lambda v: (calledWithValues.append(v), 0)[1]
+        scrollingElement = ScrollingElement(
+            Store(), DataThunk, None, [column], webTranslator=FakeTranslator())
+        scrollingElement.rowsAfterValue(16, 10)
+        self.assertEqual(calledWithValues, [16])
+        calledWithValues.pop()
+        scrollingElement.rowsBeforeValue(11, 10)
+        self.assertEqual(calledWithValues, [11])
+
+
+    def test_deprecatedNoToComparableValue(self):
+        """
+        If L{IColumn.toComparableValue} is ''not'' provided by the sort column,
+        then L{ScrollingElement} should notify the developer of a deprecation
+        warning but default to using the value itself.
+        """
+        class FakeComparator:
+            def __ge__(fc, other):
+                self.shouldBeFakeValue = other
+            __lt__ = __ge__
+        theFakeComparator = FakeComparator()
+        class FakeOldColumn:
+            implements(IColumn) # but not really; we're missing something!
+            attributeID = 'fake'
+            def sortAttribute(self):
+                return theFakeComparator
+
+        scrollingElement = ScrollingElement(
+            Store(), DataThunk, None, [FakeOldColumn()],
+            webTranslator=FakeTranslator())
+
+       # Now, completely hamstring the implementation; we are interested in
+       # something very specific here, so we just want to capture one value.
+       # (Passing it further on, for example to Axiom, would not result in
+       # testing anything useful, since it is the individual column's
+       # responsibility to yield useful values here anyway, and this test is
+       # explicitly for the case where it's *not* doing that, but happened to
+       # work before anyway!)
+
+        scrollingElement.inequalityQuery = lambda a, b, c: None
+        scrollingElement.constructRows = lambda nothing : ()
+        for lenientMethod in [scrollingElement.rowsBeforeValue,
+                              scrollingElement.rowsAfterValue]:
+            fakeValue = object()
+            self.assertWarns(DeprecationWarning,
+                             "IColumn implementor %s.FakeOldColumn does not "
+                             "implement method toComparableValue.  This is "
+                             "required since Mantissa 0.6.6." % (__name__,),
+                             __file__, lenientMethod, fakeValue, 10)
+            self.assertIdentical(fakeValue, self.shouldBeFakeValue)
 
 
     def test_initialWidgetArguments(self):

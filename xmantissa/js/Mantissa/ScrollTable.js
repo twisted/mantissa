@@ -857,6 +857,9 @@ Mantissa.ScrollTable._ScrollingBase.methods(
     },
 
     /**
+     * This method is deprecated; it is not necessary in the new
+     * L{ScrollTable} widget.  See L{TimestampColumn.valueToDOM}.
+     *
      * Convert a Date instance to a human-readable string.
      *
      * @type when: C{Date}
@@ -875,6 +878,9 @@ Mantissa.ScrollTable._ScrollingBase.methods(
     },
 
     /**
+     * This method is deprecated; it is not necessary in the new
+     * L{ScrollTable} widget.  See L{Column.valueToDOM}.
+     *
      * @param columnName: The name of the column for which this is a value.
      *
      * @param columnType: A string which might indicate the data type of the
@@ -1798,8 +1804,50 @@ Mantissa.ScrollTable.Column.methods(
      */
     function extractValue(self, row) {
         return row[self.name];
+    },
+
+    /**
+     * Construct some DOM objects to represent this value in a scrolltable.
+     */
+    function valueToDOM(self, columnValue) {
+        return document.createTextNode(columnValue.toString());
     });
 
+
+Mantissa.ScrollTable.WidgetColumn = Mantissa.ScrollTable.Column.subclass(
+    'Mantissa.ScrollTable.WidgetColumn');
+
+Mantissa.ScrollTable.WidgetColumn.FAKE_VALUE =
+    "Mantissa.ScrollTable.WidgetColumn.FAKE_VALUE";
+/**
+ * A column that holds Widget which are children of the table widget.
+ */
+Mantissa.ScrollTable.WidgetColumn.methods(
+    /**
+     * Override the base implementation to return
+     * L{Mantissa.ScrollTable.WidgetColumn.FAKE_VALUE} so we can later check
+     * whether it is passed back into L{valueToDOM}.
+     */
+     function fakeValue(self) {
+         return self.FAKE_VALUE;
+     },
+
+    /**
+     * Override the base implementation to return an empty node which will
+     * later contain the node of the widget constructed out of C{widgetInfo}.
+     */
+    function valueToDOM(self, widgetInfo, tableWidget) {
+        var resultNode = document.createElement('div');
+        if (widgetInfo !== self.FAKE_VALUE) {
+            var addChildDeferred = tableWidget.addChildWidgetFromWidgetInfo(
+                widgetInfo);
+            addChildDeferred.addCallback(
+                function(widget) {
+                    resultNode.appendChild(widget.node);
+                });
+        }
+        return resultNode;
+    });
 
 Mantissa.ScrollTable.IntegerColumn = Mantissa.ScrollTable.Column.subclass(
     'Mantissa.ScrollTable.IntegerColumn');
@@ -1882,6 +1930,41 @@ Mantissa.ScrollTable.TimestampColumn.methods(
      */
     function fakeValue(self) {
         return new Date();
+    },
+
+    /**
+     * Construct a C{Date} object from the column value.
+     */
+    function extractValue(self, rowData) {
+        return new Date(
+            Mantissa.ScrollTable.TimestampColumn.upcall(
+                self, 'extractValue', rowData)
+            * 1000);
+    },
+
+    /*
+     * Convert a C{Date} object into a C{Number} via C{Date.getTime}.
+     */
+    function toNumber(self, columnValue) {
+        return columnValue.getTime();
+    },
+
+    /**
+     * Convert a C{Number} into something suitable for sending to the server.
+     */
+    function fromNumber(self, number) {
+        // XXX wonky as hell, because we are actually going to send this to
+        // the server, and the server thinks that this column is full of
+        // floats
+        return number / 1000;
+    },
+
+    /**
+     * Format the timestamp as a human-readable string.
+     */
+    function valueToDOM(self, columnValue) {
+        return Mantissa.ScrollTable.TimestampColumn.upcall(
+            self, 'valueToDOM', columnValue.toUTCString());
     });
 
 Mantissa.ScrollTable.RowRegion = Divmod.Class.subclass(
@@ -1924,6 +2007,26 @@ Mantissa.ScrollTable.RowRegion.methods(
     },
 
     /**
+     * Get the region immediately preceding this one, if such a region exists.
+     *
+     * @rtype: L{Mantissa.ScrollTable.RowRegion} or C{undefined}.
+     */
+    function previousRegion(self) {
+        var regions = self.regionModel._regions;
+        var eachRegion;
+        var lastRegion = undefined;
+        for (var i = 0; i < regions.length; i++) {
+            eachRegion = regions[i];
+            if (self.followsRegion(eachRegion)) {
+                lastRegion = eachRegion;
+            } else {
+                return lastRegion;
+            }
+        }
+        return lastRegion;
+    },
+
+    /**
      * Remove a row from this region.
      *
      * @param offset: the offset within the entire data set (i.e. this
@@ -1940,13 +2043,14 @@ Mantissa.ScrollTable.RowRegion.methods(
     },
 
     /**
-     * Does this region follow the given region?
+     * Determine if this RowRegion's values come later than the given
+     * RowRegion's values according to the current sort column and sort order.
      */
     function followsRegion(self, otherRegion) {
         if (self.regionModel._sortAscending) {
             return (otherRegion.lastValue() < self.firstValue());
         } else {
-            return (otherRegion.firstValue() > self.lastValue());
+            return (otherRegion.lastValue() > self.firstValue());
         }
     },
 
@@ -2369,16 +2473,21 @@ Mantissa.ScrollTable.RegionModel.methods(
         if (!exactlyAdjacent) {
             pagesize--;
         }
+        var serverRow = {
+          __id__: row.__id__,
+          __TEMPORARY__: true
+        };
+        serverRow[self.sortColumn.name] = row[self.sortColumn.name];
         if (self._sortAscending) {
-            result = self.server.rowsAfterRow(row, pagesize);
+            result = self.server.rowsAfterRow(serverRow, pagesize);
         } else {
             result = self.server.rowsBeforeRow(
-                row, pagesize).addCallback(function (result) {
+                serverRow, pagesize).addCallback(function (result) {
                     return result.reverse();
                 });
         }
         result.addCallback(function (data) {
-            data.splice(0, 0, row);
+            data.splice(0, 0, serverRow);
             return data;
         });
         return result;
@@ -2526,7 +2635,7 @@ Mantissa.ScrollTable.RegionModel.methods(
                      * indices is replaced with M rows, where M < N.
                      */
                     var nextRegion = self._regions[i + 1];
-                    if (newRegion.lastValue() >= nextRegion.firstValue()) {
+                    if (thisRegion.overlapsValue(nextRegion.firstValue())) {
                         /* It does.  Join the current region together with the
                          * next one, dropping any overlapping rows.
                          */
@@ -2728,6 +2837,33 @@ Mantissa.ScrollTable.DOMRegionView.methods(
     },
 
     /**
+     * Return the pixel position, relative to the top of the table view's
+     * node, of the end of this region's node.
+     *
+     * @rtype: C{Number} (integer)
+     */
+    function pixelBottom(self) {
+        return self.pixelTop() + self.node.clientHeight;
+    },
+
+    /**
+     * Return the pixel position, relative to the top of the table view's
+     * node, of the beginning of this region's node.
+     *
+     * @rtype: C{Number} (integer)
+     */
+    function pixelTop(self) {
+        return parseInt(self.node.style.top);
+    },
+
+    /**
+     * Return the average height, in pixels, of one row in this region.
+     */
+    function averageRowPixelHeight(self) {
+        return Math.floor(self.node.clientHeight / self.rowRegion.rows.length);
+    },
+
+    /**
      * Create a DOM element to represent a region and return it.
      *
      * @return: an unparented DOM node with no padding, margin, or borders,
@@ -2764,11 +2900,17 @@ Mantissa.ScrollTable.DOMRegionView.methods(
         var row, rowNode;
         for(var i = 0; i < self.rowRegion.rows.length; i++) {
             row = self.rowRegion.rows[i];
-            /* XXX _createRow shouldn't really take an offset argument; we
-             * need to figure out another way to make the rows alternate
-             * colors. */
-            rowNode = self.tableView._createRow(self.rowRegion.offset + i,
-                                                row);
+            if (row.__TEMPORARY__) {
+                rowNode = MochiKit.DOM.SPAN(
+                    {"class": "row-temporary-placeholder"},
+                    "TEMPORARY ROW PLACEHOLDER");
+            } else {
+                /* XXX _createRow shouldn't really take an offset argument; we
+                 * need to figure out another way to make the rows alternate
+                 * colors. */
+                rowNode = self.tableView._createRow(
+                    self.rowRegion.offset + i, row);
+            }
             rowsNode.appendChild(rowNode);
         }
         return rowsNode;
@@ -2835,10 +2977,24 @@ Mantissa.ScrollTable.DOMRegionView.methods(
      * reflect a new offset of its region.
      */
     function refreshViewOffset(self) {
-        var topNum = (self.rowRegion.firstOffset() *
-                      self.tableView._getRowHeight());
-        var topStyle = topNum.toString() + 'px';
-        self.node.style.top = topStyle;
+        // Get the previous region
+        var prevRegion = self.rowRegion.previousRegion();
+        var bottom;
+        var lastOffset;
+        if (prevRegion === undefined) {
+            bottom = 0;
+            lastOffset = 0;
+        } else {
+            bottom = prevRegion.viewPeer.pixelBottom();
+            lastOffset = prevRegion.lastOffset() + 1;
+        }
+
+        // Add _getRowHeight times the offset difference between the last row
+        // of that thing and the first row of our thing
+        var offsetDifference = (self.rowRegion.firstOffset() - lastOffset);
+        self.node.style.top = ((bottom + (offsetDifference *
+                                          self.tableView._getRowHeight()))
+                               + "px");
     },
 
     /**
@@ -2858,7 +3014,8 @@ Mantissa.ScrollTable._columnTypes = {
     'integer': Mantissa.ScrollTable.IntegerColumn,
     'text': Mantissa.ScrollTable.TextColumn,
     'timestamp': Mantissa.ScrollTable.TimestampColumn,
-    'boolean': Mantissa.ScrollTable.BooleanColumn
+    'boolean': Mantissa.ScrollTable.BooleanColumn,
+    'widget': Mantissa.ScrollTable.WidgetColumn
 };
 
 Mantissa.ScrollTable.ScrollTable = Mantissa.ScrollTable._ScrollingBase.subclass(
@@ -3003,6 +3160,10 @@ Mantissa.ScrollTable.ScrollTable.methods(
         if(self.columnWidths && colName in self.columnWidths) {
             attrs["style"] += "width:" + self.columnWidths[colName];
         }
+        var columnObject = self.columns[colName];
+        var columnValue = columnObject.extractValue(rowData);
+        var columnNode = columnObject.valueToDOM(columnValue, self);
+
         var node = MochiKit.DOM.SPAN(
             attrs,
             /* there is an IE bug (See other implementation of makeCellElement
@@ -3010,17 +3171,7 @@ Mantissa.ScrollTable.ScrollTable.methods(
              * abandon the SPAN at some point once we have verified it does
              * not affect IE?
              */
-            MochiKit.DOM.A({"href": rowData.__id__},
-            self.massageColumnValue(
-                colName,
-                self.columnTypes[colName][0],
-                rowData[colName])));
-        if (self.columnTypes[colName][0] == "fragment") {
-            Divmod.Runtime.theRuntime.setNodeContent(
-                node.firstChild,
-                '<div xmlns="http://www.w3.org/1999/xhtml">' + rowData[colName]
-                + '</div>');
-        }
+            MochiKit.DOM.A({"href": rowData.__id__}, columnNode));
         return node;
     },
 
@@ -3056,9 +3207,71 @@ Mantissa.ScrollTable.ScrollTable.methods(
                  * _debounceInterval seconds.  Time to issue a real scroll
                  * event to our model.
                  */
-                self.model.expose(Math.floor(self.node.scrollTop /
-                                             self._getRowHeight()));
+                self.model.expose(
+                    self.translateScrollOffset(self.node.scrollTop));
         });
+    },
+
+    /**
+     * Get the region view before a given pixel offset.
+     */
+    function regionBeforePixel(self, pixelOffset) {
+        var regs = self.model._regions;
+        var prevRegion = undefined;
+        for (var i = 0; i < regs.length; i++) {
+            var eachRegion = regs[i];
+            if (eachRegion.viewPeer.pixelTop() > pixelOffset) {
+                break;
+            }
+            prevRegion = eachRegion;
+        }
+        return prevRegion;
+    },
+
+    /**
+     * Translate a pixel offset within my node to a desired row offset from my
+     * model.
+     */
+    function translateScrollOffset(self, pixelOffset) {
+        var reg = self.regionBeforePixel(pixelOffset);
+        if (reg === undefined) {
+            return Math.floor(pixelOffset / self._getRowHeight());
+        } else {
+            if (reg.viewPeer.pixelBottom() < pixelOffset) {
+                // we're below the region
+                pixelOffset -= reg.viewPeer.pixelBottom();
+                return Math.floor((pixelOffset / self._getRowHeight())
+                                  + (reg.lastOffset() + 1));
+            } else {
+                // we're inside the region
+                var someHeight = reg.viewPeer.averageRowPixelHeight();
+                var internalPixelOffset = pixelOffset - reg.viewPeer.pixelTop();
+
+                /* We want to know what row in this region the top of the
+                 * scroll viewport is looking at.  But we can't know exactly,
+                 * because browsers are terrible, and the primary function of
+                 * all browsers, that EIGHT BILLION PETABYTES of C++ CODE are
+                 * dedicated to, i.e. translating the (x,y) coordinate of a
+                 * mouse click into a node, is not exposed to javascript.  We
+                 * can't afford expensive, potentially deep DOM traversal of
+                 * all row nodes on every click to interrogate them, and
+                 * caching all the pixel start/stop locations would be complex
+                 * and error-prone, so ...
+                 *
+                 * What we're doing here is getting the average pixel height
+                 * of one row in this region, then figuring out what node we
+                 * are *probably* looking at, assuming all of those rows are
+                 * actually the same height.  This guess is certainly going to
+                 * be wrong if the heights vary significantly, but *actually*
+                 * all we care about is whether you can see past the end of
+                 * the last node or not, and this will get us a fairly correct
+                 * answer all of the time for that particular question.
+                 */
+                return (Math.ceil(internalPixelOffset / someHeight) +
+                        reg.firstOffset());
+
+            }
+        }
     },
 
     /**
@@ -3126,6 +3339,22 @@ Mantissa.ScrollTable.ScrollTable.methods(
 
     function rowsAfterRow(self, row, count) {
         return self.callRemote('rowsAfterRow', row, count);
+    },
+
+    /**
+     * Call the remote method C{rowsBeforeRow}, informing it that we'd like
+     * C{count} rows before the reference row C{row}.
+     *
+     * @param row: a reference row.
+     * @type row: C{Object}
+     *
+     * @param count: the desired number of rows.
+     * @type row: C{Number}
+     *
+     * @rtype: L{Divmod.Defer.Deferred}
+     */
+    function rowsBeforeRow(self, row, count) {
+        return self.callRemote('rowsBeforeRow', row, count);
     },
 
     /* view methods */

@@ -7,11 +7,15 @@ This module provides an API for displaying data from a Twisted server in a
 Nevow Athena front-end.
 """
 
+import inspect
 import warnings
 
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
+from twisted.python.reflect import qual
+
+from epsilon.extime import Time
 
 from nevow.athena import LiveElement, expose
 
@@ -23,6 +27,7 @@ from xmantissa.error import Unsortable
 
 
 TYPE_FRAGMENT = 'fragment'
+TYPE_WIDGET = 'widget'
 
 
 
@@ -89,6 +94,16 @@ class AttributeColumn(object):
         if sortattr is not None:
             return sortattr.__class__.__name__
 
+
+    def toComparableValue(self, value):
+        """
+        Convert C{value} into something that can be compared like-for-like with
+        L{sortAttribute}.
+        """
+        return value
+
+
+
 registerAdapter(AttributeColumn, SQLAttribute, IColumn)
 
 
@@ -114,6 +129,13 @@ class TimestampAttributeColumn(AttributeColumn):
 
     def getType(self):
         return 'timestamp'
+
+
+    def toComparableValue(self, value):
+        """
+        Override L{AttributeColumn}'s implementation to return a L{Time} instance.
+        """
+        return Time.fromPOSIXTimestamp(value)
 
 
 
@@ -166,6 +188,7 @@ class _ScrollableBase(object):
     and L{IndexingModel}, which uses simple indexin logic suitable for
     sequences.
     """
+    currentSortColumn = None
     def __init__(self, webTranslator, columns, defaultSortColumn,
                  defaultSortAscending):
         self.webTranslator = webTranslator
@@ -180,13 +203,48 @@ class _ScrollableBase(object):
 
             if defaultSortColumn is None:
                 defaultSortColumn = col.sortAttribute()
+            if (defaultSortColumn is not None
+                and col.sortAttribute() is defaultSortColumn):
+                self.currentSortColumn = col
 
             attributeID = unicode(col.attributeID, 'ascii')
             self.columns[attributeID] = col
             self.columnNames.append(attributeID)
-
-        self.currentSortColumn = defaultSortColumn
         self.isAscending = defaultSortAscending
+        if self.currentSortColumn is None:
+            self._cannotDetermineSort(defaultSortColumn)
+
+
+    def _cannotDetermineSort(self, defaultSortColumn):
+        """
+        This is an internal method designed to be overridden *only* by the classes
+        in this module.
+
+        It will be called if:
+
+            * No explicit sort column was specified, and none of the columns
+              specified is sortable, or,
+
+            * An explicit sort column was specified, but it is not present in
+              the list of columns specified.
+
+        In other words, this method is called when there is no consistent sort
+        that can be performed based on the caller's input to the constructor.
+        In the default case of the inequality-based model, nothing can be done
+        about this, and an exception is raised.  In the old index-based
+        scrolltable, certain implicit sorts will appear to work, so those
+        continue to work for those tables.  However, Users are advised to avoid
+        the index-based scrolltable in general, and this subtly broken implciit
+        behavior specifically.
+
+        @param defaultSortColumn: something adaptable to L{IColumn}, or None,
+        which subclasses may use to accept a sort that is not related to any
+        extant columns in this table.
+
+        @raise: L{Unsortable}, always.  Some subclasses can deal with this case
+        better.
+        """
+        raise Unsortable('you must provide a sortable column')
 
 
     def resort(self, columnName):
@@ -197,7 +255,7 @@ class _ScrollableBase(object):
         because it is passed from the browser.
         """
         csc = self.currentSortColumn
-        newSortColumn = self.columns[columnName].sortAttribute()
+        newSortColumn = self.columns[columnName]
         if newSortColumn is None:
             raise Unsortable('column %r has no sort attribute' % (columnName,))
         if csc is newSortColumn:
@@ -265,6 +323,19 @@ class InequalityModel(_ScrollableBase):
 
     The first such implementation is L{ScrollingElement}, which communicates
     with a Nevow Athena JavaScript client.
+
+    @ivar webTranslator: A L{IWebTranslator} provider for resolving and
+    creating web links for items.
+
+    @ivar columns: A mapping of attribute identifiers to L{IColumn}
+    providers.
+
+    @ivar columnNames: A list of attribute identifiers.
+
+    @ivar isAscending: A boolean indicating the current order of the sort.
+
+    @ivar currentSortColumn: An L{IColumn} representing the current
+    sort key.
     """
 
     def __init__(self, store, itemType, baseConstraint, columns,
@@ -298,27 +369,31 @@ class InequalityModel(_ScrollableBase):
         """
         super(InequalityModel, self).__init__(
             _webTranslator(store, webTranslator), columns,
-            defaultSortColumn, defaultSortAscending)
+             defaultSortColumn, defaultSortAscending)
         self.store = store
         self.itemType = itemType
         self.baseConstraint = baseConstraint
 
 
-    def _inequalityQuery(self, constraint, count, isAscending):
+    def inequalityQuery(self, constraint, count, isAscending):
         """
-        Perform a query to obtain some rows from the table represented by this
-        model, at the behest of a networked client.
+        Perform a query to obtain some rows from the table represented
+        by this model, at the behest of a networked client.
 
-        @param constraint: an additional constraint to apply to the query, an
-        L{IComparison} provider.
+        @param constraint: an additional constraint to apply to the
+        query.
+        @type constraint: L{axiom.iaxiom.IComparison}.
 
-        @param count: an integer, the maximum number of rows to reutrn.
+        @param count: the maximum number of rows to return.
+        @type count: C{int}
 
-        @param isAscending: a boolean describing whether the query should be
-        yielding ascending or descending results.
+        @param isAscending: a boolean describing whether the query
+        should be yielding ascending or descending results.
+        @type isAscending: C{bool}
 
-        @return: an L{IQuery} provider which will yield some results from this
+        @return: an query which will yield some results from this
         model.
+        @rtype: L{axiom.iaxiom.IQuery}
         """
         if self.baseConstraint is not None:
             if constraint is not None:
@@ -326,11 +401,12 @@ class InequalityModel(_ScrollableBase):
             else:
                 constraint = self.baseConstraint
         # build the sort
+        currentSortAttribute = self.currentSortColumn.sortAttribute()
         if isAscending:
-            sort = (self.currentSortColumn.ascending,
+            sort = (currentSortAttribute.ascending,
                     self.itemType.storeID.ascending)
         else:
-            sort = (self.currentSortColumn.descending,
+            sort = (currentSortAttribute.descending,
                     self.itemType.storeID.descending)
         return self.store.query(self.itemType, constraint, sort=sort,
                                 limit=count).distinct()
@@ -355,9 +431,11 @@ class InequalityModel(_ScrollableBase):
         beginning at C{value} and containing at most C{count} elements.
         """
         if value is None:
-            query = self._inequalityQuery(None, count, True)
+            query = self.inequalityQuery(None, count, True)
         else:
-            query = self._inequalityQuery(self.currentSortColumn >= value, count, True)
+            pyvalue = self._toComparableValue(value)
+            currentSortAttribute = self.currentSortColumn.sortAttribute()
+            query = self.inequalityQuery(currentSortAttribute >= pyvalue, count, True)
         return self.constructRows(query)
     expose(rowsAfterValue)
 
@@ -375,16 +453,17 @@ class InequalityModel(_ScrollableBase):
         @return: A list of row data, ordered by the current sort column,
         beginning immediately after C{item}.
         """
-        value = self.currentSortColumn.__get__(item, type(item))
-        firstQuery = self._inequalityQuery(
-            AND(self.currentSortColumn == value,
+        currentSortAttribute = self.currentSortColumn.sortAttribute()
+        value = currentSortAttribute.__get__(item, type(item))
+        firstQuery = self.inequalityQuery(
+            AND(currentSortAttribute == value,
                 self.itemType.storeID > item.storeID),
             count, True)
         results = self.constructRows(firstQuery)
         count -= len(results)
         if count:
-            secondQuery = self._inequalityQuery(
-                self.currentSortColumn > value,
+            secondQuery = self.inequalityQuery(
+                currentSortAttribute > value,
                 count, True)
             results.extend(self.constructRows(secondQuery))
         return results
@@ -408,6 +487,50 @@ class InequalityModel(_ScrollableBase):
     expose(rowsAfterRow)
 
 
+    def rowsBeforeRow(self, rowObject, count):
+        """
+        Wrapper around L{rowsBeforeItem} which accepts the web ID for a item
+        instead of the item itself.
+
+        @param rowObject: a dictionary mapping strings to column values, sent
+        from the client.  One of those column values must be C{__id__} to
+        uniquely identify a row.
+
+        @param count: an integer, the number of rows to return.
+        """
+        webID = rowObject['__id__']
+        return self.rowsBeforeItem(
+            self.webTranslator.fromWebID(webID),
+            count)
+    expose(rowsBeforeRow)
+
+
+    def _toComparableValue(self, value):
+        """
+        Trivial wrapper which takes into account the possibility that our sort
+        column might not have defined the C{toComparableValue} method.
+
+        This can probably serve as a good generic template for some
+        infrastructure to deal with arbitrarily-potentially-missing methods
+        from certain versions of interfaces, but we didn't take it any further
+        than it needed to go for this system's fairly meagre requirements.
+        *Please* feel free to refactor upwards as necessary.
+        """
+        if hasattr(self.currentSortColumn, 'toComparableValue'):
+            return self.currentSortColumn.toComparableValue(value)
+        # Retrieve the location of the class's definition so that we can alert
+        # the user as to where they need to insert their implementation.
+        classDef = self.currentSortColumn.__class__
+        filename = inspect.getsourcefile(classDef)
+        lineno = inspect.findsource(classDef)[1]
+        warnings.warn_explicit(
+            "IColumn implementor " + qual(self.currentSortColumn.__class__) + " "
+            "does not implement method toComparableValue.  This is required since "
+            "Mantissa 0.6.6.",
+            DeprecationWarning, filename, lineno)
+        return value
+
+
     def rowsBeforeValue(self, value, count):
         """
         Retrieve display data for rows with sort-column values less than the given
@@ -425,10 +548,12 @@ class InequalityModel(_ScrollableBase):
         at C{value} and containing at most C{count} elements.
         """
         if value is None:
-            query = self._inequalityQuery(None, count, False)
+            query = self.inequalityQuery(None, count, False)
         else:
-            query = self._inequalityQuery(
-                self.currentSortColumn < value, count, False)
+            pyvalue = self._toComparableValue(value)
+            currentSortAttribute = self.currentSortColumn.sortAttribute()
+            query = self.inequalityQuery(
+                currentSortAttribute < pyvalue, count, False)
         return self.constructRows(query)[::-1]
     expose(rowsBeforeValue)
 
@@ -446,15 +571,16 @@ class InequalityModel(_ScrollableBase):
         @return: A list of row data, ordered by the current sort column,
         beginning immediately after C{item}.
         """
-        value = self.currentSortColumn.__get__(item, type(item))
-        firstQuery = self._inequalityQuery(
-            AND(self.currentSortColumn == value,
+        currentSortAttribute = self.currentSortColumn.sortAttribute()
+        value = currentSortAttribute.__get__(item, type(item))
+        firstQuery = self.inequalityQuery(
+            AND(currentSortAttribute == value,
                 self.itemType.storeID < item.storeID),
             count, False)
         results = self.constructRows(firstQuery)
         count -= len(results)
         if count:
-            secondQuery = self._inequalityQuery(self.currentSortColumn < value,
+            secondQuery = self.inequalityQuery(currentSortAttribute < value,
                                                 count, False)
             results.extend(self.constructRows(secondQuery))
         return results[::-1]
@@ -476,8 +602,8 @@ class IndexingModel(_ScrollableBase):
 
     @ivar isAscending: A boolean indicating the current order of the sort.
 
-    @ivar currentSortColumn: A L{axiom.attributes.SQLAttribute} representing
-    the current sort key.
+    @ivar currentSortColumn: An L{IColumn} representing the current
+    sort key.
     """
     def requestRowRange(self, rangeBegin, rangeEnd):
         """
@@ -516,7 +642,7 @@ class IndexingModel(_ScrollableBase):
             coltypes[colname] = (coltype, sortable)
 
         if self.currentSortColumn:
-            csc = unicode(self.currentSortColumn.attrname, 'ascii')
+            csc = unicode(self.currentSortColumn.sortAttribute().attrname, 'ascii')
         else:
             csc = None
 
@@ -611,6 +737,9 @@ class ItemQueryScrollingFragment(IndexingModel, ScrollableView, LiveElement):
                  defaultSortColumn=None, defaultSortAscending=True,
                  webTranslator=None,
                  *a, **kw):
+        self.store = store
+        self.itemType = itemType
+        self.baseConstraint = baseConstraint
         IndexingModel.__init__(
             self,
             _webTranslator(store, webTranslator),
@@ -618,9 +747,21 @@ class ItemQueryScrollingFragment(IndexingModel, ScrollableView, LiveElement):
             defaultSortColumn,
             defaultSortAscending)
         LiveElement.__init__(self, *a, **kw)
-        self.store = store
-        self.itemType = itemType
-        self.baseConstraint = baseConstraint
+
+
+    def _cannotDetermineSort(self, defaultSortColumn):
+        """
+        In this old, index-based way of doing things, we can do even more implicit
+        horrible stuff to determine the sort column, or even give up completely
+        and accept an implicit sort.  NB: this is still terrible behavior, but
+        lots of old code relied on it, and since this class is legacy anyway it
+        won't be deprecated or removed.
+
+        We can also accept a sort column in this table that is not actually
+        displayed or sent to the client at all.
+        """
+        if defaultSortColumn is not None:
+            self.currentSortColumn = IColumn(defaultSortColumn)
 
 
     def getInitialArguments(self):
@@ -633,9 +774,9 @@ class ItemQueryScrollingFragment(IndexingModel, ScrollableView, LiveElement):
 
     def performQuery(self, rangeBegin, rangeEnd):
         if self.isAscending:
-            sort = self.currentSortColumn.ascending
+            sort = self.currentSortColumn.sortAttribute().ascending
         else:
-            sort = self.currentSortColumn.descending
+            sort = self.currentSortColumn.sortAttribute().descending
         return list(self.store.query(self.itemType,
                                      self.baseConstraint,
                                      offset=rangeBegin,
@@ -664,6 +805,13 @@ class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
         LiveElement.__init__(self, *a, **kw)
         self.store = store
         self.elements = elements
+
+
+    def _cannotDetermineSort(self, defaultSortColumn):
+        """
+        Since this model back-ends to a fixed-index sequence anyway, we won't be
+        sorting by anything and the default sort column will always be None.
+        """
 
 
     def getInitialArguments(self):

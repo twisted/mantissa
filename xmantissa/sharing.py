@@ -517,7 +517,9 @@ def getShare(store, role, shareID):
 def asAccessibleTo(role, query):
     """
     @param role: The role to retrieve L{SharedProxy}s for.
-    @param query: An Axiom query describing the Items to retrieve, which this role can access.
+
+    @param query: An Axiom query describing the Items to retrieve, which this
+    role can access.
     """
     if query.comparison is not None:
         #XXX fix axiom to not break if an AND branch is None?

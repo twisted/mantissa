@@ -8,6 +8,7 @@ Run this test like this::
 
 This will display a large scrollable table, containing 5000 rows.
 """
+from zope.interface import implements
 
 import time
 
@@ -19,8 +20,12 @@ from axiom.item import Item
 
 from axiom.attributes import integer, text, timestamp
 
-from xmantissa.scrolltable import ScrollingElement
+from nevow.athena import LiveElement
+from nevow import loaders, tags
+
+from xmantissa.scrolltable import ScrollingElement, TYPE_WIDGET
 from xmantissa.webtheme import getLoader
+from xmantissa import ixmantissa
 
 
 
@@ -32,6 +37,54 @@ class Sample(Item):
     quantity = integer(indexed=True)
     title = text()
     date = timestamp(indexed=True)
+    color = text(allowNone=False)
+
+
+class SampleColorWidget(LiveElement):
+    """
+    Trivial L{LiveElement} which renders a square with the background color of
+    L{sampleItem}'s C{color} attribute.
+
+    @ivar sampleItem: The sample item.
+    @type sampleItem: L{Sample}
+    """
+    def __init__(self, sampleItem):
+        super(SampleColorWidget, self).__init__(
+            docFactory=loaders.stan(
+                tags.div(style='background-color: %s' % (sampleItem.color,),
+                         render=tags.directive('liveElement'))['hi']))
+        self.sampleItem = sampleItem
+
+
+
+class SampleColorWidgetColumn(object):
+    """
+    A widget column which renders a L{SampleColorWidget}.
+    """
+    implements(ixmantissa.IColumn)
+    attributeID = 'color'
+
+    def sortAttribute(self):
+        """
+        L{SampleColorWidgetColumn} objects cannot be sorted.
+        """
+        return None
+
+
+    def extractValue(self, model, sampleItem):
+        """
+        Make a L{SampleColorWidget} out of C{sampleItem}.
+        """
+        fragment = SampleColorWidget(sampleItem)
+        fragment.setFragmentParent(model)
+        return fragment
+
+
+    def getType(self):
+        """
+        Return L{TYPE_WIDGET}
+        """
+        return TYPE_WIDGET
 
 
 
@@ -44,10 +97,14 @@ def populate(aStore, itemCount=5000):
     @param itemCount: the number of L{Sample} items to create.
     """
     now = time.time()
+    colors = [u'red', u'blue']
     def fxn():
         for x in xrange(itemCount):
-            yield (x * 2, u"Number %d" %(x,), Time.fromPOSIXTimestamp(now - x))
-    aStore.batchInsert(Sample, [Sample.quantity, Sample.title, Sample.date],
+            yield (x * 2,
+                   u"Number %d" % (x,),
+                   Time.fromPOSIXTimestamp(now - x),
+                   colors[x % 2])
+    aStore.batchInsert(Sample, [Sample.quantity, Sample.title, Sample.date, Sample.color],
                        fxn())
 
 
@@ -86,7 +143,11 @@ def scroller():
     aStore = Store()
     populate(aStore)
     se = ScrollingElement(aStore, Sample, None,
-                          [Sample.quantity, Sample.title, Sample.date],
-                          webTranslator=FakeTranslator(aStore))
+                          [Sample.quantity,
+                           Sample.date,
+                           Sample.title,
+                           SampleColorWidgetColumn()],
+                          webTranslator=FakeTranslator(aStore),
+                          defaultSortAscending=False)
     se.docFactory = getLoader(se.fragmentName)
     return se

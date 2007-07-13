@@ -605,7 +605,7 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
         self.assertIdentical(model._regions.length, 3);
         // C
         model.insertRowData(1, [self.makeRow(23), self.makeRow(33),
-                         self.makeRow(34), self.makeRow(45)]);
+                                self.makeRow(34), self.makeRow(45)]);
 
         var regions = model._regions;
         // should have coalesced at this point
@@ -625,6 +625,50 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
         var secondRows = model._regions[1].rows;
         self.assertIdentical(secondRows.length, 1);
         self.assertIdentical(secondRows[0].value, 90);
+    },
+
+    /**
+     * Same as test_pushRightDoubleOverlap, but with values in a descending order.
+     */
+    function test_pushRightDoubleOverlapDescending(self) {
+        var server = null;
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'),
+            false);
+        // A
+        model.insertRowData(0, [self.makeRow(90), self.makeRow(89)]);
+        // B (according to test_pushRightLeftOverlap, this will be
+        // shifted over to index 3...)
+        model.insertRowData(0, [self.makeRow(67), self.makeRow(56),
+                                self.makeRow(45)]);
+        // D
+        model.insertRowData(0, [self.makeRow(43), self.makeRow(21)]);
+        // sanity check
+        self.assertIdentical(model._regions[2].firstOffset(), 7);
+        self.assertIdentical(model._regions.length, 3);
+        // C
+        model.insertRowData(1, [self.makeRow(89), self.makeRow(78),
+                                self.makeRow(67), self.makeRow(56)]);
+
+        var regions = model._regions;
+        // should have coalesced at this point
+        self.assertIdentical(regions.length, 2);
+        self.assertIdentical(regions[0].firstOffset(), 0);
+        self.assertIdentical(regions[1].firstOffset(), 7);
+
+        var firstRows = model._regions[0].rows;
+        self.assertIdentical(firstRows.length, 6);
+        self.assertIdentical(firstRows[0].value, 90);
+        self.assertIdentical(firstRows[1].value, 89);
+        self.assertIdentical(firstRows[2].value, 78);
+        self.assertIdentical(firstRows[3].value, 67);
+        self.assertIdentical(firstRows[4].value, 56);
+        self.assertIdentical(firstRows[5].value, 45);
+
+        var secondRows = model._regions[1].rows;
+        self.assertIdentical(secondRows.length, 2);
+        self.assertIdentical(secondRows[0].value, 43);
+        self.assertIdentical(secondRows[1].value, 21);
     },
 
     /**
@@ -1500,8 +1544,9 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      */
     function test_findRowData(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
-        var model = self.makeRegionModel(server,
-                                         Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self.makeRegionModel(
+            server,
+            Mantissa.Test.TestRegionModel.SkewedColumn('value'));
 
         model.insertRowData(0, [self.makeRow(1), self.makeRow(2), self.makeRow(3)]);
         model.insertRowData(500, [self.makeRow(4), self.makeRow(5), self.makeRow(6)]);
@@ -1511,6 +1556,67 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
 
         rowData = model.findRowData(model._regions[1].rows[2].__id__);
         self.assertIdentical(rowData.value, 6);
+    },
+
+    /**
+     * followsRegion should determine the value ordering relationship between
+     * two regions.
+     */
+    function test_followsRegion(self) {
+        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
+        var model = self.makeRegionModel(
+            server,
+            Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        model.insertRowData(0, [self.makeRow(1), self.makeRow(2)]);
+        model.insertRowData(0, [self.makeRow(3), self.makeRow(4)]);
+        var reg1 = model._regions[0];
+        var reg2 = model._regions[1];
+
+        self.assertIdentical(reg2.followsRegion(reg1), true);
+        self.assertIdentical(reg1.followsRegion(reg2), false);
+        self.assertIdentical(reg1.followsRegion(reg1), false);
+        self.assertIdentical(reg2.followsRegion(reg2), false);
+
+        var reg1merge = Mantissa.ScrollTable.RowRegion(
+            model, 0, [self.makeRow(2), self.makeRow(2.5)]);
+
+        // Overlapping regions should be merged, so they should *not* be
+        // considered 'following'.
+        self.assertIdentical(reg1merge.followsRegion(reg1), false);
+
+        // But regions which haven't yet been inserted should be able to be
+        // compared.
+        self.assertIdentical(reg2.followsRegion(reg1merge), true);
+    },
+
+    /**
+     * followsRegion should determine the value ordering relationship between
+     * two regions dependent upon sort ordering.
+     */
+    function test_followsRegionDescending(self) {
+        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
+        var model = self.makeRegionModel(
+            server,
+            Mantissa.Test.TestRegionModel.SkewedColumn('value'), false);
+        model.insertRowData(0, [self.makeRow(4), self.makeRow(3)]);
+        model.insertRowData(0, [self.makeRow(2), self.makeRow(1)]);
+        var reg1 = model._regions[0];
+        var reg2 = model._regions[1];
+
+        self.assertIdentical(reg2.followsRegion(reg1), true);
+        self.assertIdentical(reg1.followsRegion(reg2), false);
+        self.assertIdentical(reg1.followsRegion(reg1), false);
+        self.assertIdentical(reg2.followsRegion(reg2), false);
+        var reg1merge = Mantissa.ScrollTable.RowRegion(
+            model, 0, [self.makeRow(3), self.makeRow(2.5)]);
+
+        // Overlapping regions should be merged, so they should *not* be
+        // considered 'following'.
+        self.assertIdentical(reg1merge.followsRegion(reg1), false);
+
+        // But regions which haven't yet been inserted should be able to be
+        // compared.
+        self.assertIdentical(reg2.followsRegion(reg1merge), true);
     },
 
     /**
@@ -1551,7 +1657,9 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
             });
         self.assertIdentical(capture.length, 2); // pagesize
         self.assertIdentical(capture[0].value, 3);
+        self.assertIdentical(capture[0].__TEMPORARY__, true);
         self.assertIdentical(capture[1].value, 4);
+        self.assertIdentical(capture[1].__TEMPORARY__, undefined);
     },
 
     /**
@@ -1574,7 +1682,9 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
             });
         self.assertIdentical(capture.length, 2); // pagesize
         self.assertIdentical(capture[0].value, 3);
+        self.assertIdentical(capture[0].__TEMPORARY__, true);
         self.assertIdentical(capture[1].value, 2);
+        self.assertIdentical(capture[1].__TEMPORARY__, undefined);
     },
 
     /**
@@ -1741,7 +1851,8 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
                 {name: 'value', type: 'integer'},
                 {name: 'name', type: 'text'},
                 {name: 'truefalse', type: 'boolean'},
-                {name: 'datetime', type: 'timestamp'}
+                {name: 'datetime', type: 'timestamp'},
+                {name: 'thingy', type: 'widget'}
                 ]);
 
         self.assert(
@@ -1756,6 +1867,9 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
         self.assert(
             myScrollTable.columns['datetime'] instanceof
             Mantissa.ScrollTable.TimestampColumn);
+        self.assert(
+            myScrollTable.columns['thingy'] instanceof
+            Mantissa.ScrollTable.WidgetColumn);
 
         self.assertIdentical(
             myScrollTable.columns['value'], myScrollTable.sortColumn);
@@ -1764,7 +1878,7 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
         for(var k in myScrollTable.columns) {
             columnCount++;
         }
-        self.assertIdentical(columnCount, 4);
+        self.assertIdentical(columnCount, 5);
     },
 
     /**
@@ -1974,6 +2088,41 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
     },
 
     /**
+     * L{Mantissa.ScrollTable.DOMRegionView._makeNodeForRows} should create an
+     * empty node for rows that are marked as temporary.
+     */
+    function test_temporaryRowNode(self) {
+        var fakeTableView = {
+          node: document.createElement('div'),
+          _getRowHeight: function () {
+                return 3;
+            }
+        };
+        var fakeRowRegion = {
+          rows: [{__TEMPORARY__: true}],
+          firstOffset: function () {
+                return 0;
+            },
+          previousRegion: function () {
+                return undefined;
+            }
+        };
+
+        // This test _intentionally_ does not invoke the entire operation of
+        // rowsFollowingRow -> insertRowData -> createRegionView, because by
+        // the end of that sequence of events, the fake row _always_ should
+        // have been removed from the actual DOM.
+
+        var regionView = Mantissa.ScrollTable.DOMRegionView(
+            fakeTableView, fakeRowRegion);
+        var regionNode = fakeTableView.node.childNodes[0];
+        self.assertIdentical(regionNode.childNodes.length, 1);
+        var rowNode = regionNode.childNodes[0].childNodes[0];
+        //                       ^ rows container node
+        self.assertIdentical(rowNode.className, "row-temporary-placeholder");
+    },
+
+    /**
      * Verify that the ScrollTable widget will hook up scrolling event
      * handlers to its DOM node upon initialization.
      */
@@ -1986,6 +2135,7 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
                 }
                 exposures.push(rowOffset);
             },
+          _regions: []          // needed by handler to compute offsets
         };
         document.body.appendChild(self.table.node);
 
@@ -2109,9 +2259,155 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
      * by default for their cell nodes.
      */
     function test_newMakeCellElement(self) {
-        var ce = self.table.makeCellElement('value', 'hello');
+        var ce = self.table.makeCellElement('value', {value: 'hello'});
         self.assertIdentical(ce.tagName, "SPAN");
     },
+
+    /**
+     * DOMRegionViews should not visually overlap with each other when the
+     * actual row heights based on filling out the DOM are greater than the
+     * expected row heights from estimating with _getRowHeight.  In other
+     * words, they should be inserted at a pixel offset based on the distance
+     * from the preceding region, not an absolute offset.
+     */
+
+    function test_overlappingRegionView(self) {
+        self.table._getRowHeight = function () {
+            return 22;
+        };
+        self.table.model.insertRowData(0, [self._makeFake(1),
+                                           self._makeFake(2)]);
+        self.table.model._regions[0].viewPeer.node.setMockElementSize(
+            100, 5000);
+        self.table.model.insertRowData(3, [self._makeFake(6),
+                                           self._makeFake(7)]);
+        // sanity check
+        self.assertIdentical(self.table.node.childNodes.length, 2);
+        var theNode = self.table.model._regions[1].viewPeer.node;
+
+        self.assertIdentical(theNode.style.top, '5022px');
+    },
+
+    /**
+     * When the user scrolls to a particular pixel offset, the view should
+     * translate that pixel offset into a row offset based on the end of the
+     * previous row.
+     */
+    function test_requestAppropriateOffset(self) {
+        self.table._getRowHeight = function () {
+            return 33;
+        };
+        self.table.model.insertRowData(0, [self._makeFake(1),
+                                           self._makeFake(2)]);
+        // Now, rather than 66 pixels down, let's make that inordinately big.
+        self.table.model._regions[0].viewPeer.node.setMockElementSize(
+            100, 5000);
+
+        self.assertIdentical(
+            self.table.translateScrollOffset(5050),
+            3);
+
+        self.assertIdentical(
+            self.table.translateScrollOffset(5000 + (33 * 10)),
+            12);
+
+        self.assertIdentical(
+            self.table.translateScrollOffset(4999),
+            2);
+
+        self.assertIdentical(
+            self.table.translateScrollOffset(0),
+            0);
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.Column.valueToDOM} returns a
+     * text node which contains only the value of the column.
+     */
+    function test_defaultColumnDOM(self) {
+        var column = Mantissa.ScrollTable.Column('column');
+        var textNode = column.valueToDOM(167);
+        self.assertIdentical(textNode.nodeValue, '167');
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.TimestampColumn.valueToDOM} returns
+     * a text node which contains only the value of the column, properly
+     * formatted.
+     */
+    function test_timestampColumnDOM(self) {
+        var column = Mantissa.ScrollTable.TimestampColumn('timestamp');
+        var aDate = new Date(8274);
+        var textNode = column.valueToDOM(aDate);
+        self.assertIdentical(textNode.nodeValue, aDate.toUTCString());
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.TimestampColumn.extractValue}
+     * correctly constructs a C{Date} object from the rowdata.
+     */
+    function test_timestampColumnExtractValue(self) {
+        var column = Mantissa.ScrollTable.TimestampColumn('timestamp');
+        // can't compare the Date objects directly.
+        self.assertIdentical(
+            column.extractValue({'timestamp': 12}).getTime(),
+            new Date(12 * 1000).getTime());
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.TimestampColumn.toNumber} correctly
+     * converts a C{Date} object into a C{Number}.
+     */
+    function test_timestampColumnToNumber(self) {
+        var column = Mantissa.ScrollTable.TimestampColumn('timestamp');
+        var theDate = new Date(101);
+        self.assertIdentical(column.toNumber(theDate), theDate.getTime());
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.TimestampColumn.fromNumber}
+     * correctly convers a C{Number} into a C{Date}.
+     */
+    function test_timestampColumnFromNumber(self) {
+        var column = Mantissa.ScrollTable.TimestampColumn('timestamp');
+        // this should really be a Date but oh well.
+        self.assertIdentical(column.fromNumber(103), 103 / 1000);
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.WidgetColumn.valueToDOM} returns the
+     * result of passing the supplied widget info to the parent widget's
+     * C{addChildWidgetFromWidgetInfo} method.
+     */
+    function test_widgetColumnDOM(self) {
+        var column = Mantissa.ScrollTable.WidgetColumn('widget');
+        var theWidgetInfo = {'stuff': 'hi'};
+        var deferred = Divmod.Defer.Deferred();
+        var parentWidget = {addChildWidgetFromWidgetInfo: function(wigetInfo) {
+            return deferred;
+        }};
+        resultNode = column.valueToDOM(theWidgetInfo, parentWidget);
+        self.assertIdentical(resultNode.childNodes.length, 0);
+        deferred.callback({node: document.createTextNode('hi')});
+        self.assertIdentical(resultNode.childNodes.length, 1);
+        self.assertIdentical(resultNode.childNodes[0].nodeValue, 'hi');
+    },
+
+    /**
+     * L{WidgetColumn} should not attempt to add a widget from the fake value
+     * returned by L{WidgetColumn.fakeValue}; it should return an empty node,
+     * because there is no general mechanism for determining the
+     * representative height of a widget (whose class we may not even know).
+     */
+    function test_widgetColumnFakeValue(self) {
+        var column = Mantissa.ScrollTable.WidgetColumn('widget');
+        // Table widget has no properties here because we should not interact
+        // with it in any way in this case.
+        var trivialNode = column.valueToDOM(column.fakeValue(), {});
+        self.assertIdentical(trivialNode.tagName, 'DIV');
+        self.assertIdentical(trivialNode.childNodes.length, 0);
+    },
+
 
     /**
      * Verify that view offsets are properly calculated based on row height.

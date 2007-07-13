@@ -6,6 +6,7 @@ Tests for L{xmantissa.people}.
 from xml.dom.minidom import parseString
 
 from zope.interface import implements
+from zope.interface import classProvides
 
 from string import lowercase
 
@@ -16,7 +17,7 @@ from twisted.trial import unittest
 from nevow.loaders import stan
 from nevow.tags import div, slot
 from nevow.flat import flatten
-from nevow.athena import LiveElement, expose
+from nevow.athena import expose
 from nevow.page import renderer
 from nevow.testutil import FakeRequest
 
@@ -44,7 +45,7 @@ from xmantissa.people import (
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import TEXT_INPUT, FORM_INPUT, Parameter, LiveForm
 from xmantissa.ixmantissa import (
-    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment)
+    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
 
 
 
@@ -1735,7 +1736,8 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         wants to use.
         """
         baseConstraint = object()
-        sort = object()
+        class sort:
+            classProvides(IColumn)
 
         fragment = PersonScrollingFragment(
             None, baseConstraint, sort,
