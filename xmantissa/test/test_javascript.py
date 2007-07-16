@@ -49,3 +49,10 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         objects.
         """
         return 'Mantissa.Test.TestPeople'
+
+
+    def test_liveform(self):
+        """
+        Test the LiveForm widgets.
+        """
+        return 'Mantissa.Test.TestLiveForm'

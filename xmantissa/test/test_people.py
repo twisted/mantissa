@@ -43,7 +43,8 @@ from xmantissa.people import (
     ReadOnlyPostalAddressView)
 
 from xmantissa.webapp import PrivateApplication
-from xmantissa.liveform import TEXT_INPUT, FORM_INPUT, Parameter, LiveForm
+from xmantissa.liveform import (
+    TEXT_INPUT, FORM_INPUT, InputError, Parameter, LiveForm)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
 
@@ -1524,6 +1525,21 @@ class PeopleTests(unittest.TestCase):
         pa = self.store.findUnique(
             PostalAddress, PostalAddress.person == person)
         self.assertEqual(pa.address, u'123 Street Rd')
+
+
+    def test_addPersonValueError(self):
+        """
+        L{AddPersonFragment.addPerson} raises L{InputError} if
+        L{AddPersonFragment._addPerson} raises a L{ValueError}.
+        """
+        addPersonFragment = AddPersonFragment(self.organizer)
+        def stubAddPerson(*a, **kw):
+            raise ValueError("Stub nickname rejection")
+        addPersonFragment._addPerson = stubAddPerson
+        exception = self.assertRaises(
+            InputError, addPersonFragment.addPerson, u'nickname')
+        self.assertEqual(exception.args, ("Stub nickname rejection",))
+        self.assertTrue(isinstance(exception.args[0], unicode))
 
 
     def testMugshot(self):

@@ -24,6 +24,14 @@ from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 from xmantissa.ixmantissa import IParameterView
 
 
+class InputError(athena.LivePageError):
+    """
+    Base class for all errors related to rejected input values.
+    """
+    jsClass = u'Mantissa.LiveForm.InputError'
+
+
+
 TEXT_INPUT = 'text'
 PASSWORD_INPUT = 'password'
 TEXTAREA_INPUT = 'textarea'

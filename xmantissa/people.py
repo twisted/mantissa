@@ -29,7 +29,7 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform
-from xmantissa.liveform import FORM_INPUT, Parameter
+from xmantissa.liveform import FORM_INPUT, InputError, Parameter
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
@@ -1462,7 +1462,11 @@ class AddPersonFragment(ThemedFragment):
         @type nickname: C{unicode}
         @return: C{None}
         """
-        self.organizer.store.transact(self._addPerson, nickname, **contactInfo)
+        try:
+            self.organizer.store.transact(
+                self._addPerson, nickname, **contactInfo)
+        except ValueError, e:
+            raise InputError(unicode(e))
     expose(addPerson)
 
 

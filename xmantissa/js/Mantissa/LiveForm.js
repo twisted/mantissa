@@ -7,6 +7,26 @@
 
 // import Mantissa
 
+
+/**
+ * Error, generally received from the server, indicating that some input was
+ * rejected and the form action was not taken.
+ *
+ * At some future point, the attributes offered by this class (or another class
+ * which may supercede it) should be expanded to indicate more precisely which
+ * input was rejected (eg, by supplying a key or list of keys for input nodes
+ * corresponding to the rejected values).
+ *
+ * @ivar message: A string giving an explaination of why the input was
+ *     rejected.
+ */
+Mantissa.LiveForm.InputError = Divmod.Error.subclass("Mantissa.LiveForm.InputError");
+Mantissa.LiveForm.InputError.methods(
+    function __init__(self, message) {
+        self.message = message;
+    });
+
+
 Mantissa.LiveForm.BadInputName = Divmod.Error.subclass("Mantissa.LiveForm.BadInputName");
 /**
  * Thrown when there is an input name passed to one of L{FormWidget}'s methods
@@ -244,8 +264,34 @@ Mantissa.LiveForm.FormWidget.methods(
     },
 
     function submitFailure(self, err) {
-        Divmod.log('liveform', 'Error submitting form: ' + err);
-        return err;
+        self.hideProgressMessage();
+        var error = err.check(Mantissa.LiveForm.InputError);
+        if (error !== null) {
+            return self.displayInputError(error);
+        } else {
+            Divmod.log('liveform', 'Error submitting form: ' + err);
+            return err;
+        }
+    },
+
+    /**
+     * Display the given error about rejected input to the user.
+     *
+     * @type err: L{Mantissa.LiveForm.InputError}.
+     * @param err: The exception received from the server.
+     */
+    function displayInputError(self, error) {
+        try {
+            var statusNode = self.nodeById('input-error-message');
+        } catch (err) {
+            if (err instanceof Divmod.Runtime.NodeNotFound) {
+                return;
+            }
+        }
+        while (statusNode.childNodes.length) {
+            statusNode.removeChild(statusNode.childNodes[0]);
+        }
+        statusNode.appendChild(document.createTextNode(error.message))
     },
 
     function traverse(self, visitor) {
