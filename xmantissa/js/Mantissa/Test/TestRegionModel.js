@@ -2030,6 +2030,37 @@ Mantissa.Test.TestRegionModel.LegacyDOMTests.methods(
     function test_oldMakeCellElement(self) {
         var ce = self.table.makeCellElement('value', "hello");
         self.assertIdentical(ce.tagName, 'TD');
+    },
+
+    /**
+     * L{Mantissa.ScrollTable._ScrollingBase._makeActionsCells} should return a
+     * TD element with action names separated by spaces as children.
+     */
+    function test_makeActionsCells(self) {
+        self.table.actions = [
+            Mantissa.ScrollTable.Action('foo', 'Foo'),
+            Mantissa.ScrollTable.Action('bar', 'Bar')];
+        var actionsCells = self.table._makeActionsCells({});
+        self.assertIdentical(actionsCells.tagName, 'TD');
+        self.assertIdentical(actionsCells.childNodes.length, 3);
+        self.assertIdentical(actionsCells.childNodes[0].tagName, 'A');
+        self.assertIdentical(actionsCells.childNodes[0].childNodes.length, 1);
+        self.assertIdentical(actionsCells.childNodes[0].childNodes[0].nodeValue, 'Foo');
+        self.assertIdentical(actionsCells.childNodes[1].nodeValue, ' ');
+        self.assertIdentical(actionsCells.childNodes[2].tagName, 'A');
+        self.assertIdentical(actionsCells.childNodes[2].childNodes.length, 1);
+        self.assertIdentical(actionsCells.childNodes[2].childNodes[0].nodeValue, 'Bar');
+    },
+
+    /**
+     * L{Mantissa.ScrollTable._ScrollingBase._makeActionsCells} should return a
+     * TD element with no child nodes if there are no actions.
+     */
+    function test_makeNoActionsCells(self) {
+        self.table.actions = [];
+        var actionsCells = self.table._makeActionsCells({});
+        self.assertIdentical(actionsCells.tagName, 'TD');
+        self.assertIdentical(actionsCells.childNodes.length, 0);
     });
 
 Mantissa.Test.TestRegionModel.RegionDOMTests = Divmod.UnitTest.TestCase.subclass(

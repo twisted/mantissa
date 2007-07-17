@@ -755,14 +755,19 @@ Mantissa.ScrollTable._ScrollingBase.methods(
      */
     function _makeActionsCells(self, rowData) {
         var actions = self.getActionsForRow(rowData);
+        var actionNodes = [];
         for(var i = 0; i < actions.length; i++) {
-            actions[i] = actions[i].toNode(self, rowData);
+            actionNodes.push(actions[i].toNode(self, rowData));
+            actionNodes.push(document.createTextNode(" "));
+        }
+        if (actionNodes.length) {
+            actionNodes.pop();
         }
         var attrs = {"class": "scroll-cell"};
         if(self.columnWidths && "actions" in self.columnWidths) {
             attrs["style"] = "width:" + self.columnWidths["actions"];
         }
-        return MochiKit.DOM.TD(attrs, actions);
+        return MochiKit.DOM.TD(attrs, actionNodes);
     },
 
     /**
