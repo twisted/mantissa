@@ -3110,7 +3110,12 @@ Mantissa.ScrollTable.ScrollTable.methods(
          */
         self.resetColumns();
         self._detectPageSize();
-        self.model._initialize();
+        var feedback = self.startShowingFeedback();
+        var d = self.model._initialize();
+        d.addCallback(function (result) {
+            feedback.stop();
+            return result;
+        });
     },
 
     /**
@@ -3201,15 +3206,73 @@ Mantissa.ScrollTable.ScrollTable.methods(
             self._processingScrollEvent.cancel();
         }
         self._processingScrollEvent = self.callLater(
-            self._debounceInterval, function () {
+            self._debounceInterval,
+            function () {
                 self._processingScrollEvent = null;
                 /* The user has remained still on a particular row for
                  * _debounceInterval seconds.  Time to issue a real scroll
                  * event to our model.
                  */
-                self.model.expose(
-                    self.translateScrollOffset(self.node.scrollTop));
-        });
+                var feedback = self.startShowingFeedback();
+                var maybeD = self.model.expose(
+                    self.translateScrollOffset(self.visiblePixelTop()));
+                if (maybeD instanceof Divmod.Defer.Deferred) {
+                    maybeD.addBoth(function (result) {
+                        feedback.stop();
+                        return result;
+                    });
+                }
+            });
+    },
+
+    /**
+     * Start showing some "We're loading some rows" feedback and return an
+     * object with a 'stop' method to remove it.
+     */
+    function startShowingFeedback(self) {
+        var feedbackTop = self.visiblePixelTop();
+        var visibleHeight = self.visiblePixelHeight();
+        var node = MochiKit.DOM.DIV({"class": "scrolltable-loading"},
+                                    MochiKit.DOM.DIV({}, "Loading..."));
+        node.style.position = "absolute";
+        node.style.top = feedbackTop + 'px';
+        node.style.height = visibleHeight + 'px';
+        self.node.appendChild(node);
+        return {stop: function() {
+                self.node.removeChild(node);
+            }};
+    },
+
+    /**
+     * Get the pixel position of the top edge of this scrolltable's node.
+     *
+     * Override this method in subclasses, if the table is styled in a way
+     * which uses a different scroll bar, to return the topmost visible pixel
+     * relative to the top of the scrollable area.
+     *
+     * @rtype: C{Number} (integer)
+     */
+    function visiblePixelTop(self) {
+        // This technique is ad-hoc and should eventually be replaced with
+        // something more general that is not a direct DOM API.  See
+        // http://divmod.org/trac/ticket/2182
+        // for more information.
+        return self.node.scrollTop;
+    },
+
+    /**
+     * Get the height of the visible portion of this scrolltable's node.  This
+     * is used to determine the height of the feedback message.
+     *
+     * Override this methods in subclasses, if the table is styled in a way
+     * which visually exposes a different area.
+     *
+     * @rtype: C{Number} (integer)
+     */
+    function visiblePixelHeight(self) {
+        // The comment in visiblePixelTop above applies here as well.  See
+        // http://divmod.org/trac/ticket/2182 for more information.
+        return parseInt(self.node.style.height);
     },
 
     /**

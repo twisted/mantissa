@@ -590,6 +590,25 @@ body {
     font-size: 1.3em;
 }
 
+.scrolltable-loading {
+    font-size: 200%;
+    opacity: 0.5;
+    width: 100%;
+    text-align: center;
+    vertical-align: middle;
+    background-color: #cccccc;
+    color: black;
+}
+
+.scrolltable-loading div {
+    position: absolute;
+    display: table-cell;
+    vertical-align: middle;
+    text-align: center;
+    width: 100%;
+    top: 50%;
+}
+
 .placeholder-cell {
     background-image: url(/Mantissa/images/ellipsis.png);
     background-repeat: repeat-y;

@@ -2123,17 +2123,37 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
     },
 
     /**
+     * Verify that the ScrollTable widget's C{visiblePixelTop} method returns
+     * the vertical offset of the node's scrollbar.
+     */
+    function test_visiblePixelTop(self) {
+        self.table.node.scrollTop = 131;
+        self.assertIdentical(self.table.visiblePixelTop(), 131);
+    },
+
+    /**
+     * Verify that the ScrollTable widget's C{visiblePixelHeight} method
+     * returns the actual height of the node.
+     */
+    function test_visiblePixelHeight(self) {
+        self.table.node.style.height = "133px";
+        self.assertIdentical(self.table.visiblePixelHeight(), 133);
+    },
+
+    /**
      * Verify that the ScrollTable widget will hook up scrolling event
      * handlers to its DOM node upon initialization.
      */
     function test_onscrollHookup(self) {
         var exposures = [];
+        var exposeDeferred = Divmod.Defer.Deferred();
         self.table.model = {
           expose: function (rowOffset) {
                 if (exposures === undefined) {
                     exposures = [];
                 }
                 exposures.push(rowOffset);
+                return exposeDeferred;
             },
           _regions: []          // needed by handler to compute offsets
         };
@@ -2150,12 +2170,52 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
         /* Make sure that the scroll event is actually hooked up. */
         self.assertIdentical(exposures.length, 1);
         self.assertIdentical(exposures[0], 0);
+
+        // Let's go and grab the 'loading...' node...
+        var loadingNode = self.table.node.childNodes[
+            self.table.node.childNodes.length - 1];
+        // Sanity check.
+        self.assertIdentical(loadingNode.className, "scrolltable-loading");
+        self.assertIdentical(loadingNode.parentNode, self.table.node);
+
+        // Now allow the loading to complete by firing the 'expose' Deferred.
+        exposeDeferred.callback(null);
+        // Make sure it's been removed.
+        self.assertIdentical(loadingNode.parentNode, null);
+    },
+
+    /**
+     * A ScrollTable should display a "Loading..." throbber until the initial
+     * set of rows has finished being requested.
+     */
+    function test_initialLoad(self) {
+        // We can't use the default table, it's already been loaded.
+        var unloaded = self.makeFakeTable(true, false);
+
+        var remoteCalls = [];
+        unloaded.callRemote = function () {
+            var d = Divmod.Defer.Deferred();
+            remoteCalls.push(d);
+            return d;
+        };
+        unloaded.loaded();
+        var n = unloaded.node;
+        // This should be the progress node.
+        var lastNode = n.childNodes[n.childNodes.length - 1];
+        self.assertIdentical(lastNode.className, "scrolltable-loading");
+        for (var i = 0; i < remoteCalls.length; i++) {
+            var eachCall = remoteCalls[i];
+            eachCall.callback([]);
+        }
+        // Should have fired / been loaded by now, and the node should have
+        // been removed.
+        self.assertIdentical(lastNode.parentNode, null);
     },
 
     /**
      * Create a fake ScrollTable instance.
      */
-    function makeFakeTable(self, sortAscending) {
+    function makeFakeTable(self, /* optional */ sortAscending, doLoad) {
         var tableNode = document.createElement("div");
         tableNode.id = 'athena:1';
         var table = Mantissa.ScrollTable.ScrollTable(
@@ -2182,9 +2242,15 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
             table.callQueue = [];
         };
 
-        // Set up the rest of the legacy attriubtes we need for DOM
-        // manipulation.
-        table.loaded();
+        if (doLoad === undefined) {
+            doLoad = true;
+        }
+
+        if (doLoad) {
+            // Set up the rest of the legacy attriubtes we need for DOM
+            // manipulation.
+            table.loaded();
+        }
         return table;
     },
 

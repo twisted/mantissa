@@ -352,21 +352,23 @@ Mantissa.Test.TestRegionLive.ScrollingElementTestCase.methods(
         var result = self._getScrollingElement();
         result.addCallback(
             function(scrollTable) {
-                scrollTable.model.insertRowData(
-                    0, [self.makeRow(1234), self.makeRow(1235),
-                        self.makeRow(1236), self.makeRow(1237)]);
-                var regionView = scrollTable.model._regions[0].viewPeer;
-                scrollTable.model.insertRowData(
-                    0, [self.makeRow(1236), self.makeRow(1237),
-                        self.makeRow(1238), self.makeRow(1239)]);
-                self.assertEqual(scrollTable.node.childNodes.length, 1);
-                self.assertEqual(
-                    // the first region's row container has 4 data rows and 1
-                    // merged-from-next-region row.
-                    scrollTable.node.firstChild.firstChild.childNodes.length, 5);
-                self.assertArraysEqual(
-                    self._scrapeRowDataFromRegion(scrollTable.node.firstChild),
-                    ['1234', '1235', '1236', '1237', '1238', '1239']);
+                scrollTable.model._initialize().addCallback(function () {
+                    scrollTable.model.insertRowData(
+                        0, [self.makeRow(1234), self.makeRow(1235),
+                            self.makeRow(1236), self.makeRow(1237)]);
+                    var regionView = scrollTable.model._regions[0].viewPeer;
+                    scrollTable.model.insertRowData(
+                        0, [self.makeRow(1236), self.makeRow(1237),
+                            self.makeRow(1238), self.makeRow(1239)]);
+                    self.assertEqual(scrollTable.node.childNodes.length, 1);
+                    self.assertEqual(
+                        // the first region's row container has 4 data rows and 1
+                        // merged-from-next-region row.
+                        scrollTable.node.firstChild.firstChild.childNodes.length, 5);
+                    self.assertArraysEqual(
+                        self._scrapeRowDataFromRegion(scrollTable.node.firstChild),
+                        ['1234', '1235', '1236', '1237', '1238', '1239']);
+                });
             });
         return result;
     });
