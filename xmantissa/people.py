@@ -23,7 +23,7 @@ from epsilon import extime
 
 from axiom import item, attributes
 from axiom.dependency import dependsOn, installOn
-from axiom.attributes import AND
+from axiom.attributes import AND, boolean
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 
@@ -415,19 +415,28 @@ class PeopleBenefactor(item.Item):
 
 class Person(item.Item):
     typeName = 'mantissa_person'
-    schemaVersion = 1
+    schemaVersion = 2
 
     organizer = attributes.reference(
-        "The L{Organizer} to which this Person belongs.")
+                doc="""
+                The L{Organizer} to which this Person belongs.
+                """)
     # we don't really use Person.name for anything -
     # it seems like a bit of a strange thing to have
     # in addition to a RealName
     name = attributes.text(
-        "This name of this person.")
-    created = attributes.timestamp()
+        doc="""
+        This name of this person.
+        """, caseSensitive=True)
+    created = attributes.timestamp(defaultFactory=extime.Time)
+
+    vip = boolean(
+        doc="""
+        Flag indicating this L{Person} is very important.
+        """, default=False, allowNone=False)
+
 
     def __init__(self, **kw):
-        kw['created'] = extime.Time()
         super(Person, self).__init__(**kw)
 
     def getDisplayName(self):
@@ -600,6 +609,19 @@ class Person(item.Item):
                     person=self,
                     **{valueColumn: value}), self)
 
+registerAttributeCopyingUpgrader(Person, 1, 2)
+
+
+
+item.declareLegacyItem(
+    Person.typeName,
+    1,
+    dict(organizer=attributes.reference(),
+         name=attributes.text(caseSensitive=True),
+         created=attributes.timestamp()))
+
+
+
 class ExtractWrapper(item.Item):
     extract = attributes.reference(whenDeleted=attributes.reference.CASCADE)
     timestamp = attributes.timestamp(indexed=True)
@@ -687,12 +709,15 @@ class Organizer(item.Item):
                 counter += 1
 
 
-    def createPerson(self, nickname):
+    def createPerson(self, nickname, vip=False):
         """
         Create a new L{Person} with the given name in this organizer.
 
         @type nickname: C{unicode}
         @param nickname: The value for the new person's C{name} attribute.
+
+        @type vip: C{bool}
+        @param vip: Value to set the created person's C{vip} attribute to.
 
         @rtype: L{Person}
         """
@@ -702,7 +727,8 @@ class Organizer(item.Item):
             store=self.store,
             created=extime.Time(),
             organizer=self,
-            name=nickname)
+            name=nickname,
+            vip=vip)
         self._callOnOrganizerPlugins('personCreated', person)
         return person
 
@@ -868,6 +894,7 @@ class PersonNameColumn(UnsortableColumn):
         return item.getDisplayName()
 
 
+
 class PersonScrollingFragment(ScrollingFragment):
     """
     Scrolling fragment which displays L{Person} objects and allows actions to
@@ -886,7 +913,8 @@ class PersonScrollingFragment(ScrollingFragment):
             store,
             Person,
             baseConstraint,
-            [PersonNameColumn(None, 'name')],
+            [PersonNameColumn(None, 'name'),
+             UnsortableColumn(Person.vip, 'vip')],
             defaultSortColumn=defaultSortColumn,
             webTranslator=webTranslator)
         self._performAction = performAction
@@ -1410,13 +1438,18 @@ class AddPersonFragment(ThemedFragment):
         return None
 
 
+    _baseParameters = [
+        liveform.Parameter('nickname', liveform.TEXT_INPUT,
+                           _normalizeWhitespace, 'Nickname'),
+        liveform.Parameter('vip', liveform.CHECKBOX_INPUT,
+                           bool, 'VIP')]
+
     def _addPersonParameters(self):
         """
         Return some fixed fields for the person creation form as well as any
         fields from L{IOrganizerPlugin} powerups.
         """
-        parameters = [liveform.Parameter('nickname', liveform.TEXT_INPUT,
-                                         _normalizeWhitespace, 'Nickname')]
+        parameters = self._baseParameters[:]
         parameters.extend(self.organizer.getContactCreationParameters())
         return parameters
 
@@ -1435,14 +1468,22 @@ class AddPersonFragment(ThemedFragment):
         return addPersonForm
 
 
-    def _addPerson(self, nickname, **allContactInfo):
+    def _addPerson(self, nickname, vip, **allContactInfo):
         """
         Implementation of L{Person} creation.
 
         This method must be called in a transaction.
+
+        @type nickname: C{unicode}
+        @param nickname: The value for the I{name} attribute of the created
+            L{Person}.
+
+        @type vip: C{bool}
+        @param vip: Value to which to set the created L{Person}'s C{vip}
+            attribute.
         """
         organizer = self.organizer
-        person = organizer.createPerson(nickname)
+        person = organizer.createPerson(nickname, vip)
 
         # XXX This has the potential for breakage, if a new contact type is
         # returned by this call which was not returned by the call used to
@@ -1455,16 +1496,26 @@ class AddPersonFragment(ThemedFragment):
         return person
 
 
-    def addPerson(self, nickname, **contactInfo):
+    def addPerson(self, nickname, vip=False, **contactInfo):
         """
         Create a new L{Person} with the given C{nickname} and contact items.
 
         @type nickname: C{unicode}
+        @param nickname: The value for the I{name} attribute of the created
+            L{Person}.
+
+        @type vip: C{bool}
+        @param vip: Value to which to set the created L{Person}'s C{vip}
+            attribute.
+
         @return: C{None}
+
+        @raise InputError: When some aspect of person creation raises a
+            L{ValueError}.
         """
         try:
             self.organizer.store.transact(
-                self._addPerson, nickname, **contactInfo)
+                self._addPerson, nickname, vip, **contactInfo)
         except ValueError, e:
             raise InputError(unicode(e))
     expose(addPerson)

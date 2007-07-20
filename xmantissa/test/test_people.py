@@ -31,6 +31,7 @@ from axiom.item import Item
 from axiom.attributes import inmemory, text
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
+from xmantissa.scrolltable import UnsortableColumn
 from xmantissa.people import (
     Organizer, Person, RealName, EmailAddress, AddPersonFragment, Mugshot,
     addContactInfoType, contactInfoItemTypeFromClassName,
@@ -986,6 +987,7 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertEqual(person.name, nickname)
         self.assertIdentical(person.organizer, self.organizer)
         self.assertTrue(beforeCreation <= person.created <= afterCreation)
+        self.assertFalse(person.vip)
 
 
     def test_createPersonDuplicateNickname(self):
@@ -1038,6 +1040,15 @@ class PeopleModelTestCase(unittest.TestCase):
         alice = self.organizer.createPerson(u'alice')
         self.organizer.editPerson(alice, alice.name, [])
         self.assertEqual(alice.name, u'alice')
+
+
+    def test_createVeryImportantPerson(self):
+        """
+        L{Organizer.createPerson} should set L{Person.vip} to match the value
+        it is passed for the C{vip} parameter.
+        """
+        alice = self.organizer.createPerson(u'alice', True)
+        self.assertTrue(alice.vip)
 
 
     def test_noMugshot(self):
@@ -1259,6 +1270,11 @@ class POBox(Item):
 
 
 
+def _keyword(contactType):
+    return contactType.uniqueIdentifier().encode('ascii')
+
+
+
 class PeopleTests(unittest.TestCase):
     def setUp(self):
         """
@@ -1450,9 +1466,18 @@ class PeopleTests(unittest.TestCase):
         with several fixed parameters and any parameters from available
         powerups.
         """
+        addPersonFrag = AddPersonFragment(self.organizer)
+
+        # Whatever is in _baseParameters should end up in the resulting form's
+        # parameters.  Explicitly define _baseParameters here so that changes
+        # to the actual value don't affect this test.  The actual value is
+        # effectively a declaration, so the only thing one could test about it
+        # is that it is equal to itself, anyway.
+        addPersonFrag._baseParameters = [
+            Parameter('foo', TEXT_INPUT, unicode, 'Foo')]
+
         # With no plugins, only the NameContactType, EmailContactType, and
         # PostalContactType parameters should be returned.
-        addPersonFrag = AddPersonFragment(self.organizer)
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
         self.assertEqual(len(addPersonForm.parameters), 4)
 
@@ -1478,19 +1503,16 @@ class PeopleTests(unittest.TestCase):
 
         addPersonFragment = AddPersonFragment(self.organizer)
 
-        def keyword(contactType):
-            return contactType.uniqueIdentifier().encode('ascii')
-
         argument = {u'stub': 'value'}
         addPersonFragment.addPerson(
             u'nickname',
             **{contactType.uniqueIdentifier().encode('ascii'): argument,
-               keyword(NameContactType()): {
+               _keyword(NameContactType()): {
                     u'firstname': u'First',
                     u'lastname': u'Last'},
-               keyword(EmailContactType(self.store)): {
+               _keyword(EmailContactType(self.store)): {
                     u'email': u'user@example.com'},
-               keyword(PostalContactType()): {
+               _keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
 
         person = self.store.findUnique(Person)
@@ -1498,18 +1520,15 @@ class PeopleTests(unittest.TestCase):
 
 
     def testPersonCreation2(self):
-        def keyword(contactType):
-            return contactType.uniqueIdentifier().encode('ascii')
-
         addPersonFrag = AddPersonFragment(self.organizer)
         addPersonFrag.addPerson(
             u'Captain P.',
-            **{keyword(NameContactType()): {
+            **{_keyword(NameContactType()): {
                     u'firstname': u'Jean-Luc',
                     u'lastname': u'Picard'},
-               keyword(EmailContactType(self.store)): {
+               _keyword(EmailContactType(self.store)): {
                     u'email': u'jlp@starship.enterprise'},
-               keyword(PostalContactType()): {
+               _keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
 
         person = self.store.findUnique(Person)
@@ -1525,6 +1544,27 @@ class PeopleTests(unittest.TestCase):
         pa = self.store.findUnique(
             PostalAddress, PostalAddress.person == person)
         self.assertEqual(pa.address, u'123 Street Rd')
+
+
+    def test_addVeryImportantPerson(self):
+        """
+        L{AddPersonFragment.addPerson} should pass the value of the C{vip}
+        parameter on to L{Organizer.createPerson}.
+        """
+        people = []
+        argument = {u'stub': 'value'}
+        view = AddPersonFragment(self.organizer)
+        view.addPerson(
+            u'alice', True,
+            **{_keyword(NameContactType()): {
+                    u'firstname': u'First',
+                    u'lastname': u'Last'},
+               _keyword(EmailContactType(self.store)): {
+                    u'email': u'user@example.com'},
+               _keyword(PostalContactType()): {
+                    u'address': u'123 Street Rd'}})
+        [alice] = self.store.query(Person)
+        self.assertTrue(alice.vip)
 
 
     def test_addPersonValueError(self):
@@ -1761,8 +1801,10 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         self.assertIdentical(fragment.baseConstraint, baseConstraint)
         self.assertIdentical(fragment.currentSortColumn, sort)
         self.assertIdentical(fragment.itemType, Person)
-        self.assertEqual(len(fragment.columns), 1)
+        self.assertEqual(len(fragment.columns), 2)
         self.assertTrue(isinstance(fragment.columns['name'], PersonNameColumn))
+        self.assertTrue(isinstance(fragment.columns['vip'], UnsortableColumn))
+        self.assertEqual(fragment.columns['vip'].attribute, Person.vip)
 
 
 
