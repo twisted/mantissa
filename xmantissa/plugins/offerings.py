@@ -6,7 +6,7 @@ peopleOffering = offering.Offering(
 
     siteRequirements=((None, website.WebSite),),
     appPowerups=(),
-    installablePowerups = [("People", "Organizer and Address Book", people.AddPerson)],
+    installablePowerups = [("People", "Organizer and Address Book", people.Organizer)],
     loginInterfaces=(),
     themes=())
 
