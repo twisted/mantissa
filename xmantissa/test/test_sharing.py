@@ -1,4 +1,8 @@
 
+"""
+Unit tests for the L{xmantissa.sharing} module.
+"""
+
 from zope.interface import Interface, implements
 
 from axiom.store import Store
@@ -25,7 +29,7 @@ class IReadOnly(Interface):
 
 class PrivateThing(Item):
     implements(IPrivateThing, IReadOnly)
-    publicData = integer()
+    publicData = integer(indexed=True)
     typeName = 'test_sharing_private_thing'
     schemaVersion = 1
 
@@ -289,9 +293,9 @@ class AccessibilityQuery(unittest.TestCase):
                          map(lambda x: x.sharedItem, self.aliceThings))
 
         self.assertEqual([p.sharedInterfaces
-                          for p in aliceQuery], [(IPrivateThing,)] * 10)
+                          for p in aliceQuery], [[IPrivateThing]] * 10)
         self.assertEqual([p.sharedInterfaces
-                          for p in bobQuery], [(IReadOnly,)] * 10)
+                          for p in bobQuery], [[IReadOnly]] * 10)
 
 
     def test_sortOrdering(self):
@@ -328,6 +332,81 @@ class AccessibilityQuery(unittest.TestCase):
         self.assertEquals(len(bobQuery), 3)
 
 
+    def test_limitGetsAllInterfaces(self):
+        """
+        asAccessibleTo should always collate interfaces together, regardless of
+        its limit parameter.
+        """
+        t = PrivateThing(store=self.store, publicData=self.i)
+        sharing.shareItem(t, toName=u'bob@example.com',
+                          interfaces=[IPrivateThing], shareID=u'test')
+        sharing.shareItem(t, toName=u'Everyone',
+                          interfaces=[IReadOnly], shareID=u'test')
+        L = list(sharing.asAccessibleTo(
+                self.bob, self.store.query(PrivateThing, limit=1)))
+        self.assertEquals(len(L), 1)
+        self.assertEquals(set(L[0].sharedInterfaces),
+                          set([IReadOnly, IPrivateThing]))
+
+
+    def test_limitMultiShare(self):
+        """
+        asAccessibleTo should stop after yielding the limit number of results,
+        even if there are more shares examined than results.
+        """
+        L = []
+        for x in range(10):
+            t = PrivateThing(store=self.store, publicData=self.i)
+            L.append(t)
+            self.i += 1
+            sharing.shareItem(t, toName=u'bob@example.com',
+                              interfaces=[IPrivateThing],
+                              shareID=unicode(x))
+            sharing.shareItem(t, toName=u'Everyone', interfaces=[IReadOnly],
+                              shareID=unicode(x))
+        proxies = list(sharing.asAccessibleTo(
+                self.bob,
+                self.store.query(PrivateThing, limit=5,
+                                 sort=PrivateThing.publicData.ascending)))
+        self.assertEquals(map(sharing.itemFromProxy, proxies), L[:5])
+        for proxy in proxies:
+            self.assertEquals(set(proxy.sharedInterfaces),
+                              set([IPrivateThing, IReadOnly]))
+
+
+    def test_limitWithPrivateStuff(self):
+        """
+        Verify that a limited query with some un-shared items will return up to
+        the provided limit number of shared items.
+        """
+        L = []
+
+        def makeThing(shared):
+            t = PrivateThing(store=self.store, publicData=self.i)
+            self.i += 1
+            if shared:
+                sharing.shareItem(
+                    t, toRole=self.bob, interfaces=[IPrivateThing],
+                    shareID=unicode(self.i))
+            L.append(t)
+        # 0, 1, 2: shared
+        for x in range(3):
+            makeThing(True)
+        # 3, 4, 5: private
+        for x in range(3):
+            makeThing(False)
+        # 6, 7, 8: shared again
+        for x in range(3):
+            makeThing(True)
+
+        self.assertEquals(
+            map(sharing.itemFromProxy,
+                sharing.asAccessibleTo(
+                    self.bob, self.store.query(
+                        PrivateThing, limit=5))),
+            [L[0], L[1], L[2], L[6], L[7]])
+
+
     def test_limitEfficiency(self):
         """
         Verify that querying a limited number of shared items does not become
@@ -348,7 +427,6 @@ class AccessibilityQuery(unittest.TestCase):
 
         after = zomg.measure(checkit)
         self.assertEquals(before, after)
-
     test_limitEfficiency.todo = (
-        "An inherent limitation of the current implementation, we might be "
-        "able to fix this by automatically duplicating colums or something.")
+        'currently gets too many results because we should be using paginate')
+

@@ -514,47 +514,35 @@ def getShare(store, role, shareID):
     raise NoSuchShare()
 
 
+
 def asAccessibleTo(role, query):
     """
+    Return an iterable which yields the shared proxies that are available to
+    the given role, from the given query.
+
     @param role: The role to retrieve L{SharedProxy}s for.
 
     @param query: An Axiom query describing the Items to retrieve, which this
     role can access.
+    @type query: an L{iaxiom.IQuery} provider.
     """
-    if query.comparison is not None:
-        #XXX fix axiom to not break if an AND branch is None?
-        comparison = AND(Share.sharedItem == query.tableClass.storeID,
-                         Share.sharedTo.oneOf(role.allRoles()),
-                         query.comparison)
-    else:
-        comparison = AND(Share.sharedItem == query.tableClass.storeID,
-                         Share.sharedTo.oneOf(role.allRoles()))
+    allRoles = list(role.allRoles())
+    count = 0
+    unlimited = query.cloneQuery(limit=None)
+    for result in unlimited:
+        allShares = list(query.store.query(
+                Share,
+                AND(Share.sharedItem == result,
+                    Share.sharedTo.oneOf(allRoles))))
+        interfaces = []
+        for share in allShares:
+            interfaces += share.sharedInterfaces
+        if allShares:
+            count += 1
+            yield SharedProxy(result, interfaces, allShares[0].shareID)
+            if count == query.limit:
+                return
 
-    lastItem = None
-    lastID = None
-    interfaceSpec = None
-    yielded = False
-    seen = set()
-    for resultingShare in (query.store.query(
-            Share,
-            comparison,
-            sort=(query.sort, Share.sharedItem.ascending),
-            limit=query.limit
-            )):
-        yielded = False
-        thisItem = resultingShare.sharedItem
-        thisID = resultingShare.shareID
-        if (lastItem == thisItem) and (thisID == lastID):
-            interfaceSpec += resultingShare.sharedInterfaces
-        else:
-            if lastItem is not None:
-                yielded = True
-                yield SharedProxy(lastItem, interfaceSpec, lastID)
-            interfaceSpec = resultingShare.sharedInterfaces[:]
-        lastItem = thisItem
-        lastID = thisID
-    if lastItem is not None:
-        yield SharedProxy(lastItem, interfaceSpec, lastID)
 
 
 def itemFromProxy(obj):
