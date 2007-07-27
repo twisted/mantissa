@@ -1393,16 +1393,12 @@ setIconURLForContactInfoType(Notes, '/Mantissa/images/Notes-icon.png')
 
 
 class AddPerson(item.Item):
-    implements(ixmantissa.INavigableElement)
-
+    """
+    Obsolete class; left only for schema compatibility.
+    """
     typeName = 'mantissa_add_person'
     schemaVersion = 2
-
-    powerupInterfaces = (ixmantissa.INavigableElement,)
-    organizer = dependsOn(Organizer)
-
-    def getTabs(self):
-        return []
+    organizer = attributes.reference()
 
 
 
@@ -1417,7 +1413,7 @@ registerUpgrader(addPerson1to2, AddPerson.typeName, 1, 2)
 
 class AddPersonFragment(ThemedFragment):
     """
-    View class for L{AddPerson}, presenting a user interface for creating a new
+    View class for L{Organizer}, presenting a user interface for creating a new
     L{Person}.
 
     @ivar organizer: The L{Organizer} instance which will be used to add the
