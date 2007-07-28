@@ -409,7 +409,6 @@ class ReadOnlyNameView(Element):
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
     endowed = attributes.integer(default=0)
-    powerupNames = ["xmantissa.people.AddPerson"]
 
 
 
