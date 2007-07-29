@@ -9,7 +9,8 @@
 
 
 
-Mantissa.ScrollTable.NoSuchWebID = Divmod.Error.subclass("Mantissa.ScrollTable.NoSuchWebID");
+Mantissa.ScrollTable.NoSuchWebID = Divmod.Error.subclass(
+    "Mantissa.ScrollTable.NoSuchWebID");
 Mantissa.ScrollTable.NoSuchWebID.methods(
     function __init__(self, webID) {
         self.webID = webID;
@@ -24,10 +25,12 @@ Mantissa.ScrollTable.NoSuchWebID.methods(
  * Error class indicating that an operation which requires an active row was
  * attempted when there was no active row.
  */
-Mantissa.ScrollTable.NoActiveRow = Divmod.Error.subclass("Mantissa.ScrollTable.NoActiveRow");
+Mantissa.ScrollTable.NoActiveRow = Divmod.Error.subclass(
+    "Mantissa.ScrollTable.NoActiveRow");
 
 
-Mantissa.ScrollTable.Action = Divmod.Class.subclass('Mantissa.ScrollTable.Action');
+Mantissa.ScrollTable.Action = Divmod.Class.subclass(
+    'Mantissa.ScrollTable.Action');
 /**
  * An action that can be performed on a scrolltable row.
  * (Currently on a single scrolltable row at a time).
@@ -50,7 +53,8 @@ Mantissa.ScrollTable.Action = Divmod.Class.subclass('Mantissa.ScrollTable.Action
  *             instead of C{name}.
  */
 Mantissa.ScrollTable.Action.methods(
-    function __init__(self, name, displayName, handler/*=undefined*/, icon/*=undefined*/) {
+    function __init__(self, name, displayName,
+                      handler/*=undefined*/, icon/*=undefined*/) {
         self.name = name;
         self.displayName = displayName;
         self._successHandler = handler;
@@ -2453,10 +2457,19 @@ Mantissa.ScrollTable.RegionModel.methods(
                      */
                     var evao = self.estimateValueAtOffset(offset);
                     madeRequest = self.rowsFollowingValue(
-                        evao).addCallback(
-                            function (rows) {
-                                self.insertRowData(offset, rows);
-                            });
+                        evao).addCallback(function (rows) {
+                            var pair = self.insertRowData(offset, rows);
+                            var newDataCount = pair[0];
+                            var newRegion = pair[1];
+                            if (newDataCount !== 0) {
+                                return;
+                            }
+                            return self.rowsPrecedingRow(
+                                newRegion.rows[0], true
+                                ).addCallback(function (moreRows) {
+                                    self.insertRowData(offset, moreRows);
+                                });
+                        });
                 }
             }
         }
@@ -2469,10 +2482,45 @@ Mantissa.ScrollTable.RegionModel.methods(
 
     /**
      * Return a set of rows including the given row by requesting from our
-     * server whose offsets follow those the given existing row.  The rows
-     * returned depends on the current sort order.
+     * server whose offsets immediately follow that of the given existing row.
+     * The offsets of the given rows returned will be increasing according to
+     * the current sort order.
+     *
+     * @param row: a row object retrieved from a region's 'rows' attribute.
+     *
+     * @param exactlyAdjacent: a boolean, indicating whether the user is
+     * looking at the exactly-adjacent area to the given row.  If true, an
+     * additional row will be requested in order to ensure that a full page's
+     * worth of rows arrive; otherwise, the usual behavior is that
+     * (self._pagesize - 1) rows will be retrieved.
      */
-    function rowsFollowingRow(self, row, /* optional */ exactlyAdjacent) {
+    function rowsFollowingRow(self, row, /* optional*/ exactlyAdjacent) {
+        return self._rowsRelatedToRow(row, exactlyAdjacent, false);
+    },
+
+    /**
+     * Return a set of rows including the given row by requesting from our
+     * server whose offsets immediately precede that of the given existing row
+     * row.  The offsets of the given rows returned will be increasing
+     * according to the current sort order.
+     *
+     * @param row: a row object retrieved from a region's 'rows' attribute.
+     *
+     * @param exactlyAdjacent: a boolean, indicating whether the user is
+     * looking at the exactly-adjacent area to the given row.  If true, an
+     * additional row will be requested in order to ensure that a full page's
+     * worth of rows arrive; otherwise, the usual behavior is that
+     * (self._pagesize - 1) rows will be retrieved.
+     */
+    function rowsPrecedingRow(self, row, /* optional */ exactlyAdjacent) {
+        return self._rowsRelatedToRow(row, exactlyAdjacent, true);
+    },
+
+    /**
+     * Common, underlying implementation of rowsFollowingRow and
+     * rowsPrecedingRow.
+     */
+    function _rowsRelatedToRow(self, row, exactlyAdjacent, invertFlip) {
         var result = null;
         var pagesize = self._pagesize;
         if (!exactlyAdjacent) {
@@ -2480,19 +2528,27 @@ Mantissa.ScrollTable.RegionModel.methods(
         }
         var serverRow = {
           __id__: row.__id__,
-          __TEMPORARY__: true
+          __TEMPORARY__: true,
+          toString: function () {
+                return '<fake server row '+this.__id__+'>';
+            }
         };
         serverRow[self.sortColumn.name] = row[self.sortColumn.name];
-        if (self._sortAscending) {
+        var treatAsAscending = self._sortAscending ^ invertFlip;
+        if (treatAsAscending) {
             result = self.server.rowsAfterRow(serverRow, pagesize);
         } else {
-            result = self.server.rowsBeforeRow(
-                serverRow, pagesize).addCallback(function (result) {
-                    return result.reverse();
-                });
+            result = self.server.rowsBeforeRow(serverRow, pagesize);
+            result.addCallback(function (result) {
+                return result.reverse();
+            });
         }
         result.addCallback(function (data) {
-            data.splice(0, 0, serverRow);
+            if (invertFlip) {
+                data.splice(data.length, 0, serverRow);
+            } else {
+                data.splice(0, 0, serverRow);
+            }
             return data;
         });
         return result;
@@ -2617,6 +2673,11 @@ Mantissa.ScrollTable.RegionModel.methods(
      * guess they might go.
      *
      * @param data: a list of simple objects retrieved from the server.
+     *
+     * @return: a list with 2 elements: the first being an integer, the number
+     * of new rows inserted into the table as a result of this operation.  The
+     * second being the L{RowRegion} in this table ultimately created or
+     * affected by this insertion.
      */
     function insertRowData(self, offset, data) {
         var newRegion = Mantissa.ScrollTable.RowRegion(self, offset, data);
@@ -2626,10 +2687,12 @@ Mantissa.ScrollTable.RegionModel.methods(
                 var originalRegionLength = thisRegion.rows.length;
                 thisRegion.coalesceAtMyEnd(newRegion);
                 var newRegionLength = thisRegion.rows.length;
+                var adjustedNewRowCount = (newRegionLength -
+                                           originalRegionLength);
                 var offsetChange;
-                /* /Also/ check to see if the end overlaps with the next
-                 * region, if there is a next region.  First: *is* there a
-                 * next region?
+                /* /Also/ check to see if the end of our now merged region
+                 * overlaps with the next region, if there is a next region.
+                 * First: *is* there a next region?
                  */
                 if (i < self._regions.length - 1) {
                     /* There is a next region.  Figure out the distance
@@ -2647,7 +2710,11 @@ Mantissa.ScrollTable.RegionModel.methods(
                         var oldOffsetDistance =
                             ((nextRegion.firstOffset() + nextRegion.rows.length)
                              - thisRegion.firstOffset());
+                        var nextRegionOrigLen = nextRegion.rows.length;
                         thisRegion.coalesceAtMyEnd(nextRegion);
+                        adjustedNewRowCount = (
+                            thisRegion.rows.length -
+                            (nextRegionOrigLen + originalRegionLength));
                         self._regions.splice(i + 1, 1);
                         var newOffsetDistance = thisRegion.rows.length;
                         offsetChange = newOffsetDistance - oldOffsetDistance;
@@ -2666,22 +2733,17 @@ Mantissa.ScrollTable.RegionModel.methods(
                         }
                     }
                 }
-                return;
+                return [adjustedNewRowCount, thisRegion];
             } else if (thisRegion.overlapsValue(newRegion.lastValue())) {
-                newRegion.coalesceAtMyEnd(thisRegion);
                 var existingRowCount = thisRegion.rows.length;
+                newRegion.coalesceAtMyEnd(thisRegion);
                 var newRowCount = newRegion.rows.length;
-                var adjustAmount = (
-                    (thisRegion.firstOffset() -
-                     (newRowCount - existingRowCount)) -
-                    newRegion.firstOffset());
-                newRegion.adjustOffset(adjustAmount);
                 self._regions[i] = newRegion;
                 /* This is not the first region, so we may have collided to
                  * the left.
                  */
                 self._pushRegionsRight(i - 1);
-                return;
+                return [newRowCount - existingRowCount, newRegion];
             } else {
                 /* The given rows are entirely outside of this region.
                  */
@@ -2704,7 +2766,7 @@ Mantissa.ScrollTable.RegionModel.methods(
                     }
                 }
                 self._pushRegionsRight(i);
-                return;
+                return [newRegion.rows.length, newRegion];
             }
         }
         /* The new region didn't overlap any existing regions or fit before
@@ -2714,6 +2776,7 @@ Mantissa.ScrollTable.RegionModel.methods(
         /* And make sure that it has a reasonable offset.
          */
         self._pushRegionsRight(self._regions.length - 2);
+        return [newRegion.rows.length, newRegion];
     },
 
     /**

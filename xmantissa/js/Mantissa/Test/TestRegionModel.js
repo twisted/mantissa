@@ -53,13 +53,24 @@ Mantissa.Test.TestRegionModel.ArrayRegionServer.methods(
      */
     function unpause(self) {
         self.paused = false;
-        var b = self.buffer;
-        delete self.buffer;
-        for (var i = 0; i < b.length; i++) {
-            var d = b[i][0];
-            var value = b[i][1];
-            d.callback(value);
+        while (self.buffer.length !== 0) {
+            self.deliverOneResult();
         }
+        delete self.buffer;
+        self.paused = false;
+    },
+
+    /**
+     * Answer only one request.
+     */
+    function deliverOneResult(self) {
+        if (!self.paused) {
+            throw new Error("You can only do this while we're paused.");
+        }
+        var pair = self.buffer.shift();
+        var deferred = pair[0];
+        var value = pair[1];
+        deferred.callback(value);
     },
 
     /**
@@ -232,6 +243,29 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
     /* ad-hoc mixin - see above */
     Mantissa.Test.TestRegionModel.makeRegionModel,
     Mantissa.Test.TestRegionModel.makeRow,
+
+    /**
+     * Verify that just inserting a single row will result in a region being
+     * added.
+     */
+    function test_firstInsertRowData(self) {
+        var server = null;
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var result = model.insertRowData(
+            0, [self.makeRow(1), self.makeRow(3),
+                self.makeRow(5), self.makeRow(7)]);
+        self.assertIdentical(model._regions.length, 1);
+        var reg = model._regions[0];
+        self.assertIdentical(reg.rows.length, 4);
+        self.assertIdentical(reg.rows[0].value, 1);
+        self.assertIdentical(reg.rows[1].value, 3);
+        self.assertIdentical(reg.rows[2].value, 5);
+        self.assertIdentical(reg.rows[3].value, 7);
+        self.assertIdentical(result[0], 4);
+        self.assertIdentical(result[1], reg);
+    },
+
     /**
      * Verify that storing two arrays of rows which do not have any overlap
      * results in two underlying row regions which each contain one of the row
@@ -292,7 +326,7 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
             server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
         model.insertRowData(0, [self.makeRow(12), self.makeRow(34)]);
         model.insertRowData(4, [self.makeRow(78), self.makeRow(90)]);
-        model.insertRowData(2, [self.makeRow(56)]);
+        var between = model.insertRowData(2, [self.makeRow(56)]);
         self.assertIdentical(model._regions.length, 3);
         var firstRegion = model._regions[0];
         self.assertIdentical(firstRegion.firstOffset(), 0);
@@ -303,6 +337,8 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
         self.assertIdentical(secondRegion.firstOffset(), 3);
         self.assertIdentical(secondRegion.rows.length, 1);
         self.assertIdentical(secondRegion.rows[0].value, 56);
+        self.assertIdentical(between[0], secondRegion.rows.length);
+        self.assertIdentical(between[1], secondRegion);
         var thirdRegion = model._regions[2];
         self.assertIdentical(thirdRegion.firstOffset(), 5);
         self.assertIdentical(thirdRegion.rows.length, 2);
@@ -312,7 +348,10 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
 
     /**
      * Verify that storing two overlapping ranges at adjacent offsets results
-     * in one underlying row range which contains the merged row data.
+     * in one underlying row range which contains the merged row data.  In so
+     * doing, the merged region should acquire the offset of the inserted
+     * data, because that is where the user will be looking if this insertion
+     * is in response to an expose() request.
      */
 
     function test_overlapDetectionNoGap(self) {
@@ -341,15 +380,17 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
         var server = null;
         var model = self.makeRegionModel(
             server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
-        model.insertRowData(2, [self.makeRow(34), self.makeRow(56)]);
-        model.insertRowData(0, [self.makeRow(12), self.makeRow(34)]);
+        model.insertRowData(1234, [self.makeRow(34), self.makeRow(56)]);
+        var overlap = model.insertRowData(6, [self.makeRow(12), self.makeRow(34)]);
         self.assertIdentical(model._regions.length, 1);
-        self.assertIdentical(model._regions[0].firstOffset(), 1);
+        self.assertIdentical(model._regions[0].firstOffset(), 6);
         var rows = model._regions[0].rows;
         self.assertIdentical(rows.length, 3);
         self.assertIdentical(rows[0].value, 12);
         self.assertIdentical(rows[1].value, 34);
         self.assertIdentical(rows[2].value, 56);
+        self.assertIdentical(overlap[0], 1); // just 1 new row, "12"
+        self.assertIdentical(overlap[1], model._regions[0]);
     },
 
 
@@ -364,7 +405,8 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
             server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
         model.insertRowData(0, [self.makeRow(12), self.makeRow(34)]);
         model.insertRowData(3, [self.makeRow(78), self.makeRow(90)]);
-        model.insertRowData(1, [self.makeRow(34), self.makeRow(56), self.makeRow(78)]);
+        var overlap = model.insertRowData(
+            1, [self.makeRow(34), self.makeRow(56), self.makeRow(78)]);
         self.assertIdentical(model._regions.length, 1);
         self.assertIdentical(model._regions[0].firstOffset(), 0);
         var rows = model._regions[0].rows;
@@ -374,6 +416,9 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
         self.assertIdentical(rows[3].value, 78);
         self.assertIdentical(rows[4].value, 90);
         self.assertIdentical(rows.length, 5);
+        // Only 1 new row was inserted.
+        self.assertIdentical(overlap[0], 1);
+        self.assertIdentical(overlap[1], model._regions[0]);
     },
 
     /**
@@ -1251,6 +1296,72 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
         model.expose(2);     // sees 34, gets 34, 89, which connects 12, 23,
                              // 34 and 89, 90
         self.assertIdentical(model._regions.length, 1);
+    },
+
+    /**
+     * Verify that if expose() receives data which completely overlaps with
+     * data that it already has, it will issue another request for data which
+     * is contiguous with the region that it is requesting for.
+     */
+    function test_exposeNotEnough(self) {
+        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
+            [
+                self.makeRow(12),
+                self.makeRow(23),
+
+                self.makeRow(34),
+                self.makeRow(45),
+
+                self.makeRow(890000),
+                self.makeRow(900000),
+                ]);
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        // More than one page size, but small enough that it won't be
+        // considered contiguous with the first region if we move this far up
+        // from the bottom.  At the time of this writing, the estimate was a
+        // fixed "1000", which meant this value was always fine, but that
+        // might not always be so.
+        var SMALL_OFFSET_DIFF = model._pagesize * 4;
+
+        model.expose(0);
+        // Sanity check.
+        self.assertIdentical(model._regions.length, 2);
+        self.assertIdentical(server.requests, 2);
+        server.pause();
+
+        // Now we're going to ask for a region that will be really close to
+        // the end of the (very extremely long) table; that will cause the
+        // estimate to think it is "very close" to 890000, which is wrong,
+        // because actually it's 45.
+        var lastRegion = function () {
+            return model._regions[model._regions.length - 1];
+        }
+        self.assertIdentical(lastRegion().rows.length, 2);
+        var requestedOffset = lastRegion().firstOffset() - SMALL_OFFSET_DIFF;
+        var answerDelivered = false;
+        model.expose(requestedOffset).addCallback(function (result) {
+            answerDelivered = true;
+        });
+        // That will cause us to make a request...
+        self.assertIdentical(server.requests, 3);
+        self.assertIdentical(server.buffer.length, 1);
+        // Sanity check (this first request should not have been enough to
+        // give us more data)
+        server.deliverOneResult();
+        self.assertIdentical(lastRegion().rows.length, 2);
+        self.assertIdentical(answerDelivered, false);
+        // but it will not be satisfactory, so we'll make _another_ request
+        self.assertIdentical(server.buffer.length, 1);
+        self.assertIdentical(server.requests, 4);
+        self.assertIdentical(answerDelivered, false);
+        // and when _that_ gets answered
+        server.deliverOneResult();
+        // the expose as a whole operation is complete
+        self.assertIdentical(answerDelivered, true);
+        // and there should now be some results where the user is looking
+        self.assertIdentical(lastRegion().firstOffset(), requestedOffset);
+        self.assertIdentical(lastRegion().rows.length, 4);
     },
 
     /**
