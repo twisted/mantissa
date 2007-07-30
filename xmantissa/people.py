@@ -1396,7 +1396,7 @@ class AddPerson(item.Item):
     Obsolete class; left only for schema compatibility.
     """
     typeName = 'mantissa_add_person'
-    schemaVersion = 2
+    schemaVersion = 3
     organizer = attributes.reference()
 
 
@@ -1408,7 +1408,13 @@ def addPerson1to2(old):
 
 registerUpgrader(addPerson1to2, AddPerson.typeName, 1, 2)
 
+def addPerson2to3(old):
+    ap = old.upgradeVersion(old.typeName, 2, 3)
+    ap.store.powerDown(ap, ixmantissa.INavigableElement)
+    ap.deleteFromStore()
+    return None
 
+registerUpgrader(addPerson2to3, AddPerson.typeName, 2, 3)
 
 class AddPersonFragment(ThemedFragment):
     """
