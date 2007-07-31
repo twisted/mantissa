@@ -28,7 +28,7 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 
 from xmantissa.ixmantissa import IPersonFragment
-from xmantissa import ixmantissa, webnav, webtheme, liveform
+from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
 from xmantissa.liveform import FORM_INPUT, InputError, Parameter
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
@@ -638,11 +638,40 @@ class Organizer(item.Item):
     implements(ixmantissa.INavigableElement)
 
     typeName = 'mantissa_people'
-    schemaVersion = 2
+    schemaVersion = 3
 
     _webTranslator = dependsOn(PrivateApplication)
+    storeOwnerPerson = attributes.reference(
+        doc="A L{Person} representing the owner of the store this organizer lives in",
+        reftype=Person,
+        whenDeleted=attributes.reference.DISALLOW)
 
     powerupInterfaces = (ixmantissa.INavigableElement,)
+
+
+    def __init__(self, *a, **k):
+        super(Organizer, self).__init__(*a, **k)
+        if 'storeOwnerPerson' not in k:
+            self.storeOwnerPerson = self._makeStoreOwnerPerson()
+
+
+    def _makeStoreOwnerPerson(self):
+        """
+        Make a L{Person} representing the owner of the store that this
+        L{Organizer} is installed in.
+
+        @rtype: L{Person}
+        """
+        if self.store is None:
+            return None
+        userInfo = self.store.findFirst(signup.UserInfo)
+        storeOwnerPerson = Person(store=self.store, organizer=self)
+        if userInfo is not None:
+            RealName(store=self.store,
+                     person=storeOwnerPerson,
+                     first=userInfo.firstName,
+                     last=userInfo.lastName)
+        return storeOwnerPerson
 
 
     def getOrganizerPlugins(self):
@@ -888,6 +917,17 @@ def organizer1to2(old):
     return o
 
 registerUpgrader(organizer1to2, Organizer.typeName, 1, 2)
+
+
+
+item.declareLegacyItem(Organizer.typeName, 2,
+    dict(_webTranslator=attributes.reference()))
+
+
+
+registerAttributeCopyingUpgrader(Organizer, 2, 3)
+
+
 
 class PersonNameColumn(UnsortableColumn):
     def extractValue(self, model, item):

@@ -29,6 +29,7 @@ from axiom.store import Store
 from axiom.dependency import installOn, installedOn
 from axiom.item import Item
 from axiom.attributes import inmemory, text
+from axiom.errors import DeletionDisallowed
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
 from xmantissa.scrolltable import UnsortableColumn
@@ -48,6 +49,7 @@ from xmantissa.liveform import (
     TEXT_INPUT, FORM_INPUT, InputError, Parameter, LiveForm)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
+from xmantissa.signup import UserInfo
 
 
 
@@ -1515,7 +1517,8 @@ class PeopleTests(unittest.TestCase):
                _keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
 
-        person = self.store.findUnique(Person)
+        person = self.store.findUnique(
+            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEqual(contactType.createdContacts, [(person, argument)])
 
 
@@ -1531,7 +1534,8 @@ class PeopleTests(unittest.TestCase):
                _keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
 
-        person = self.store.findUnique(Person)
+        person = self.store.findUnique(
+            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEquals(person.name, 'Captain P.')
 
         email = self.store.findUnique(
@@ -1563,7 +1567,8 @@ class PeopleTests(unittest.TestCase):
                     u'email': u'user@example.com'},
                _keyword(PostalContactType()): {
                     u'address': u'123 Street Rd'}})
-        [alice] = self.store.query(Person)
+        alice = self.store.findUnique(
+            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertTrue(alice.vip)
 
 
@@ -2118,3 +2123,70 @@ class EditPersonViewTests(unittest.TestCase):
         # assertion). -exarkun
         markup = renderLiveFragment(self.view)
         self.assertIn(self.view.jsClass, markup)
+
+
+
+class StoreOwnerPersonTestCase(unittest.TestCase):
+    """
+    Tests for L{Organizer._makeStoreOwnerPerson} and related functionality.
+    """
+    def test_noStore(self):
+        """
+        L{Organizer.storeOwnerPerson} should be C{None} if the L{Organizer}
+        doesn't live in a store.
+        """
+        self.assertIdentical(Organizer().storeOwnerPerson, None)
+
+
+    def test_emptyStore(self):
+        """
+        Test that when an L{Organizer} is inserted into an empty store,
+        L{Organizer.storeOwnerPerson} is set to a L{Person} without a
+        L{RealName}.
+        """
+        store = Store()
+        organizer = Organizer(store=store)
+        self.failUnless(organizer.storeOwnerPerson)
+        self.assertIdentical(organizer.storeOwnerPerson.organizer, organizer)
+        self.assertEqual(store.count(
+            RealName, RealName.person == organizer.storeOwnerPerson), 0)
+
+
+    def test_differentStoreOwner(self):
+        """
+        Test that when an L{Organizer} is passed a C{storeOwnerPerson}
+        explicitly, it does not create any additional L{Person} items.
+        """
+        store = Store()
+        person = Person(store=store)
+        organizer = Organizer(store=store, storeOwnerPerson=person)
+        self.assertIdentical(store.findUnique(Person), person)
+        self.assertIdentical(organizer.storeOwnerPerson, person)
+
+
+    def test_storeOwnerDeletion(self):
+        """
+        Verify that we fail if we attempt to delete
+        L{Organizer.storeOwnerPerson}.
+        """
+        store = Store()
+        organizer = Organizer(store=store)
+        self.assertRaises(
+            DeletionDisallowed, organizer.storeOwnerPerson.deleteFromStore)
+
+
+    def test_realNameFromUserInfo(self):
+        """
+        Test that when an L{Organizer} is inserted into a store with a
+        L{UserInfo} item in it, L{Organizer.storeOwnerPerson} is set to a
+        L{Person} with a L{RealName}.
+        """
+        store = Store()
+        UserInfo(store=store, firstName=u'Joe', lastName=u'Rogers')
+        organizer = Organizer(store=store)
+        self.assertIdentical(organizer.storeOwnerPerson.organizer, organizer)
+        names = list(store.query(
+            RealName, RealName.person == organizer.storeOwnerPerson))
+        self.assertEqual(len(names), 1)
+        self.assertEqual(names[0].first, 'Joe')
+        self.assertEqual(names[0].last, 'Rogers')

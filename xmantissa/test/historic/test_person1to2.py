@@ -18,7 +18,8 @@ class PersonUpgradeTests(StubbedTest):
         new C{vip} attribute should be C{False}.
         """
         organizer = self.store.findUnique(Organizer)
-        person = self.store.findUnique(Person)
+        person = self.store.findUnique(
+            Person, Person.storeID != organizer.storeOwnerPerson.storeID)
         self.assertIdentical(person.organizer, organizer)
         self.assertEqual(person.name, NAME)
         self.assertEqual(person.created, CREATED)
