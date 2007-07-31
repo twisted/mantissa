@@ -1408,8 +1408,18 @@ def addPerson1to2(old):
 
 registerUpgrader(addPerson1to2, AddPerson.typeName, 1, 2)
 
+item.declareLegacyItem(AddPerson.typeName, 2, dict(
+                  organizer = attributes.reference()))
+
 def addPerson2to3(old):
+    """
+    Remove AddPerson from users' stores.
+    """
     ap = old.upgradeVersion(old.typeName, 2, 3)
+    if ap not in list(ap.store.powerupsFor(ixmantissa.INavigableElement)):
+        #woopsy-daisy, we're in an old upgrader test! Never mind.
+        ap.organizer=old.organizer
+        return ap
     ap.store.powerDown(ap, ixmantissa.INavigableElement)
     ap.deleteFromStore()
     return None
