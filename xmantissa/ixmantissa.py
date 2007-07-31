@@ -796,7 +796,7 @@ class IParameterView(IRenderer):
     """
     patternName = Attribute("""
     Short string giving the name of the pattern for this parameter view.  Must
-    be one of C{'text'}, C{'password'}, or C{'choice'}.
+    be one of C{'text'}, C{'password'}, C{'repeatable-form'} or C{'choice'}.
     """)
 
     def setDefaultTemplate(tag):

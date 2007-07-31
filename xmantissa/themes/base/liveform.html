@@ -1,4 +1,5 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="form">
+<div xmlns:athena="http://divmod.org/ns/nevow/0.7"
+  xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="form">
   <nevow:slot name="form" />
 
   <form action="#" nevow:render="liveElement"
@@ -95,6 +96,15 @@
     <nevow:attr name="class" nevow:render="name">liveform_</nevow:attr>
     <nevow:invisible nevow:render="label" />
     <input type="password"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input>
+  </div>
+
+  <div nevow:pattern="repeatable-form-input-container">
+    <nevow:invisible nevow:render="form" />
+    <a nevow:pattern="repeater" href="#">
+      <athena:handler event="onclick" handler="dom_repeat" />
+      +
+    </a>
+    <nevow:invisible nevow:render="repeater" />
   </div>
 
   <!-- Note that any whitespace in the textarea tag will appear in the

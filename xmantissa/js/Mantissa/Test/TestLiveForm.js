@@ -95,3 +95,45 @@ Mantissa.Test.TestLiveForm.FormWidgetTests.methods(
         self.assertIdentical(
             self.widget.node.childNodes.length, 0);
     });
+
+
+
+Mantissa.Test.TestLiveForm.RepeatableFormTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestLiveForm.RepeatableFormTests');
+/**
+ * Tests for L{Mantissa.LiveForm.RepeatableForm}.
+ */
+Mantissa.Test.TestLiveForm.RepeatableFormTests.methods(
+    function setUp(self) {
+        self.node = document.createElement('span');
+        self.node.id = 'athena:123';
+        document.body.appendChild(self.node);
+        self.repeatableForm = Mantissa.LiveForm.RepeatableForm(self.node, 'xyz');
+    },
+
+    /**
+     * L{Mantissa.LiveForm.RepeatableForm.gatherInputs} should accumulate the
+     * results of calling C{gatherInputs} on its child widgets.
+     */
+    function test_gatherInputsAccumulates(self) {
+        var fakeChild = {gatherInputs: function() {
+            return {'foo': 'bar1'};
+        }}
+        var fakeChild2 = {gatherInputs: function() {
+            return {'foo': 'bar2'};
+        }}
+        self.repeatableForm.childWidgets.push(fakeChild);
+        self.repeatableForm.childWidgets.push(fakeChild2);
+        var inputs = self.repeatableForm.gatherInputs();
+        self.assertIdentical(inputs.length, 2);
+        self.assertIdentical(inputs[0]['foo'], 'bar1');
+        self.assertIdentical(inputs[1]['foo'], 'bar2');
+    },
+
+    /**
+     * L{Mantissa.LiveForm.RepeatableForm.formName} should be set the second
+     * argument given to the constructor.
+     */
+    function test_formNameDefined(self) {
+        self.assertIdentical(self.repeatableForm.formName, 'xyz');
+    });

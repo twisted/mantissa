@@ -1596,3 +1596,16 @@ Mantissa.Test.UserBrowserTestCase.methods(
         return self._endowDepriveFormTest('deprive');
     });
 
+
+Mantissa.Test.EchoingFormWidget = Mantissa.LiveForm.FormWidget.subclass('Mantissa.Test.EchoingFormWidget');
+/**
+ * Trivial L{Mantissa.LiveForm.FormWidget} subclass which renders the response
+ * provided to the success handler
+ */
+Mantissa.Test.EchoingFormWidget.methods(
+    function submitSuccess(self, result) {
+        document.body.appendChild(
+            document.createTextNode(result));
+        return Mantissa.Test.EchoingFormWidget.upcall(
+            self, 'submitSuccess', result);
+    });

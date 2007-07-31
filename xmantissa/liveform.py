@@ -38,6 +38,9 @@ TEXTAREA_INPUT = 'textarea'
 FORM_INPUT = 'form'
 RADIO_INPUT = 'radio'
 CHECKBOX_INPUT = 'checkbox'
+
+
+
 class Parameter(record('name type coercer label description default '
                        'viewFactory',
                        label=None,
@@ -77,6 +80,71 @@ class Parameter(record('name type coercer label description default '
         """
         if self.type == FORM_INPUT:
             self.coercer.compact()
+
+
+
+class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=IParameterView)):
+    """
+    A parameter useful for describing sections of forms that can appear an
+    arbitrary number of times inside their parent form.
+
+    @type name: C{unicode}
+    @ivar name: A name uniquely identifying this parameter within a
+    particular form.
+
+    @type parameters: C{list}
+    @ivar parameters: sequence of L{Parameter} instances, describing the
+    contents of the repeatable form.
+
+    @type viewFactory: callable
+    @ivar viewFactory: A two-argument callable which returns an
+        L{IParameterView} provider which will be used as the view for this
+        parameter, if one can be provided.  It will be invoked with the
+        parameter as the first argument and a default value as the second
+        argument.  The default should be returned if no view can be provided
+        for the given parameter.
+    """
+    _parameterIsCompact = False
+    type = None
+
+    def __init__(self, *a, **k):
+        super(RepeatableFormParameter, self).__init__(*a, **k)
+        self.liveFormFactory = LiveForm
+
+
+    def compact(self):
+        """
+        Remember whether we were compacted or not, so we can relay this to our
+        view.
+        """
+        self._parameterIsCompact = True
+
+
+    def coercer(self, dataSets):
+        """
+        Get the parameters of the form in L{formFactory} to coerce our data
+        for us.
+        """
+        # make a liveform because there is some logic in _coerced
+        form = LiveForm(lambda **k: None, self.parameters)
+        return [form._coerced(dataSet) for dataSet in dataSets]
+
+
+    def asLiveForm(self):
+        """
+        Make and return a form, using the parameters
+
+        @return: a sub form.
+        @rtype: L{LiveForm}
+        """
+        liveForm = self.liveFormFactory(lambda **k: None, self.parameters)
+        liveForm = liveForm.asSubForm('subform')
+        # if we are compact, tell the liveform so it can tell its parameters
+        # also
+        if self._parameterIsCompact:
+            liveForm.compact()
+        return liveForm
+
 
 
 MULTI_TEXT_INPUT = 'multi-text'
@@ -275,6 +343,16 @@ class _LiveFormMixin(record('callable parameters description',
 
 
     def asSubForm(self, name):
+        """
+        Make a form suitable for nesting within another form (a subform) out
+        of this top-level liveform.
+
+        @param name: the name of the subform within its parent.
+        @type name: C{unicode}
+
+        @return: a subform.
+        @rtype: L{LiveForm}
+        """
         self.subFormName = name
         return self
 
@@ -319,6 +397,9 @@ class _LiveFormMixin(record('callable parameters description',
             if view is not None:
                 view.setDefaultTemplate(
                     tag.onePattern(view.patternName + '-input-container'))
+                setFragmentParent = getattr(view, 'setFragmentParent', None)
+                if setFragmentParent is not None:
+                    setFragmentParent(self)
                 inputs.append(view)
             else:
                 inputs.append(_legacySpecialCases(self, patterns, parameter))
@@ -627,3 +708,77 @@ class ChoiceParameterView(_ParameterViewBase):
     renderer(options)
 
 registerAdapter(ChoiceParameterView, ChoiceParameter, IParameterView)
+
+
+
+class RepeatableFormParameterView(athena.LiveElement):
+    """
+    L{IParameterView} adapter for L{RepeatableFormParameter}.
+
+    @ivar parameter: the parameter being viewed.
+    @type parameter: L{RepeatableFormParameter}
+    """
+    jsClass = u'Mantissa.LiveForm.RepeatableForm'
+    patternName = 'repeatable-form'
+
+    def __init__(self, parameter):
+        self.parameter = parameter
+        athena.LiveElement.__init__(self)
+
+
+    def getInitialArguments(self):
+        """
+        Pass the name of our parameter to the client.
+        """
+        return (self.parameter.name,)
+
+
+    def _repeat(self):
+        """
+        Make and return a form, using L{self.parameter.repeat}.
+
+        @return: a sub form.
+        @rtype: L{LiveForm}
+        """
+        liveForm = self.parameter.asLiveForm()
+        liveForm.setFragmentParent(self)
+        return liveForm
+
+
+    def form(self, req, tag):
+        """
+        Make and return a form, using L{self.parameter.formFactory}.
+
+        @return: a sub form.
+        @rtype: L{LiveForm}
+        """
+        return self._repeat()
+    page.renderer(form)
+
+
+    def repeatForm(self):
+        """
+        Make and return a form, using L{self.parameter.formFactory}.
+
+        @return: a sub form.
+        @rtype: L{LiveForm}
+        """
+        return self._repeat()
+    athena.expose(repeatForm)
+
+
+    def repeater(self, req, tag):
+        """
+        Render some UI for repeating our form.
+        """
+        return inevow.IQ(self.docFactory).onePattern('repeater')
+    page.renderer(repeater)
+
+
+    def setDefaultTemplate(self, tag):
+        self.docFactory = stan(tag(render=tags.directive('liveElement')))
+
+registerAdapter(RepeatableFormParameterView, RepeatableFormParameter, IParameterView)
+
+
+

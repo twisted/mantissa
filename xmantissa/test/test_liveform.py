@@ -14,12 +14,13 @@ from nevow.tags import directive, div, span
 from nevow.loaders import stan
 from nevow.flat import flatten
 from nevow.inevow import IQ
+from nevow.athena import LivePage, expose
 
 from xmantissa.liveform import (
     FORM_INPUT, TEXT_INPUT, PASSWORD_INPUT, CHOICE_INPUT, Parameter,
     TextParameterView, PasswordParameterView, ChoiceParameter,
     ChoiceParameterView, Option, OptionView, LiveForm,
-    ListParameter,)
+    ListParameter, RepeatableFormParameterView, RepeatableFormParameter)
 
 from xmantissa.webtheme import getLoader
 from xmantissa.test.rendertools import TagTestingMixin, renderLiveFragment
@@ -76,8 +77,8 @@ class ParameterTestsMixin:
 
     def test_label(self):
         """
-        L{TextParameterView.label} should render the label of the L{Parameter}
-        it wraps as a child of the tag it is given.
+        The I{label} renderer of the view object should render the label of
+        the L{Parameter} it wraps as a child of the tag it is given.
         """
         tag = div()
         renderedLabel = renderer.get(self.view, 'label')(None, tag)
@@ -86,8 +87,8 @@ class ParameterTestsMixin:
 
     def test_withoutLabel(self):
         """
-        L{ChoiceParameterView.label} should do nothing if the wrapped
-        L{ChoiceParameter} has no label.
+        The I{label} renderer of the view object should do nothing if the
+        wrapped L{Parameter} has no label.
         """
         tag = div()
         self.param.label = None
@@ -611,3 +612,131 @@ class LiveFormTests(TestCase, TagTestingMixin):
         self.assertEqual(len(forms), 1)
         inputs = forms[0].getElementsByTagName('input')
         self.assertTrue(len(inputs) >= 1)
+
+
+
+class RepeatableFormParameterViewTestCase(TestCase):
+    """
+    Tests for L{RepeatableFormParameterView}.
+    """
+    def setUp(self):
+        class TestableLiveForm(LiveForm):
+            _isCompact = False
+            def compact(self):
+                self._isCompact = True
+        self.innerParameters = [Parameter('foo', TEXT_INPUT, int)]
+        self.parameter = RepeatableFormParameter(
+            u'repeatableFoo', self.innerParameters)
+        self.parameter.liveFormFactory = TestableLiveForm
+        self.view = RepeatableFormParameterView(self.parameter)
+
+
+    def test_patternName(self):
+        """
+        L{RepeatableFormParameterView} should use I{repeatable-form} as its
+        C{patternName}
+        """
+        self.assertEqual(self.view.patternName, 'repeatable-form')
+
+
+    def _doSubFormTest(self, subForm):
+        """
+        C{subForm} (which we expect to be the result of
+        L{self.parameter.formFactory}) should be a render-ready liveform that
+        knows its a subform.
+        """
+        self.assertEqual(self.innerParameters, subForm.parameters)
+        self.assertEqual(subForm.subFormName, 'subform')
+        self.assertIdentical(subForm.fragmentParent, self.view)
+
+
+    def test_formRendererReturnsSubForm(self):
+        """
+        The C{form} renderer of L{RepeatableFormParameterView} should render
+        the liveform that was passed to the underlying parameter, as a
+        subform.
+        """
+        self._doSubFormTest(renderer.get(self.view, 'form')(None, None))
+
+
+    def test_repeatFormReturnsSubForm(self):
+        """
+        The C{repeatForm} exposed method of L{RepeatableFormParameterView}
+        should return the liveform that was passed to the underlying
+        parameter, as a subform.
+        """
+        self._doSubFormTest(expose.get(self.view, 'repeatForm')())
+
+
+    def test_formRendererCompact(self):
+        """
+        The C{form} renderer of L{RepeatableFormParameterView} should call
+        C{compact} on the form it returns, if the parameter it is wrapping had
+        C{compact} called on it.
+        """
+        self.parameter.compact()
+        renderedForm = renderer.get(self.view, 'form')(None, None)
+        self.failUnless(renderedForm._isCompact)
+
+
+    def test_repeatFormCompact(self):
+        """
+        The C{repeatForm} exposed method of of L{RepeatableFormParameterView}
+        should call C{compact} on the form it returns, if the parameter it is
+        wrapping had C{compact} called on it.
+        """
+        self.parameter.compact()
+        renderedForm = expose.get(self.view, 'repeatForm')()
+        self.failUnless(renderedForm._isCompact)
+
+
+    def test_formRendererNotCompact(self):
+        """
+        The C{form} renderer of L{RepeatableFormParameterView} shouldn't call
+        C{compact} on the form it returns, unless the parameter it is wrapping
+        had C{compact} called on it.
+        """
+        renderedForm = renderer.get(self.view, 'form')(None, None)
+        self.failIf(renderedForm._isCompact)
+
+
+    def test_repeatFormNotCompact(self):
+        """
+        The C{repeatForm} exposed method of L{RepeatableFormParameterView}
+        shouldn't call C{compact} on the form it returns, unless the parameter
+        it is wrapping had C{compact} called on it.
+        """
+        renderedForm = expose.get(self.view, 'repeatForm')()
+        self.failIf(renderedForm._isCompact)
+
+
+    def test_repeaterRenderer(self):
+        """
+        The C{repeater} renderer of L{RepeatableFormParameterView} should
+        return an instance of the C{repeater} pattern from its docFactory.
+        """
+        self.view.docFactory = stan(div(pattern='repeater', foo='bar'))
+        renderedTag = renderer.get(self.view, 'repeater')(None, None)
+        self.assertEqual(renderedTag.attributes['foo'], 'bar')
+
+
+    def test_coercion(self):
+        """
+        L{RepeatableFormParameter.coercer} should call the appropriate
+        coercers from the repeatable form's parameters.
+        """
+        self.assertEqual(
+            self.parameter.coercer([{u'foo': [u'-56']}]), [{u'foo': -56}])
+
+
+    def test_invoke(self):
+        """
+        The liveform callable should get back the correctly coerced result
+        when a L{RepeatableFormParameter} is involved.
+        """
+        result = []
+        def theCallable(**k):
+            result.append(k)
+        theForm = LiveForm(theCallable, [self.parameter])
+        theForm.invoke({u'repeatableFoo': [[{u'foo': [u'123']}, {u'foo': [u'-111']}]]})
+        self.assertEqual(result, [{'repeatableFoo': [{'foo': 123}, {'foo': -111}]}])

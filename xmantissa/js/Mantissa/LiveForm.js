@@ -8,6 +8,58 @@
 // import Mantissa
 
 
+Mantissa.LiveForm.RepeatableForm = Nevow.Athena.Widget.subclass(
+    'Mantissa.LiveForm.RepeatableForm');
+/**
+ * Widget which knows how to ask its server for a copy of a liveform, and how
+ * to insert the liveform into the document.
+ */
+Mantissa.LiveForm.RepeatableForm.methods(
+    function __init__(self, node, formName) {
+        Mantissa.LiveForm.RepeatableForm.upcall(self, '__init__', node);
+        self.formName = formName;
+    },
+
+    /**
+     * Implement C{gatherInputs} so we can pretend to be a liveform, by
+     * accumulating the result of broadcasting the method call to all of our
+     * child widgets.
+     */
+    function gatherInputs(self) {
+        var inputs = [];
+        for(var i = 0; i < self.childWidgets.length; i++) {
+            inputs.push(self.childWidgets[i].gatherInputs());
+        }
+        return inputs;
+    },
+
+    /**
+     * Request a copy of the form we are associated with, and insert the resulting
+     * widget's node into the DOM.
+     */
+    function repeat(self) {
+        var result = self.callRemote('repeatForm');
+        result.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.node.appendChild(widget.node);
+            });
+        return result;
+
+    },
+
+    /**
+     * DOM event handler which calls L{repeat}.
+     */
+    function dom_repeat(self) {
+        self.repeat();
+        return false;
+    });
+
+
 /**
  * Error, generally received from the server, indicating that some input was
  * rejected and the form action was not taken.
