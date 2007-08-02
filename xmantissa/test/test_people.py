@@ -36,13 +36,13 @@ from xmantissa.scrolltable import UnsortableColumn
 from xmantissa.people import (
     Organizer, Person, RealName, EmailAddress, AddPersonFragment, Mugshot,
     addContactInfoType, contactInfoItemTypeFromClassName,
-    _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PhoneNumber,
-    setIconURLForContactInfoType, iconURLForContactInfoType,
+    _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
+    PhoneNumber, setIconURLForContactInfoType, iconURLForContactInfoType,
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment,
     PersonNameColumn, OrganizerFragment, EditPersonView, NameContactType,
     BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
     PostalContactType, ReadOnlyEmailView, ReadOnlyNameView,
-    ReadOnlyPostalAddressView)
+    ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -1589,7 +1589,7 @@ class PeopleTests(unittest.TestCase):
 
     def testMugshot(self):
         """
-        Create a Mugshot item, check that it thumbnails it's image correctly
+        Create a Mugshot item, check that it thumbnails its image correctly.
         """
 
         try:
@@ -1660,6 +1660,20 @@ class StubPerson(object):
         Return C{None} since there is no mugshot.
         """
         return None
+
+
+    def getDisplayName(self):
+        """
+        Return a name of some sort.
+        """
+        return u"Alice"
+
+
+    def getEmailAddress(self):
+        """
+        Return an email address.
+        """
+        return u"alice@example.com"
 
 
 
@@ -1749,6 +1763,45 @@ class ContactInfoViewTests(unittest.TestCase):
         renderLiveFragment(fragment)
 
 
+class PersonDetailFragmentTests(unittest.TestCase):
+    """
+    Tests for L{xmantissa.people.PersonDetailFragment}.
+    """
+    def test_uploadMugshot(self):
+        """
+        Test that L{PersonDetailFragment} has a child page that allows picture
+        uploads.
+        """
+        person = StubPerson([])
+        person.organizer = StubOrganizer()
+        fragment = PersonDetailFragment(person)
+        rsrc, segs = fragment.locateChild(None, ('uploadMugshot',))
+        self.failUnless(isinstance(rsrc, MugshotUploadPage))
+
+    def test_getPersonURL(self):
+        """
+        Test that L{getPersonURL} returns the URL for the Person.
+        """
+        person = StubPerson([])
+        person.organizer = StubOrganizer()
+        self.assertEqual(getPersonURL(person), "/person/Alice")
+
+    def test_displayMugshot(self):
+        """
+        Test that L{PersonDetailFragment} has a child page that displays a mugshot image.
+        """
+        dbdir = self.mktemp()
+        store = Store(dbdir)
+        person = Person(store=store)
+        person.organizer = Organizer(store=store)
+        fragment = PersonDetailFragment(person)
+        image = Mugshot(
+            store=store, type=u"image/png",
+            body=store.filesdir.child('a'),
+            smallerBody=store.filesdir.child('b'),
+            person=person)
+        rsrc, segs = fragment.locateChild(None, ('mugshot',))
+        self.assertIdentical(rsrc.mugshot, image)
 
 class StubTranslator(object):
     """
@@ -1813,6 +1866,58 @@ class PersonScrollingFragmentTests(unittest.TestCase):
 
 
 
+class StubOrganizer(object):
+    """
+    Mimic some of the API presented by L{Organizer}.
+
+    @ivar people: A C{dict} mapping C{unicode} strings giving person
+        names to person objects.  These person objects will be returned
+        from appropriate calls to L{personByName}.
+    @ivar peoplePluginList: a C{list} of L{IOrganizerPlugin}s.
+    @ivar contactTypes: a C{list} of L{IContactType}s.
+    @ivar deletedPeople: A list of the arguments which have been passed to the
+    C{deletePerson} method.
+    """
+    _webTranslator = StubTranslator(None, None)
+
+    def __init__(self, store=None, peoplePlugins=None, contactTypes=None,
+                 deletedPeople=None):
+
+        self.store = store
+        self.people = {}
+        if peoplePlugins is None:
+            peoplePlugins = []
+        if contactTypes is None:
+            contactTypes = []
+        if deletedPeople is None:
+            deletedPeople = []
+        self.peoplePluginList = peoplePlugins
+        self.contactTypes = contactTypes
+        self.deletedPeople = deletedPeople
+
+    def peoplePlugins(self, person):
+        return [p.personalize(person) for p in self.peoplePluginList]
+
+
+    def personByName(self, name):
+        return self.people[name]
+
+
+    def lastNameOrder(self):
+        return None
+
+
+    def deletePerson(self, person):
+        self.deletedPeople.append(person)
+
+
+    def getContactTypes(self):
+        return self.contactTypes
+
+
+    def linkToPerson(self, person):
+        return "/person/" + person.getDisplayName()
+
 class OrganizerFragmentTests(unittest.TestCase):
     """
     Tests for L{OrganizerFragment}.
@@ -1835,38 +1940,10 @@ class OrganizerFragmentTests(unittest.TestCase):
         contactTypes = []
         peoplePlugins = []
 
-        class StubOrganizer(object):
-            """
-            Mimick some of the API presented by L{Organizer}.
-
-            @ivar people: A C{dict} mapping C{unicode} strings giving person
-                names to person objects.  These person objects will be returned
-                from appropriate calls to L{personByName}.
-            """
-            _webTranslator = StubTranslator(None, None)
-
-            def __init__(self, store):
-                self.store = store
-                self.people = {}
-
-            def peoplePlugins(self, person):
-                return [p.personalize(person) for p in peoplePlugins]
-
-            def personByName(self, name):
-                return self.people[name]
-
-            def lastNameOrder(self):
-                return None
-
-            def deletePerson(self, person):
-                deletedPeople.append(person)
-
-            def getContactTypes(self):
-                return contactTypes
-
         self.store = Store()
         self.contactTypes = contactTypes
-        self.organizer = StubOrganizer(store=self.store)
+        self.organizer = StubOrganizer(self.store, peoplePlugins,
+                                       contactTypes, deletedPeople)
         self.fragment = OrganizerFragment(self.organizer)
         self.deletedPeople = deletedPeople
         self.peoplePlugins = peoplePlugins

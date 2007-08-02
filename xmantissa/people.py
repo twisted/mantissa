@@ -1771,8 +1771,14 @@ def contactInfoItemTypeFromClassName(className):
             return (cls, attr)
 
 
+def getPersonURL(person):
+    """
+    Return the address the view for this Person is available at.
+    """
+    return person.organizer.linkToPerson(person)
 
-class ContactInfoFragment(ThemedFragment, rend.ChildLookupMixin):
+
+class ContactInfoFragment(ThemedFragment):
     """
     Renderer for contact information about a L{Person}.
     """
@@ -1793,31 +1799,15 @@ class ContactInfoFragment(ThemedFragment, rend.ChildLookupMixin):
         athena.LiveFragment.__init__(self, docFactory=docFactory)
         self.person = person
 
-    def _gotMugshotFile(self, ctype, infile):
-        (majortype, minortype) = ctype.split('/')
-
-        if majortype == 'image':
-            Mugshot.fromFile(self.person, infile, unicode(minortype, 'ascii'))
-
-    def child_uploadMugshot(self, ctx):
-        return MugshotUploadPage(self._gotMugshotFile, self.getMyURL())
-
-    def child_mugshot(self, ctx):
-        return MugshotResource(
-                    self.person.store.findUnique(
-                        Mugshot, Mugshot.person == self.person))
-
     def render_mugshotLink(self, ctx, data):
         self.mugshot = self.person.getMugshot()
         if self.mugshot is None:
             return '/Mantissa/images/mugshot-placeholder.png'
-        return self.getMyURL() + '/mugshot'
+        return getPersonURL(self.person) + '/mugshot'
 
     def render_mugshotFormAction(self, ctx, data):
-        return self.getMyURL() + '/uploadMugshot'
+        return getPersonURL(self.person) + '/uploadMugshot'
 
-    def getMyURL(self):
-        return self.person.organizer.linkToPerson(self.person)
 
     def editContactInfoItem(self, typeName, oldValue, newValue):
         (cls, attr) = contactInfoItemTypeFromClassName(typeName)
@@ -1950,6 +1940,25 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
             yield dictFillSlots(pat,
                                 dict(title=f.title,
                                      fragment=f))
+
+    def _gotMugshotFile(self, ctype, infile):
+        (majortype, minortype) = ctype.split('/')
+        if majortype == 'image':
+            Mugshot.fromFile(self.person, infile, unicode(minortype, 'ascii'))
+
+    def child_uploadMugshot(self, ctx):
+        """
+        Return the resource for uploading a mugshot picture for this Person.
+        """
+        return MugshotUploadPage(self._gotMugshotFile, getPersonURL(self.person))
+
+    def child_mugshot(self, ctx):
+        """
+        Return the resource displaying this Person's mugshot picture.
+        """
+        return MugshotResource(self.person.getMugshot())
+
+
 
 components.registerAdapter(PersonDetailFragment, Person, ixmantissa.INavigableFragment)
 
