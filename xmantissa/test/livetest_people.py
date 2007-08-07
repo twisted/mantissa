@@ -82,7 +82,9 @@ class OnlyNick(AddPersonTestBase, TestCase):
     def checkResult(self):
         self.assertEqual(self.exc_info, None)
 
-        p = self.store.findUnique(people.Person)
+        p = self.store.findUnique(
+            people.Person,
+            people.Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEqual(p.name, 'everybody')
         self.assertIdentical(p.organizer, self.organizer)
         p.deleteFromStore()
@@ -103,7 +105,9 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
     def checkResult(self):
         self.assertEqual(self.exc_info, None)
 
-        p = self.store.findUnique(people.Person)
+        p = self.store.findUnique(
+            people.Person,
+            people.Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEqual(p.name, 'NICK!!!')
         self.assertIdentical(p.organizer, self.organizer)
 
