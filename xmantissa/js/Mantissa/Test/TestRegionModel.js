@@ -2529,6 +2529,43 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
     },
 
     /**
+     * translateScrollOffset should always return the first scroll offset
+     * within the region unless we can see past the end of the region.
+     */
+    function test_shortCircuitExposeWithinRegion(self) {
+        self.table._getRowHeight = function () {
+            return 33;
+        };
+        // We can see 3 rows at a time, normally.
+        self.table.visiblePixelHeight = function () {
+            return 99;
+        };
+        self.table.model.insertRowData(0, [self._makeFake(1),
+                                           self._makeFake(2)]);
+        // Now, rather than 66 pixels down, let's make that inordinately big.
+        self.table.model._regions[0].viewPeer.node.setMockElementSize(
+            100, 5000);
+
+        // 4902 pixels in, our virtual viewport (99 pixels high) should be
+        // able to see two rows of whitespace, which means we can see offset
+        // 2.
+        self.assertIdentical(self.table.translateScrollOffset(4902), 2);
+        // 4900 pixels in, our virtual viewport is still entirely covered by
+        // the 5000-pixel-high first region, so we should translate that to
+        // the first offset in the visible region.
+        self.assertIdentical(self.table.translateScrollOffset(4900), 0);
+        // The beginning of the viewport should still be at the actual
+        // beginning of the viewport; no change there.
+        self.assertIdentical(self.table.translateScrollOffset(0), 0);
+        // Some other values at various points between the beginning and the
+        // end of the region should give the same results, just to make sure.
+        self.assertIdentical(self.table.translateScrollOffset(20), 0);
+        self.assertIdentical(self.table.translateScrollOffset(200), 0);
+        self.assertIdentical(self.table.translateScrollOffset(1000), 0);
+
+    },
+
+    /**
      * Verify that L{Mantissa.ScrollTable.Column.valueToDOM} returns a
      * text node which contains only the value of the column.
      */

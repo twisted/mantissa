@@ -3378,6 +3378,15 @@ Mantissa.ScrollTable.ScrollTable.methods(
                 var someHeight = reg.viewPeer.averageRowPixelHeight();
                 var internalPixelOffset = pixelOffset - reg.viewPeer.pixelTop();
 
+                /* If the user can't see past the end of the region, let's
+                 * return the first offset in the region, so that expose()
+                 * won't think that we need to request more data. */
+
+                if ( reg.viewPeer.pixelBottom() >
+                     (pixelOffset + self.visiblePixelHeight()) ) {
+                    return reg.firstOffset();
+                }
+
                 /* We want to know what row in this region the top of the
                  * scroll viewport is looking at.  But we can't know exactly,
                  * because browsers are terrible, and the primary function of
