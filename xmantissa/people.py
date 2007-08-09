@@ -406,12 +406,6 @@ class ReadOnlyNameView(Element):
 
 
 
-class PeopleBenefactor(item.Item):
-    implements(ixmantissa.IBenefactor)
-    endowed = attributes.integer(default=0)
-
-
-
 class Person(item.Item):
     typeName = 'mantissa_person'
     schemaVersion = 2
