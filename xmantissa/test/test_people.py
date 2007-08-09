@@ -46,7 +46,7 @@ from xmantissa.people import (
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
-    TEXT_INPUT, FORM_INPUT, InputError, Parameter, LiveForm)
+    TEXT_INPUT, FORM_INPUT, InputError, Parameter, LiveForm, RepeatableFormParameter)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
 from xmantissa.signup import UserInfo
@@ -191,8 +191,8 @@ class StubContactType(object):
     """
     Behaviorless contact type implementation used for tests.
 
-    @ivar creationForm: The object which will be returned from
-        L{getCreationForm}.
+    @ivar parameters: A list of L{xmantissa.liveform.Parameter} instances which
+        will become the return value of L{getParameters}.
     @ivar createdContacts: A list of tuples of the arguments passed to
         C{createContactItem}.
     @ivar editorialForm: The object which will be returned from
@@ -211,9 +211,8 @@ class StubContactType(object):
     """
     implements(IContactType)
 
-    def __init__(self, creationForm, editorialForm, contactItems,
-                 createContactItems=True):
-        self.creationForm = creationForm
+    def __init__(self, parameters, editorialForm, contactItems, createContactItems=True):
+        self.parameters = parameters
         self.createdContacts = []
         self.editorialForm = editorialForm
         self.editedContacts = []
@@ -223,19 +222,18 @@ class StubContactType(object):
         self.createContactItems = createContactItems
 
 
+    def getParameters(self, ignore):
+        """
+        Return L{parameters}.
+        """
+        return self.parameters
+
+
     def uniqueIdentifier(self):
         """
         Return the L{qual} of this class.
         """
         return qual(self.__class__).decode('ascii')
-
-
-    def getCreationForm(self):
-        """
-        Return an object which is supposed to be a form for creating a new
-        instance of this contact type.
-        """
-        return self.creationForm
 
 
     def getEditorialForm(self, contact):
@@ -300,26 +298,6 @@ class BaseContactTests(unittest.TestCase):
         identifier = Dummy().uniqueIdentifier()
         self.assertTrue(isinstance(identifier, unicode))
         self.assertEqual(identifier, __name__ + '.' + Dummy.__name__)
-
-
-    def test_getCreationForm(self):
-        """
-        L{BaseContactType.getCreationForm} should return a L{LiveForm} with the
-        parameters specified by C{getParameters}.
-        """
-        contacts = []
-        params = object()
-        class Stub(BaseContactType):
-            def getParameters(self, contact):
-                contacts.append(contact)
-                return params
-        form = Stub().getCreationForm()
-        self.assertTrue(isinstance(form, LiveForm))
-        self.assertEqual(contacts, [None])
-        self.assertIdentical(form.parameters, params)
-
-        params = dict(a='b', c='d')
-        self.assertEqual(form.callable(**params), params)
 
 
     def test_getEditorialForm(self):
@@ -1011,7 +989,7 @@ class PeopleModelTestCase(unittest.TestCase):
         sequence it is passed.
         """
         person = self.organizer.createPerson(u'alice')
-        contactType = StubContactType(None, None, None)
+        contactType = StubContactType((), None, None)
         contactItem = object()
         contactInfo = {'foo': 'bar'}
         self.organizer.editPerson(
@@ -1108,7 +1086,7 @@ class PeopleModelTestCase(unittest.TestCase):
         observer = StubOrganizerPlugin(store=self.store)
         self.store.powerUp(observer, IOrganizerPlugin)
         person = self.organizer.createPerson(nickname)
-        contactType = StubContactType(None, None, None)
+        contactType = StubContactType((), None, None)
         parameters = {'key': u'value'}
         contactItem = self.organizer.createContactItem(
             contactType, person, parameters)
@@ -1129,7 +1107,7 @@ class PeopleModelTestCase(unittest.TestCase):
         observer = StubOrganizerPlugin(store=self.store)
         self.store.powerUp(observer, IOrganizerPlugin)
         person = self.organizer.createPerson(nickname)
-        contactType = StubContactType(None, None, None, False)
+        contactType = StubContactType((), None, None, False)
         parameters = {'key': u'value'}
         contactItem = self.organizer.createContactItem(
             contactType, person, parameters)
@@ -1222,18 +1200,15 @@ class PeopleModelTestCase(unittest.TestCase):
         containing C{FORM_INPUT} parameters for each contact type available in
         the system.
         """
-        contactForm = object()
-        contactTypes = [StubContactType(contactForm, None, None)]
+        contactTypes = [StubContactType((), None, None)]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
         self.assertEqual(len(parameters), 4)
-        self.assertTrue(isinstance(parameters[3], Parameter))
+        self.assertTrue(isinstance(parameters[3], RepeatableFormParameter))
         self.assertEqual(parameters[3].name, qual(StubContactType))
-        self.assertEqual(parameters[3].type, FORM_INPUT)
-        self.assertIdentical(parameters[3].coercer, contactForm)
 
 
     def test_getContactEditorialParameters(self):
@@ -1243,7 +1218,7 @@ class PeopleModelTestCase(unittest.TestCase):
         """
         contactItems = [object(), object()]
         editorialForm = object()
-        contactTypes = [StubContactType(None, editorialForm, contactItems)]
+        contactTypes = [StubContactType((), editorialForm, contactItems)]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
@@ -1483,7 +1458,7 @@ class PeopleTests(unittest.TestCase):
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
         self.assertEqual(len(addPersonForm.parameters), 4)
 
-        contactTypes = [StubContactType(LiveForm('foo', []), None, None)]
+        contactTypes = [StubContactType((), None, None)]
         observer = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(observer, IOrganizerPlugin)
@@ -1497,8 +1472,7 @@ class PeopleTests(unittest.TestCase):
         L{AddPersonFragment.addPerson} should give the L{IContactType} plugins
         their information from the form submission.
         """
-        creationForm = object()
-        contactType = StubContactType(creationForm, None, None)
+        contactType = StubContactType((), None, None)
         observer = StubOrganizerPlugin(
             store=self.store, contactTypes=[contactType])
         self.store.powerUp(observer, IOrganizerPlugin)
@@ -1508,14 +1482,14 @@ class PeopleTests(unittest.TestCase):
         argument = {u'stub': 'value'}
         addPersonFragment.addPerson(
             u'nickname',
-            **{contactType.uniqueIdentifier().encode('ascii'): argument,
-               _keyword(NameContactType()): {
+            **{contactType.uniqueIdentifier().encode('ascii'): [argument],
+               _keyword(NameContactType()): [{
                     u'firstname': u'First',
-                    u'lastname': u'Last'},
-               _keyword(EmailContactType(self.store)): {
-                    u'email': u'user@example.com'},
-               _keyword(PostalContactType()): {
-                    u'address': u'123 Street Rd'}})
+                    u'lastname': u'Last'}],
+               _keyword(EmailContactType(self.store)): [{
+                    u'email': u'user@example.com'}],
+               _keyword(PostalContactType()): [{
+                    u'address': u'123 Street Rd'}]})
 
         person = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
@@ -1526,13 +1500,13 @@ class PeopleTests(unittest.TestCase):
         addPersonFrag = AddPersonFragment(self.organizer)
         addPersonFrag.addPerson(
             u'Captain P.',
-            **{_keyword(NameContactType()): {
+            **{_keyword(NameContactType()): [{
                     u'firstname': u'Jean-Luc',
-                    u'lastname': u'Picard'},
-               _keyword(EmailContactType(self.store)): {
-                    u'email': u'jlp@starship.enterprise'},
-               _keyword(PostalContactType()): {
-                    u'address': u'123 Street Rd'}})
+                    u'lastname': u'Picard'}],
+               _keyword(EmailContactType(self.store)): [{
+                    u'email': u'jlp@starship.enterprise'}],
+               _keyword(PostalContactType()): [{
+                    u'address': u'123 Street Rd'}]})
 
         person = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
@@ -1560,13 +1534,13 @@ class PeopleTests(unittest.TestCase):
         view = AddPersonFragment(self.organizer)
         view.addPerson(
             u'alice', True,
-            **{_keyword(NameContactType()): {
+            **{_keyword(NameContactType()): [{
                     u'firstname': u'First',
-                    u'lastname': u'Last'},
-               _keyword(EmailContactType(self.store)): {
-                    u'email': u'user@example.com'},
-               _keyword(PostalContactType()): {
-                    u'address': u'123 Street Rd'}})
+                    u'lastname': u'Last'}],
+               _keyword(EmailContactType(self.store)): [{
+                    u'email': u'user@example.com'}],
+               _keyword(PostalContactType()): [{
+                    u'address': u'123 Street Rd'}]})
         alice = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertTrue(alice.vip)
@@ -1981,8 +1955,8 @@ class OrganizerFragmentTests(unittest.TestCase):
         self.organizer.people[nickname] = person
 
         self.contactTypes.extend([
-                StubContactType(None, None, [object(), object()]),
-                StubContactType(None, None, [object()])])
+                StubContactType((), None, [object(), object()]),
+                StubContactType((), None, [object()])])
 
         contactInformation = expose.get(
             self.fragment, 'getContactInformation')(nickname)
@@ -2105,7 +2079,7 @@ class EditPersonViewTests(unittest.TestCase):
         """
         Create an L{EditPersonView} wrapped around a stub person and stub organizer.
         """
-        self.contactType = StubContactType(None, None, None)
+        self.contactType = StubContactType((), None, None)
         self.contactItem = object()
         self.contactForm = Parameter(u'contact-form', TEXT_INPUT, unicode)
 
@@ -2150,7 +2124,7 @@ class EditPersonViewTests(unittest.TestCase):
                 transactions.append(transaction(f, a, kw))
         self.person.store = StubStore()
         contactInfo = {u'stub': 'value'}
-        contactType = StubContactType(None, None, None)
+        contactType = StubContactType((), None, None)
         self.view.contactItems = {'name': (contactType, self.contactItem)}
         self.view.editContactItems(u'nick', name=contactInfo)
         self.assertEqual(len(transactions), 1)

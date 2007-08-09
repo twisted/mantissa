@@ -579,10 +579,19 @@ class IContactType(Interface):
     A means by which communication with a L{Person} might occur.  For example,
     a telephone number.
     """
-    def getCreationForm():
+    def getParameters(contactInfoItem):
         """
-        Return a L{LiveForm} for the creation of a new instance of the contact
-        type represented by this object.
+        Return some liveform parameters, one for each piece of information that is
+        needed to construct a contact info item of this type.
+
+        @param contactInfoItem: An existing contact info item of this type, or
+        C{None}.  If not C{None}, then the current values of the contact info
+        type will be used to provide suitable defaults for the parameters that
+        are returned.
+        @type contactInfoItem: L{axiom.item.Item} subclass.
+
+        @return: some liveform parameters.
+        @rtype: C{list} of L{xmantissa.liveform.Parameter}.
         """
 
 
@@ -594,7 +603,8 @@ class IContactType(Interface):
         @param person: The person to whom the contact item pertains.
 
         @param parameters: The form input key/value pairs as returned by the
-            L{LiveForm} returned by L{getCreationForm}.
+            L{xmantissa.liveform.LiveForm} constructed from L{getParameters}'s
+            parameter instances.
 
         @return: The created contact item or C{None} if one was not created for
             any reason.

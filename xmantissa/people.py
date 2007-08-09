@@ -29,7 +29,7 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
-from xmantissa.liveform import FORM_INPUT, InputError, Parameter
+from xmantissa.liveform import FORM_INPUT, InputError, Parameter, RepeatableFormParameter
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
@@ -98,8 +98,9 @@ class BaseContactType(object):
 
     def getParameters(self, contact):
         """
-        Return a list of L{liveform.Parameter} objects to be used by
-        L{getCreationForm} to create a L{liveform.LiveForm}.
+        Return a list of L{liveform.Parameter} objects to be used to create
+        L{liveform.LiveForm}s suitable for creating or editing contact
+        information of this type.
 
         Override this in a subclass.
 
@@ -121,14 +122,6 @@ class BaseContactType(object):
         @return: Mapping of coerced parameter names to values.
         """
         return kw
-
-
-    def getCreationForm(self):
-        """
-        Create a L{liveform.LiveForm} for creating this kind of contact item using the
-        parameters returned by L{getParameters}.
-        """
-        return liveform.LiveForm(self.coerce, self.getParameters(None))
 
 
     def getEditorialForm(self, contact):
@@ -709,10 +702,9 @@ class Organizer(item.Item):
         instance of a particular L{IContactType}.
         """
         for contactType in self.getContactTypes():
-            yield Parameter(
+            yield RepeatableFormParameter(
                 contactType.uniqueIdentifier(),
-                FORM_INPUT,
-                contactType.getCreationForm())
+                contactType.getParameters(None))
 
 
     def getContactEditorialParameters(self, person):
@@ -1531,8 +1523,8 @@ class AddPersonFragment(ThemedFragment):
         # instant a button is present upon a web page which can provoke
         # this behavior. -exarkun
         for contactType in organizer.getContactTypes():
-            contactInfo = allContactInfo[contactType.uniqueIdentifier()]
-            organizer.createContactItem(contactType, person, contactInfo)
+            for contactInfo in allContactInfo[contactType.uniqueIdentifier()]:
+                organizer.createContactItem(contactType, person, contactInfo)
         return person
 
 
