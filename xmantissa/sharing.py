@@ -295,7 +295,8 @@ class Share(Item):
         The sharedItem attribute is a reference to the item which is being
         provided.
         """,
-        allowNone=False)
+        allowNone=False,
+        whenDeleted=reference.CASCADE)
 
     sharedTo = reference(
         doc="""

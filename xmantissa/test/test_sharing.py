@@ -146,6 +146,22 @@ class SimpleSharing(unittest.TestCase):
                           theShare.shareID)
 
 
+    def test_deletedOriginalNoShare(self):
+        """
+        NoSuchShare should be raised when getShare is called with an item who is
+        not allowed to access a shared item.
+        """
+        t = PrivateThing(store=self.store, publicData=234)
+        theShare = sharing.shareItem(t, toName=u'somebody@example.com')
+        t.deleteFromStore()
+        self.assertRaises(sharing.NoSuchShare,
+                          sharing.getShare,
+                          self.store,
+                          sharing.getPrimaryRole(self.store,
+                                                 u'somebody@example.com'),
+                          theShare.shareID)
+
+
     def test_shareAndAdapt(self):
         """
         Verify that when an item is shared to a particular user with a particular
