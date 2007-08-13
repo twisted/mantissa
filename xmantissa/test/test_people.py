@@ -2126,16 +2126,19 @@ class EditPersonViewTests(unittest.TestCase):
         contactInfo = {u'stub': 'value'}
         contactType = StubContactType((), None, None)
         self.view.contactItems = {'name': (contactType, self.contactItem)}
-        self.view.editContactItems(u'nick', name=contactInfo)
-        self.assertEqual(len(transactions), 1)
-        self.assertEqual(self.person.name, StubPerson.name)
-        self.assertEqual(contactType.editedContacts, [])
-        transactions[0].function(
-            *transactions[0].args, **transactions[0].kwargs)
-        self.assertEqual(
-            self.person.organizer.edits,
-            [(self.person, u'nick',
-              [(contactType, self.contactItem, contactInfo)])])
+        for i in xrange(2):
+            self.view.editContactItems(u'nick', name=contactInfo)
+            self.assertEqual(len(transactions), 1)
+            self.assertEqual(self.person.name, StubPerson.name)
+            self.assertEqual(contactType.editedContacts, [])
+            transactions[0].function(
+                *transactions[0].args, **transactions[0].kwargs)
+            self.assertEqual(
+                self.person.organizer.edits,
+                [(self.person, u'nick',
+                  [(contactType, self.contactItem, contactInfo)])])
+            transactions.pop(0)
+            self.person.organizer.edits.pop(0)
 
 
     def test_editorialContactForms(self):

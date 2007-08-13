@@ -1125,7 +1125,7 @@ class EditPersonView(ThemedElement):
         """
         editedContacts = []
         for paramName, contactInfo in edits.iteritems():
-            contactType, contactItem = self.contactItems.pop(paramName)
+            contactType, contactItem = self.contactItems[paramName]
             contactInfo = dict([
                     (k.encode('ascii'), v)
                     for (k, v)
