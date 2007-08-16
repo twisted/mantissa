@@ -110,6 +110,8 @@ class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=
     def __init__(self, *a, **k):
         super(RepeatableFormParameter, self).__init__(*a, **k)
         self.liveFormFactory = LiveForm
+        self.repeatedLiveFormWrapperFactory = RepeatedLiveFormWrapper
+        self.liveFormCounter = 0
 
 
     def compact(self):
@@ -122,7 +124,7 @@ class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=
 
     def coercer(self, dataSets):
         """
-        Get the parameters of the form in L{formFactory} to coerce our data
+        Make a new liveform with our parameters, and get it to coerce our data
         for us.
         """
         # make a liveform because there is some logic in _coerced
@@ -143,6 +145,10 @@ class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=
         # also
         if self._parameterIsCompact:
             liveForm.compact()
+        if 0 < self.liveFormCounter:
+            liveForm = self.repeatedLiveFormWrapperFactory(liveForm)
+            liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
+        self.liveFormCounter += 1
         return liveForm
 
 
@@ -564,6 +570,39 @@ class _ParameterViewBase(Element):
 
 
 
+class RepeatedLiveFormWrapper(athena.LiveElement):
+    """
+    A wrapper around a L{LiveForm} which has been repeated via
+    L{RepeatableFormParameter.asLiveForm}.
+
+    @ivar liveForm: The repeated liveform.
+    @type liveForm: L{LiveForm}
+    """
+    jsClass = u'Mantissa.LiveForm.RepeatedLiveFormWrapper'
+    fragmentName = 'repeated-liveform'
+
+    def __init__(self, liveForm):
+        self.liveForm = liveForm
+        athena.LiveElement.__init__(self)
+
+
+    def getInitialArguments(self):
+        """
+        Include the name of the form we're wrapping.
+        """
+        return (self.liveForm.subFormName.decode('utf-8'),)
+
+
+    def realForm(self, req, tag):
+        """
+        Render L{liveForm}.
+        """
+        self.liveForm.setFragmentParent(self)
+        return self.liveForm
+    page.renderer(realForm)
+
+
+
 class _TextLikeParameterView(_ParameterViewBase):
     """
     View definition base class for L{Parameter} instances which are simple text
@@ -747,7 +786,7 @@ class RepeatableFormParameterView(athena.LiveElement):
 
     def form(self, req, tag):
         """
-        Make and return a form, using L{self.parameter.formFactory}.
+        Make and return a form, using L{self.parameter.repeat}.
 
         @return: a sub form.
         @rtype: L{LiveForm}
@@ -758,7 +797,7 @@ class RepeatableFormParameterView(athena.LiveElement):
 
     def repeatForm(self):
         """
-        Make and return a form, using L{self.parameter.formFactory}.
+        Make and return a form, using L{self.parameter.repeat}.
 
         @return: a sub form.
         @rtype: L{LiveForm}

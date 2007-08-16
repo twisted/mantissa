@@ -628,6 +628,7 @@ class RepeatableFormParameterViewTestCase(TestCase):
         self.parameter = RepeatableFormParameter(
             u'repeatableFoo', self.innerParameters)
         self.parameter.liveFormFactory = TestableLiveForm
+        self.parameter.liveFormWrapperFactory = lambda lf: lf
         self.view = RepeatableFormParameterView(self.parameter)
 
 
@@ -740,3 +741,57 @@ class RepeatableFormParameterViewTestCase(TestCase):
         theForm = LiveForm(theCallable, [self.parameter])
         theForm.invoke({u'repeatableFoo': [[{u'foo': [u'123']}, {u'foo': [u'-111']}]]})
         self.assertEqual(result, [{'repeatableFoo': [{'foo': 123}, {'foo': -111}]}])
+
+
+
+class RepeatableFormParameterTestCase(TestCase):
+    """
+    Tests for L{RepeatableFormParameter}.
+    """
+    def test_asLiveFormFirst(self):
+        """
+        L{RepeatableFormParameter.asLiveForm} should correctly construct forms
+        using L{RepeatableFormParameter.liveFormFactory}.
+        """
+        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
+        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
+        class LiveFormFactory:
+            def __init__(self, aCallable, parameters):
+                self.aCallable = aCallable
+                self.parameters = parameters
+
+            def asSubForm(self, name):
+                return self
+        parameter.liveFormFactory = LiveFormFactory
+
+        liveForm = parameter.asLiveForm()
+        self.failUnless(isinstance(liveForm, LiveFormFactory))
+        self.failUnless(callable(liveForm.aCallable))
+        self.assertEqual(liveForm.parameters, innerParameters)
+
+        self.assertEqual(parameter.liveFormCounter, 1)
+
+
+    def test_asLiveFormSubsequent(self):
+        """
+        L{RepeatableFormParameter.asLiveForm} should wrap forms in
+        L{RepeatableFormParameter.liveFormWrapperFactory} if the method has
+        been previously called.
+        """
+        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
+        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
+        parameter.asLiveForm()
+
+        class RepeatedLiveFormWrapperFactory:
+            fragmentName = 'repeated-liveform'
+            def __init__(self, liveForm):
+                self.liveForm = liveForm
+
+        parameter.repeatedLiveFormWrapperFactory = RepeatedLiveFormWrapperFactory
+        liveFormWrapper = parameter.asLiveForm()
+        self.failUnless(
+            isinstance(liveFormWrapper, RepeatedLiveFormWrapperFactory))
+        self.failUnless(
+            isinstance(liveFormWrapper.liveForm, LiveForm))
+
+        self.assertEqual(parameter.liveFormCounter, 2)

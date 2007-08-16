@@ -1,4 +1,3 @@
-
 // import Divmod
 // import Divmod.Runtime
 
@@ -7,6 +6,34 @@
 
 // import Mantissa
 
+
+Mantissa.LiveForm.RepeatedLiveFormWrapper = Nevow.Athena.Widget.subclass(
+    'Mantissa.LiveForm.RepeatedLiveFormWrapper');
+/**
+ * Widget which wraps a L{Mantissa.LiveForm.FormWidget}.
+ */
+Mantissa.LiveForm.RepeatedLiveFormWrapper.methods(
+    function __init__(self, node, formName) {
+        Mantissa.LiveForm.RepeatedLiveFormWrapper.upcall(
+            self, '__init__', node);
+        self.formName = formName;
+    },
+
+    /**
+     * Remove our node from the DOM
+     */
+    function dom_unrepeat(self) {
+        self.detach();
+        self.node.parentNode.removeChild(self.node);
+        return false;
+    },
+
+    /**
+     * Defer to our child liveform.
+     */
+    function gatherInputs(self) {
+        return self.childWidgets[0].gatherInputs();
+    });
 
 Mantissa.LiveForm.RepeatableForm = Nevow.Athena.Widget.subclass(
     'Mantissa.LiveForm.RepeatableForm');
