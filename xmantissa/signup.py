@@ -24,7 +24,7 @@ from axiom.dependency import installOn, _getPowerupInterfaces
 from nevow.rend import Page, NotFound
 from nevow.url import URL
 from nevow.inevow import IResource, ISession
-from nevow import inevow, tags, athena, loaders
+from nevow import inevow, tags, athena
 from nevow.athena import expose
 
 from xmantissa.ixmantissa import (
@@ -705,18 +705,18 @@ class UserInfoSignup(Item, PrefixURLMixin):
         @type lastName: C{unicode}
 
         @param username: the user's username.  they will be able to login with
-        this.
+            this.
         @type username: C{unicode}
-        
+
         @param domain: the local domain - used internally to turn C{username}
-        into a localpart@domain style string .
+            into a localpart@domain style string .
         @type domain: C{unicode}
 
         @param password: the password to be used for the user's account.
         @type password: C{unicode}
 
         @param emailAddress: the user's external email address.  they will be
-        able to login with this also.
+            able to login with this also.
         @type emailAdress: C{unicode}
 
         @rtype: C{NoneType}
@@ -733,10 +733,10 @@ class UserInfoSignup(Item, PrefixURLMixin):
             acct.addLoginMethod(emailPart, emailDomain, protocol=u"email",
                                 verified=False, internal=False)
             substore = IBeneficiary(acct)
-            self.product.installProductOn(substore)
             UserInfo(store=substore,
                      firstName=firstName,
                      lastName=lastName)
+            self.product.installProductOn(substore)
         self.store.transact(_)
 
 declareLegacyItem(typeName=UserInfoSignup.typeName,

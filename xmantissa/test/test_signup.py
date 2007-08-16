@@ -1,6 +1,9 @@
+
 from twisted.trial import unittest
 
 from axiom import store, userbase
+from axiom.item import Item
+from axiom.attributes import inmemory, integer
 
 from xmantissa import signup, offering
 from xmantissa.plugins import free_signup
@@ -32,12 +35,12 @@ class SignupCreationTestCase(unittest.TestCase):
         to be coming from the admin form.
 
         """
-        self.ftp = Product(store=self.store, types=[])
+        product = Product(store=self.store, types=[])
         return self.sc.createSignup(
             u'testuser@localhost',
             itemClass,
             {'prefixURL': url},
-            self.ftp,
+            product,
             u'Blank Email Template', prompt)
 
     def testCreateFreeSignups(self):
@@ -71,7 +74,7 @@ class SignupCreationTestCase(unittest.TestCase):
 
         # Not allowed: used localpart, same domain as the administrator created
         # by setUp.
-        self.failIf(signup.usernameAvailable(u'admin', u'localhost')[0]) 
+        self.failIf(signup.usernameAvailable(u'admin', u'localhost')[0])
         self.assertEquals(signup.usernameAvailable(u'fjones', u'localhost'),
                           [True, u'Username already taken'])
 
@@ -110,8 +113,9 @@ class SignupCreationTestCase(unittest.TestCase):
 
     def test_userInfoSignupUserInfo(self):
         """
-        Check that {CcreateUser} creates a L{signup.UserInfo} item with the
-        C{email}, C{firstName} and C{lastName} attributes set.
+        Check that C{createUser} creates a L{signup.UserInfo} item with the
+        C{email}, C{firstName} and C{lastName} attributes set before it
+        installs its L{Product}.
         """
         freeSignup = self.createFreeSignup(free_signup.userInfo.itemClass)
         freeSignup.createUser(
@@ -124,6 +128,39 @@ class SignupCreationTestCase(unittest.TestCase):
         userInfo = userInfos[0]
         self.assertEqual(userInfo.firstName, u'Frank')
         self.assertEqual(userInfo.lastName, u'Jones')
+
+
+    def test_userInfoCreatedBeforeProductInstalled(self):
+        """
+        L{UserInfoSignup.createUser} should create a L{UserInfo} item before it
+        calls L{Product.installProductOn}.
+        """
+        class StubProduct(Item):
+            """
+            L{Product}-alike which records the existing L{UserInfo} items in
+            the store when it is installed.
+            """
+            required_axiom_attribute_garbage = integer(
+                doc="""
+                mandatory Item attribute.
+                """)
+
+            userInfos = inmemory()
+
+            def installProductOn(self, substore):
+                """
+                Find all the L{UserInfo} items in the given store and remember
+                them.
+                """
+                self.userInfos = list(substore.query(signup.UserInfo))
+
+        product = StubProduct(store=self.store)
+        freeSignup = self.createFreeSignup(free_signup.userInfo.itemClass)
+        freeSignup.product = product
+        freeSignup.createUser(
+            u'Frank', u'Jones', u'fjones', u'example.com',
+            u'password', u'fj@example.org')
+        self.assertEqual(len(product.userInfos), 1)
 
 
     def test_userInfoLoginMethods(self):
@@ -166,4 +203,3 @@ class SignupCreationTestCase(unittest.TestCase):
         x.sort()
         self.assertEquals(x, [(u'Sign Up 1', u'/signup1'),
                               (u'Sign Up 2', u'/signup2')])
-
