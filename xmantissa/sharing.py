@@ -6,7 +6,7 @@ This module provides various abstractions for sharing public data in Axiom.
 
 import os
 
-from zope.interface import implementedBy, directlyProvides
+from zope.interface import implementedBy, directlyProvides, Interface
 
 from twisted.python.reflect import qual, namedAny
 
@@ -15,10 +15,19 @@ from axiom.item import Item
 from axiom.attributes import reference, text, AND
 from axiom.upgrade import registerUpgrader
 
+
 class NoSuchShare(Exception):
     """
     User requested an object that doesn't exist, was not allowed.
     """
+
+
+class ConflictingNames(Exception):
+    """
+    The same name was defined in two separate interfaces.
+    """
+
+
 
 class RoleRelationship(Item):
     """
@@ -115,7 +124,6 @@ class Role(Item):
             for roleRole in groupRole.allRoles(memo):
                 yield roleRole
 
-
 class _really(object):
     """
     A dynamic proxy for dealing with 'private' attributes on L{SharedProxy},
@@ -132,6 +140,19 @@ class _really(object):
         L{SharedProxy}.
         """
         self.orig = orig
+
+
+    def __setattr__(self, name, value):
+        """
+        Set an attribute on my original, unless my original has not yet been set,
+        in which case set it on me.
+        """
+        try:
+            orig = object.__getattribute__(self, 'orig')
+        except AttributeError:
+            object.__setattr__(self, name, value)
+        else:
+            object.__setattr__(orig, name, value)
 
 
     def __getattribute__(self, name):
@@ -184,13 +205,27 @@ class SharedProxy(object):
         @param shareID: the external identifier that the shared item was shared
         as.
         """
-        super(SharedProxy, self).__setattr__('_sharedItem', sharedItem)
-        super(SharedProxy, self).__setattr__('_sharedInterfaces', sharedInterfaces)
-        super(SharedProxy, self).__setattr__('_shareID', shareID)
+        rself = _really(self)
+        rself._sharedItem = sharedItem
+        rself._shareID = shareID
+        rself._adapterCache = {}
+        # Drop all duplicate shared interfaces.
+        uniqueInterfaces = list(sharedInterfaces)
+        # XXX there _MUST_ Be a better algorithm for this
+        for left in sharedInterfaces:
+            for right in sharedInterfaces:
+                if left.extends(right) and right in uniqueInterfaces:
+                    uniqueInterfaces.remove(right)
+        for eachInterface in uniqueInterfaces:
+            if not eachInterface.providedBy(sharedItem):
+                impl = eachInterface(sharedItem, None)
+                if impl is not None:
+                    rself._adapterCache[eachInterface] = impl
+        rself._sharedInterfaces = uniqueInterfaces
         # Make me look *exactly* like the item I am proxying for, at least for
         # the purposes of adaptation
         # directlyProvides(self, providedBy(sharedItem))
-        directlyProvides(self, sharedInterfaces)
+        directlyProvides(self, uniqueInterfaces)
 
 
     def __repr__(self):
@@ -223,6 +258,8 @@ class SharedProxy(object):
             return rself._shareID
         for iface in rself._sharedInterfaces:
             if name in iface:
+                if iface in rself._adapterCache:
+                    return getattr(rself._adapterCache[iface], name)
                 return getattr(rself._sharedItem, name)
         raise AttributeError(name)
 
@@ -239,9 +276,7 @@ class SharedProxy(object):
         @return: None
         """
         rself = _really(self)
-        if name in rself._sharedInterfaces:
-            setattr(rself._sharedItem, name, value)
-        elif name in ALLOWED_ON_PROXY:
+        if name in ALLOWED_ON_PROXY:
             self.__dict__[name] = value
         else:
             raise AttributeError("unsettable: "+repr(name))
@@ -259,10 +294,14 @@ def _interfacesToNames(interfaces):
     @param interfaces: an iterable of Interface objects.
 
     @return: a unicode string, a comma-separated list of names of interfaces.
+
+    @raise ConflictingNames: if any of the names conflict: see
+    L{_checkConflictingNames}.
     """
     if interfaces is ALL_IMPLEMENTED:
         names = ALL_IMPLEMENTED_DB
     else:
+        _checkConflictingNames(interfaces)
         names = u','.join(map(qual, interfaces))
     return names
 
@@ -371,6 +410,8 @@ def upgradeShare1to2(oldShare):
 
 registerUpgrader(upgradeShare1to2, 'sharing_share', 1, 2)
 
+
+
 def genShareID(store):
     """
     Generate a new, randomized share-ID for use as the default of shareItem, if
@@ -382,12 +423,16 @@ def genShareID(store):
     """
     return unicode(os.urandom(16).encode('hex'), 'ascii')
 
+
+
 def getEveryoneRole(store):
     """
     Get a base 'Everyone' role for this store, which is the role that every
     user, including the anonymous user, has.
     """
     return store.findOrCreate(Role, externalID=u'Everyone')
+
+
 
 def getAuthenticatedRole(store):
     """
@@ -401,6 +446,8 @@ def getAuthenticatedRole(store):
             return newAuthenticatedRole
         return store.findOrCreate(Role, addToEveryone, externalID=u'Authenticated')
     return store.transact(tx)
+
+
 
 def getPrimaryRole(store, primaryRoleName, createIfNotFound=False):
     """
@@ -437,6 +484,7 @@ def getPrimaryRole(store, primaryRoleName, createIfNotFound=False):
     return authRole
 
 
+
 def getSelfRole(store):
     """
     Retrieve the Role which corresponds to the user to whom the given store
@@ -445,6 +493,7 @@ def getSelfRole(store):
     for (localpart, domain) in userbase.getAccountNames(store):
         return getPrimaryRole(store, u'%s@%s' % (localpart, domain), createIfNotFound=True)
     raise ValueError("Cannot get self-role for unnamed account.")
+
 
 
 def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
@@ -468,7 +517,6 @@ def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
     @param interfaces: a list of Interface objects which specify the methods
     and attributes accessible to C{toRole} on C{sharedItem}.
     """
-    assert sharedItem.store is not None
     if shareID is None:
         shareID = genShareID(sharedItem.store)
     if toRole is None:
@@ -476,14 +524,76 @@ def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
             toRole = getPrimaryRole(sharedItem.store, toName, True)
         else:
             toRole = getEveryoneRole(sharedItem.store)
-    else:
-        assert toName is None
-    assert sharedItem.store is toRole.store
     return Share(store=sharedItem.store,
                  shareID=shareID,
                  sharedItem=sharedItem,
                  sharedTo=toRole,
                  sharedInterfaces=interfaces)
+
+
+
+def _linearize(interface):
+    """
+    Return a list of all the bases of a given interface in depth-first order.
+
+    @param interface: an Interface object.
+
+    @return: a L{list} of Interface objects, the input in all its bases, in
+    subclass-to-base-class, depth-first order.
+    """
+    L = [interface]
+    for baseInterface in interface.__bases__:
+        if baseInterface is not Interface:
+            L.extend(_linearize(baseInterface))
+    return L
+
+
+
+def _commonParent(zi1, zi2):
+    """
+    Locate the common parent of two Interface objects.
+
+    @param zi1: a zope Interface object.
+
+    @param zi2: another Interface object.
+
+    @return: the rightmost common parent of the two provided Interface objects,
+    or None, if they have no common parent other than Interface itself.
+    """
+    shorter, longer = sorted([_linearize(x)[::-1] for x in zi1, zi2],
+                             key=len)
+    for n in range(len(shorter)):
+        if shorter[n] != longer[n]:
+            if n == 0:
+                return None
+            return shorter[n-1]
+    return shorter[-1]
+
+
+def _checkConflictingNames(interfaces):
+    """
+    Raise an exception if any of the names present in the given interfaces
+    conflict with each other.
+
+    @param interfaces: a list of Zope Interface objects.
+
+    @return: None
+
+    @raise ConflictingNames: if any of the attributes of the provided
+    interfaces are the same, and they do not have a common base interface which
+    provides that name.
+    """
+    names = {}
+    for interface in interfaces:
+        for name in interface:
+            if name in names:
+                otherInterface = names[name]
+                parent = _commonParent(interface, otherInterface)
+                if parent is None or name not in parent:
+                    raise ConflictingNames("%s conflicts with %s over %s" % (
+                            interface, otherInterface, name))
+            names[name] = interface
+
 
 
 def getShare(store, role, shareID):

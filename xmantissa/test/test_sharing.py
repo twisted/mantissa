@@ -7,7 +7,7 @@ from zope.interface import Interface, implements
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer
+from axiom.attributes import integer, boolean
 from axiom.test.util import QueryCounter
 
 from xmantissa import sharing
@@ -20,6 +20,38 @@ class IPrivateThing(Interface):
     def mutateSomeState():
         pass
 
+class IExternal(Interface):
+    """
+    This is an interface for functionality defined externally to an item.
+    """
+    def doExternal():
+        """
+        Do something external.
+        """
+
+
+class IExtraExternal(IExternal):
+    """
+    This is an interface for functionality defined externally to an item.
+    """
+
+    def doExternalExtra():
+        """
+        Do something _extra_ and external.
+        """
+
+
+class IConflicting(Interface):
+    """
+    This is an interface with a name that conflicts with IExternal.
+    """
+    def doExternal():
+        """
+        Conflicts with IExternal.doExternal.
+        """
+
+
+
 class IReadOnly(Interface):
     def retrieveSomeState():
         """
@@ -30,6 +62,7 @@ class IReadOnly(Interface):
 class PrivateThing(Item):
     implements(IPrivateThing, IReadOnly)
     publicData = integer(indexed=True)
+    externalized = boolean()
     typeName = 'test_sharing_private_thing'
     schemaVersion = 1
 
@@ -42,6 +75,76 @@ class PrivateThing(Item):
         """
         return self.publicData
 
+
+class ExtraPrivateThing(Item):
+    """
+    Private class which supports extra operations / adaptations.
+    """
+    privateData = integer(indexed=True)
+    def doPrivateThing(self):
+        """
+        A method, that does a thing.
+        """
+
+
+
+class ExternalThing(object):
+    implements(IExternal)
+
+    def __init__(self, priv):
+        self.privateThing = priv
+
+    def doExternal(self):
+        """
+        Do an external thing.
+        """
+        self.privateThing.externalized = True
+        return "external"
+
+
+
+class ExtraExternalThing(object):
+    """
+    Adapter for ExtraPrivateThing.
+    """
+    implements(IExtraExternal)
+
+    def __init__(self, extraPrivateThing):
+        self.extraPrivateThing = extraPrivateThing
+
+    # WARNING WARNING WARNING WARNING WARNING
+
+    # The following two methods are shared methods on a shared interfaces which
+    # return 'self' as one of the parts of their return value.  IN NORMAL
+    # APPLICATION CODE THIS IS A SECURITY RISK!  One of the major features of
+    # the sharing system is that it makes programs secure in the face of errors
+    # such as accessing an attribute that you are not technically supposed to
+    # access from the view.  However, if you give back 'self' to some view code
+    # that is asking externally, you are telling the view that it has FULL
+    # ACCESS to this object and may call methods on it with impunity.  DO NOT
+    # DO THIS IN NORMAL APPLICATION CODE, IT IS ONLY FOR TESTING!!!
+
+    def doExternal(self):
+        """
+        Do something external and return a 2-tuple of a marker value to indicate
+        that this adapter class was used and an identifier to confirm the
+        adapter's identity.
+        """
+        return ("external", self)
+
+
+    def doExternalExtra(self):
+        """
+        Similar to doExternal, but a different method
+        """
+        return ("external-extra", self)
+
+    # DANGER DANGER DANGER DANGER DANGER
+
+
+
+registerAdapter(ExternalThing, PrivateThing, IExternal)
+registerAdapter(ExtraExternalThing, ExtraPrivateThing, IExtraExternal)
 
 
 class IPublicThing(Interface):
@@ -65,6 +168,57 @@ class PublicFacingAdapter(object):
         return self.thunk.mutateSomeState()
 
 registerAdapter(PublicFacingAdapter, IReadOnly, IPublicThing)
+
+
+class InterfaceUtils(unittest.TestCase):
+    """
+    Test cases for private zope interface utility functionality.
+    """
+    class A(Interface):
+        "A root interface."
+    class B(A):
+        "A->B"
+    class C(B):
+        "A->B->C"
+    class D(C):
+        "A->B->C->D"
+
+    class Q(Interface):
+        "Another root interface, unrelated to A"
+
+    class W(B):
+        """
+        A->B->...
+           |
+           +->W
+        """
+    class X(W):
+        "A->B->W->X"
+    class Y(X):
+        "A->B->W->X->Y"
+    class Z(Y):
+        "A->B->W->X->Y->Z"
+
+    def test_commonParent(self):
+        """
+        Verify the function which determines the common parent of two interfaces.
+        """
+        self.assertEquals(sharing._commonParent(self.Z, self.D), self.B)
+
+
+    def test_noCommonParent(self):
+        """
+        _commonParent should return None for two classes which do not have a common
+        parent.
+        """
+        self.assertIdentical(sharing._commonParent(self.A, self.Q), None)
+
+
+    def test_commonParentOfYourself(self):
+        """
+        The common parent of the same object is itself.
+        """
+        self.assertIdentical(sharing._commonParent(self.A, self.A), self.A)
 
 
 class SimpleSharing(unittest.TestCase):
@@ -181,6 +335,56 @@ class SimpleSharing(unittest.TestCase):
         self.assertRaises(AttributeError, IPublicThing(proxy).callMethod)
 
 
+    def test_getShareProxyWithAdapter(self):
+        """
+        When you share an item with an interface that has an adapter for that
+        interface, the object that results from getShare should provide the
+        interface by exposing the adapter rather than the original item.
+        """
+        privateThing = PrivateThing(store=self.store)
+        shared = sharing.shareItem(privateThing, toName=u'testshare',
+                                   interfaces=[IExternal])
+        proxy = sharing.getShare(self.store,
+                                 sharing.getPrimaryRole(self.store, u'testshare'),
+                                 shared.shareID)
+        proxy.doExternal()
+        self.assertEquals(privateThing.externalized, True)
+
+
+    def test_conflictingNamesException(self):
+        """
+        When you share an item with two interfaces that contain different
+        adapters with conflicting names, an exception should be raised alerting
+        you to this conflict.
+        """
+        extraPrivateThing = ExtraPrivateThing(store=self.store)
+        self.assertRaises(sharing.ConflictingNames,
+                          sharing.shareItem, extraPrivateThing, toName=u'testshare',
+                          interfaces=[IExternal, IConflicting])
+
+
+    def test_coalesceInheritedAdapters(self):
+        """
+        If multiple interfaces that are part of the same inheritance hierarchy are
+        specified, only the leaf interfaces should be adapted to, and provided
+        for all interfaces it inherits from.
+        """
+
+        extraPrivateThing = ExtraPrivateThing(store=self.store)
+        role = sharing.getPrimaryRole(self.store, u'testshare')
+        extraProxy = sharing.getShare(
+            self.store, role, sharing.shareItem(
+                extraPrivateThing,
+                toRole=role, interfaces=[IExternal,
+                                      IExtraExternal]).shareID)
+
+        externalTag, externalObj = extraProxy.doExternal()
+        extraExternalTag, extraExternalObj = extraProxy.doExternalExtra()
+        self.assertIdentical(externalObj, extraExternalObj)
+        self.assertEquals(externalTag, 'external')
+        self.assertEquals(extraExternalTag, 'external-extra')
+
+
 
 class AccessibilityQuery(unittest.TestCase):
 
@@ -279,14 +483,14 @@ class AccessibilityQuery(unittest.TestCase):
 
 
     def addSomeThings(self):
-        t = PrivateThing(store=self.store, publicData=-self.i)
+        privateThing = PrivateThing(store=self.store, publicData=-self.i)
         self.i += 1
-        self.things.append(t)
+        self.things.append(privateThing)
         self.bobThings.append(sharing.shareItem(
-                t, toName=u'bob@example.com',
+                privateThing, toName=u'bob@example.com',
                 interfaces=[IReadOnly]))
         self.aliceThings.append(sharing.shareItem(
-                t,
+                privateThing,
                 toName=u'alice@example.com',
                 interfaces=[IPrivateThing]))
 
