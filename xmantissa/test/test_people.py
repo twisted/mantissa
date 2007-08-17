@@ -2244,3 +2244,17 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         self.assertEqual(len(names), 1)
         self.assertEqual(names[0].first, 'Joe')
         self.assertEqual(names[0].last, 'Rogers')
+
+
+    def test_personNameFromUserInfo(self):
+        """
+        The L{Person} created to be the store owner by L{Organizer} should have
+        its I{name} attribute set to a string computed from the L{UserInfo}
+        item.
+        """
+        first = u'Joe'
+        last = u'Rogers'
+        store = Store()
+        UserInfo(store=store, firstName=first, lastName=last)
+        organizer = Organizer(store=store)
+        self.assertEqual(organizer.storeOwnerPerson.name, first + u' ' + last)

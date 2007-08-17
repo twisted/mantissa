@@ -660,6 +660,8 @@ class Organizer(item.Item):
         userInfo = self.store.findFirst(signup.UserInfo)
         storeOwnerPerson = Person(store=self.store, organizer=self)
         if userInfo is not None:
+            storeOwnerPerson.name = (
+                userInfo.firstName + u' ' + userInfo.lastName)
             RealName(store=self.store,
                      person=storeOwnerPerson,
                      first=userInfo.firstName,
