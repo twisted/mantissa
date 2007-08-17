@@ -116,7 +116,7 @@ Mantissa.ScrollTable.Action.methods(
         var onclick = function() {
             self.enact(scrollingWidget, row);
             return false;
-        }
+        };
         var linkBody;
         if(self.icon) {
             linkBody = MochiKit.DOM.IMG({border: 0, src: self.icon});
@@ -947,9 +947,9 @@ Mantissa.ScrollTable._ScrollingBase.methods(
             for(var i = 0; i < words.length; i++) {
                 capped += words[i].substr(0, 1).toUpperCase();
                 capped += words[i].substr(1, words[i].length) + " ";
-            }
+            };
             return capped;
-        }
+        };
 
         var headerNodes = [];
         var sortable, attrs;
@@ -1212,8 +1212,8 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
                                             (stop - start) * self._rowHeight));
                 sviewport.insertBefore(obj.node, replacing);
                 return obj;
-            }
-        }
+            };
+        };
 
         for(var i = 0; i < rows.length; i++) {
             placeholderIndex = pmodel.findPlaceholderIndexForRowIndex(rows[i].index);
@@ -1569,7 +1569,7 @@ Mantissa.ScrollTable.ScrollingWidget.methods(
         var sortOffset = self._columnOffsets[currentSortColumn];
         var sortHeader = self._headerNodes[sortOffset];
         if (sortHeader != undefined) {
-            var sortNode = MochiKit.DOM.SPAN({"class": "sort-arrow"}, c)
+            var sortNode = MochiKit.DOM.SPAN({"class": "sort-arrow"}, c);
             sortHeader.appendChild(sortNode);
         }
     },
@@ -1738,7 +1738,7 @@ Mantissa.ScrollTable.FlexHeightScrollingWidget.methods(
                 self._setScrollViewportHeight();
                 return passThrough;
             });
-    })
+    });
 
 
 /// CUT HERE: there is too much stuff in this file, but the latency involved
@@ -2674,7 +2674,7 @@ Mantissa.ScrollTable.RegionModel.methods(
     function dataAsRow(self, dataElement) {
         dataElement.exactlyEqualTo = function (otherElement) {
             return dataElement.__id__ === otherElement.__id__;
-        }
+        };
         return dataElement;
     },
 
@@ -2834,7 +2834,7 @@ Mantissa.ScrollTable.RegionModel.methods(
             var swap = function (x) {
                 x.reverse();
                 return x;
-            }
+            };
             var x1 = self.server.rowsBeforeValue(null, pagesize).addCallback(swap);
             var x2 = self.server.rowsAfterValue(null, pagesize).addCallback(swap);
             valueRequests = Divmod.Defer.gatherResults([x1, x2]);

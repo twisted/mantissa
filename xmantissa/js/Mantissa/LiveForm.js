@@ -164,7 +164,7 @@ Mantissa.LiveForm.MessageFader.methods(
         var TICKS_PER_SECOND = 30.0;
         var fadedInDeferred = Divmod.Defer.Deferred();
         var inStep = function () {
-            currentOpacity += (self.inRate / TICKS_PER_SECOND)
+            currentOpacity += (self.inRate / TICKS_PER_SECOND);
             if (currentOpacity > 1.0) {
                 self.node.style.opacity = '1.0';
                 self.timer = null;
@@ -391,7 +391,7 @@ Mantissa.LiveForm.FormWidget.methods(
             for(var i = 0; i < aNode.options.length; i++) {
                 aNode.options[i].selected = (aNode.options[i].value in values);
             }
-        }
+        };
 
         if (aNode.type == 'select-one') {
             return {get: function() {
@@ -410,7 +410,7 @@ Mantissa.LiveForm.FormWidget.methods(
                 }
             }
             return values;
-        }
+        };
 
         return {get: get, set: set};
     },
@@ -429,14 +429,14 @@ Mantissa.LiveForm.FormWidget.methods(
         var makeAttributeAccessors = function(attr, node) {
             return {get: function() { return node[attr] },
                     set: function(v) { node[attr] = v }};
-        }
+        };
         var accessors = {};
         var pushAccessors = function(node, accs) {
             if (accessors[node.name] == undefined) {
                 accessors[node.name] = [];
             }
             accessors[node.name].push(accs);
-        }
+        };
 
         self.traverse(
             function(aNode) {
