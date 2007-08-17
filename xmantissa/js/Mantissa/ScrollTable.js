@@ -2643,11 +2643,23 @@ Mantissa.ScrollTable.RegionModel.methods(
      * there is.  Return true if any adjustment is made, false otherwise.
      */
     function _pushRegionsRight(self, startingFromIndex) {
-        if ((startingFromIndex >= 0) && (startingFromIndex < self._regions.length - 1)) {
-            var end = self._regions[startingFromIndex].firstOffset() + self._regions[startingFromIndex].rows.length;
-            var offsetOverlap = self._regions[startingFromIndex + 1].firstOffset() - end;
+        if ((startingFromIndex >= 0) && (startingFromIndex <
+                                         self._regions.length - 1)) {
+            var thisRegion = self._regions[startingFromIndex];
+            var nextRegion = self._regions[startingFromIndex + 1];
+            var end = thisRegion.lastOffset() + 1;
+            var offsetOverlap = nextRegion.firstOffset() - end;
             if (offsetOverlap <= 0) {
-                self._adjustRegionOffsets(startingFromIndex + 1, (-offsetOverlap) + 1);
+                self._adjustRegionOffsets(startingFromIndex + 1,
+                                          (-offsetOverlap) + 1);
+                return true;
+            }
+            // Do the two regions visually overlap?
+            if (thisRegion.viewPeer.pixelBottom() >
+                nextRegion.viewPeer.pixelTop()) {
+                // If so we need to tell all the regions to update because
+                // their pixels may have shifted, even if their offset didn't.
+                self._adjustRegionOffsets(startingFromIndex + 1, 0);
                 return true;
             }
             return false;

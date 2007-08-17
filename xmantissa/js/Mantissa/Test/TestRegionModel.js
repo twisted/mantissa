@@ -1037,6 +1037,22 @@ Mantissa.Test.TestRegionModel.DummyRegionView.methods(
     },
 
     /**
+     * _pushRegionsRight needs to use this to determine pixel overlap; just
+     * always return 0.
+     */
+    function pixelTop(self) {
+        return 0;
+    },
+
+    /**
+     * _pushRegionsRight needs to use this to determine pixel overlap; just
+     * always return 0.
+     */
+    function pixelBottom(self) {
+        return 0;
+    },
+
+    /**
      * Fake implementation of DOMRegionView.mergeWithRegionView.  Record the
      * participants in this merge on the L{DummyTableView}.
      *
@@ -2061,6 +2077,62 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
         var refreshes = model._regions[0].viewPeer.refreshes;
         self.assertIdentical(refreshes.length, 1);
         self.assertIdentical(refreshes[0], 10);
+    },
+
+    /**
+     * When a region is inserted which overlaps visually with the next region,
+     * but does not overlap its offset, it should still tell the region view
+     * to adjust its view offset.
+     */
+    function test_visualOverlapWithoutOffsetOverlap(self) {
+        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+
+        var realView = model.view;
+        model.view = {
+          createRegionView: function (rowReg) {
+                var viewReg = realView.createRegionView(rowReg);
+                var pixTop = this.pixTop;
+                var pixBot = this.pixBot;
+                viewReg.pixelTop = function () {
+                    return pixTop;
+                };
+                viewReg.pixelBottom = function () {
+                    return pixBot;
+                };
+                return viewReg;
+            }
+        };
+        var LAST_REGION_OFFSET = 10;
+        model.view.pixTop = 50;
+        model.view.pixBot = 100;
+        model.insertRowData(LAST_REGION_OFFSET, [self.makeRow(2)]);
+
+        model.view.pixTop = 0;
+        model.view.pixBot = 13;
+        model.insertRowData(0, [self.makeRow(1)]);
+
+        // The region below should NOT have been adjusted yet, since this was
+        // not visually tall enough.
+
+        // sanity check
+        self.assertIdentical(model._regions.length, 2);
+        // real assertion
+        self.assertIdentical(model._regions[1].viewPeer.refreshes.length, 0);
+
+        // Now let's move it.
+        model.view.pixTop = 15;
+        model.view.pixBot = 1000;
+        model.insertRowData(3, [self.makeRow(1.5)]);
+
+        // sanity check
+        self.assertIdentical(model._regions.length, 3);
+        // it was adjusted
+        self.assertIdentical(model._regions[2].viewPeer.refreshes.length, 1);
+        // but only visually, no offset change
+        self.assertIdentical(model._regions[2].viewPeer.refreshes[0],
+                             LAST_REGION_OFFSET);
     });
 
 
