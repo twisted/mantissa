@@ -408,7 +408,7 @@ class PeopleBenefactor(item.Item):
 
 class Person(item.Item):
     typeName = 'mantissa_person'
-    schemaVersion = 2
+    schemaVersion = 3
 
     organizer = attributes.reference(
                 doc="""
@@ -420,7 +420,7 @@ class Person(item.Item):
     name = attributes.text(
         doc="""
         This name of this person.
-        """, caseSensitive=True)
+        """, caseSensitive=False)
     created = attributes.timestamp(defaultFactory=extime.Time)
 
     vip = boolean(
@@ -602,16 +602,24 @@ class Person(item.Item):
                     person=self,
                     **{valueColumn: value}), self)
 
-registerAttributeCopyingUpgrader(Person, 1, 2)
-
-
-
 item.declareLegacyItem(
     Person.typeName,
     1,
     dict(organizer=attributes.reference(),
          name=attributes.text(caseSensitive=True),
          created=attributes.timestamp()))
+
+registerAttributeCopyingUpgrader(Person, 1, 2)
+
+item.declareLegacyItem(
+    Person.typeName,
+    2,
+    dict(organizer=attributes.reference(),
+         name=attributes.text(caseSensitive=True),
+         created=attributes.timestamp(),
+         vip=attributes.boolean(default=False, allowNone=False)))
+
+registerAttributeCopyingUpgrader(Person, 2, 3)
 
 
 

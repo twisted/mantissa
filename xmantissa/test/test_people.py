@@ -982,6 +982,18 @@ class PeopleModelTestCase(unittest.TestCase):
             self.organizer.createPerson, nickname)
 
 
+    def test_caseInsensitiveName(self):
+        """
+        L{Person.name} should not be case-sensitive.
+        """
+        name = u'alice'
+        store = Store()
+        person = Person(store=store, name=name.upper())
+        self.assertEqual(
+            list(store.query(Person, Person.name == name.lower())),
+            [person])
+
+
     def test_editPerson(self):
         """
         L{Organizer.editPerson} should change the I{name} of the given
