@@ -84,9 +84,16 @@ class PasswordResetResource(Page):
         req = inevow.IRequest(ctx)
 
         if req.method == 'POST':
-            if 'username' in req.args:
+            if req.args.get('username', ('',))[0]:
                 user = unicode(usernameFromRequest(req), 'ascii')
                 self.handleRequestForUser(user, URL.fromContext(ctx))
+                self.docFactory = getLoader('reset-check-email')
+            elif req.args.get('email', ('',))[0]:
+                email = req.args['email'][0].decode('ascii')
+                acct = self.accountByAddress(email)
+                username = '@'.join(
+                    userbase.getAccountNames(acct.avatars.open()).next())
+                self.handleRequestForUser(username, URL.fromContext(ctx))
                 self.docFactory = getLoader('reset-check-email')
             else:
                 (password,) = req.args['password1']

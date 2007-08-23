@@ -7,46 +7,28 @@ from xmantissa.signup import PasswordResetResource, _PasswordResetAttempt
 
 class PasswordResetTestCase(TestCase):
     def setUp(self):
-        s = Store()
+        store = Store(self.mktemp())
+        self.loginSystem = userbase.LoginSystem(store=store)
+        la = self.loginSystem.addAccount(
+            u'joe', u'divmod.com', u'secret', internal=True)
 
-        self.loginSystem = userbase.LoginSystem(store=s)
-
-        la = userbase.LoginAccount(store=s,
-                                   password=u'secret',
-                                   disabled=False)
-
-        # don't use addLoginMethod because we don't properly set up the
-        # login account
-        userbase.LoginMethod(store=s,
-                             domain=u'divmod.com',
-                             localpart=u'joe',
-                             protocol=u'zombie dance',
-                             verified=True,
-                             internal=True,
-                             account=la)
-
-        userbase.LoginMethod(store=s,
-                             domain=u'external.com',
-                             localpart=u'joe',
-                             protocol=u'zombie dance',
-                             verified=False,
-                             internal=False,
-                             account=la)
+        la.addLoginMethod(
+            u'joe', u'external.com',
+            protocol=u'zombie dance',
+            verified=False,
+            internal=False)
 
         # create an account with no external mail address
-        account = userbase.LoginAccount(store=s,
-                                        password=u'secret',
-                                        disabled=False)
+        account = self.loginSystem.addAccount(
+            u'jill', u'divmod.com', u'secret', internal=True)
 
-        userbase.LoginMethod(store=s,
-                             domain=u'divmod.com',
-                             localpart=u'jill',
-                             protocol=u'zombie dance',
-                             verified=True,
-                             internal=True,
-                             account=account)
+        account.addLoginMethod(
+            u'jill', u'divmod.com',
+            protocol=u'zombie dance',
+            verified=True,
+            internal=True)
 
-        self.store = s
+        self.store = store
         self.loginAccount = la
         self.nonExternalAccount = account
         self.reset = PasswordResetResource(self.store)
@@ -87,7 +69,7 @@ class PasswordResetTestCase(TestCase):
     def test_handleRequest(self):
         """
         Check that handling a password reset request for a user sends email
-        appropriate.
+        appropriately.
         """
         def myFunc(url, attempt, email):
             myFunc.emailsSent += 1
@@ -147,11 +129,37 @@ class PasswordResetTestCase(TestCase):
 
             def __init__(self, *a, **kw):
                 AccumulatingFakeRequest.__init__(self, *a, **kw)
-                self.args = {'username': ['joe']}
+                self.args = {'username': ['joe'],
+                             'email': ['']}
                 self.setHeader('host', 'divmod.com')
 
         self.reset.handleRequestForUser = handleRequest
         d = renderPage(self.reset, reqFactory=Request)
         d.addCallback(lambda _: self.assertEquals(handleRequest.username,
                                                   'joe@divmod.com'))
+        return d
+
+
+    def test_emailAddressSpecified(self):
+        """
+        If an email address and no username is specified, then the password
+        resetter should still find the correct user.
+        """
+        requests = []
+        def handleRequest(username, url):
+            requests.append((username, url))
+
+        class Request(AccumulatingFakeRequest):
+            method = 'POST'
+            def __init__(self, *a, **k):
+                AccumulatingFakeRequest.__init__(self, *a, **k)
+                self.args = {'username': [''],
+                             'email': ['joe@external.com']}
+
+        self.reset.handleRequestForUser = handleRequest
+        d = renderPage(self.reset, reqFactory=Request)
+        def completedRequest():
+            self.assertEqual(len(requests), 1)
+            self.assertEqual(requests[0][0], 'joe@divmod.com')
+        d.addCallback(lambda ign: completedRequest())
         return d
