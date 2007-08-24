@@ -56,3 +56,10 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         Test the LiveForm widgets.
         """
         return 'Mantissa.Test.TestLiveForm'
+
+
+    def test_domReplace(self):
+        """
+        Test the stuff which replaces things in the DOM.
+        """
+        return 'Mantissa.Test.TestDOMReplace'
