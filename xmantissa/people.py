@@ -23,7 +23,7 @@ from epsilon import extime
 
 from axiom import item, attributes
 from axiom.dependency import dependsOn, installOn
-from axiom.attributes import AND, boolean
+from axiom.attributes import boolean
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 
@@ -867,25 +867,6 @@ class Organizer(item.Item):
             return email.person
 
 
-    def lastNamesBetweenComparison(self, begin, end):
-        """
-        Return an IComparison which will restrict a query for Person items to
-        those with last names which compare greater than or equal to begin and
-        less than end.
-        """
-        return AND(
-            RealName.person == Person.storeID,
-            RealName.last >= begin,
-            RealName.last < end)
-
-
-    def lastNameOrder(self):
-        """
-        Return an IAttribute to sort people by their last name.
-        """
-        return RealName.last
-
-
     def peoplePlugins(self, person):
         return (
             p.personalize(person)
@@ -934,12 +915,6 @@ registerAttributeCopyingUpgrader(Organizer, 2, 3)
 
 
 
-class PersonNameColumn(UnsortableColumn):
-    def extractValue(self, model, item):
-        return item.getDisplayName()
-
-
-
 class PersonScrollingFragment(ScrollingFragment):
     """
     Scrolling fragment which displays L{Person} objects and allows actions to
@@ -958,7 +933,7 @@ class PersonScrollingFragment(ScrollingFragment):
             store,
             Person,
             baseConstraint,
-            [PersonNameColumn(None, 'name'),
+            [Person.name,
              UnsortableColumn(Person.vip, 'vip')],
             defaultSortColumn=defaultSortColumn,
             webTranslator=webTranslator)
@@ -992,34 +967,6 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         athena.LiveFragment.__init__(self)
 
 
-    def _createPeopleScrollTable(self, baseComparison, sort):
-        """
-        Make a L{PersonScrollingFragment} as a child of this fragment, load its
-        docFactory, and return it.
-        """
-        f = PersonScrollingFragment(
-                self.organizer.store,
-                baseComparison,
-                sort,
-                self.wt,
-                self.performAction)
-        f.setFragmentParent(self)
-        f.docFactory = webtheme.getLoader(f.fragmentName)
-        return f
-
-
-    def _getBaseComparison(self, ctx):
-        req = inevow.IRequest(ctx)
-        group = req.args.get('show-group', [''])[0].decode('ascii', 'replace')
-        if group:
-            # We assume the only groups being shown consist of consecutive
-            # letters.  If someone gives us something else, too bad for them.
-            return self.organizer.lastNamesBetweenComparison(
-                group[0],
-                unichr(ord(group[-1]) + 1))
-        return RealName.person == Person.storeID
-
-
     def getAddPerson(self):
         """
         Return an L{AddPersonFragment} which is a child of this fragment and
@@ -1036,9 +983,15 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         Return a L{PersonScrollingFragment} which will display the L{Person}
         items in the wrapped organizer.
         """
-        comparison = self._getBaseComparison(ctx)
-        sort = self.organizer.lastNameOrder()
-        return self._createPeopleScrollTable(comparison, sort)
+        f = PersonScrollingFragment(
+                self.organizer.store,
+                None,
+                Person.name,
+                self.wt,
+                self.performAction)
+        f.setFragmentParent(self)
+        f.docFactory = webtheme.getLoader(f.fragmentName)
+        return f
 
 
     def head(self):
@@ -1172,52 +1125,7 @@ class EditPersonView(ThemedElement):
     renderer(editorialContactForms)
 
 
-
-class _AddressBook(item.Item):
-    typeName = 'mantissa_organizer_personalized_addressbook'
-    schemaVersion = 1
-
-    person = attributes.reference(doc="""
-    A reference to the Mantissa Person Item to which this pertains.
-    """)
-
-    displayName = attributes.text(doc="""
-    Short string displayed in the user interface whenever a name for
-    this person is called for.
-    """)
-
-class AddressBookFragment(athena.LiveFragment):
-    def __init__(self, original):
-        athena.LiveFragment.__init__(self, original)
-        self.docFactory = webtheme.getLoader('address-book')
-
-    def data_names(self, ctx, data):
-        ab = self.original
-        s = ab.store
-        return (
-            {"first-name": p.first, "last-name": p.last}
-            for p
-            in s.query(RealName, RealName.person == ab.person))
-
-    def addName(self, name):
-        parts = name.rsplit(None, 1)
-        if len(parts) == 1:
-            first, last = u'', parts[0]
-        else:
-            first, last = parts
-        RealName(
-            store=self.original.store,
-            person=self.original.person,
-            first=first,
-            last=last)
-    expose(addName)
-
-
-    def head(self):
-        return None
-
-components.registerAdapter(AddressBookFragment, _AddressBook, ixmantissa.INavigableFragment)
-
+    
 class RealName(item.Item):
     typeName = 'mantissa_organizer_addressbook_realname'
     schemaVersion = 1
@@ -1566,23 +1474,6 @@ class AddPersonFragment(ThemedFragment):
     expose(addPerson)
 
 
-
-class AddressBook(item.Item):
-    implements(ixmantissa.IOrganizerPlugin)
-
-    typeName = 'mantissa_organizer_addressbook'
-    schemaVersion = 1
-
-    installedOn = attributes.reference(doc="""
-    The Organizer on which this is installed.
-    """)
-
-    powerupInterfaces = (ixmantissa.IOrganizerPlugin,)
-
-    def personalize(self, person):
-        return self.store.findOrCreate(
-            _AddressBook,
-            person=person)
 
 class PersonExtractFragment(TabularDataView):
     def render_navigation(self, ctx, data):

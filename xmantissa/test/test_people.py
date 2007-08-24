@@ -39,7 +39,7 @@ from xmantissa.people import (
     _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
     PhoneNumber, setIconURLForContactInfoType, iconURLForContactInfoType,
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment,
-    PersonNameColumn, OrganizerFragment, EditPersonView, NameContactType,
+    OrganizerFragment, EditPersonView, NameContactType,
     BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
     PostalContactType, ReadOnlyEmailView, ReadOnlyNameView,
     ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL)
@@ -944,32 +944,6 @@ class PeopleModelTestCase(unittest.TestCase):
                 person=person,
                 first=first,
                 last=last)
-
-    def test_nameRestriction(self):
-        """
-        Test the query which loads Person items with last names in a particular
-        alphabetic range.
-        """
-        for case in (unicode.upper, unicode.lower):
-            people = list(self.store.query(Person, self.organizer.lastNamesBetweenComparison(case(u'a'), case(u'b'))))
-            self.assertEqual(len(people), 1)
-            self.assertEqual(people[0].name, u'zAlice aJones')
-
-
-    def test_nameSorting(self):
-        """
-        Test the query which loads Person items orders them alphabetically by
-        name.
-        """
-        people = list(self.store.query(
-            Person,
-            self.organizer.lastNamesBetweenComparison(u'm', u'p'),
-            sort=self.organizer.lastNameOrder().ascending))
-        self.assertEqual(len(people), 3)
-        self.assertEqual(people[0].name, u'nAlice mJones')
-        self.assertEqual(people[1].name, u'mAlice nJones')
-        self.assertEqual(people[2].name, u'lAlice oJones')
-
 
     def test_createPerson(self):
         """
@@ -1880,7 +1854,7 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         self.assertIdentical(fragment.currentSortColumn, sort)
         self.assertIdentical(fragment.itemType, Person)
         self.assertEqual(len(fragment.columns), 2)
-        self.assertTrue(isinstance(fragment.columns['name'], PersonNameColumn))
+        self.assertEqual(fragment.columns['name'], Person.name)
         self.assertTrue(isinstance(fragment.columns['vip'], UnsortableColumn))
         self.assertEqual(fragment.columns['vip'].attribute, Person.vip)
 
