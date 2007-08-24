@@ -1368,7 +1368,7 @@ registerUpgrader(addPerson1to2, AddPerson.typeName, 1, 2)
 
 
 
-class AddPersonFragment(ThemedFragment):
+class AddPersonFragment(athena.LiveFragment):
     """
     View class for L{AddPerson}, presenting a user interface for creating a new
     L{Person}.
@@ -1376,12 +1376,14 @@ class AddPersonFragment(ThemedFragment):
     @ivar organizer: The L{Organizer} instance which will be used to add the
         person.
     """
-    fragmentName = 'add-person'
+    docFactory = ThemedDocumentFactory('add-person', 'store')
+
     jsClass = u'Mantissa.People.AddPerson'
 
     def __init__(self, organizer):
         athena.LiveFragment.__init__(self)
         self.organizer = organizer
+        self.store = organizer.store
 
 
     def head(self):
@@ -1467,7 +1469,7 @@ class AddPersonFragment(ThemedFragment):
             L{ValueError}.
         """
         try:
-            self.organizer.store.transact(
+            self.store.transact(
                 self._addPerson, nickname, vip, **contactInfo)
         except ValueError, e:
             raise InputError(unicode(e))

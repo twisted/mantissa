@@ -26,22 +26,36 @@ class AddPersonTestBase(people.AddPersonFragment):
 
 
     def mangleDefaults(self, params):
-        pass
+        """
+        Called before rendering the form to give tests an opportunity to
+        modify the defaults for the parameters being used.
+
+        @type params: L{list} of liveform parameters
+        @param params: The parameters which will be used by the liveform
+            being rendered.
+        """
 
 
-    def checkResult(self):
-        pass
+    def checkResult(self, positional, keyword):
+        """
+        Verify that the given arguments are the ones which were expected by
+        the form submission.  Override this in a subclass.
+
+        @type positional: L{tuple}
+        @param positional: The positional arguments submitted by the form.
+
+        @type keyword: L{dict}
+        @param keyword: The keyword arguments submitted by the form.
+        """
+        raise NotImplementedError()
 
 
     def addPerson(self, *a, **k):
-        try:
-            super(AddPersonTestBase, self).addPerson(*a, **k)
-        except:
-            self.exc_info = sys.exc_info()
-        else:
-            self.exc_info = None
-
-        self.checkResult()
+        """
+        Override form handler to just check the arguments given without
+        trying to modify any database state.
+        """
+        self.checkResult(a, k)
 
 
     def render_addPersonForm(self, ctx, data):
@@ -76,21 +90,27 @@ class OnlyNick(AddPersonTestBase, TestCase):
     jsClass = u'Mantissa.Test.OnlyNick'
 
     def mangleDefaults(self, params):
+        """
+        Set the nickname in the form to a particular value for
+        L{checkResult} to verify when the form is submitted.
+        """
         params['nickname'].default = u'everybody'
 
 
-    def checkResult(self):
-        self.assertEqual(self.exc_info, None)
-
-        p = self.store.findUnique(
-            people.Person,
-            people.Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertEqual(p.name, 'everybody')
-        self.assertIdentical(p.organizer, self.organizer)
-        p.deleteFromStore()
-
-        self.assertEqual(self.store.count(people.EmailAddress), 0)
-        self.assertEqual(self.store.count(people.RealName), 0)
+    def checkResult(self, positional, keyword):
+        """
+        There should be no positional arguments but there should be keyword
+        arguments for each of the two attributes of L{Person} and three more
+        for the basic contact items.  Only the nickname should have a value.
+        """
+        self.assertEqual(positional, ())
+        self.assertEqual(
+            keyword,
+            {'nickname': u'everybody',
+             'vip': False,
+             'xmantissa.people.PostalContactType': [{'address': u''}],
+             'xmantissa.people.NameContactType': [{'lastname': u'', 'firstname': u''}],
+             'xmantissa.people.EmailContactType': [{'email': u''}]})
 
 
 
@@ -98,27 +118,27 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
     jsClass = u'Mantissa.Test.NickNameAndEmailAddress'
 
     def mangleDefaults(self, params):
+        """
+        Set the nickname and email address to values which L{checkResult}
+        can verify.
+        """
         params['nickname'].default = u'NICK!!!'
-        params['email'].default = u'a@b.c'
+        params['xmantissa.people.EmailContactType'].parameters[0].default = u'a@b.c'
 
 
-    def checkResult(self):
-        self.assertEqual(self.exc_info, None)
-
-        p = self.store.findUnique(
-            people.Person,
-            people.Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertEqual(p.name, 'NICK!!!')
-        self.assertIdentical(p.organizer, self.organizer)
-
-        e = self.store.findUnique(people.EmailAddress)
-        self.assertEqual(e.address, 'a@b.c')
-        self.assertEqual(e.person, p)
-
-        e.deleteFromStore()
-        p.deleteFromStore()
-
-        self.assertEqual(self.store.count(people.RealName), 0)
+    def checkResult(self, positional, keyword):
+        """
+        Verify that the nickname and email address set in L{mangleDefaults}
+        are submitted.
+        """
+        self.assertEqual(positional, ())
+        self.assertEqual(
+            keyword,
+            {'nickname': u'NICK!!!',
+             'vip': False,
+             'xmantissa.people.PostalContactType': [{'address': u''}],
+             'xmantissa.people.NameContactType': [{'lastname': u'', 'firstname': u''}],
+             'xmantissa.people.EmailContactType': [{'email': u'a@b.c'}]})
 
 
 
