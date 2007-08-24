@@ -3446,6 +3446,9 @@ Mantissa.ScrollTable.ScrollTable.methods(
      */
 
     function _getRowHeight(self) {
+        if (self._cachedRowHeight !== undefined) {
+            return self._cachedRowHeight;
+        }
         // XXX What should probably happen here is we should look for real
         // rows and only create the fake one if we really need it, caching the
         // value...
@@ -3477,6 +3480,9 @@ Mantissa.ScrollTable.ScrollTable.methods(
         var theHeight = enclosing.clientHeight;
         /* No reason to leave it there, though. */
         self.node.removeChild(enclosing);
+        if (theHeight !== 0) {
+            self._cachedRowHeight = theHeight;
+        }
         return theHeight;
     },
 

@@ -2873,6 +2873,33 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
     },
 
     /**
+     * _getRowHeight should continue to return the same result, but should not
+     * create unnecessary nodes.
+     */
+    function test_getRowHeightNodes(self) {
+        var elementCount = 0;
+        document.origCreateElement = document.createElement;
+        document.createElement = function (name) {
+            elementCount++;
+            return document.origCreateElement(name);
+        };
+        // put it into the document so it will have a height, and caching will
+        // take effect.
+        document.body.appendChild(self.table.node);
+        try {
+            var height1 = self.table._getRowHeight();
+            var finalElementCount = elementCount;
+            var height2 = self.table._getRowHeight();
+            self.assertIdentical(finalElementCount, elementCount);
+            self.assertIdentical(height1, height2);
+        } finally {
+            delete document.createElement;
+            delete document.origCreateElement;
+            document.body.removeChild(self.table.node);
+        }
+    },
+
+    /**
      * Verify that there will be no borders, padding, or margins on region or
      * row-container nodes to interfere with placement logic.
      */
