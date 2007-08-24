@@ -679,6 +679,18 @@ class IOrganizerPlugin(Interface):
         """
 
 
+    def personNameChanged(person, oldName):
+        """
+        Called after a L{Person} item's name has been changed.
+
+        @type person: L{Person}
+        @param person: The person whose name is being changed.
+
+        @type oldName: C{unicode}
+        @param oldName: The previous value of L{{Person.name}.
+        """
+
+
     def contactItemCreated(contact):
         """
         Called when a new contact item is created.

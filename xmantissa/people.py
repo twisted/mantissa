@@ -808,6 +808,7 @@ class Organizer(item.Item):
                     "did not implement it" % (methodName, observer.__class__,),
                     category=PendingDeprecationWarning)
 
+
     def editPerson(self, person, nickname, edits):
         """
         Change the name and contact information associated with the given
@@ -828,7 +829,9 @@ class Organizer(item.Item):
                 continue
             raise ValueError(
                 "A person with the nickname %r exists already." % (nickname,))
+        oldname = person.name
         person.name = nickname
+        self._callOnOrganizerPlugins('personNameChanged', person, oldname)
         for contactType, contactItem, contactInfo in edits:
             contactType.editContactItem(contactItem, **contactInfo)
 

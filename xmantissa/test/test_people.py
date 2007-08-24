@@ -108,13 +108,22 @@ class StubOrganizerPlugin(Item):
 
     createdPeople = inmemory(
         doc="""
-        A list of all L{People} created since this item was last loaded from
-        the database.
+        A list of all L{Person} items created since this item was last loaded
+        from the database.
         """)
 
     contactTypes = inmemory(
         doc="""
         A list of L{IContact} implementors to return from L{getContactTypes}.
+        """)
+
+
+    renamedPeople = inmemory(
+        doc="""
+        A list of two-tuples of C{unicode} with the first element giving the
+        name of each L{Person} item whose name changed at the time of the
+        change and the second element giving the value passed for the old name
+        parameter.
         """)
 
     createdContactItems = inmemory(
@@ -135,9 +144,10 @@ class StubOrganizerPlugin(Item):
 
     def activate(self):
         """
-        Initialize C{createdPeople} and C{createdContactItems} to empty lists.
+        Initialize in-memory state tracking attributes to default values.
         """
         self.createdPeople = []
+        self.renamedPeople = []
         self.createdContactItems = []
         self.personalization = None
         self.personalizedPeople = []
@@ -148,6 +158,13 @@ class StubOrganizerPlugin(Item):
         Record the creation of a L{Person}.
         """
         self.createdPeople.append(person)
+
+
+    def personNameChanged(self, person, oldName):
+        """
+        Record the change of a L{Person}'s name.
+        """
+        self.renamedPeople.append((person.name, oldName))
 
 
     def contactItemCreated(self, contactItem):
@@ -1008,6 +1025,7 @@ class PeopleModelTestCase(unittest.TestCase):
             person,
             u'bob',
             [(contactType, contactItem, contactInfo)])
+        self.assertEqual(person.name, u'bob')
         self.assertEqual(
             contactType.editedContacts,
             [(contactItem, contactInfo)])
@@ -1032,6 +1050,22 @@ class PeopleModelTestCase(unittest.TestCase):
         alice = self.organizer.createPerson(u'alice')
         self.organizer.editPerson(alice, alice.name, [])
         self.assertEqual(alice.name, u'alice')
+
+
+    def test_editPersonNotifiesPlugins(self):
+        """
+        L{Organizer.editPerson} should call C{personNameChanged} on all
+        L{IOrganizerPlugin} powerups on the store.
+        """
+        nickname = u'test person'
+        newname = u'alice'
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        person = self.organizer.createPerson(nickname)
+        self.organizer.editPerson(person, newname, [])
+        self.assertEqual(
+            observer.renamedPeople,
+            [(newname, nickname)])
 
 
     def test_createVeryImportantPerson(self):
