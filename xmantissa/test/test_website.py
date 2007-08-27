@@ -642,10 +642,10 @@ class AthenaResourcesTestCase(unittest.TestCase):
         Create a MantissaLivePage instance for testing.
         """
         store = Store()
-        webSite = WebSite(store=store, hostname=self.hostname.decode('ascii'))
-        installOn(webSite, store)
-        SSLPort(store=store, factory=webSite, portNumber=TEST_SECURE_PORT)
-        return MantissaLivePage(webSite)
+        self.webSite = WebSite(store=store, hostname=self.hostname.decode('ascii'))
+        installOn(self.webSite, store)
+        SSLPort(store=store, factory=self.webSite, portNumber=TEST_SECURE_PORT)
+        return MantissaLivePage(self.webSite)
 
 
     def test_debuggableMantissaLivePage(self):
@@ -680,3 +680,24 @@ class AthenaResourcesTestCase(unittest.TestCase):
             .open().read()).hexdigest()
         self.assertEqual(segments[1], expect)
         self.assertEqual(segments[2], "Mantissa")
+
+    def test_getJSModuleRootCaching(self):
+        """
+        Calling C{_getRoot} on a L{MantissaLivePage} instance should not
+        hit the database more once per instance per hostname.
+        """
+        livePage = self.makeLivePage()
+        self.called = 0
+        _actualMaybeEncryptedRoot = self.webSite.maybeEncryptedRoot
+        def mERWrapper(hostname):
+            self.called += 1
+            return _actualMaybeEncryptedRoot(hostname)
+        self.webSite.__dict__['maybeEncryptedRoot'] = mERWrapper
+        self._preRender(livePage)
+        livePage._getRoot()
+        livePage._getRoot()
+        self.assertEqual(self.called, 1)
+        livePage.currentHostName = "hostname-2"
+        livePage._getRoot()
+        livePage._getRoot()
+        self.assertEqual(self.called, 2)

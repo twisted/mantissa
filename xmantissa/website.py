@@ -83,7 +83,7 @@ class MantissaLivePage(athena.LivePage):
         self.webSite = webSite
         athena.LivePage.__init__(self, transportRoot=url.root.child('live'),
                                  *a, **k)
-
+        self.roots = {}
 
     def beforeRender(self, ctx):
         """
@@ -91,6 +91,21 @@ class MantissaLivePage(athena.LivePage):
         that we can generate JavaScript links.
         """
         self.currentHostName = URL.fromContext(ctx).netloc
+
+
+    def _getRoot(self):
+        """
+        Look up the root URL for this page, if it hasn't already been looked
+        up.
+        """
+	#XXX It appears that currentHostName is only ever set once; perhaps that
+	# should be enforced and a dict not used for caching the root.
+        if self.currentHostName not in self.roots:
+            root = self.webSite.maybeEncryptedRoot(self.currentHostName)
+            if root is None:
+                root = URL.fromString("/")
+            self.roots[self.currentHostName] = root
+        return self.roots[self.currentHostName]
 
 
     def getJSModuleURL(self, moduleName):
@@ -111,9 +126,7 @@ class MantissaLivePage(athena.LivePage):
         if self.currentHostName is None:
             raise NotImplementedError(
                 "JS module URLs cannot be requested before rendering.")
-        root = self.webSite.maybeEncryptedRoot(self.currentHostName)
-        if root is None:
-            root = URL.fromString("/")
+        root = self._getRoot()
         return root.child("__jsmodule__").child(
             self.hashCache.getModule(moduleName).hashValue).child(
             moduleName)
