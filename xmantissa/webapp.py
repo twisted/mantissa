@@ -591,6 +591,7 @@ def _upgradePrivateApplication2to3(old):
     pa.defaultPreferenceCollection = old.store.findOrCreate(DefaultPreferenceCollection)
     pa.searchAggregator = old.store.findOrCreate(SearchAggregator)
     pa.website = old.store.findOrCreate(WebSite)
+    return pa
 
 upgrade.registerUpgrader(_upgradePrivateApplication2to3, PrivateApplication.typeName, 2, 3)
 
