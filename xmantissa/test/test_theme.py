@@ -155,7 +155,6 @@ class WebThemeTestCase(TestCase):
         """
         dbdir = self.mktemp()
         s = Store(dbdir)
-
         self.assertEquals(getInstalledThemes(s), [])
 
         installOffering(s, baseOffering, {})
@@ -163,22 +162,6 @@ class WebThemeTestCase(TestCase):
         installedThemes = getInstalledThemes(s)
         self.assertEquals(len(installedThemes), 1)
         self.failUnless(isinstance(installedThemes[0], MantissaTheme))
-
-
-    def test_getAllThemes(self):
-        """
-        getAllThemes should collect themes from available offerings.
-        """
-        _getOfferings = webtheme.getOfferings
-        try:
-            webtheme.getOfferings = (lambda: [FakeOffering('foo', 7),
-                                              FakeOffering('baz', 2),
-                                              FakeOffering('boz', 5)])
-            ths = getAllThemes()
-            self.assertEqual([theme.name for theme in ths],
-                             ['foo', 'boz', 'baz'])
-        finally:
-            webtheme.getOfferings = _getOfferings
 
 
     def _defaultThemedRendering(self, cls):
@@ -514,3 +497,66 @@ class Loader(TestCase):
         self.assertIdentical(webtheme.getLoader('template'),
                              webtheme.getLoader('template'))
         self.assertEqual(self.gATcalled, 1)
+
+
+
+class TestThemeCache(TestCase):
+    """
+    some tests for L{ThemeCache}.
+    """
+    def setUp(self):
+        """
+        Replace L{getOfferings} with a mock method returning some fake
+        offerings.
+        """
+        self._getOfferings = webtheme.getOfferings
+        self.called = 0
+        def fakeGetOfferings():
+            self.called += 1
+            return [FakeOffering('foo', 7),
+                    FakeOffering('baz', 2),
+                    FakeOffering('boz', 5)]
+
+        webtheme.getOfferings = fakeGetOfferings
+
+    def tearDown(self):
+        """
+        Reset L{getOfferings} to its original value.
+        """
+        webtheme.getOfferings = self._getOfferings
+
+
+    def test_getAllThemes(self):
+        """
+        C{getAllThemes} should collect themes from available
+        offerings, and only call C{getOfferings} once no matter how
+        many times it's called.
+        """
+        tc = webtheme.ThemeCache()
+        ths = tc.getAllThemes()
+        self.assertEqual([theme.name for theme in ths],
+                         ['foo', 'boz', 'baz'])
+        tc.getAllThemes()
+        self.assertEqual(self.called, 1)
+
+    def test_realGetAllThemes(self):
+        """
+        C{_realGetAllThemes} should collect themes from available offerings.
+        """
+        tc = webtheme.ThemeCache()
+        ths = tc.getAllThemes()
+        self.assertEqual([theme.name for theme in ths],
+                         ['foo', 'boz', 'baz'])
+
+
+    def test_clearThemeCache(self):
+        """
+        C{emptyCache} should invalidate the cache contents for both types.
+        """
+        tc = webtheme.ThemeCache()
+        s = Store()
+        tc.getAllThemes()
+        tc.getInstalledThemes(s)
+        tc.emptyCache()
+        self.assertEqual(tc._getAllThemesCache, None)
+        self.assertEqual(len(tc._getInstalledThemesCache), 0)

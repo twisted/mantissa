@@ -96,6 +96,11 @@ def getInstalledOfferings(s):
 
 
 def installOffering(s, offering, configuration):
+    """
+    Create an app store for an Offering, possibly installing some powerups on
+    it, after checking that the site store has the requisite powerups installed
+    on it. Also create an InstalledOffering item referring to the app store.
+    """
     for off in s.query(InstalledOffering,
                        InstalledOffering.offeringName == offering.name):
         raise Exception("That Offering is already installed.")
@@ -124,6 +129,14 @@ def installOffering(s, offering, configuration):
         ss.transact(appSetup)
         # Woops, we need atomic cross-store transactions.
         io = InstalledOffering(store=s, offeringName=offering.name, application=substoreItem)
+
+        #Some new themes may be available now. Clear the theme cache
+        #so they can show up.
+        #XXX This is pretty terrible -- there
+        #really should be a scheme by which ThemeCache instances can
+        #be non-global. Fix this at the earliest opportunity.
+        from xmantissa import webtheme
+        webtheme.theThemeCache.emptyCache()
     s.transact(siteSetup)
 
 

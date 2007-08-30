@@ -67,7 +67,6 @@ class NavMixin(object):
     searchPattern = None
 
     def __init__(self, webapp, pageComponents):
-        self._themes = getAllThemes()
         self.webapp = webapp
         self.pageComponents = pageComponents
         setTabURLs(self.pageComponents.navigation, webapp)
@@ -82,13 +81,8 @@ class NavMixin(object):
         @param default: value to be returned if the named template is not
         found.
         """
-        return self.webapp.getDocFactory(fragmentName, default, _themeCache=self)
+        return self.webapp.getDocFactory(fragmentName, default)
 
-    def getAllThemes(self):
-        """
-        Return a copy of the themes collection, using a cached lookup.
-        """
-        return list(self._themes)
 
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
@@ -520,7 +514,7 @@ class PrivateApplication(Item, PrefixURLMixin):
         return storeIDToWebID(self.privateKey, item.storeID)
 
     #ITemplateNameResolver
-    def getDocFactory(self, fragmentName, default=None, _themeCache=None):
+    def getDocFactory(self, fragmentName, default=None):
         """
         Retrieve a Nevow document factory for the given name.
 
@@ -528,15 +522,8 @@ class PrivateApplication(Item, PrefixURLMixin):
 
         @param default: value to be returned if the named template is not
         found.
-
-        @param _themeCache: an object with a C{getAllThemes} method, to be
-        optionally used for retrieving the themes collection.
         """
-        if _themeCache is not None:
-            themes = _themeCache.getAllThemes()
-        else:
-            themes = getAllThemes()
-
+        themes = getAllThemes()
         _reorderForPreference(themes, self.preferredTheme)
         for t in themes:
             fact = t.getDocFactory(fragmentName, None)

@@ -1,6 +1,6 @@
 # -*- test-case-name: xmantissa.test.test_theme -*-
 
-import os, sys
+import os, sys, weakref
 
 from zope.interface import implements
 
@@ -10,28 +10,82 @@ from twisted.python.util import sibpath
 from epsilon.structlike import record
 
 from nevow.loaders import xmlfile
-from nevow import inevow, tags, athena, page, stan
-from nevow.url import URL
+from nevow import inevow, tags, athena, page
 
 from xmantissa import ixmantissa
 from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.offering import getInstalledOfferings, getOfferings
 
-def getAllThemes():
-    l = []
-    for offering in getOfferings():
-        l.extend(offering.themes)
-    l.sort(key=lambda o: o.priority)
-    l.reverse()
-    return l
+class ThemeCache(object):
+    """
+    Collects theme information from the filesystem and caches it.
 
-def getInstalledThemes(store):
-    l = []
-    for offering in getInstalledOfferings(store).itervalues():
-        l.extend(offering.themes)
-    l.sort(key=lambda o: o.priority)
-    l.reverse()
-    return l
+    @ivar _getAllThemesCache: a list of all themes available on the
+    filesystem, or None.
+
+    @ivar _getInstalledThemesCache: a weak-key dictionary of site
+    stores to lists of themes from all installed offerings on them.
+    """
+    def __init__(self):
+        self.emptyCache()
+
+    def emptyCache(self):
+        """
+        Remove cached themes.
+        """
+        self._getAllThemesCache = None
+        self._getInstalledThemesCache = weakref.WeakKeyDictionary()
+
+
+    def _realGetAllThemes(self):
+        """
+        Collect themes from all available offerings.
+        """
+        l = []
+        for offering in getOfferings():
+            l.extend(offering.themes)
+        l.sort(key=lambda o: o.priority)
+        l.reverse()
+        return l
+
+
+    def getAllThemes(self):
+        """
+        Collect themes from all available offerings, or (if called
+        multiple times) return the previously collected list.
+        """
+        if self._getAllThemesCache is None:
+            self._getAllThemesCache = self._realGetAllThemes()
+        return self._getAllThemesCache
+
+
+    def _realGetInstalledThemes(self, store):
+        """
+        Collect themes from all offerings installed on this store.
+        """
+        l = []
+        for offering in getInstalledOfferings(store).itervalues():
+            l.extend(offering.themes)
+        l.sort(key=lambda o: o.priority)
+        l.reverse()
+        return l
+
+
+    def getInstalledThemes(self, store):
+        """
+        Collect themes from all offerings installed on this store, or (if called
+        multiple times) return the previously collected list.
+        """
+        if not store in self._getInstalledThemesCache:
+            self._getInstalledThemesCache[store] = (self.
+                                                 _realGetInstalledThemes(store))
+        return self._getInstalledThemesCache[store]
+
+
+#XXX this should be local to something, not process-global.
+theThemeCache = ThemeCache()
+getAllThemes = theThemeCache.getAllThemes
+getInstalledThemes = theThemeCache.getInstalledThemes
 
 _marker = object()
 
