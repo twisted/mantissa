@@ -22,7 +22,7 @@ from twisted.protocols import policies
 from twisted.internet import defer
 from twisted.application.service import IService
 
-from nevow.inevow import IResource
+from nevow.inevow import IRequest, IResource
 from nevow.rend import NotFound, Page, Fragment
 from nevow import inevow
 from nevow.appserver import NevowSite, NevowRequest
@@ -59,20 +59,22 @@ class MantissaLivePage(athena.LivePage):
     subclass this.
 
     @ivar webSite: a L{WebSite} instance which provides site configuration
-    information for generating links.
-
-    @ivar currentHostName: set before rendering, the host name that this page
-    is being rendered for.
-    @type currentHostName: L{str}
+        information for generating links.
 
     @ivar hashCache: a cache which maps JS module names to
-    L{xmantissa.cachejs.CachedJSModule} objects.
+        L{xmantissa.cachejs.CachedJSModule} objects.
     @type hashCache: L{xmantissa.cachejs.HashedJSModuleProvider}
+
+    @type _moduleRoot: L{URL}
+    @ivar _moduleRoot: The base location for script tags which load Athena
+        modules required by this page and widgets on this page.  This is set
+        based on the I{Host} header in the request, so it is C{None} until
+        the instance is actually rendered.
     """
 
     hashCache = theHashModuleProvider
 
-    currentHostName = None
+    _moduleRoot = None
 
     def __init__(self, webSite, *a, **k):
         """
@@ -83,29 +85,23 @@ class MantissaLivePage(athena.LivePage):
         self.webSite = webSite
         athena.LivePage.__init__(self, transportRoot=url.root.child('live'),
                                  *a, **k)
-        self.roots = {}
+
 
     def beforeRender(self, ctx):
         """
-        Before rendering, retrieve the hostname that we are rendering for so
-        that we can generate JavaScript links.
+        Before rendering, retrieve the hostname from the request being
+        responded to and generate an URL which will serve as the root for
+        all JavaScript modules to be loaded.
         """
-        self.currentHostName = URL.fromContext(ctx).netloc
-
-
-    def _getRoot(self):
-        """
-        Look up the root URL for this page, if it hasn't already been looked
-        up.
-        """
-	#XXX It appears that currentHostName is only ever set once; perhaps that
-	# should be enforced and a dict not used for caching the root.
-        if self.currentHostName not in self.roots:
-            root = self.webSite.maybeEncryptedRoot(self.currentHostName)
-            if root is None:
-                root = URL.fromString("/")
-            self.roots[self.currentHostName] = root
-        return self.roots[self.currentHostName]
+        request = IRequest(ctx)
+        hostname = request.getHeader('host')
+        if request.isSecure():
+            root = self.webSite.encryptedRoot(hostname)
+        else:
+            root = self.webSite.cleartextRoot(hostname)
+        if root is None:
+            root = URL.fromString('/')
+        self._moduleRoot = root.child('__jsmodule__')
 
 
     def getJSModuleURL(self, moduleName):
@@ -123,13 +119,11 @@ class MantissaLivePage(athena.LivePage):
         @raise NotImplementedError: if rendering has not begun yet and
         therefore beforeRender has not provided us with a usable hostname.
         """
-        if self.currentHostName is None:
+        if self._moduleRoot is None:
             raise NotImplementedError(
                 "JS module URLs cannot be requested before rendering.")
-        root = self._getRoot()
-        return root.child("__jsmodule__").child(
-            self.hashCache.getModule(moduleName).hashValue).child(
-            moduleName)
+        moduleHash = self.hashCache.getModule(moduleName).hashValue
+        return self._moduleRoot.child(moduleHash).child(moduleName)
 
 
 

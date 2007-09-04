@@ -658,46 +658,102 @@ class AthenaResourcesTestCase(unittest.TestCase):
         self.assertRaises(NotImplementedError, livePage.getJSModuleURL, 'Mantissa')
 
 
-    def test_mantissaLivePageMixin(self):
+    def test_beforeRenderSecureRequestEncryptedRoot(self):
         """
-        All athena LivePages in Mantissa or Mantissa applications should inherit
-        from MantissaLivePage.  Those pages should all share a getJSModuleURL
-        implementation which provides a URL including 3 segments::
-            https://<hostname>:<ssl port>/__jsmodule__/
-                <SHA1 digest of module contents>/Package.ModuleName
-        """
-        livePage = self.makeLivePage()
-        self._preRender(livePage)
-        jsurl = livePage.getJSModuleURL('Mantissa')
-        self.assertEqual(jsurl.scheme, 'https')
-        self.assertEqual(jsurl.netloc,
-                         self.hostname + ':' + str(TEST_SECURE_PORT))
-        segments = jsurl.pathList()
-        self.assertEqual(segments[0], '__jsmodule__')
-        expect = sha.new(
-            FilePath(__file__).parent().parent()
-            .child("js").child("Mantissa").child("__init__.js")
-            .open().read()).hexdigest()
-        self.assertEqual(segments[1], expect)
-        self.assertEqual(segments[2], "Mantissa")
+        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
+        the form::
 
-    def test_getJSModuleRootCaching(self):
+            https://website/encrypted/root/__jsmodule__/
+
+        when called with a context for a request which takes place over HTTPS
+        when the L{WebSite} can provide an encrypted root URL.
         """
-        Calling C{_getRoot} on a L{MantissaLivePage} instance should not
-        hit the database more once per instance per hostname.
+        url = URL(scheme='https', netloc='example.org:123')
+        class FakeWebSite(object):
+            def encryptedRoot(self, hostname):
+                return url
+        page = MantissaLivePage(FakeWebSite())
+        request = FakeRequest(isSecure=True)
+        page.beforeRender(request)
+        self.assertEqual(page._moduleRoot, url.child('__jsmodule__'))
+
+
+    def test_beforeRenderSecureRequestNoEncryptedRoot(self):
         """
-        livePage = self.makeLivePage()
-        self.called = 0
-        _actualMaybeEncryptedRoot = self.webSite.maybeEncryptedRoot
-        def mERWrapper(hostname):
-            self.called += 1
-            return _actualMaybeEncryptedRoot(hostname)
-        self.webSite.__dict__['maybeEncryptedRoot'] = mERWrapper
-        self._preRender(livePage)
-        livePage._getRoot()
-        livePage._getRoot()
-        self.assertEqual(self.called, 1)
-        livePage.currentHostName = "hostname-2"
-        livePage._getRoot()
-        livePage._getRoot()
-        self.assertEqual(self.called, 2)
+        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
+        the form::
+
+            /__jsmodule__/
+
+        when called with a context for a request which takes place over HTTPS
+        when the L{WebSite} cannot provide an encrypted root URL.
+
+        XXX Why isn't this just an error? -exarkun
+        """
+        class FakeWebSite(object):
+            def encryptedRoot(self, hostname):
+                return None
+        page = MantissaLivePage(FakeWebSite())
+        request = FakeRequest(isSecure=True)
+        page.beforeRender(request)
+        self.assertEqual(page._moduleRoot, URL.fromString('/__jsmodule__'))
+
+
+    def test_beforeRenderNotSecureRequestCleartextRoot(self):
+        """
+        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
+        the form::
+
+            http://website/cleartext/root/__jsmodule__/
+
+        when called with a context for a request which takes place over HTTP
+        when the L{WebSite} can provide a cleartext root URL.
+        """
+        url = URL(scheme='http', netloc='example.org:123')
+        class FakeWebSite(object):
+            def cleartextRoot(self, hostname):
+                return url
+        page = MantissaLivePage(FakeWebSite())
+        request = FakeRequest(isSecure=False)
+        page.beforeRender(request)
+        self.assertEqual(page._moduleRoot, url.child('__jsmodule__'))
+
+
+    def test_beforeRenderNotSecureRequestNoCleartextRoot(self):
+        """
+        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
+        the form::
+
+            /__jsmodule__/
+
+        when called with a context for a request which takes place over HTTP
+        when the L{WebSite} cannot provide a cleartext root URL.
+
+        XXX Why isn't this just an error? -exarkun
+        """
+        class FakeWebSite(object):
+            def cleartextRoot(self, hostname):
+                return None
+        page = MantissaLivePage(FakeWebSite())
+        request = FakeRequest(isSecure=False)
+        page.beforeRender(request)
+        self.assertEqual(page._moduleRoot, URL.fromString('/__jsmodule__'))
+
+
+    def test_getJSModuleURL(self):
+        """
+        L{MantissaLivePage.getJSModuleURL} should return a child of its
+        C{_moduleRoot} attribute of the form::
+
+            _moduleRoot/<SHA1 digest of module contents>/Package.ModuleName
+        """
+        module = 'Mantissa'
+        url = URL(scheme='https', netloc='example.com', pathsegs=['foo'])
+        page = MantissaLivePage(None)
+        page._moduleRoot = url
+        jsDir = FilePath(__file__).parent().parent().child("js")
+        modulePath = jsDir.child(module).child("__init__.js")
+        moduleContents = modulePath.open().read()
+        expect = sha.new(moduleContents).hexdigest()
+        self.assertEqual(page.getJSModuleURL(module),
+                         url.child(expect).child(module))
