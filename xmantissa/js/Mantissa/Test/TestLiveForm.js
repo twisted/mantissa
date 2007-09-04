@@ -131,6 +131,52 @@ Mantissa.Test.TestLiveForm.RepeatableFormTests.methods(
     },
 
     /**
+     * L{Mantissa.LiveForm.RepeatableForm.setInputValues} should forward the
+     * call only to its first child, if it isn't passed a list.
+     */
+    function test_setInputValues(self) {
+        var calls = [];
+        self.repeatableForm.childWidgets.push({
+            setInputValues: function(input) {
+                    calls.push([1, input]); 
+            }
+        });
+        self.repeatableForm.childWidgets.push({
+            setInputValues: function(input) {
+                    calls.push([2, input]);
+            }
+        });
+        self.repeatableForm.setInputValues({x: 'magic!'});
+        self.assertIdentical(calls.length, 1);
+        self.assertIdentical(calls[0][0], 1);
+        self.assertIdentical(calls[0][1]['x'], 'magic!');
+    },
+
+    /**
+     * L{Mantissa.LiveForm.RepeatableForm.setInputValues} should forward the
+     * call to all children, if it is passed a list.
+     */
+    function test_setInputValues(self) {
+        var calls = [];
+        self.repeatableForm.childWidgets.push({
+            setInputValues: function(input) {
+                    calls.push([1, input]); 
+            }
+        });
+        self.repeatableForm.childWidgets.push({
+            setInputValues: function(input) {
+                    calls.push([2, input]);
+            }
+        });
+        self.repeatableForm.setInputValues(
+            [{x: 'some magic'}, {x: 'some more'}]);
+        self.assertIdentical(calls.length, 2);
+        self.assertIdentical(calls[0][0], 1);
+        self.assertIdentical(calls[0][1]['x'], 'some magic');
+        self.assertIdentical(calls[1][0], 2);
+        self.assertIdentical(calls[1][1]['x'], 'some more');
+    },
+    /**
      * L{Mantissa.LiveForm.RepeatableForm.formName} should be set the second
      * argument given to the constructor.
      */

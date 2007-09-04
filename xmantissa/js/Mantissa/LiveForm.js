@@ -33,6 +33,13 @@ Mantissa.LiveForm.RepeatedLiveFormWrapper.methods(
      */
     function gatherInputs(self) {
         return self.childWidgets[0].gatherInputs();
+    },
+
+    /**
+     * Defer to our child liveform.
+     */
+    function setInputValues(self, values) {
+        return self.childWidgets[0].setInputValues(values);
     });
 
 Mantissa.LiveForm.RepeatableForm = Nevow.Athena.Widget.subclass(
@@ -58,6 +65,25 @@ Mantissa.LiveForm.RepeatableForm.methods(
             inputs.push(self.childWidgets[i].gatherInputs());
         }
         return inputs;
+    },
+
+    /**
+     * Call C{setInputValues} on each child widget with the associated set of
+     * values of the input list, or (for API compatibility with
+     * L{Mantissa.LiveForm.FormWidget}) on the first child if the input is not
+     * a list.
+     */
+    function setInputValues(self, valuesArray) {
+        /**
+         * is there a better way to differentiate between arrays and objects?
+         */
+        if(valuesArray.length === undefined) {
+            self.childWidgets[0].setInputValues(valuesArray);
+        } else {
+            for(var i = 0; i < valuesArray.length; i++) {
+                self.childWidgets[i].setInputValues(valuesArray[i]);
+            }
+        }
     },
 
     /**
