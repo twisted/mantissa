@@ -71,3 +71,10 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         Test the stuff which replaces things in the DOM.
         """
         return 'Mantissa.Test.TestDOMReplace'
+
+
+    def test_offering(self):
+        """
+        Tests for the offering administration interface.
+        """
+        return 'Mantissa.Test.TestOffering'

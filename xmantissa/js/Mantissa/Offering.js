@@ -8,15 +8,25 @@ Mantissa.Offering.UninstalledOffering.methods(
         return self.callRemote('installOffering', offeringName);
     },
 
+    function notify(self, message, className, duration) {
+        var node = document.createElement('div');
+        node.className = className;
+        node.appendChild(document.createTextNode(message));
+        document.body.appendChild(node);
+        self.callLater(duration, function() { document.body.removeChild(node); });
+    },
+
     function install(self) {
-    self.node.setAttribute('class', 'installing');
+        self.node.className = 'installing';
         var d = self.callRemote('install', {});
-        d.addCallbacks(function(result) {
-            Mantissa.feedback('Installed');
-            self.node.setAttribute('class', 'installed');
-            self.node.onclick = null;
-        }, function(err) {
-            self.node.setAttribute('class', 'uninstalled');
-            Mantissa.feedback('Failure: ' + err);
-        });
+        d.addCallbacks(
+            function(result) {
+                self.notify('Installed', 'install-succeeded', 1);
+                self.node.className = 'installed';
+                self.node.onclick = null;
+            },
+            function(err) {
+                self.notify('Failure: ' + err, 'install-failed', 5);
+                self.node.className = 'uninstalled';
+            });
     });

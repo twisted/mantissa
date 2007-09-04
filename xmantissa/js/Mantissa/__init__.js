@@ -1,17 +1,6 @@
 
 // import Nevow.Athena
 
-Mantissa.log = function(msg) {
-    /* XXX TODO: make this look good - moe, please? :) */
-    var d = document.createElement("div");
-    d.appendChild(document.createTextNode(msg));
-    document.getElementById("log").appendChild(d);
-};
-
-Mantissa.feedback = function(message) {
-    this.log(message);
-};
-
 Mantissa.InputHistory = Divmod.Class.subclass('Mantissa.InputHistory');
 Mantissa.InputHistory.method(
     function __init__(self) {

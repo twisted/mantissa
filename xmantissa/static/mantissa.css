@@ -1004,9 +1004,9 @@ a.childsellink {
 /* These three li styles are for the admin site offering page.  They
 give installed offerings a different look from uninstalled offerings,
 including a visual hint that uninstalled offerings are clickable. */
-    li.installed {
-        border: solid 1px green;
-        margin-top: 1px;
+li.installed {
+    border: solid 1px green;
+    margin-top: 1px;
 }
 
 li.uninstalled {
@@ -1019,4 +1019,18 @@ li.installing {
     border: dotted 1px yellow;
     margin-top: 1px;
     cursor: wait;
+}
+
+/* notifications */
+
+.install-succeeded {
+    position: absolute;
+    top: 100px; left: 100px;
+    background-color: green;
+}
+
+.install-failed {
+    position: absolute;
+    top: 100px; left: 100px;
+    background-color: red;
 }
