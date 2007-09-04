@@ -35,14 +35,9 @@ Mantissa.Validate.SignupForm = Mantissa.LiveForm.FormWidget.subclass(
 
 
 Mantissa.Validate.SignupForm.methods(
-    function __init__(self, node) {
+    function __init__(self, node, domain) {
         Mantissa.Validate.SignupForm.upcall(self, '__init__', node);
-        self.domain = document.location.hostname;
-        var domarr = self.domain.split(".");
-        if (domarr[0] === 'www') {
-            domarr.unshift();
-            self.domain = domarr.join('.');
-        }
+        self.domain = domain;
         self.inputCount = 0;
         var junk = self.gatherInputs();
         for (var yuck in junk) {self.inputCount++;}
@@ -101,7 +96,9 @@ Mantissa.Validate.SignupForm.methods(
          * Replace any character not allowed in an email localpart
          * with an underscore.
          */
-        return txt.replace(/[ !%&\(\),:;<>\\\|@]/g, '_').toLowerCase();
+        txt = txt.replace(' ', '.');
+        txt = txt.replace(/[ !%&\(\),:;<>\\\|@]/g, '_');
+        return txt.toLowerCase();
     },
 
 
@@ -110,11 +107,8 @@ Mantissa.Validate.SignupForm.methods(
          * Create a username based on the first and last names entered.
          */
         if (inputnode.value.length == 0) {
-            inputnode.value = (self.mangleToLocalpart(
-                              self.nodeByAttribute("name", "firstName").value)
-                              + '.' +
-                              self.mangleToLocalpart(
-                              self.nodeByAttribute("name", "lastName").value));
+            inputnode.value = self.mangleToLocalpart(
+                self.nodeByAttribute("name", "realName").value);
         } else {
             self.updateStatus(inputnode);
         }

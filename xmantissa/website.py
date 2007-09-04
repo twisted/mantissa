@@ -270,10 +270,10 @@ class UnguardedWrapper(SiteRootMixin):
             if getattr(child, 'needsSecure', None):
                 request = inevow.IRequest(ctx)
                 if not request.isSecure():
-                    url = URL.fromContext(ctx)
-                    newurl = url.secure(port=inevow.IResource(
-                        self.store).securePort.getHost().port)
-                    return newurl.click('/'.join(segments)), ()
+                    website = inevow.IResource(self.store)
+                    root = website.encryptedRoot(request.getHeader('host'))
+                    root = root.click('/'.join(segments))
+                    return root, ()
             return child, segments
         return defer.maybeDeferred(self.guardedRoot.locateChild, ctx, segments
                                    ).addCallback(maybeSecure)

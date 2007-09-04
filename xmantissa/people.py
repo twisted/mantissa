@@ -668,12 +668,14 @@ class Organizer(item.Item):
         userInfo = self.store.findFirst(signup.UserInfo)
         storeOwnerPerson = Person(store=self.store, organizer=self)
         if userInfo is not None:
-            storeOwnerPerson.name = (
-                userInfo.firstName + u' ' + userInfo.lastName)
+            parts = userInfo.realName.split(None, 1)
+            if len(parts) == 1:
+                parts.append(u'')
+            storeOwnerPerson.name = userInfo.realName
             RealName(store=self.store,
                      person=storeOwnerPerson,
-                     first=userInfo.firstName,
-                     last=userInfo.lastName)
+                     first=parts[0],
+                     last=parts[1])
         return storeOwnerPerson
 
 

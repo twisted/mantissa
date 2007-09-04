@@ -212,7 +212,7 @@ class UserIdentificationTestCase(_UserIdentificationMixin, TestCase):
         of that user's email address
         """
         self.signup.createUser(
-            u'', u'', u'username', u'localhost', u'', u'username@internet')
+            u'', u'username', u'localhost', u'', u'username@internet')
         self.assertIdentical(
             websharing._storeFromUsername(self.siteStore, u'username'),
             self.loginSystem.accountByAddress(
@@ -226,9 +226,9 @@ class UserIdentificationTestCase(_UserIdentificationMixin, TestCase):
         another user's email address
         """
         self.signup.createUser(
-            u'', u'', u'username', u'localhost', u'', u'notusername@internet')
+            u'', u'username', u'localhost', u'', u'notusername@internet')
         self.signup.createUser(
-            u'', u'', u'notusername', u'localhost', u'', u'username@internet')
+            u'', u'notusername', u'localhost', u'', u'username@internet')
         self.assertIdentical(
             websharing._storeFromUsername(self.siteStore, u'username'),
             self.loginSystem.accountByAddress(
@@ -322,7 +322,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         _UserIdentificationMixin.setUp(self)
         self.magicValue = 123412341234
         newUser = self.signup.createUser(
-            u'', u'', u'username', u'localhost', u'',
+            u'', u'username', u'localhost', u'',
             u'username@internet')
         self.userStore = websharing._storeFromUsername(
             self.siteStore, u'username')

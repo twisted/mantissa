@@ -352,6 +352,11 @@ class WebSiteTestCase(unittest.TestCase):
         installOn(sc, self.store)
         sg = sc.createSignup(u"test", signup.UserInfoSignup,
                              {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
+
+        # Make some domains available, so we don't need to create LoginMethods
+        # or anything like that.
+        object.__setattr__(sg, 'getAvailableDomains', lambda: [u'example.com'])
+
         signupPage = sg.createResource()
         fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
         result = renderLivePage(signupPage, reqFactory=lambda: fr)
@@ -536,6 +541,47 @@ class UnguardedWrapperTests(unittest.TestCase):
             str(child),
             str(URL('https', 'example.org:%d' % (port,), ['login', 'foo'])))
         self.assertEqual(segments, ())
+
+
+    def test_needsSecureChild(self):
+        """
+        L{UnguardedWrapper} should automatically generate a redirect to an
+        HTTPS URL when queried for a child over HTTP with a C{True} value for
+        its I{needsSecure} attribute.
+        """
+        hostname = 'example.org'
+        httpsPortNumber = 12345
+        pathsegs = ['requires', 'security']
+        store = Store()
+        site = website.WebSite(store=store)
+        installOn(site, store)
+        SSLPort(store=store, portNumber=httpsPortNumber, factory=site)
+
+        class GuardedRoot(object):
+            implements(IResource)
+            def locateChild(self, context, pathsegs):
+                return SecureResource(), pathsegs
+
+        class SecureResource(object):
+            implements(IResource)
+            needsSecure = True
+
+        wrapper = website.UnguardedWrapper(store, GuardedRoot())
+        request = FakeRequest(
+            headers={'host': hostname},
+            uri='/'.join([''] + pathsegs),
+            currentSegments=[],
+            isSecure=False)
+        child = wrapper.locateChild(request, pathsegs)
+        def cbChild((child, segments)):
+            self.assertEqual(
+                child,
+                URL(scheme='https',
+                    netloc='%s:%d' % (hostname, httpsPortNumber),
+                    pathsegs=pathsegs))
+            self.assertEqual(segments, ())
+        child.addCallback(cbChild)
+        return child
 
 
 

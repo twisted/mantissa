@@ -603,8 +603,7 @@ class ValidatingSignupForm(liveform.LiveForm):
     jsClass = u'Mantissa.Validate.SignupForm'
 
     _parameterNames = [
-        'firstName',
-        'lastName',
+        'realName',
         'username',
         'domain',
         'password',
@@ -620,6 +619,14 @@ class ValidatingSignupForm(liveform.LiveForm):
         self.docFactory = getLoader("user-info-signup")
 
 
+    def getInitialArguments(self):
+        """
+        Retreive a domain name from the user info signup item and return it so
+        the client will know what domain it can sign up in.
+        """
+        return (self.userInfoSignup.getAvailableDomains()[0],)
+
+
     def usernameAvailable(self, username, domain):
         return self.userInfoSignup.usernameAvailable(username, domain)
     athena.expose(usernameAvailable)
@@ -633,8 +640,24 @@ class UserInfo(Item):
     user (which was created during the signup process), and will record
     information about its owner.
     """
-    firstName = text(doc="The first name of the user.", allowNone=False)
-    lastName = text(doc="The last name of the user.", allowNone=False)
+    schemaVersion = 2
+    realName = text(
+        doc="""
+        The name entered at signup time by the user as their I{real} name.
+        """)
+
+
+def upgradeUserInfo1to2(oldUserInfo):
+    """
+    Concatenate the I{firstName} and I{lastName} attributes from the old user
+    info item and set the result as the I{realName} attribute of the upgraded
+    item.
+    """
+    newUserInfo = oldUserInfo.upgradeVersion(
+        UserInfo.typeName, 1, 2,
+        realName=oldUserInfo.firstName + u" " + oldUserInfo.lastName)
+    return newUserInfo
+upgrade.registerUpgrader(upgradeUserInfo1to2, UserInfo.typeName, 1, 2)
 
 
 
@@ -651,8 +674,10 @@ class UserInfoSignup(Item, PrefixURLMixin):
     sessioned = True
 
     booth = reference()
-    product = reference(doc="An instance of L{product.Product} to install on"
-                        " the new user's store")
+    product = reference(
+        doc="""
+        An instance of L{product.Product} to install on the new user's store.
+        """)
     emailTemplate = text()
     prompt = text()
 
@@ -669,6 +694,13 @@ class UserInfoSignup(Item, PrefixURLMixin):
         return page
 
     # UserInfoSignup
+    def getAvailableDomains(self):
+        """
+        Return a list of domain names available on this site.
+        """
+        return getDomainNames(self.store)
+
+
     def usernameAvailable(self, username, domain):
         """
         Check to see if a username is available for the user to select.
@@ -688,7 +720,7 @@ class UserInfoSignup(Item, PrefixURLMixin):
             return [False, u"Username fails to parse"]
 
         # The domain is acceptable if it is one which we actually host.
-        if domain not in getDomainNames(self.store):
+        if domain not in self.getAvailableDomains():
             return [False, u"Domain not allowed"]
 
         query = self.store.query(userbase.LoginMethod,
@@ -697,19 +729,15 @@ class UserInfoSignup(Item, PrefixURLMixin):
         return [not bool(query.count()), u"Username already taken"]
 
 
-    def createUser(self, firstName, lastName, username, domain,
-                   password, emailAddress):
+    def createUser(self, realName, username, domain, password, emailAddress):
         """
         Create a user, storing some associated metadata in the user's store,
         i.e. their first and last names (as a L{UserInfo} item), and a
         L{axiom.userbase.LoginMethod} allowing them to login with their email
         address.
 
-        @param firstName: the first name of the user.
-        @type firstName: C{unicode}
-
-        @param lastName: the last name of the user.
-        @type lastName: C{unicode}
+        @param realName: the real name of the user.
+        @type realName: C{unicode}
 
         @param username: the user's username.  they will be able to login with
             this.
@@ -728,21 +756,28 @@ class UserInfoSignup(Item, PrefixURLMixin):
 
         @rtype: C{NoneType}
         """
-        # what do I do with firstName and lastName?
+        # XXX This method should be called in a transaction, it shouldn't
+        # start a transaction itself.
         def _():
             loginsystem = self.store.findUnique(userbase.LoginSystem)
-            # XXX TODO: firstName and lastName should be on the "Me" person?
+
+            # Create the an account with the credentials they specified,
+            # making it internal since it belongs to us.
             acct = loginsystem.addAccount(username, domain, password,
                                           verified=True, internal=True)
-            # did we really just want to do that?  do we need to verify
-            # anything...?
+
+            # Create an external login method associated with the email
+            # address they supplied, as well.  This creates an association
+            # between that external address and their account object,
+            # allowing password reset emails to be sent and letting them log
+            # in to this account using that address as a username.
             emailPart, emailDomain = emailAddress.split("@")
             acct.addLoginMethod(emailPart, emailDomain, protocol=u"email",
                                 verified=False, internal=False)
             substore = IBeneficiary(acct)
-            UserInfo(store=substore,
-                     firstName=firstName,
-                     lastName=lastName)
+            # Record some of that signup information in case application
+            # objects are interested in it.
+            UserInfo(store=substore, realName=realName)
             self.product.installProductOn(substore)
         self.store.transact(_)
 

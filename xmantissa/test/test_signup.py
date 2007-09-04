@@ -79,8 +79,7 @@ class SignupCreationTestCase(unittest.TestCase):
                           [True, u'Username already taken'])
 
         signup.createUser(
-            firstName=u"Frank",
-            lastName=u"Jones",
+            realName=u"Frank Jones",
             username=u'fjones',
             domain=u'localhost',
             password=u'asdf',
@@ -113,26 +112,24 @@ class SignupCreationTestCase(unittest.TestCase):
 
     def test_userInfoSignupUserInfo(self):
         """
-        Check that C{createUser} creates a L{signup.UserInfo} item with the
-        C{email}, C{firstName} and C{lastName} attributes set before it
-        installs its L{Product}.
+        Check that C{createUser} creates a L{signup.UserInfo} item with its
+        C{realName} attribute set.
         """
         freeSignup = self.createFreeSignup(free_signup.userInfo.itemClass)
         freeSignup.createUser(
-            u'Frank', u'Jones', u'fjones', u'divmod.com',
+            u'Frank Jones', u'fjones', u'divmod.com',
             u'asdf', u'fj@example.com')
         account = self.ls.accountByAddress(u'fjones', u'divmod.com')
         substore = account.avatars.open()
         userInfos = list(substore.query(signup.UserInfo))
         self.assertEqual(len(userInfos), 1)
         userInfo = userInfos[0]
-        self.assertEqual(userInfo.firstName, u'Frank')
-        self.assertEqual(userInfo.lastName, u'Jones')
+        self.assertEqual(userInfo.realName, u'Frank Jones')
 
 
     def test_userInfoCreatedBeforeProductInstalled(self):
         """
-        L{UserInfoSignup.createUser} should create a L{UserInfo} item before it
+        L{UserInfoSignup.createUser} should create a L{UserInfo} item B{before} it
         calls L{Product.installProductOn}.
         """
         class StubProduct(Item):
@@ -158,7 +155,7 @@ class SignupCreationTestCase(unittest.TestCase):
         freeSignup = self.createFreeSignup(free_signup.userInfo.itemClass)
         freeSignup.product = product
         freeSignup.createUser(
-            u'Frank', u'Jones', u'fjones', u'example.com',
+            u'Frank Jones', u'fjones', u'example.com',
             u'password', u'fj@example.org')
         self.assertEqual(len(product.userInfos), 1)
 
@@ -170,7 +167,7 @@ class SignupCreationTestCase(unittest.TestCase):
         """
         username, domain = u'fjones', u'divmod.com'
         signup = self.createFreeSignup(free_signup.userInfo.itemClass)
-        signup.createUser(u'Frank', u'Jones', username, domain, u'asdf',
+        signup.createUser(u'Frank Jones', username, domain, u'asdf',
                           u'fj@example.com')
         account = self.ls.accountByAddress(username, domain)
         query = list(
@@ -203,3 +200,24 @@ class SignupCreationTestCase(unittest.TestCase):
         x.sort()
         self.assertEquals(x, [(u'Sign Up 1', u'/signup1'),
                               (u'Sign Up 2', u'/signup2')])
+
+
+
+class ValidatingSignupFormTests(unittest.TestCase):
+    """
+    Tests for L{ValidatingSignupForm}.
+    """
+    def test_getInitialArguments(self):
+        """
+        L{ValidatingSignupForm.getInitialArguments} should return a tuple
+        consisting of a unicode string giving the domain name for which this
+        form will allow signup.
+        """
+        domain = u"example.com"
+        class FakeUserInfoSignup(object):
+            def createUser(self):
+                pass
+            def getAvailableDomains(self):
+                return [domain, u"example.org"]
+        form = signup.ValidatingSignupForm(FakeUserInfoSignup())
+        self.assertEqual(form.getInitialArguments(), (domain,))

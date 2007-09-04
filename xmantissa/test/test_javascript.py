@@ -51,6 +51,14 @@ class MantissaJavaScriptTestCase(JavaScriptTestCase):
         return 'Mantissa.Test.TestPeople'
 
 
+    def test_validate(self):
+        """
+        Test the class which validates input on the signup page and posts it to
+        the server.
+        """
+        return 'Mantissa.Test.TestValidate'
+
+
     def test_liveform(self):
         """
         Test the LiveForm widgets.

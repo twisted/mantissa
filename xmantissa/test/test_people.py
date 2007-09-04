@@ -2266,7 +2266,7 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         L{Person} with a L{RealName}.
         """
         store = Store()
-        UserInfo(store=store, firstName=u'Joe', lastName=u'Rogers')
+        UserInfo(store=store, realName=u'Joe Rogers')
         organizer = Organizer(store=store)
         self.assertIdentical(organizer.storeOwnerPerson.organizer, organizer)
         names = list(store.query(
@@ -2282,9 +2282,8 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         its I{name} attribute set to a string computed from the L{UserInfo}
         item.
         """
-        first = u'Joe'
-        last = u'Rogers'
+        name = u'Joe Rogers'
         store = Store()
-        UserInfo(store=store, firstName=first, lastName=last)
+        UserInfo(store=store, realName=name)
         organizer = Organizer(store=store)
-        self.assertEqual(organizer.storeOwnerPerson.name, first + u' ' + last)
+        self.assertEqual(organizer.storeOwnerPerson.name, name)
