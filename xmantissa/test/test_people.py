@@ -1457,6 +1457,15 @@ class PeopleTests(unittest.TestCase):
         self.assertIdentical(firstPerson, self.organizer.personByName(name))
 
 
+    def test_docFactory(self):
+        """
+        L{AddPersonFragment.docFactory.load} should not return C{None}.
+        """
+        self.assertNotIdentical(
+            AddPersonFragment(self.organizer).docFactory.load(),
+            None)
+
+
     def test_addPersonParameters(self):
         """
         L{AddPersonFragment.render_addPersonForm} should return a L{LiveForm}
@@ -2071,6 +2080,7 @@ class AddPersonFragmentTests(unittest.TestCase):
         An L{AddPersonFragment} should be renderable.
         """
         store = Store()
+        installOn(PrivateApplication(store=store), store)
         organizer = Organizer(store=store)
         fragment = AddPersonFragment(organizer)
         result = renderLiveFragment(fragment)
