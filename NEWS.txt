@@ -1,3 +1,30 @@
+0.6.6 (2007-08-01):
+  - UserInfoSignup now stores firstname/lastname in the user store.
+  - The stats powerup no longer starts itself automatically, to prevent it from
+    interfering with unit tests.
+  - Duplicate Person nicknames are now prevented.
+  - people.Person now has a 'vip' attribute, displayed in the person
+    scrolltable in the address book.
+  - The address book add-person form now shows details about a person
+    immediately after it is created.
+  - liveform.LiveForm now has a 'compact' method, which causes it to switch to
+    the compact liveform template (including all its subforms).
+  - Added an InputError exception to LiveForm which can be used by
+    server-side components to indicate an input verification failure to the
+    client.  Also added logic to the client to handle this kind of error
+    specially.
+  - sharing.asAccessibleTo now yields the correct results when dealing with a
+    query with a limit.
+  - Added a LiveForm parameter type list parameter type, which allows a subform
+    to be repeated an arbitrary number of times inside its parent.
+  - Further improvements made to the new scrolltable, including a timestamp
+    column, a client-side widget column, better pluggability, bugfixes, and
+    better test coverage.
+  - The scrolltable will now tell you when it is loading rows, including an
+    initial loading notification so that the page will immediately have some
+    feedback visible rather than just a blank area where the scrolltable is
+    supposed to be.
+
 0.6.5 (2007-07-06):
   - People are now editable.
   - Add/delete buttons added to the person scrolltable.
@@ -25,7 +52,7 @@
     add-person form with new contact information types.
   - Liveform refactoring.
 
-0.6.2 (2007-04-27): 
+0.6.2 (2007-04-27):
   - Data passed to Lucene for indexing or search queries is now
     filtered to prevent email addresses and URLs from being recognized
     as single tokens.
