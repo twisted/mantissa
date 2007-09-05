@@ -24,7 +24,7 @@ from epsilon import extime
 from axiom import item, attributes
 from axiom.dependency import dependsOn, installOn
 from axiom.attributes import boolean
-from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
+from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader, registerDeletionUpgrader
 
 
 from xmantissa.ixmantissa import IPersonFragment
@@ -266,139 +266,6 @@ class ReadOnlyEmailView(Element):
 
 
 
-class NameContactType(BaseContactType):
-    """
-    Contact type plugin which allows a person to have a name.
-    """
-    implements(IContactType)
-
-    def getParameters(self, realName):
-        """
-        Return a C{list} of two L{LiveForm} parameters for editing the first
-        and last name of a L{RealName}.
-
-        @type realName: L{RealName}
-        @param realName: If not C{None}, an existing contact item from which to
-            get the default values for the first and last name parameters.
-
-        @rtype: C{list}
-        @return: The parameters necessary for specifying a person's real name.
-        """
-        if realName is not None:
-            first = realName.first
-            last = realName.last
-        else:
-            first = u''
-            last = u''
-        return [
-            liveform.Parameter('firstname', liveform.TEXT_INPUT,
-                               _normalizeWhitespace, 'First Name',
-                               default=first),
-            liveform.Parameter('lastname', liveform.TEXT_INPUT,
-                               _normalizeWhitespace, 'Last Name',
-                               default=last)]
-
-
-    def createContactItem(self, person, firstname, lastname):
-        """
-        Create a new L{RealName} associated with the given person based on the
-        given parameters.
-
-        @type person: L{Person}
-        @param person: The person with whom to associate the new L{RealName}.
-
-        @type firstname: C{unicode}
-        @param firstname: The value to use for the I{first} attribute of the
-            created L{RealName}.
-
-        @type lastname: C{unicode}
-        @param lastname: The value to use for the I{last} attribute of the
-            created L{RealName}.
-
-        @return: C{None}
-        """
-        if firstname or lastname:
-            return RealName(store=person.store,
-                            person=person,
-                            first=firstname,
-                            last=lastname)
-
-
-    def getContactItems(self, person):
-        """
-        Return all L{RealName} instances associated with the given person.
-
-        @type person: L{Person}
-        @return: An iterable of L{RealName} instances.
-        """
-        return person.store.query(
-            RealName,
-            RealName.person == person)
-
-
-    def editContactItem(self, contact, firstname, lastname):
-        """
-        Change the first and last name of the given L{RealName} to the values
-        specified by C{parameters}.
-
-        @type contact: L{RealName}
-
-        @type firstname: C{unicode}
-        @param firstname: The value to use for the I{first} attribute of the
-            created L{RealName}.
-
-        @type lastname: C{unicode}
-        @param lastname: The value to use for the I{last} attribute of the
-            created L{RealName}.
-
-        @return: C{None}
-        """
-        contact.first = firstname
-        contact.last = lastname
-
-
-    def getReadOnlyView(self, contact):
-        """
-        Return a L{ReadOnlyNameView} for the given L{RealName}.
-        """
-        return ReadOnlyNameView(contact)
-
-
-
-class ReadOnlyNameView(Element):
-    """
-    Display an name.
-
-    @type name: L{RealName}
-    @ivar name: The real name which will be displayed.
-    """
-    docFactory = ThemedDocumentFactory(
-        'person-contact-read-only-name-view', 'store')
-
-    def __init__(self, name):
-        self.name = name
-        self.store = name.store
-
-
-    def firstName(self, request, tag):
-        """
-        Add the value of the C{first} attribute of the wrapped L{RealName} as a
-        child to the given tag.
-        """
-        return tag[self.name.first]
-    renderer(firstName)
-
-
-    def lastName(self, request, tag):
-        """
-        Add the value of the C{last} attribute of the wrapped L{RealName} as a
-        child to the given tag.
-        """
-        return tag[self.name.last]
-    renderer(lastName)
-
-
-
 class PeopleBenefactor(item.Item):
     implements(ixmantissa.IBenefactor)
     endowed = attributes.integer(default=0)
@@ -411,16 +278,15 @@ class Person(item.Item):
     schemaVersion = 3
 
     organizer = attributes.reference(
-                doc="""
-                The L{Organizer} to which this Person belongs.
-                """)
-    # we don't really use Person.name for anything -
-    # it seems like a bit of a strange thing to have
-    # in addition to a RealName
+        doc="""
+        The L{Organizer} to which this Person belongs.
+        """)
+
     name = attributes.text(
         doc="""
         This name of this person.
         """, caseSensitive=False)
+
     created = attributes.timestamp(defaultFactory=extime.Time)
 
     vip = boolean(
@@ -432,11 +298,10 @@ class Person(item.Item):
     def __init__(self, **kw):
         super(Person, self).__init__(**kw)
 
+
     def getDisplayName(self):
-        # XXX figure out the default
-        for rn in self.store.query(RealName, RealName.person == self):
-            return rn.display
         return self.name
+
 
     def getEmailAddresses(self):
         """
@@ -666,17 +531,10 @@ class Organizer(item.Item):
         if self.store is None:
             return None
         userInfo = self.store.findFirst(signup.UserInfo)
-        storeOwnerPerson = Person(store=self.store, organizer=self)
+        name = u''
         if userInfo is not None:
-            parts = userInfo.realName.split(None, 1)
-            if len(parts) == 1:
-                parts.append(u'')
-            storeOwnerPerson.name = userInfo.realName
-            RealName(store=self.store,
-                     person=storeOwnerPerson,
-                     first=parts[0],
-                     last=parts[1])
-        return storeOwnerPerson
+            name = userInfo.realName
+        return Person(store=self.store, organizer=self, name=name)
 
 
     def getOrganizerPlugins(self):
@@ -691,7 +549,6 @@ class Organizer(item.Item):
         Return an iterator of L{IContactType} providers available to this
         organizer's store.
         """
-        yield NameContactType()
         yield EmailContactType(self.store)
         yield PostalContactType()
         for plugin in self.getOrganizerPlugins():
@@ -1127,22 +984,26 @@ class EditPersonView(ThemedElement):
     renderer(editorialContactForms)
 
 
-    
+
 class RealName(item.Item):
     typeName = 'mantissa_organizer_addressbook_realname'
-    schemaVersion = 1
+    schemaVersion = 2
 
-    person = attributes.reference(
-        allowNone=False,
-        whenDeleted=attributes.reference.CASCADE,
-        reftype=Person)
+    empty = attributes.reference()
 
-    first = attributes.text()
-    last = attributes.text(indexed=True)
 
-    def _getDisplay(self):
-        return u' '.join(filter(None, (self.first, self.last)))
-    display = property(_getDisplay)
+item.declareLegacyItem(
+    RealName.typeName, 1,
+    dict(person=attributes.reference(
+            doc="""
+            allowNone=False,
+            whenDeleted=attributes.reference.CASCADE,
+            reftype=Person
+            """),
+         first=attributes.text(),
+         last=attributes.text(indexed=True)))
+
+registerDeletionUpgrader(RealName, 1, 2)
 
 
 

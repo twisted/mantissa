@@ -109,7 +109,6 @@ class OnlyNick(AddPersonTestBase, TestCase):
             {'nickname': u'everybody',
              'vip': False,
              'xmantissa.people.PostalContactType': [{'address': u''}],
-             'xmantissa.people.NameContactType': [{'lastname': u'', 'firstname': u''}],
              'xmantissa.people.EmailContactType': [{'email': u''}]})
 
 
@@ -137,7 +136,6 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
             {'nickname': u'NICK!!!',
              'vip': False,
              'xmantissa.people.PostalContactType': [{'address': u''}],
-             'xmantissa.people.NameContactType': [{'lastname': u'', 'firstname': u''}],
              'xmantissa.people.EmailContactType': [{'email': u'a@b.c'}]})
 
 

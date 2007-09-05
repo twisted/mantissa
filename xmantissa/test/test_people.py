@@ -34,14 +34,14 @@ from axiom.errors import DeletionDisallowed
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
 from xmantissa.scrolltable import UnsortableColumn
 from xmantissa.people import (
-    Organizer, Person, RealName, EmailAddress, AddPersonFragment, Mugshot,
+    Organizer, Person, EmailAddress, AddPersonFragment, Mugshot,
     addContactInfoType, contactInfoItemTypeFromClassName,
     _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
     PhoneNumber, setIconURLForContactInfoType, iconURLForContactInfoType,
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment,
-    OrganizerFragment, EditPersonView, NameContactType,
+    OrganizerFragment, EditPersonView,
     BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
-    PostalContactType, ReadOnlyEmailView, ReadOnlyNameView,
+    PostalContactType, ReadOnlyEmailView,
     ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL)
 
 from xmantissa.webapp import PrivateApplication
@@ -374,59 +374,6 @@ class PostalAddressTests(unittest.TestCase):
 
 
 
-class RealNameTests(unittest.TestCase):
-    """
-    Tests for L{RealName}.
-    """
-    def test_noFirstNameDisplay(self):
-        """
-        L{RealName.display} should be a unicode string giving the last name if
-        there is only a last name.
-        """
-        store = Store()
-        person = Person(store=store)
-        realName = RealName(store=store, person=person, last=u'Last')
-        self.assertTrue(isinstance(realName.display, unicode))
-        self.assertEqual(realName.display, u'Last')
-
-
-    def test_noLastNameDisplay(self):
-        """
-        L{RealName.display} should be a unicode string giving the first name if
-        there is only a first name.
-        """
-        store = Store()
-        person = Person(store=store)
-        realName = RealName(store=store, person=person, first=u'First')
-        self.assertTrue(isinstance(realName.display, unicode))
-        self.assertEqual(realName.display, u'First')
-
-
-    def test_noNamesDisplay(self):
-        """
-        L{RealName.display} should be an empty unicode string if is no first or
-        last name.
-        """
-        store = Store()
-        person = Person(store=store)
-        realName = RealName(store=store, person=person)
-        self.assertTrue(isinstance(realName.display, unicode))
-        self.assertEqual(realName.display, u'')
-
-
-    def test_deletedWithPerson(self):
-        """
-        A L{RealName} should be deleted when the L{Person} it is associated
-        with is deleted.
-        """
-        store = Store()
-        person = Person(store=store)
-        realName = RealName(store=store, person=person)
-        person.deleteFromStore()
-        self.assertEqual(store.query(RealName).count(), 0)
-
-
-
 class ContactTestsMixin(object):
     """
     Define tests common to different L{IContactType} implementations.
@@ -444,121 +391,6 @@ class ContactTestsMixin(object):
         # **parameters in IContactType.editContactItem causes it to fail for
         # reasonably conformant implementations.
         # self.assertTrue(verifyObject(IContactType, self.contactType))
-
-
-
-class NameContactTests(unittest.TestCase, ContactTestsMixin):
-    """
-    Tests for the naming parameters defined by L{NameContactType}.
-    """
-    def setUp(self):
-        """
-        Create a L{NameContactType} for use by the tests.
-        """
-        self.contactType = NameContactType()
-
-
-    def test_organizerIncludesIt(self):
-        """
-        L{Organizer.getContactTypes} should include an instance of
-        L{NameContactType} in its return value.
-        """
-        store = Store()
-        organizer = Organizer(store=store)
-        self.assertTrue([
-                contactType
-                for contactType
-                in organizer.getContactTypes()
-                if isinstance(contactType, NameContactType)])
-
-
-    def test_createContactItem(self):
-        """
-        L{NameContactType.createContactItem} should create a L{RealName} with
-        the supplied values.
-        """
-        store = Store()
-        person = Person(store=store)
-        contactType = NameContactType()
-        contactItem = contactType.createContactItem(
-            person, firstname=u'First', lastname=u'Last')
-        names = list(store.query(RealName))
-        self.assertEqual(names, [contactItem])
-        self.assertEqual(contactItem.first, u'First')
-        self.assertEqual(contactItem.last, u'Last')
-        self.assertIdentical(contactItem.person, person)
-
-
-    def test_createContactItemWithoutNames(self):
-        """
-        L{NameContactType.createContactItem} should create no L{RealName} item
-        if called with empty strings.
-        """
-        store = Store()
-        person = Person(store=store)
-        contactType = NameContactType()
-        contactItem = contactType.createContactItem(
-            person, firstname=u'', lastname=u'')
-        self.assertIdentical(contactItem, None)
-        self.assertEqual(list(store.query(RealName)), [])
-
-
-    def test_editContactItem(self):
-        """
-        L{NameContactType.editContactItem} should update the first and last
-        name fields of the L{RealName} it is passed.
-        """
-        class StubRealName(object):
-            pass
-        realName = StubRealName()
-        contactType = NameContactType()
-        contactType.editContactItem(
-            realName, firstname=u'First', lastname=u'Last')
-        self.assertEqual(realName.first, u'First')
-        self.assertEqual(realName.last, u'Last')
-
-
-    def test_getParameters(self):
-        """
-        L{NameContactType.getParameters} should return a C{list} of L{LiveForm}
-        parameters for the first and last name fields.
-        """
-        contactType = NameContactType()
-        firstName, lastName = contactType.getParameters(None)
-        self.assertEqual(firstName.name, 'firstname')
-        self.assertEqual(firstName.default, '')
-        self.assertEqual(lastName.name, 'lastname')
-        self.assertEqual(lastName.default, '')
-
-
-    def test_getParametersWithDefaults(self):
-        """
-        L{NameContactType.getParameters} should return a C{list} of L{LiveForm}
-        parameters with default values supplied from the L{RealName} item it is
-        passed.
-        """
-        store = Store()
-        person = Person(store=store)
-        contactType = NameContactType()
-        firstName, lastName = contactType.getParameters(
-            RealName(person=person, first=u'First', last=u'Last'))
-        self.assertEqual(firstName.name, 'firstname')
-        self.assertEqual(firstName.default, u'First')
-        self.assertEqual(lastName.name, 'lastname')
-        self.assertEqual(lastName.default, u'Last')
-
-
-    def test_getReadOnlyView(self):
-        """
-        L{EmailContactType.getReadOnlyView} should return a
-        L{ReadOnlyEmailView} wrapped around the given contact item.
-        """
-        store = Store()
-        person = Person(store=store)
-        contact = RealName(store=store, person=person)
-        view = self.contactType.getReadOnlyView(contact)
-        self.assertTrue(isinstance(view, ReadOnlyNameView))
-        self.assertIdentical(view.name, contact)
 
 
 
@@ -874,34 +706,6 @@ class ReadOnlyEmailViewTests(unittest.TestCase, TagTestingMixin):
 
 
 
-class ReadOnlyNameViewTests(unittest.TestCase, TagTestingMixin):
-    """
-    Tests for L{ReadOnlyNameView}.
-    """
-    def test_firstName(self):
-        """
-        The I{firstName} renderer of L{ReadOnlyNameView} should return the
-        C{first} attribute of the wrapped L{RealName}.
-        """
-        person = Person()
-        name = RealName(person=person, first=u'first name', last=u'last name')
-        view = ReadOnlyNameView(name)
-        value = renderer.get(view, 'firstName')(None, div)
-        self.assertTag(value, 'div', {}, [name.first])
-
-
-    def test_lastName(self):
-        """
-        The I{lastName} renderer of L{ReadOnlyNameView} should return the
-        C{last} attribute of the wrapped L{RealName}.
-        """
-        person = Person()
-        name = RealName(person=person, first=u'first name', last=u'last name')
-        view = ReadOnlyNameView(name)
-        value = renderer.get(view, 'lastName')(None, div)
-        self.assertTag(value, 'div', {}, [name.last])
-
-
 class ReadOnlyPostalAddressViewTests(unittest.TestCase, TagTestingMixin):
     """
     Tests for L{ReadOnlyPostalAddressView}.
@@ -932,18 +736,12 @@ class PeopleModelTestCase(unittest.TestCase):
 
         letters = lowercase.decode('ascii')
         for firstPrefix, lastPrefix in zip(letters, reversed(letters)):
-            first = firstPrefix + u'Alice'
-            last = lastPrefix + u'Jones'
+            name = u'Alice ' + lastPrefix + u'Jones'
             person = Person(
                 store=self.store,
                 organizer=self.organizer,
                 created=Time(),
-                name=first + u' ' + last)
-            RealName(
-                store=self.store,
-                person=person,
-                first=first,
-                last=last)
+                name=name)
 
     def test_createPerson(self):
         """
@@ -1187,8 +985,9 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(
             secondContactPowerup, IOrganizerPlugin, priority=0)
 
+        # Skip the first two for EmailContacType and PostalContactType.
         self.assertEqual(
-            list(self.organizer.getContactTypes())[3:],
+            list(self.organizer.getContactTypes())[2:],
             firstContactTypes + secondContactTypes)
 
 
@@ -1226,9 +1025,9 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        self.assertEqual(len(parameters), 4)
-        self.assertTrue(isinstance(parameters[3], RepeatableFormParameter))
-        self.assertEqual(parameters[3].name, qual(StubContactType))
+        self.assertEqual(len(parameters), 3)
+        self.assertTrue(isinstance(parameters[2], RepeatableFormParameter))
+        self.assertEqual(parameters[2].name, qual(StubContactType))
 
 
     def test_getContactEditorialParameters(self):
@@ -1482,10 +1281,10 @@ class PeopleTests(unittest.TestCase):
         addPersonFrag._baseParameters = [
             Parameter('foo', TEXT_INPUT, unicode, 'Foo')]
 
-        # With no plugins, only the NameContactType, EmailContactType, and
-        # PostalContactType parameters should be returned.
+        # With no plugins, only the EmailContactType and PostalContactType
+        # parameters should be returned.
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 4)
+        self.assertEqual(len(addPersonForm.parameters), 3)
 
         contactTypes = [StubContactType((), None, None)]
         observer = StubOrganizerPlugin(
@@ -1493,7 +1292,7 @@ class PeopleTests(unittest.TestCase):
         self.store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 5)
+        self.assertEqual(len(addPersonForm.parameters), 4)
 
 
     def test_addPersonWithContactItems(self):
@@ -1512,9 +1311,6 @@ class PeopleTests(unittest.TestCase):
         addPersonFragment.addPerson(
             u'nickname',
             **{contactType.uniqueIdentifier().encode('ascii'): [argument],
-               _keyword(NameContactType()): [{
-                    u'firstname': u'First',
-                    u'lastname': u'Last'}],
                _keyword(EmailContactType(self.store)): [{
                     u'email': u'user@example.com'}],
                _keyword(PostalContactType()): [{
@@ -1529,10 +1325,7 @@ class PeopleTests(unittest.TestCase):
         addPersonFrag = AddPersonFragment(self.organizer)
         addPersonFrag.addPerson(
             u'Captain P.',
-            **{_keyword(NameContactType()): [{
-                    u'firstname': u'Jean-Luc',
-                    u'lastname': u'Picard'}],
-               _keyword(EmailContactType(self.store)): [{
+            **{_keyword(EmailContactType(self.store)): [{
                     u'email': u'jlp@starship.enterprise'}],
                _keyword(PostalContactType()): [{
                     u'address': u'123 Street Rd'}]})
@@ -1544,9 +1337,6 @@ class PeopleTests(unittest.TestCase):
         email = self.store.findUnique(
             EmailAddress, EmailAddress.person == person)
         self.assertEquals(email.address, 'jlp@starship.enterprise')
-
-        rn = self.store.findUnique(RealName, RealName.person == person)
-        self.assertEquals(rn.first + ' ' + rn.last, 'Jean-Luc Picard')
 
         pa = self.store.findUnique(
             PostalAddress, PostalAddress.person == person)
@@ -1563,10 +1353,7 @@ class PeopleTests(unittest.TestCase):
         view = AddPersonFragment(self.organizer)
         view.addPerson(
             u'alice', True,
-            **{_keyword(NameContactType()): [{
-                    u'firstname': u'First',
-                    u'lastname': u'Last'}],
-               _keyword(EmailContactType(self.store)): [{
+            **{_keyword(EmailContactType(self.store)): [{
                     u'email': u'user@example.com'}],
                _keyword(PostalContactType()): [{
                     u'address': u'123 Street Rd'}]})
@@ -2225,15 +2012,14 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
     def test_emptyStore(self):
         """
         Test that when an L{Organizer} is inserted into an empty store,
-        L{Organizer.storeOwnerPerson} is set to a L{Person} without a
-        L{RealName}.
+        L{Organizer.storeOwnerPerson} is set to a L{Person} with an empty
+        string for a name.
         """
         store = Store()
         organizer = Organizer(store=store)
         self.failUnless(organizer.storeOwnerPerson)
         self.assertIdentical(organizer.storeOwnerPerson.organizer, organizer)
-        self.assertEqual(store.count(
-            RealName, RealName.person == organizer.storeOwnerPerson), 0)
+        self.assertEqual(organizer.storeOwnerPerson.name, u'')
 
 
     def test_differentStoreOwner(self):
@@ -2257,23 +2043,6 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         organizer = Organizer(store=store)
         self.assertRaises(
             DeletionDisallowed, organizer.storeOwnerPerson.deleteFromStore)
-
-
-    def test_realNameFromUserInfo(self):
-        """
-        Test that when an L{Organizer} is inserted into a store with a
-        L{UserInfo} item in it, L{Organizer.storeOwnerPerson} is set to a
-        L{Person} with a L{RealName}.
-        """
-        store = Store()
-        UserInfo(store=store, realName=u'Joe Rogers')
-        organizer = Organizer(store=store)
-        self.assertIdentical(organizer.storeOwnerPerson.organizer, organizer)
-        names = list(store.query(
-            RealName, RealName.person == organizer.storeOwnerPerson))
-        self.assertEqual(len(names), 1)
-        self.assertEqual(names[0].first, 'Joe')
-        self.assertEqual(names[0].last, 'Rogers')
 
 
     def test_personNameFromUserInfo(self):
