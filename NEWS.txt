@@ -1,3 +1,30 @@
+0.6.7 (2007-09-05):
+  - A bug preventing mugshot uploads was fixed.
+  - The scrolltable now only requests more rows when the user can see blank
+    space.
+  - Multiple pieces of contact info can be added at person creation time now.
+  - Share items are now deleted when the item they are sharing is deleted.
+  - A bug preventing the contact info edit from from being submitted multiple
+    times was fixed.
+  - Client-side removal of repeated liveform elements is now possible.
+  - A bug occasionally causing regions in the scrolltable to overlap was fixed.
+  - Store owner Person objects are now created with their name attributes set
+    based on the name provided in UserInfoSignup, if available.
+  - Functionality for shared items can now be externally defined, via adapters.
+  - Person.name is now case insensitive.
+  - A method has been added to IOrganizerPlugin for observing changes to the
+    name attribute of Person items.
+  - Themes and JavaScript modules are no longer reloaded from disk if they are
+    changed while the server is running.
+  - Athena modules served by MantissaLivePage now are served over the same
+    protocol as the page which requires them.
+  - The 'RealName' contact type has been removed.
+  - UserInfoSignup now prompts for name in a single field rather than in
+    first/last name fields.
+  - The address book's person scrolltable is now ordered by Person.name.
+  - Error message when installing offerings fixed. Hooray!
+  - Various JavaScript optimizations.
+
 0.6.6 (2007-08-01):
   - UserInfoSignup now stores firstname/lastname in the user store.
   - The stats powerup no longer starts itself automatically, to prevent it from
