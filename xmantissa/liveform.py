@@ -83,7 +83,8 @@ class Parameter(record('name type coercer label description default '
 
 
 
-class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=IParameterView)):
+class RepeatableFormParameter(record('name parameters defaults viewFactory',
+                                     defaults=(), viewFactory=IParameterView)):
     """
     A parameter useful for describing sections of forms that can appear an
     arbitrary number of times inside their parent form.
@@ -103,6 +104,10 @@ class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=
         parameter as the first argument and a default value as the second
         argument.  The default should be returned if no view can be provided
         for the given parameter.
+
+    @type defaults: C{list}
+    @ivar defaults: A sequence of dictionaries mapping names of L{parameters}
+        to values.
     """
     _parameterIsCompact = False
     type = None
@@ -110,8 +115,7 @@ class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=
     def __init__(self, *a, **k):
         super(RepeatableFormParameter, self).__init__(*a, **k)
         self.liveFormFactory = LiveForm
-        self.repeatedLiveFormWrapperFactory = RepeatedLiveFormWrapper
-        self.liveFormCounter = 0
+        self.repeatedLiveFormWrapper = RepeatedLiveFormWrapper
 
 
     def compact(self):
@@ -132,23 +136,70 @@ class RepeatableFormParameter(record('name parameters viewFactory', viewFactory=
         return [form._coerced(dataSet) for dataSet in dataSets]
 
 
-    def asLiveForm(self):
+    def getInitialLiveForms(self):
         """
-        Make and return a form, using the parameters
+        Make and return as many L{LiveForm} instances as are necessary to hold
+        our default values.
+
+        @return: some subforms.
+        @rtype: C{list} of L{LiveForm}
+        """
+        liveForms = []
+        if self.defaults:
+            for values in self.defaults:
+                # we'll fail here if there is anything besides Parameter instances
+                # in self.parameters, but who cares
+                parameters = [Parameter(
+                                p.name,
+                                p.type,
+                                p.coercer,
+                                p.label,
+                                p.description,
+                                values[p.name],
+                                p.viewFactory) for p in self.parameters]
+                liveForm = self.liveFormFactory(lambda **k: None, parameters)
+                liveForm = self._prepareSubForm(liveForm)
+                liveForm = self.repeatedLiveFormWrapper(liveForm)
+                liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
+                liveForms.append(liveForm)
+        else:
+            # then only one, for the first new thing
+            liveForm = self.liveFormFactory(lambda **k: None, self.parameters)
+            liveForm = self._prepareSubForm(liveForm)
+            liveForms.append(liveForm)
+        return liveForms
+
+
+    def _prepareSubForm(self, liveForm):
+        """
+        Utility for turning liveforms into subforms, and compacting them as
+        necessary.
+
+        @param liveForm: a liveform.
+        @type liveForm: L{LiveForm}
 
         @return: a sub form.
         @rtype: L{LiveForm}
         """
-        liveForm = self.liveFormFactory(lambda **k: None, self.parameters)
         liveForm = liveForm.asSubForm('subform')
         # if we are compact, tell the liveform so it can tell its parameters
         # also
         if self._parameterIsCompact:
             liveForm.compact()
-        if 0 < self.liveFormCounter:
-            liveForm = self.repeatedLiveFormWrapperFactory(liveForm)
-            liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
-        self.liveFormCounter += 1
+        return liveForm
+
+
+    def asLiveForm(self):
+        """
+        Make and return a form, using L{parameters}.
+
+        @return: a sub form.
+        @rtype: L{LiveForm}
+        """
+        liveForm = self.liveFormFactory(lambda **k: None, self.parameters)
+        liveForm = self._prepareSubForm(liveForm)
+        liveForm = self.repeatedLiveFormWrapper(liveForm)
+        liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
         return liveForm
 
 
@@ -772,37 +823,30 @@ class RepeatableFormParameterView(athena.LiveElement):
         return (self.parameter.name,)
 
 
-    def _repeat(self):
+    def forms(self, req, tag):
         """
-        Make and return a form, using L{self.parameter.repeat}.
+        Make and return some forms, using L{self.parameter.getInitialLiveForms}.
 
-        @return: a sub form.
+        @return: some subforms.
+        @rtype: C{list} of L{LiveForm}
+        """
+        liveForms = self.parameter.getInitialLiveForms()
+        for liveForm in liveForms:
+            liveForm.setFragmentParent(self)
+        return liveForms
+    page.renderer(forms)
+
+
+    def repeatForm(self):
+        """
+        Make and return a form, using L{self.parameter.asLiveForm}.
+
+        @return: a subform.
         @rtype: L{LiveForm}
         """
         liveForm = self.parameter.asLiveForm()
         liveForm.setFragmentParent(self)
         return liveForm
-
-
-    def form(self, req, tag):
-        """
-        Make and return a form, using L{self.parameter.repeat}.
-
-        @return: a sub form.
-        @rtype: L{LiveForm}
-        """
-        return self._repeat()
-    page.renderer(form)
-
-
-    def repeatForm(self):
-        """
-        Make and return a form, using L{self.parameter.repeat}.
-
-        @return: a sub form.
-        @rtype: L{LiveForm}
-        """
-        return self._repeat()
     athena.expose(repeatForm)
 
 

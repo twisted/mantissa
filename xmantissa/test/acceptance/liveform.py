@@ -46,7 +46,9 @@ def repeatableFormParameter():
         [RepeatableFormParameter(
             u'repeatableFoo',
             [Parameter('foo', TEXT_INPUT, int, 'Enter a number'),
-             Parameter('bar', TEXT_INPUT, int, 'And another')])])
+             Parameter('bar', TEXT_INPUT, int, 'And another')],
+            [{'foo': 1,  'bar': 2},
+             {'foo': 10, 'bar': 20}])])
     form.jsClass = u'Mantissa.Test.EchoingFormWidget'
     return form
 

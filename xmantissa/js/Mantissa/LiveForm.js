@@ -72,7 +72,9 @@ Mantissa.LiveForm.RepeatableForm.methods(
             });
         result.addCallback(
             function(widget) {
-                self.node.appendChild(widget.node);
+                var repeater = self.firstNodeByAttribute(
+                    'class', 'liveform-repeater');
+                repeater.parentNode.insertBefore(widget.node, repeater);
             });
         return result;
 

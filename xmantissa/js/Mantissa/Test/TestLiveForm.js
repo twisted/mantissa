@@ -113,15 +113,28 @@ Mantissa.Test.TestLiveForm.RepeatableFormTests.methods(
 
     /**
      * L{Mantissa.LiveForm.RepeatableForm.gatherInputs} should accumulate the
-     * results of calling C{gatherInputs} on its child widgets.
+     * results of calling C{gatherInputs} on its child widgets, if they appear
+     * to be in the document.
      */
     function test_gatherInputsAccumulates(self) {
-        var fakeChild = {gatherInputs: function() {
-            return {'foo': 'bar1'};
-        }}
-        var fakeChild2 = {gatherInputs: function() {
-            return {'foo': 'bar2'};
-        }}
+        var fakeChild = {
+            gatherInputs: function() {
+                return {'foo': 'bar1'};
+            },
+            node: {parentNode: document.createElement('div')}
+        };
+        var fakeChild2 = {
+            gatherInputs: function() {
+                return {'foo': 'bar2'};
+            },
+            node: {parentNode: document.createElement('div')}
+        };
+        var fakeChildToIgnore = {
+            gatherInputs: function() {
+                return {'foo': 'bar3'}
+            },
+            node: {parentNode: null}
+        };
         self.repeatableForm.childWidgets.push(fakeChild);
         self.repeatableForm.childWidgets.push(fakeChild2);
         var inputs = self.repeatableForm.gatherInputs();

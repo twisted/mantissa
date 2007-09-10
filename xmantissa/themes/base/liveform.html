@@ -99,11 +99,13 @@
   </div>
 
   <div nevow:pattern="repeatable-form-input-container">
-    <nevow:invisible nevow:render="form" />
-    <a nevow:pattern="repeater" href="#">
-      <athena:handler event="onclick" handler="dom_repeat" />
-      +
-    </a>
+    <nevow:invisible nevow:render="forms" />
+    <div class="liveform-repeater" nevow:pattern="repeater">
+      <a href="#">
+        <athena:handler event="onclick" handler="dom_repeat" />
+        +
+      </a>
+    </div>
     <nevow:invisible nevow:render="repeater" />
   </div>
 

@@ -628,7 +628,7 @@ class RepeatableFormParameterViewTestCase(TestCase):
         self.parameter = RepeatableFormParameter(
             u'repeatableFoo', self.innerParameters)
         self.parameter.liveFormFactory = TestableLiveForm
-        self.parameter.liveFormWrapperFactory = lambda lf: lf
+        self.parameter.repeatedLiveFormWrapper = lambda lf: lf
         self.view = RepeatableFormParameterView(self.parameter)
 
 
@@ -651,13 +651,14 @@ class RepeatableFormParameterViewTestCase(TestCase):
         self.assertIdentical(subForm.fragmentParent, self.view)
 
 
-    def test_formRendererReturnsSubForm(self):
+    def test_formsRendererReturnsSubForm(self):
         """
-        The C{form} renderer of L{RepeatableFormParameterView} should render
+        The C{forms} renderer of L{RepeatableFormParameterView} should render
         the liveform that was passed to the underlying parameter, as a
         subform.
         """
-        self._doSubFormTest(renderer.get(self.view, 'form')(None, None))
+        (form,) = renderer.get(self.view, 'forms')(None, None)
+        self._doSubFormTest(form)
 
 
     def test_repeatFormReturnsSubForm(self):
@@ -669,14 +670,14 @@ class RepeatableFormParameterViewTestCase(TestCase):
         self._doSubFormTest(expose.get(self.view, 'repeatForm')())
 
 
-    def test_formRendererCompact(self):
+    def test_formsRendererCompact(self):
         """
-        The C{form} renderer of L{RepeatableFormParameterView} should call
+        The C{forms} renderer of L{RepeatableFormParameterView} should call
         C{compact} on the form it returns, if the parameter it is wrapping had
         C{compact} called on it.
         """
         self.parameter.compact()
-        renderedForm = renderer.get(self.view, 'form')(None, None)
+        (renderedForm,) = renderer.get(self.view, 'forms')(None, None)
         self.failUnless(renderedForm._isCompact)
 
 
@@ -691,13 +692,13 @@ class RepeatableFormParameterViewTestCase(TestCase):
         self.failUnless(renderedForm._isCompact)
 
 
-    def test_formRendererNotCompact(self):
+    def test_formsRendererNotCompact(self):
         """
-        The C{form} renderer of L{RepeatableFormParameterView} shouldn't call
+        The C{forms} renderer of L{RepeatableFormParameterView} shouldn't call
         C{compact} on the form it returns, unless the parameter it is wrapping
         had C{compact} called on it.
         """
-        renderedForm = renderer.get(self.view, 'form')(None, None)
+        (renderedForm,) = renderer.get(self.view, 'forms')(None, None)
         self.failIf(renderedForm._isCompact)
 
 
@@ -744,54 +745,72 @@ class RepeatableFormParameterViewTestCase(TestCase):
 
 
 
+class _RepeatedLiveFormWrapper:
+    fragmentName = 'repeated-liveform'
+    def __init__(self, liveForm):
+        self.liveForm = liveForm
+
+
+
 class RepeatableFormParameterTestCase(TestCase):
     """
     Tests for L{RepeatableFormParameter}.
     """
-    def test_asLiveFormFirst(self):
-        """
-        L{RepeatableFormParameter.asLiveForm} should correctly construct forms
-        using L{RepeatableFormParameter.liveFormFactory}.
-        """
-        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
-        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
-        class LiveFormFactory:
-            def __init__(self, aCallable, parameters):
-                self.aCallable = aCallable
-                self.parameters = parameters
-
-            def asSubForm(self, name):
-                return self
-        parameter.liveFormFactory = LiveFormFactory
-
-        liveForm = parameter.asLiveForm()
-        self.failUnless(isinstance(liveForm, LiveFormFactory))
-        self.failUnless(callable(liveForm.aCallable))
-        self.assertEqual(liveForm.parameters, innerParameters)
-
-        self.assertEqual(parameter.liveFormCounter, 1)
-
-
-    def test_asLiveFormSubsequent(self):
+    def test_asLiveForm(self):
         """
         L{RepeatableFormParameter.asLiveForm} should wrap forms in
-        L{RepeatableFormParameter.liveFormWrapperFactory} if the method has
-        been previously called.
+        L{RepeatableFormParameter.liveFormWrapperFactory}.
         """
         innerParameters = [Parameter('foo', TEXT_INPUT, int)]
         parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
-        parameter.asLiveForm()
+        parameter.repeatedLiveFormWrapper = _RepeatedLiveFormWrapper
 
-        class RepeatedLiveFormWrapperFactory:
-            fragmentName = 'repeated-liveform'
-            def __init__(self, liveForm):
-                self.liveForm = liveForm
-
-        parameter.repeatedLiveFormWrapperFactory = RepeatedLiveFormWrapperFactory
         liveFormWrapper = parameter.asLiveForm()
         self.failUnless(
-            isinstance(liveFormWrapper, RepeatedLiveFormWrapperFactory))
+            isinstance(liveFormWrapper, _RepeatedLiveFormWrapper))
         self.failUnless(
             isinstance(liveFormWrapper.liveForm, LiveForm))
 
-        self.assertEqual(parameter.liveFormCounter, 2)
+
+    def test_getInitialLiveForms(self):
+        """
+        L{RepeatableFormParameter.getInitialLiveForms} should return a list
+        containing a single unwrapped liveform when L{RepeatableFormParameter}
+        wasn't constructed with any defaults.
+        """
+        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
+        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
+
+        liveForms = parameter.getInitialLiveForms()
+        self.assertEqual(len(liveForms), 1)
+        liveForm = liveForms[0]
+        self.failUnless(isinstance(liveForm, LiveForm))
+        self.assertEqual(liveForm.subFormName, 'subform')
+        self.assertEqual(liveForm.parameters, innerParameters)
+
+
+    def test_getInitialLiveFormsDefaults(self):
+        """
+        L{RepeatableFormParameter.getInitialLiveForms} should return a list
+        containing a liveform for each dictionary of values that was passed in
+        as a default.
+        """
+        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
+        defaults = [{'foo': 1}, {'foo': 3}]
+        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters, defaults)
+        parameter.repeatedLiveFormWrapper = _RepeatedLiveFormWrapper
+
+        wrappedLiveForms = parameter.getInitialLiveForms()
+        self.assertEqual(len(wrappedLiveForms), len(defaults))
+        for (wrappedLiveForm, default) in zip(wrappedLiveForms, defaults):
+            self.failUnless(isinstance(wrappedLiveForm, _RepeatedLiveFormWrapper))
+
+            liveForm = wrappedLiveForm.liveForm
+            self.assertEqual(liveForm.subFormName, 'subform')
+            self.assertEqual(len(liveForm.parameters), 1)
+
+            parameter = liveForm.parameters[0]
+            self.assertEqual(parameter.name, 'foo')
+            self.assertEqual(parameter.type, TEXT_INPUT)
+            self.assertEqual(parameter.coercer, int)
+            self.assertEqual(parameter.default, default['foo'])
