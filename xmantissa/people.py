@@ -612,7 +612,7 @@ class Organizer(item.Item):
         @rtype: L{Person}
         """
         for person in self.store.query(Person, Person.name == nickname):
-            raise ValueError("Person with nickname %r exists already." % (nickname,))
+            raise ValueError("Person with name %r exists already." % (nickname,))
         person = Person(
             store=self.store,
             created=extime.Time(),
@@ -687,7 +687,7 @@ class Organizer(item.Item):
             if existing is person:
                 continue
             raise ValueError(
-                "A person with the nickname %r exists already." % (nickname,))
+                "A person with the name %r exists already." % (nickname,))
         oldname = person.name
         person.name = nickname
         self._callOnOrganizerPlugins('personNameChanged', person, oldname)
@@ -970,7 +970,7 @@ class EditPersonView(ThemedElement):
         parameters = [
             liveform.Parameter(
                 'nickname', liveform.TEXT_INPUT,
-                _normalizeWhitespace, 'Nickname',
+                _normalizeWhitespace, 'Name',
                 default=self.person.name)]
         for contact in organizer.getContactEditorialParameters(self.person):
             type, item, param = contact
@@ -1258,7 +1258,7 @@ class AddPersonFragment(athena.LiveFragment):
 
     _baseParameters = [
         liveform.Parameter('nickname', liveform.TEXT_INPUT,
-                           _normalizeWhitespace, 'Nickname'),
+                           _normalizeWhitespace, 'Name'),
         liveform.Parameter('vip', liveform.CHECKBOX_INPUT,
                            bool, 'VIP')]
 
