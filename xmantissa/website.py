@@ -94,13 +94,7 @@ class MantissaLivePage(athena.LivePage):
         all JavaScript modules to be loaded.
         """
         request = IRequest(ctx)
-        hostname = request.getHeader('host')
-        if request.isSecure():
-            root = self.webSite.encryptedRoot(hostname)
-        else:
-            root = self.webSite.cleartextRoot(hostname)
-        if root is None:
-            root = URL.fromString('/')
+        root = self.webSite.rootURL(request)
         self._moduleRoot = root.child('__jsmodule__')
 
 
@@ -565,10 +559,17 @@ class WebSite(Item, SiteRootMixin):
             else:
                 portNumber = port.getHost().port
 
-        if portNumber == standardPort:
-            return URL(scheme, hostname, [''])
-        else:
-            return URL(scheme, '%s:%d' % (hostname, portNumber), [''])
+        # At some future point, we may want to make pathsegs persistently
+        # configurable - perhaps scheme and hostname as well - in order to
+        # easily support reverse proxying configurations, particularly where
+        # Mantissa is being "mounted" somewhere other than /.  See also rootURL
+        # which has some overlap with this method (the difference being
+        # universal vs absolute URLs - rootURL may want to call cleartextRoot
+        # or encryptedRoot in the future).  See #417 and #2309.
+        pathsegs = ['']
+        if portNumber != standardPort:
+            hostname = '%s:%d' % (hostname, portNumber)
+        return URL(scheme, hostname, pathsegs)
 
 
     def _getPort(self, portType):
@@ -609,10 +610,36 @@ class WebSite(Item, SiteRootMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
+        warnings.warn(
+            "Use WebSite.rootURL instead of "
+            "WebSite.maybeEncryptedRoot",
+            category=DeprecationWarning,
+            stacklevel=3)
         root = self.encryptedRoot(hostname)
         if root is None:
             root = self.cleartextRoot(hostname)
         return root
+
+
+    def rootURL(self, request):
+        """
+        Simple utility function to provide a root URL for this website which is
+        appropriate to use in links generated in response to the given request.
+
+        @type request: L{twisted.web.http.Request}
+        @param request: The request which is being responded to.
+
+        @rtype: L{URL}
+        @return: The location at which the root of the resource hierarchy for
+            this website is available.
+        """
+        # In the future, this might return universal URLs - basing the
+        # scheme and hostname on parameters of the request.  Or it might
+        # respect state on this WebSite instance, for example a static
+        # hostname, port number, and path prefix appropriate when a server
+        # is positioned in front of and proxying requests to this one.  For
+        # now though, the root is /, no matter what.  See #417 and #2309.
+        return URL(scheme='', netloc='', pathsegs=[''])
 
 
     def child_users(self, ctx):

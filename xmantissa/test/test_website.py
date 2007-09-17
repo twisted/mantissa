@@ -5,7 +5,7 @@ import socket
 from zope.interface import implements
 
 from twisted.internet.address import IPv4Address
-from twisted.trial import unittest
+from twisted.trial import unittest, util
 from twisted.application import service
 from twisted.web import http
 from twisted.python.filepath import FilePath
@@ -39,6 +39,14 @@ from xmantissa.cachejs import HashedJSModuleProvider
 
 # Secure port number used for testing.
 TEST_SECURE_PORT = 9123
+
+
+maybeEncryptedRootWarningMessage = (
+    "Use WebSite.rootURL instead of WebSite.maybeEncryptedRoot")
+maybeEncryptedRootSuppression = util.suppress(
+    message=maybeEncryptedRootWarningMessage,
+    category=DeprecationWarning)
+
 
 
 def createStore(testCase):
@@ -258,7 +266,7 @@ class WebSiteTestCase(unittest.TestCase):
         self.assertEquals(None, ws.encryptedRoot())
 
 
-    def testMaybeEncryptedRoot(self):
+    def test_maybeEncryptedRoot(self):
         """
         If HTTPS service is available, L{WebSite.maybeEncryptedRoot} should
         return the same as L{WebSite.encryptedRoot}.
@@ -266,9 +274,10 @@ class WebSiteTestCase(unittest.TestCase):
         ws = website.WebSite(store=self.store, hostname=u'example.com')
         SSLPort(store=self.store, portNumber=443, factory=ws)
         self.assertEquals(ws.encryptedRoot(), ws.maybeEncryptedRoot())
+    test_maybeEncryptedRoot.suppress = [maybeEncryptedRootSuppression]
 
 
-    def testMaybeEncryptedRootUnavailable(self):
+    def test_maybeEncryptedRootUnavailable(self):
         """
         If HTTPS service is not available, L{WebSite.maybeEncryptedRoot} should
         return the same as L{WebSite.cleartextRoot}.
@@ -276,6 +285,30 @@ class WebSiteTestCase(unittest.TestCase):
         ws = website.WebSite(store=self.store, hostname=u'example.com')
         TCPPort(store=self.store, portNumber=80, factory=ws)
         self.assertEquals(ws.cleartextRoot(), ws.maybeEncryptedRoot())
+    test_maybeEncryptedRootUnavailable.suppress = [
+        maybeEncryptedRootSuppression]
+
+
+    def test_maybeEncryptedRootDeprecated(self):
+        """
+        L{WebSite.maybeEncryptedRoot} is deprecated and calling it should
+        emit a deprecation warning.
+        """
+        ws = website.WebSite(store=self.store)
+        self.assertWarns(
+            DeprecationWarning,
+            maybeEncryptedRootWarningMessage,
+            __file__,
+            ws.maybeEncryptedRoot, 'example.com')
+
+
+    def test_rootURL(self):
+        """
+        L{WebSite.rootURL} should return C{/} until we come up with a reason
+        to return something else.
+        """
+        ws = website.WebSite()
+        self.assertEqual(str(ws.rootURL(None)), '/')
 
 
     def testOnlySecureSignup(self):
@@ -704,86 +737,23 @@ class AthenaResourcesTestCase(unittest.TestCase):
         self.assertRaises(NotImplementedError, livePage.getJSModuleURL, 'Mantissa')
 
 
-    def test_beforeRenderSecureRequestEncryptedRoot(self):
+    def test_beforeRenderSetsModuleRoot(self):
         """
-        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
-        the form::
-
-            https://website/encrypted/root/__jsmodule__/
-
-        when called with a context for a request which takes place over HTTPS
-        when the L{WebSite} can provide an encrypted root URL.
+        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to the
+        C{__jsmodule__} child of the URL returned by the I{rootURL}
+        method of the L{WebSite} it wraps.
         """
-        url = URL(scheme='https', netloc='example.org:123')
+        receivedRequests = []
+        root = URL(netloc='example.com', pathsegs=['a', 'b'])
         class FakeWebSite(object):
-            def encryptedRoot(self, hostname):
-                return url
+            def rootURL(self, request):
+                receivedRequests.append(request)
+                return root
+        request = FakeRequest()
         page = MantissaLivePage(FakeWebSite())
-        request = FakeRequest(isSecure=True)
         page.beforeRender(request)
-        self.assertEqual(page._moduleRoot, url.child('__jsmodule__'))
-
-
-    def test_beforeRenderSecureRequestNoEncryptedRoot(self):
-        """
-        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
-        the form::
-
-            /__jsmodule__/
-
-        when called with a context for a request which takes place over HTTPS
-        when the L{WebSite} cannot provide an encrypted root URL.
-
-        XXX Why isn't this just an error? -exarkun
-        """
-        class FakeWebSite(object):
-            def encryptedRoot(self, hostname):
-                return None
-        page = MantissaLivePage(FakeWebSite())
-        request = FakeRequest(isSecure=True)
-        page.beforeRender(request)
-        self.assertEqual(page._moduleRoot, URL.fromString('/__jsmodule__'))
-
-
-    def test_beforeRenderNotSecureRequestCleartextRoot(self):
-        """
-        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
-        the form::
-
-            http://website/cleartext/root/__jsmodule__/
-
-        when called with a context for a request which takes place over HTTP
-        when the L{WebSite} can provide a cleartext root URL.
-        """
-        url = URL(scheme='http', netloc='example.org:123')
-        class FakeWebSite(object):
-            def cleartextRoot(self, hostname):
-                return url
-        page = MantissaLivePage(FakeWebSite())
-        request = FakeRequest(isSecure=False)
-        page.beforeRender(request)
-        self.assertEqual(page._moduleRoot, url.child('__jsmodule__'))
-
-
-    def test_beforeRenderNotSecureRequestNoCleartextRoot(self):
-        """
-        L{MantissaLivePage.beforeRender} should set I{_moduleRoot} to an URL of
-        the form::
-
-            /__jsmodule__/
-
-        when called with a context for a request which takes place over HTTP
-        when the L{WebSite} cannot provide a cleartext root URL.
-
-        XXX Why isn't this just an error? -exarkun
-        """
-        class FakeWebSite(object):
-            def cleartextRoot(self, hostname):
-                return None
-        page = MantissaLivePage(FakeWebSite())
-        request = FakeRequest(isSecure=False)
-        page.beforeRender(request)
-        self.assertEqual(page._moduleRoot, URL.fromString('/__jsmodule__'))
+        self.assertEqual(receivedRequests, [request])
+        self.assertEqual(page._moduleRoot, root.child('__jsmodule__'))
 
 
     def test_getJSModuleURL(self):
