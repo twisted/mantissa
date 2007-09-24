@@ -4,7 +4,11 @@ from epsilon.structlike import record
 
 from zope.interface import implements
 
+from nevow import url
+from nevow.inevow import IQ
+
 from xmantissa.ixmantissa import ITab
+from xmantissa.fragmentutils import dictFillSlots
 
 class TabMisconfiguration(Exception):
     def __init__(self, info, tab):
@@ -181,3 +185,113 @@ def getSelectedTab(tabs, forURL):
 
         if forURL.startswith(linkURL):
             return t
+
+
+class NavMixin(object):
+    """
+    Mixin for renderables that want to include the mantissa navigation &
+    menubar in their output.  The way to do this is by including a render
+    directive that calls the I{menubar} renderer.
+
+    @type resolver: L{xmantissa.ixmantissa.ITemplateNameResolver}
+    @type translator: L{xmantissa.ixmantissa.IWebTranslator}
+    @type pageComponents: L{xmantissa.webapp._PageComponents}
+    @type username: C{unicode}
+    """
+    def __init__(self, resolver, translator, pageComponents, username):
+        self.resolver = resolver
+        self.translator = translator
+        self.pageComponents = pageComponents
+        self.username = username
+        self._navTemplate = translator.getDocFactory('navigation')
+        setTabURLs(pageComponents.navigation, translator)
+
+
+    def render_appNavigation(self, ctx, data):
+        """
+        Render some navigation tabs.
+        """
+        selectedTab = getSelectedTab(self.pageComponents.navigation,
+                                     url.URL.fromContext(ctx))
+
+        getp = IQ(self._navTemplate).onePattern
+
+        for tab in self.pageComponents.navigation:
+            if tab == selectedTab or selectedTab in tab.children:
+                p = 'selected-app-tab'
+                contentp = 'selected-tab-contents'
+            else:
+                p = 'app-tab'
+                contentp = 'tab-contents'
+
+            yield dictFillSlots(getp(p),
+                    {'name': tab.name,
+                     'tab-contents': getp(contentp).fillSlots('href', tab.linkURL)})
+
+
+    def render_navigation(self, ctx, data):
+        """
+        Render some navigation for the "start menu".
+        """
+        getp = IQ(self._navTemplate).onePattern
+
+        def fillSlots(tabs):
+            for tab in tabs:
+                if tab.children:
+                    kids = getp('subtabs').fillSlots('kids', fillSlots(tab.children))
+                else:
+                    kids = ''
+
+                yield dictFillSlots(getp('tab'), dict(href=tab.linkURL,
+                                                      name=tab.name,
+                                                      kids=kids))
+
+        return fillSlots(self.pageComponents.navigation)
+
+
+    def render_menubar(self, ctx, data):
+        """
+        Render the Mantissa menubar, by loading the "menubar" pattern from the
+        navigation template.
+        """
+        return IQ(self._navTemplate).onePattern('menubar')
+
+
+    def render_search(self, ctx, data):
+        """
+        Render some UI for performing searches, if we know about a search
+        aggregator.
+        """
+        searchAggregator = self.pageComponents.searchAggregator
+
+        if searchAggregator is None or not searchAggregator.providers():
+            return ''
+        return IQ(self.docFactory).patternGenerator("search")()
+
+
+    def render_searchFormAction(self, ctx, data):
+        """
+        Render the URL that the search form should post to, if we know about a
+        search aggregator.
+        """
+        searchAggregator = self.pageComponents.searchAggregator
+
+        if searchAggregator is None or not searchAggregator.providers():
+            action = ''
+        else:
+            action = self.webapp.linkTo(searchAggregator.storeID)
+        return ctx.tag.fillSlots('form-action', action)
+
+
+    def render_username(self, ctx, data):
+        """
+        Render the name of the user whose store is being viewed.
+        """
+        return ctx.tag[self.username]
+
+
+    def data_settingsLink(self, ctx, data):
+        """
+        Render the URL of the settings page.
+        """
+        return self.translator.linkTo(self.pageComponents.settings.storeID)

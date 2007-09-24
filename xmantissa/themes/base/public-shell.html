@@ -14,6 +14,7 @@
 
   <head nevow:render="head">
     <title nevow:render="title" />
+    <script type="text/javascript" src="/Mantissa/js/shell.js"></script>
   </head>
 
   <body>
@@ -21,10 +22,8 @@
     <table cellspacing="0" cellpadding="0" class="control-panel">
       <tr valign="top">
         <td class="header" nevow:render="header" />
-        <td class="logged-in-panel" nevow:render="username">
-          <span class="username"><nevow:slot name="username" /></span>
-          | <a href="/private/">Home</a>
-          | <a class="logout-link" href="/__logout__">Sign out</a>
+        <td>
+          <nevow:invisible nevow:render="menubar" />
         </td>
       </tr>
     </table>

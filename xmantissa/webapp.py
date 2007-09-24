@@ -15,13 +15,13 @@ from epsilon.structlike import record
 
 from axiom.item import Item, declareLegacyItem
 from axiom.attributes import text, integer, reference
-from axiom.userbase import getAccountNames
 from axiom import upgrade
 from axiom.dependency import dependsOn
+from axiom.userbase import getAccountNames
 
 from nevow.rend import Page, NotFound
 from nevow import livepage, athena
-from nevow.inevow import IRequest, IResource, IQ
+from nevow.inevow import IRequest, IResource
 from nevow import tags as t
 from nevow import url
 
@@ -29,9 +29,8 @@ from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite
 from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
-from xmantissa.webnav import getTabs, getSelectedTab, setTabURLs
+from xmantissa.webnav import getTabs, NavMixin
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
-from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.offering import getInstalledOfferings
 
 from xmantissa.ixmantissa import (INavigableFragment, INavigableElement,
@@ -60,16 +59,9 @@ class _WebIDFormatException(TypeError):
     An inbound web ID was not formatted as expected.
     """
 
-class NavMixin(object):
-
+class _ShellRenderingMixin(NavMixin):
     fragmentName = 'main'
-    username = None
     searchPattern = None
-
-    def __init__(self, webapp, pageComponents):
-        self.webapp = webapp
-        self.pageComponents = pageComponents
-        setTabURLs(self.pageComponents.navigation, webapp)
 
     def getDocFactory(self, fragmentName, default=None):
         """
@@ -87,71 +79,8 @@ class NavMixin(object):
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
 
-    def render_appNavigation(self, ctx, data):
-        selectedTab = getSelectedTab(self.pageComponents.navigation,
-                                     url.URL.fromContext(ctx))
-
-        getp = IQ(self.docFactory).onePattern
-
-        for tab in self.pageComponents.navigation:
-            if tab == selectedTab or selectedTab in tab.children:
-                p = 'selected-app-tab'
-                contentp = 'selected-tab-contents'
-            else:
-                p = 'app-tab'
-                contentp = 'tab-contents'
-
-            yield dictFillSlots(getp(p),
-                    {'name': tab.name,
-                     'tab-contents': getp(contentp).fillSlots('href', tab.linkURL)})
-
-    def render_navigation(self, ctx, data):
-        getp = IQ(self.docFactory).onePattern
-
-        def fillSlots(tabs):
-            for tab in tabs:
-                if tab.children:
-                    kids = getp('subtabs').fillSlots('kids', fillSlots(tab.children))
-                else:
-                    kids = ''
-
-                yield dictFillSlots(getp('tab'), dict(href=tab.linkURL,
-                                                      name=tab.name,
-                                                      kids=kids))
-
-        return fillSlots(self.pageComponents.navigation)
-
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
-
-    def render_search(self, ctx, data):
-        searchAggregator = self.pageComponents.searchAggregator
-
-        if searchAggregator is None or not searchAggregator.providers():
-            return ''
-        return IQ(self.docFactory).patternGenerator("search")()
-
-    def render_searchFormAction(self, ctx, data):
-        searchAggregator = self.pageComponents.searchAggregator
-
-        if searchAggregator is None or not searchAggregator.providers():
-            action = ''
-        else:
-            action = self.webapp.linkTo(searchAggregator.storeID)
-
-        return ctx.tag.fillSlots('form-action', action)
-
-    def render_username(self, ctx, data):
-        if self.username is None:
-            for (user, domain) in getAccountNames(self.webapp.store):
-                self.username = '%s@%s' % (user, domain)
-                break
-            else:
-                self.username = 'nobody@noplace'
-        return ctx.tag[self.username]
-
-    def data_settingsLink(self, ctx, data):
-        return self.webapp.linkTo(self.pageComponents.settings.storeID)
 
     def render_head(self, ctx, data):
         return ctx.tag
@@ -229,17 +158,19 @@ class FragmentWrapperMixin:
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-class GenericNavigationPage(FragmentWrapperMixin, Page, NavMixin):
-    def __init__(self, webapp, fragment, pageComponents):
+class GenericNavigationPage(FragmentWrapperMixin, Page, _ShellRenderingMixin):
+    def __init__(self, webapp, fragment, pageComponents, username):
+        self.webapp = webapp
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, pageComponents)
+        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
 
-class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixin):
-    def __init__(self, webapp, fragment, pageComponents):
+class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, _ShellRenderingMixin):
+    def __init__(self, webapp, fragment, pageComponents, username):
+        self.webapp = webapp
         livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, pageComponents)
+        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
     # XXX TODO: support live nav, live fragments somehow
@@ -262,12 +193,12 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, NavMixi
 
 class GenericNavigationAthenaPage(MantissaLivePage,
                                   FragmentWrapperMixin,
-                                  NavMixin):
+                                  _ShellRenderingMixin):
     """
     This class provides the generic navigation elements for surrounding all
     pages navigated under the /private/ namespace.
     """
-    def __init__(self, webapp, fragment, pageComponents):
+    def __init__(self, webapp, fragment, pageComponents, username):
         """
         Top-level container for Mantissa application views.
 
@@ -282,6 +213,7 @@ class GenericNavigationAthenaPage(MantissaLivePage,
 
         @see: L{PrivateApplication.preferredTheme}
         """
+        self.webapp = webapp
         userStore = webapp.store
         siteStore = userStore.parent
 
@@ -291,7 +223,7 @@ class GenericNavigationAthenaPage(MantissaLivePage,
             fragment,
             jsModuleRoot=None,
             docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, pageComponents)
+        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
         self.unsupportedBrowserLoader = (webapp
                                          .getDocFactory("athena-unsupported"))
@@ -333,7 +265,7 @@ class GenericNavigationAthenaPage(MantissaLivePage,
 
 
 
-class PrivateRootPage(Page, NavMixin):
+class PrivateRootPage(Page, _ShellRenderingMixin):
     """
     L{PrivateRootPage} is the resource present for logged-in users at
     "/private", providing a direct interface to the objects located in the
@@ -343,10 +275,10 @@ class PrivateRootPage(Page, NavMixin):
     """
     addSlash = True
 
-    def __init__(self, webapp, pageComponents):
+    def __init__(self, webapp, pageComponents, username):
         self.webapp = webapp
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        NavMixin.__init__(self, webapp, pageComponents)
+        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
 
     def child_(self, ctx):
         navigation = self.pageComponents.navigation
@@ -392,7 +324,7 @@ class PrivateRootPage(Page, NavMixin):
         else:
             pageClass = {False: GenericNavigationPage,
                          True: GenericNavigationLivePage}.get(fragment.live)
-        return pageClass(self.webapp, fragment, self.pageComponents)
+        return pageClass(self.webapp, fragment, self.pageComponents, self.username)
 
 
 class _PageComponents(record('navigation searchAggregator staticShellContent settings themes')):
@@ -473,8 +405,20 @@ class PrivateApplication(Item, PrefixURLMixin):
                                self.store.findFirst(PreferenceAggregator),
                                getInstalledThemes(self.store.parent))
 
+
+    def _getUsername(self):
+        """
+        Return a localpart@domain style string naming the owner of our store.
+
+        @rtype: C{unicode}
+        """
+        for (l, d) in getAccountNames(self.store):
+            return l + u'@' + d
+
+
     def createResource(self):
-        return PrivateRootPage(self, self.getPageComponents())
+        return PrivateRootPage(self, self.getPageComponents(), self._getUsername())
+
 
     # ISiteRootPlugin
     def resourceFactory(self, segments):
