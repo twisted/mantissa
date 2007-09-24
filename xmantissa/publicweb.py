@@ -10,7 +10,7 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.python import util
 
-from nevow import rend, tags, inevow, static, loaders
+from nevow import rend, tags, inevow, static
 from nevow.inevow import IRequest, IResource
 from nevow.url import URL
 
@@ -19,7 +19,6 @@ from axiom import item, attributes, upgrade, userbase
 from xmantissa import ixmantissa, website, offering
 from xmantissa.webtheme import getLoader, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
-from xmantissa.webnav import NavMixin
 
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
@@ -308,9 +307,10 @@ class PublicPageMixin(object):
         return ""
 
 
-    def render_menubar(self, ctx, data):
+    def render_search(self, ctx, data):
         """
-        Don't include the menubar on public pages by default.
+        Return the empty string; do not provide the public site with any search
+        functionality.
         """
         return ""
 
@@ -321,6 +321,38 @@ class PublicPageMixin(object):
         page.
         """
         return ctx.tag[self.title]
+
+
+    def render_username(self, ctx, data):
+        """
+        If this is being viewed by a logged in user, fill the 'username' slot with
+        their username.
+
+        Otherwise, discover available public signup mechanisms and fill the
+        'signups' slot with a list of them.
+        """
+        # there is a circular import here which should probably be avoidable,
+        # since we don't actually need signup links on the signup page.  on the
+        # other hand, maybe we want to eventually put those there for
+        # consistency.  for now, this import is easiest, and although it's a
+        # "friend" API, which I dislike, it doesn't seem to cause any real
+        # problems...  -glyph
+        from xmantissa.signup import _getPublicSignupInfo
+
+        if self.username is not None:
+            return ctx.tag.fillSlots('username', self.username)
+
+        IQ = inevow.IQ(self.docFactory)
+        signupPattern = IQ.patternGenerator('signup')
+        loginLinks = IQ.onePattern('login-links')
+
+        signups = []
+        for (prompt, url) in _getPublicSignupInfo(self.store):
+            signups.append(signupPattern.fillSlots(
+                    'prompt', prompt).fillSlots(
+                    'url', url))
+
+        return ctx.tag.clear()[loginLinks.fillSlots('signups', signups)]
 
 
     def render_header(self, ctx, data):
@@ -764,41 +796,3 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
             res = super(PublicAthenaLivePage, self).locateChild(ctx, segments)
 
         return res
-
-
-
-# this exists so that PublicNavAthenaLivePage doesn't have to inherit from
-# NavMixin.  PublicNavAthenaLivePage supports the unauthenticated user case,
-# and so may not be able to provide the NavMixin constructor with the objects
-# it needs
-class _StandaloneNavFragment(rend.Fragment, NavMixin):
-    """
-    Trivial extension of L{NavMixin} which supplies a docFactory which will
-    include the Mantissa menubar in its output.
-    """
-    docFactory = loaders.stan(tags.invisible(render=tags.directive('menubar')))
-
-    def __init__(self, resolver, translator, pageComponents, username):
-        rend.Fragment.__init__(self)
-        NavMixin.__init__(self, resolver, translator, pageComponents, username)
-
-
-
-class PublicNavAthenaLivePage(PublicAthenaLivePage):
-    """
-    A L{PublicAthenaLivePage} which optionally includes a menubar and
-    navigation if the viewer is authenticated.
-    """
-    def render_menubar(self, ctx, data):
-        """
-        Render the Mantissa menubar if the user is authenticated, by deferring
-        to L{_StandaloneNavFragment}.
-        """
-        if self.username is None:
-            return ''
-        ls = self.store.findUnique(userbase.LoginSystem)
-        substore = ls.accountByAddress(*self.username.split('@')).avatars.open()
-        from xmantissa.webapp import PrivateApplication
-        webapp = substore.findUnique(PrivateApplication)
-        return _StandaloneNavFragment(
-            webapp, webapp, webapp.getPageComponents(), self.username)

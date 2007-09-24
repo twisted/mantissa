@@ -295,8 +295,8 @@ class SharingIndex(object):
             if fragDocFactory is not None:
                 fragment.docFactory = fragDocFactory
         # inner import due to websharing->publicweb->website circularity
-        from xmantissa.publicweb import PublicNavAthenaLivePage
-        return PublicNavAthenaLivePage(
+        from xmantissa.publicweb import PublicAthenaLivePage
+        return PublicAthenaLivePage(
             self.userStore.parent, fragment, forUser=self.avatarName)
 
 
