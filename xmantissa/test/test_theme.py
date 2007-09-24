@@ -442,7 +442,8 @@ class AthenaUnsupported(TestCase):
         p = GenericNavigationAthenaPage(stp,
                                         LiveFragment(),
                                         _PageComponents([], None, None,
-                                                        None, None))
+                                                        None, None),
+                                        None)
         self.assertEqual(p.renderUnsupported(None),
                          flatten(CUSTOM_MSG))
 
@@ -462,7 +463,8 @@ class AthenaUnsupported(TestCase):
         p = GenericNavigationAthenaPage(privapp,
                                         LiveFragment(),
                                         _PageComponents([], None, None,
-                                                        None, None))
+                                                        None, None),
+                                        None)
         self.assertEqual(p.renderUnsupported(None).replace('\n ', ''),
                          BASE_MSG)
 
