@@ -1,3 +1,4 @@
+
 from zope.interface import implements
 
 from twisted.trial.unittest import TestCase
@@ -7,8 +8,6 @@ from axiom.item import Item
 from axiom.attributes import integer
 from axiom.substore import SubStore
 from axiom.dependency import installOn
-from axiom.plugins.userbasecmd import Create
-from axiom.plugins.mantissacmd import Mantissa
 
 from nevow.athena import LiveFragment
 from nevow import rend
@@ -18,6 +17,7 @@ from nevow.inevow import IRequest, IResource
 
 from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa import website, webapp
+from xmantissa.webtheme import getAllThemes
 
 
 class FakeResourceItem(Item):
@@ -121,8 +121,7 @@ class GenericNavigationAthenaPageTests(TestCase):
         self.navpage = webapp.GenericNavigationAthenaPage(
             privapp,
             TestFragment(),
-            privapp.getPageComponents(),
-            None)
+            privapp.getPageComponents())
 
 
     def test_childLookup(self):
@@ -153,30 +152,3 @@ class GenericNavigationAthenaPageTests(TestCase):
         self.navpage.beforeRender(ctx)
         urlObj = self.navpage.getJSModuleURL('Mantissa')
         self.assertEqual(urlObj.pathList()[0], '__jsmodule__')
-
-
-
-class PrivateApplicationTestCase(TestCase):
-    """
-    Tests for L{webapp.PrivateApplication}.
-    """
-    def setUp(self):
-        self.dbdir = self.mktemp()
-        self.siteStore = Store(self.dbdir)
-        Mantissa().installSite(self.siteStore, '/')
-
-        self.userAccount = Create().addAccount(
-            self.siteStore, u'testuser', u'example.com', u'password')
-        self.userStore = self.userAccount.avatars.open()
-
-        self.webapp = webapp.PrivateApplication(store=self.userStore)
-        installOn(self.webapp, self.userStore)
-
-
-    def test_createResourceUsername(self):
-        """
-        L{webapp.PrivateApplication.createResource} should figure out the
-        right username and pass it to L{webapp.PrivateRootPage}.
-        """
-        rootPage = self.webapp.createResource()
-        self.assertEqual(rootPage.username, u'testuser@example.com')
