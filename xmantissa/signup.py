@@ -990,6 +990,8 @@ class Multifactor(Item):
                                       sort=getattr(_DelegatedBenefactor.order, order)):
             yield deleg.benefactor
 
+
+
 class _SignupTracker(Item):
     """
     Signup-system private Item used to track which signup mechanisms

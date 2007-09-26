@@ -1,9 +1,16 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns:nevow="http://nevow.com/ns/nevow/0.1">
 
-  <nevow:invisible nevow:pattern="login-links">
+  <div class="mantissa-menubar-links" nevow:pattern="login-links">
     <nevow:slot name="signups" /> <a href="/login/private">Sign in</a>
-  </nevow:invisible>
+  </div>
+
+  <div class="mantissa-menubar-links" nevow:pattern="logged-in">
+    <span class="username"><nevow:slot name="username" /></span>
+    | <a href="/private/">Home</a>
+    | <a class="logout-link" href="/__logout__">Sign out</a>
+  </div>
+
 
   <nevow:invisible nevow:pattern="signup">
     <a>
@@ -14,6 +21,7 @@
 
   <head nevow:render="head">
     <title nevow:render="title" />
+    <script type="text/javascript" src="/Mantissa/js/shell.js"></script>
   </head>
 
   <body>
@@ -21,10 +29,8 @@
     <table cellspacing="0" cellpadding="0" class="control-panel">
       <tr valign="top">
         <td class="header" nevow:render="header" />
-        <td class="logged-in-panel" nevow:render="username">
-          <span class="username"><nevow:slot name="username" /></span>
-          | <a href="/private/">Home</a>
-          | <a class="logout-link" href="/__logout__">Sign out</a>
+        <td>
+          <nevow:invisible nevow:render="menubar" />
         </td>
       </tr>
     </table>

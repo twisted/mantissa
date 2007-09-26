@@ -6,9 +6,12 @@ from axiom.store import Store
 from axiom.dependency import installOn
 
 from nevow.url import URL
+from nevow import loaders, tags
 
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
+
+
 
 class FakeNavigator1(object):
     def getTabs(self):
@@ -17,6 +20,8 @@ class FakeNavigator1(object):
                             webnav.Tab('Mega', 'meg', 0.5)],
                            False)]
 
+
+
 class FakeNavigator2(object):
     def getTabs(self):
         return [webnav.Tab('Hello', 5678, 1.,
@@ -24,8 +29,9 @@ class FakeNavigator2(object):
                             webnav.Tab('Hyper', 'hyp', 0.25)]),
                 webnav.Tab('Goodbye', None, 0.9)]
 
-class NavConfig(unittest.TestCase):
 
+
+class NavConfig(unittest.TestCase):
     def testTabMerge(self):
         nav = webnav.getTabs([FakeNavigator1(),
                               FakeNavigator2()])
@@ -40,6 +46,7 @@ class NavConfig(unittest.TestCase):
 
         kids = [x.name for x in nav[0].children]
         self.assertEquals(kids, ['Super', 'Ultra', 'Mega', 'Hyper'])
+
 
     def testSetTabURLs(self):
         """
@@ -62,6 +69,7 @@ class NavConfig(unittest.TestCase):
         self.assertEqual(tabs[0].linkURL, privapp.linkTo(privapp.storeID))
         self.assertEqual(tabs[1].linkURL, '/foo/bar')
 
+
     def testGetSelectedTabExactMatch(self):
         """
         Check that L{webnav.getSelectedTab} returns the tab whose C{linkURL}
@@ -77,6 +85,7 @@ class NavConfig(unittest.TestCase):
 
         selected = webnav.getSelectedTab(tabs, URL.fromString('/XYZ'))
         self.failIf(selected)
+
 
     def testGetSelectedTabPrefixMatch(self):
         """
@@ -103,3 +112,35 @@ class NavConfig(unittest.TestCase):
         t = webnav.Tab('thing4', None, 0, linkURL='/a/b/c/d/e')
         tabs.append(t)
         assertSelected(t)
+
+
+
+class NaxMixinTestCase(unittest.TestCase):
+    """
+    Tests for L{webnav.NavMixin}.
+    """
+    def setUp(self):
+        store = Store()
+        store.parent = store
+
+        privapp = PrivateApplication(store=store)
+        installOn(privapp, store)
+
+        self.navMixin = webnav.NavMixin(
+            privapp, privapp, privapp.getPageComponents(), u'user@host')
+
+
+    def test_searchRenderer(self):
+        """
+        L{webnav.NavMixin.render_search} should return an instance of the
+        I{search} pattern from the navigation template, when there is a search
+        aggregator with at least one provider.
+        """
+        class _MockSearchAggregator(object):
+            def providers(self):
+                return ['a provider']
+        self.navMixin.pageComponents.searchAggregator = _MockSearchAggregator()
+        self.navMixin._navTemplate = loaders.stan(tags.div[
+            tags.div(attribute='test_searchRenderer', pattern='search')])
+        result = self.navMixin.render_search(None, None)
+        self.assertEqual(result.attributes['attribute'], 'test_searchRenderer')

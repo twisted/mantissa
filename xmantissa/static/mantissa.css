@@ -2,6 +2,11 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+.mantissa-menubar-links {
+    float: right;
+    margin-right: 1px;
+}
+
 .forgot-password:visited, .forgot-password:link {
     font-weight: bold;
     color: #B894DB;
