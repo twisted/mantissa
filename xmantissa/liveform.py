@@ -1,3 +1,4 @@
+
 # -*- test-case-name: xmantissa.test.test_liveform -*-
 
 """
@@ -22,6 +23,11 @@ from nevow.loaders import stan
 from xmantissa import webtheme
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
 from xmantissa.ixmantissa import IParameterView
+
+
+_LIVEFORM_JS_CLASS = u'Mantissa.LiveForm.FormWidget'
+_SUBFORM_JS_CLASS = u'Mantissa.LiveForm.SubFormWidget'
+
 
 
 class InputError(athena.LivePageError):
@@ -83,11 +89,72 @@ class Parameter(record('name type coercer label description default '
 
 
 
-class RepeatableFormParameter(record('name parameters defaults viewFactory',
-                                     defaults=(), viewFactory=IParameterView)):
+class CreateObject(record('values setter')):
+    """
+    Represent one object which should be created as a result of a submission to
+    a L{RepeatableFormParameter}.
+
+    @ivar values: The coerced data from the submission which should be used to
+        create this object.
+
+    @ivar setter: A one-argument callable which must be called with the created
+        object once it is created.  Until this is called, the
+        L{RepeatableFormParameter} will be in a state where it
+        will not handle submissions correctly. (XXX - This could be hooked up
+        to a Deferred, and L{RepeatableFormParameter}'s C{coercer}
+        method could gatherResults() on all of these, delaying the success of
+        the submission until all created objects have been set).
+    """
+
+
+
+class EditObject(record('object values')):
+    """
+    Represent changes to be made to an object as the result of the submission
+    of a L{RepeatableFormParameter}.
+
+    @ivar object: The object which is to be edited.  This is one of the
+        elements of the C{modelObjects} sequence passed to
+        L{RepeatableFormParameter.__init__} or it is one of the
+        objects subsequently added to the L{RepeatableFormParameter} by
+        a call to L{CreateObject.setter}.
+
+    @ivar values: The new values for this object from the submission.
+    """
+    def __cmp__(self, other):
+        return cmp((self.object, self.values), (other.object, other.values))
+
+
+
+class RepeatableSubmission(record('create edit delete')):
+    """
+    Represent the submission of a L{RepeatableFormParameter}.
+
+    @ivar create: A list of L{CreateObject} instances, one for each new object
+        to be created as a result of the submission.
+
+    @ivar edit: A list of L{EditObject} instances, one for each existing object
+        modified by the submission.
+
+    @ivar delete: A list of model objects which should be deleted as a result
+        of the submission.
+    """
+
+
+
+class RepeatableFormParameter(record('name parameters defaults modelObjects viewFactory',
+                                     defaults=(), modelObjects=(), viewFactory=IParameterView)):
     """
     A parameter useful for describing sections of forms that can appear an
     arbitrary number of times inside their parent form.
+
+    Parameters of this type will be coerced into 3-tuples of lists.  The first
+    list will contain the coerced repetitions which were created by the form
+    submission.  The second will contain 2-tuples, the first element being an
+    entry from L{defaults} which was changed, and the second element being a
+    dictionary of the new values.  The third list will contain elements from
+    L{defaults} which were deleted.
+
 
     @type name: C{unicode}
     @ivar name: A name uniquely identifying this parameter within a
@@ -97,6 +164,14 @@ class RepeatableFormParameter(record('name parameters defaults viewFactory',
     @ivar parameters: sequence of L{Parameter} instances, describing the
     contents of the repeatable form.
 
+    @type defaults: C{list}
+    @ivar defaults: A sequence of dictionaries mapping names of L{parameters}
+        to values.
+
+    @type modelObjects: C{list}
+    @ivar modelObjects: A sequence of opaque objects, one for each item in
+    C{defaults}.
+
     @type viewFactory: callable
     @ivar viewFactory: A two-argument callable which returns an
         L{IParameterView} provider which will be used as the view for this
@@ -104,18 +179,24 @@ class RepeatableFormParameter(record('name parameters defaults viewFactory',
         parameter as the first argument and a default value as the second
         argument.  The default should be returned if no view can be provided
         for the given parameter.
-
-    @type defaults: C{list}
-    @ivar defaults: A sequence of dictionaries mapping names of L{parameters}
-        to values.
     """
     _parameterIsCompact = False
     type = None
+
+    _IDENTIFIER_KEY = u'__repeated-liveform-id__'
+    _NO_OBJECT_MARKER = object()
 
     def __init__(self, *a, **k):
         super(RepeatableFormParameter, self).__init__(*a, **k)
         self.liveFormFactory = LiveForm
         self.repeatedLiveFormWrapper = RepeatedLiveFormWrapper
+        self._idsToObjects = {}
+        self._lastValues = {}
+        self._defaultStuff = []
+        for (defaultObject, defaultValues) in zip(self.modelObjects, self.defaults):
+            identifier = self._idForObject(defaultObject)
+            self._lastValues[identifier] = defaultValues
+            self._defaultStuff.append((defaultValues, identifier))
 
 
     def compact(self):
@@ -124,50 +205,6 @@ class RepeatableFormParameter(record('name parameters defaults viewFactory',
         view.
         """
         self._parameterIsCompact = True
-
-
-    def coercer(self, dataSets):
-        """
-        Make a new liveform with our parameters, and get it to coerce our data
-        for us.
-        """
-        # make a liveform because there is some logic in _coerced
-        form = LiveForm(lambda **k: None, self.parameters)
-        return [form._coerced(dataSet) for dataSet in dataSets]
-
-
-    def getInitialLiveForms(self):
-        """
-        Make and return as many L{LiveForm} instances as are necessary to hold
-        our default values.
-
-        @return: some subforms.
-        @rtype: C{list} of L{LiveForm}
-        """
-        liveForms = []
-        if self.defaults:
-            for values in self.defaults:
-                # we'll fail here if there is anything besides Parameter instances
-                # in self.parameters, but who cares
-                parameters = [Parameter(
-                                p.name,
-                                p.type,
-                                p.coercer,
-                                p.label,
-                                p.description,
-                                values[p.name],
-                                p.viewFactory) for p in self.parameters]
-                liveForm = self.liveFormFactory(lambda **k: None, parameters)
-                liveForm = self._prepareSubForm(liveForm)
-                liveForm = self.repeatedLiveFormWrapper(liveForm)
-                liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
-                liveForms.append(liveForm)
-        else:
-            # then only one, for the first new thing
-            liveForm = self.liveFormFactory(lambda **k: None, self.parameters)
-            liveForm = self._prepareSubForm(liveForm)
-            liveForms.append(liveForm)
-        return liveForms
 
 
     def _prepareSubForm(self, liveForm):
@@ -189,6 +226,92 @@ class RepeatableFormParameter(record('name parameters defaults viewFactory',
         return liveForm
 
 
+    def _cloneDefaultedParameter(self, original, default):
+        """
+        Make a copy of the L{Parameter} C{original}, supplying C{default} as
+        the default value.
+
+        @type original: L{Parameter}
+        @param original: A liveform parameter.
+
+        @type default: same as L{Parameter.default}
+        @param default: An alternate default value for the parameter.
+
+        @rtype: L{Parameter}
+        @return: A new parameter.
+        """
+        return Parameter(
+            original.name,
+            original.type,
+            original.coercer,
+            original.label,
+            original.description,
+            default,
+            original.viewFactory)
+
+
+    _counter = 0
+    def _allocateID(self):
+        """
+        Allocate an internal identifier.
+
+        @rtype: C{int}
+        """
+        self._counter += 1
+        return self._counter
+
+
+    def _idForObject(self, defaultObject):
+        """
+        Generate an opaque identifier which can be used to talk about
+        C{defaultObject}.
+
+        @rtype: C{int}
+        """
+        identifier = self._allocateID()
+        self._idsToObjects[identifier] = defaultObject
+        return identifier
+
+
+    def _objectFromID(self, identifier):
+        """
+        Find the object associated with the identifier C{identifier}.
+
+        @type identifier: C{int}
+        """
+        return self._idsToObjects[identifier]
+
+
+    def _newIdentifier(self):
+        """
+        Make a new identifier for an as-yet uncreated model object.
+
+        @rtype: C{int}
+        """
+        id = self._allocateID()
+        self._idsToObjects[id] = self._NO_OBJECT_MARKER
+        self._lastValues[id] = None
+        return id
+
+
+    def getInitialLiveForms(self):
+        """
+        Make and return as many L{LiveForm} instances as are necessary to hold
+        our default values.
+
+        @return: some subforms.
+        @rtype: C{list} of L{LiveForm}
+        """
+        liveForms = []
+        if self.defaults:
+            for values in self._defaultLiveFormData():
+                liveForms.append(self._makeDefaultLiveForm(values))
+        else:
+            # or only one, for the first new thing
+            liveForms.append(self.asLiveForm())
+        return liveForms
+
+
     def asLiveForm(self):
         """
         Make and return a form, using L{parameters}.
@@ -196,11 +319,110 @@ class RepeatableFormParameter(record('name parameters defaults viewFactory',
         @return: a sub form.
         @rtype: L{LiveForm}
         """
-        liveForm = self.liveFormFactory(lambda **k: None, self.parameters)
+        return self._makeALiveForm(self.parameters, self._newIdentifier())
+
+
+    def _makeALiveForm(self, parameters, identifier):
+        """
+        Make a live form with the parameters C{parameters}, which will be used
+        to edit the values/model object with identifier C{identifier}.
+
+        @type parameters: C{list}
+        @param parameters: list of L{Parameter} instances.
+
+        @type identifier: C{int}
+
+        @rtype: L{repeatedLiveFormWrapper}
+        """
+        liveForm = self.liveFormFactory(lambda **k: None, parameters, self.name)
         liveForm = self._prepareSubForm(liveForm)
-        liveForm = self.repeatedLiveFormWrapper(liveForm)
+        liveForm = self.repeatedLiveFormWrapper(liveForm, identifier)
         liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
         return liveForm
+
+
+    def _makeDefaultLiveForm(self, (defaults, identifier)):
+        """
+        Make a liveform suitable for editing the set of default values C{defaults}.
+
+        @type defaults: C{dict}
+        @param defaults: Mapping of parameter names to values.
+
+        @rtype: L{repeatedLiveFormWrapper}
+        """
+        parameters = [self._cloneDefaultedParameter(p, defaults[p.name])
+                        for p in self.parameters]
+        return self._makeALiveForm(parameters, identifier)
+
+
+    def _defaultLiveFormData(self):
+        """
+        Override the base implementation to return L{_defaultStuff}, which
+        also includes an identifier for each set of default values.
+        """
+        return self._defaultStuff
+
+
+    def _coerceSingleRepetition(self, dataSet):
+        """
+        Make a new liveform with our parameters, and get it to coerce our data
+        for us.
+        """
+        # make a liveform because there is some logic in _coerced
+        form = LiveForm(lambda **k: None, self.parameters, self.name)
+        return form._coerced(dataSet)
+
+
+    def coercer(self, dataSets):
+        """
+        Coerce all of the repetitions and sort them into creations, edits and
+        deletions.
+
+        @rtype: L{RepeatableSubmission}
+        @return: An object describing all of the creations, modifications, and
+            deletions represented by C{dataSets}.
+        """
+        # Xxx - This does a slightly complex (hey, it's like 20 lines, how
+        # complex could it really be?) thing to figure out which elements are
+        # newly created, which elements were edited, and which elements no
+        # longer exist.  It might be simpler if the client kept track of this
+        # and passed a three-tuple of lists (or whatever - some separate data
+        # structures) to the server, so everything would be all figured out
+        # already.  This would require the client
+        # (Mantissa.LiveForm.RepeatableForm) to be more aware of what events
+        # the user is triggering in the browser so that it could keep state for
+        # adds/deletes/edits separately from DOM and widget objects.  This
+        # would remove the need for RepeatedLiveFormWrapper.
+        def makeSetter(identifier, values):
+            def setter(defaultObject):
+                self._idsToObjects[identifier] = defaultObject
+                self._lastValues[identifier] = values
+            return setter
+
+        created = []
+        edited = []
+
+        receivedIdentifiers = []
+        for dataSet in dataSets:
+            identifier = dataSet.pop(self._IDENTIFIER_KEY)
+            receivedIdentifiers.append(identifier)
+            defaultObject = self._objectFromID(identifier)
+            dataSet = self._coerceSingleRepetition(dataSet)
+            if defaultObject is self._NO_OBJECT_MARKER:
+                created.append(
+                    CreateObject(dataSet, makeSetter(identifier, dataSet)))
+            else:
+                lastValues = self._lastValues[identifier]
+                if dataSet != lastValues:
+                    edited.append(EditObject(defaultObject, dataSet))
+                    self._lastValues[identifier] = dataSet
+        deleted = []
+        for identifier in set(self._idsToObjects) - set(receivedIdentifiers):
+            existing = self._objectFromID(identifier)
+            if existing is not self._NO_OBJECT_MARKER:
+                deleted.append(existing)
+            self._idsToObjects.pop(identifier)
+        return RepeatableSubmission(created, edited, deleted)
 
 
 
@@ -364,7 +586,7 @@ def _legacySpecialCases(form, patterns, parameter):
 
 class _LiveFormMixin(record('callable parameters description',
                             description=None)):
-    jsClass = u'Mantissa.LiveForm.FormWidget'
+    jsClass = _LIVEFORM_JS_CLASS
 
     subFormName = None
 
@@ -411,6 +633,7 @@ class _LiveFormMixin(record('callable parameters description',
         @rtype: L{LiveForm}
         """
         self.subFormName = name
+        self.jsClass = _SUBFORM_JS_CLASS
         return self
 
 
@@ -628,20 +851,24 @@ class RepeatedLiveFormWrapper(athena.LiveElement):
 
     @ivar liveForm: The repeated liveform.
     @type liveForm: L{LiveForm}
-    """
-    jsClass = u'Mantissa.LiveForm.RepeatedLiveFormWrapper'
-    fragmentName = 'repeated-liveform'
 
-    def __init__(self, liveForm):
-        self.liveForm = liveForm
+    @ivar identifier: An integer identifying this repetition.
+    @type identifier: C{int}
+    """
+    fragmentName = 'repeated-liveform'
+    jsClass = u'Mantissa.LiveForm.StateTrackingRepeatedLiveFormWrapper'
+
+    def __init__(self, liveForm, identifier):
         athena.LiveElement.__init__(self)
+        self.liveForm = liveForm
+        self.identifier = identifier
 
 
     def getInitialArguments(self):
         """
-        Include the name of the form we're wrapping.
+        Include the name of the form we're wrapping, and our original values.
         """
-        return (self.liveForm.subFormName.decode('utf-8'),)
+        return (self.liveForm.subFormName.decode('utf-8'), self.identifier)
 
 
     def realForm(self, req, tag):
@@ -862,6 +1089,3 @@ class RepeatableFormParameterView(athena.LiveElement):
         self.docFactory = stan(tag(render=tags.directive('liveElement')))
 
 registerAdapter(RepeatableFormParameterView, RepeatableFormParameter, IParameterView)
-
-
-

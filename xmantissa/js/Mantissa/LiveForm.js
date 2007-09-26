@@ -33,6 +33,32 @@ Mantissa.LiveForm.RepeatedLiveFormWrapper.methods(
      */
     function gatherInputs(self) {
         return self.childWidgets[0].gatherInputs();
+    },
+
+    /**
+     * Defer to our child liveform.
+     */
+    function submitSuccess(self, result) {
+        self.childWidgets[0].submitSuccess(result);
+    });
+
+
+Mantissa.LiveForm.StateTrackingRepeatedLiveFormWrapper = Mantissa.LiveForm.RepeatedLiveFormWrapper.subclass(
+    'Mantissa.LiveForm.RepeatedLiveFormWrapper');
+Mantissa.LiveForm.StateTrackingRepeatedLiveFormWrapper.methods(
+    function __init__(self, node, formName, identifier) {
+        Mantissa.LiveForm.StateTrackingRepeatedLiveFormWrapper.upcall(
+            self, '__init__', node, formName);
+        self.identifier = identifier;
+    },
+
+    /**
+     * Defer to our child liveform.
+     */
+    function gatherInputs(self) {
+        var result = self.childWidgets[0].gatherInputs();
+        result['__repeated-liveform-id__'] = self.identifier;
+        return result;
     });
 
 Mantissa.LiveForm.RepeatableForm = Nevow.Athena.Widget.subclass(
@@ -45,6 +71,17 @@ Mantissa.LiveForm.RepeatableForm.methods(
     function __init__(self, node, formName) {
         Mantissa.LiveForm.RepeatableForm.upcall(self, '__init__', node);
         self.formName = formName;
+    },
+
+    /**
+     * Override this hook to tell our children
+     * (L{Mantissa.LiveForm.RepeatedLiveFormWrapper}s) that they have been
+     * submitted successfully.
+     */
+    function submitSuccess(self, result) {
+        for(var i = 0; i < self.childWidgets.length; i++) {
+            self.childWidgets[i].submitSuccess(result);
+        }
     },
 
     /**
@@ -221,160 +258,73 @@ Mantissa.LiveForm.MessageFader.methods(
     });
 
 
-Mantissa.LiveForm.FormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.FormWidget');
+
+Mantissa.LiveForm.SubFormWidget = Nevow.Athena.Widget.subclass('Mantissa.LiveForm.SubFormWidget');
 /**
- * Represent a form which can be submitted via Athena remote method calls.
+ * Represent a distinct part of a larger form.
  */
-Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.Platform.DOM_DESCEND;
-Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.Platform.DOM_CONTINUE;
-Mantissa.LiveForm.FormWidget.methods(
-    function __init__(self, node, formName) {
-        Mantissa.LiveForm.FormWidget.upcall(self, '__init__', node);
-        self.formName = formName;
-    },
-
-    function submit(self) {
-        var d = self.callRemote('invoke', self.gatherInputs());
-
-        self.showProgressMessage();
-
-        d.addCallback(function(result) {
-            return self.submitSuccess(result);
-        });
-        d.addErrback(function(err) {
-            return self.submitFailure(err);
-        });
-        return d;
-    },
-
+Mantissa.LiveForm.SubFormWidget.methods(
     /**
-     * Try to find the first node with class=C{className}, and display it as a
-     * block element if we find it
-     */
-    function _showMessage(self, className) {
-        var m = self.nodeByAttribute("class", className, null);
-        if(m != null) {
-            m.style.display = "block";
-        }
-    },
-
-    /**
-     * Try to find the first node with class=C{className}, and hide it if we
-     * find it
-     */
-    function _hideMessage(self, className) {
-        var m = self.nodeByAttribute("class", className, null);
-        if(m != null) {
-            m.style.display = "none";
-        }
-    },
-
-    function showProgressMessage(self) {
-        self._showMessage("progress-message");
-    },
-
-    function hideProgressMessage(self) {
-        self._hideMessage("progress-message");
-    },
-
-    function showSuccessMessage(self) {
-        self._showMessage("success-message");
-    },
-
-    function hideSuccessMessage(self) {
-        self._hideMessage("success-message");
-    },
-
-    /**
-     * If C{self.node} is a form element, reset its inputs to their default values.
+     * Go through our child widgets and find things that look like
+     * L{Mantissa.LiveForm.FormWidget}s.
      *
-     * Note that this is broken if live renderer for this LiveForm is on any
-     * element other than the form element.  This should probably be
-     * implemented by keeping a structured representation of the form inputs
-     * separate from the DOM (perhaps backed by DOM objects - but the API
-     * should avoid DOM concerns) and performing such actions as form resets
-     * through that interface instead.  This will have the advantage that
-     * subforms can be handled explicitly, either to include them (as happens
-     * now, by accident) or exclude them (which is currently impossible).  This
-     * will also vastly simplify C{gatherInputs} and {setInputValues} and their
-     * associated helper methods.
+     * @return: a list of form widgets.
+     * @type: C{Array}
      */
-    function reset(self) {
-        if (self.node.tagName.toLowerCase() == "form") {
-            self.node.reset();
-        }
-    },
-
-    function submitSuccess(self, result) {
-        var resultstr;
-
-        if (!result) {
-            resultstr = 'Success!';
-        } else {
-            resultstr = ''+result;
-        }
-
-        Divmod.log('liveform', 'Form submitted: ' + resultstr);
-
-        self.reset();
-
-        self.hideProgressMessage();
-
-        var succm = self.nodeByAttribute('class', 'success-message', null);
-        if (succm === null) {
-            return Divmod.Defer.succeed(null);
-        }
-        succm.appendChild(document.createTextNode(resultstr));
-
-        self.showSuccessMessage();
-        var deferred = Divmod.Defer.Deferred();
-        setTimeout(
-            function() {
-                self.hideSuccessMessage();
-                deferred.callback(null);
-            }, 800);
-        return deferred;
-    },
-
-    // Not the best factoring, but we use this as a hook in
-    // Mantissa.Validate.SignupForm - if you can factor this better please do
-    // so.
-
-    function runFader(self, fader) {
-        return fader.start();
-    },
-
-    function submitFailure(self, err) {
-        self.hideProgressMessage();
-        var error = err.check(Mantissa.LiveForm.InputError);
-        if (error !== null) {
-            return self.displayInputError(error);
-        } else {
-            Divmod.log('liveform', 'Error submitting form: ' + err);
-            return err;
-        }
-    },
-
-    /**
-     * Display the given error about rejected input to the user.
-     *
-     * @type err: L{Mantissa.LiveForm.InputError}.
-     * @param err: The exception received from the server.
-     */
-    function displayInputError(self, error) {
-        try {
-            var statusNode = self.nodeById('input-error-message');
-        } catch (err) {
-            if (err instanceof Divmod.Runtime.NodeNotFound) {
-                return;
+    function _getSubForms(self) {
+        var subForms = [];
+        for (var i = 0; i < self.childWidgets.length; i++) {
+            var wdgt = self.childWidgets[i];
+            if ((wdgt.formName != undefined)
+                    && (wdgt.gatherInputs != undefined)) {
+                subForms.push(wdgt);
             }
         }
-        while (statusNode.childNodes.length) {
-            statusNode.removeChild(statusNode.childNodes[0]);
-        }
-        statusNode.appendChild(document.createTextNode(error.message))
+        return subForms;
     },
 
+    /**
+     * Callback invoked with the result of the form submission after the server
+     * has responded successfully.
+     */
+    function submitSuccess(self, result) {
+        var subForms = self._getSubForms();
+        for(var i = 0; i < subForms.length; i++) {
+            subForms[i].submitSuccess(result);
+        }
+    },
+
+    /**
+     * Returns a mapping of input node names to arrays of input node values
+     */
+    function gatherInputs(self) {
+        var inputs = {};
+
+        var pushOneValue = function(name, value) {
+            if (inputs[name] == undefined) {
+                inputs[name] = [];
+            }
+            inputs[name].push(value);
+        };
+
+        // First we gather our widget children.
+        var subForms = self._getSubForms();
+        for(var i = 0; i < subForms.length; i++) {
+            pushOneValue(subForms[i].formName, subForms[i].gatherInputs());
+        }
+
+        var accessors = self.gatherInputAccessors();
+        for(var nodeName in accessors) {
+            for(i = 0; i < accessors[nodeName].length; i++) {
+                pushOneValue(nodeName, accessors[nodeName][i].get());
+            }
+        }
+        return inputs;
+    },
+
+    /**
+     * Utility which passes L{node} to L{Divmod.Runtime.theRuntime.traverse}.
+     */
     function traverse(self, visitor) {
         return Divmod.Runtime.theRuntime.traverse(self.node, visitor);
     },
@@ -485,38 +435,6 @@ Mantissa.LiveForm.FormWidget.methods(
     },
 
     /**
-     * Returns a mapping of input node names to arrays of input node values
-     */
-    function gatherInputs(self) {
-        var inputs = {};
-
-        var pushOneValue = function(name, value) {
-            if (inputs[name] == undefined) {
-                inputs[name] = [];
-            }
-            inputs[name].push(value);
-        };
-
-        // First we gather our widget children.
-        for (var i = 0; i < self.childWidgets.length; i++) {
-            var wdgt = self.childWidgets[i];
-            if ((wdgt.formName != undefined)
-                    && (wdgt.gatherInputs != undefined)) {
-                var inputname = wdgt.formName;
-                pushOneValue(inputname, wdgt.gatherInputs());
-            }
-        }
-
-        var accessors = self.gatherInputAccessors();
-        for(var nodeName in accessors) {
-            for(i = 0; i < accessors[nodeName].length; i++) {
-                pushOneValue(nodeName, accessors[nodeName][i].get());
-            }
-        }
-        return inputs;
-    },
-
-    /**
      * Set the values of inputs whose names are keys in C{valueMap} to the
      * corresponding values.  Values should be lists, where the length of each
      * list is the same as the number of elements.  e.g.:
@@ -558,4 +476,160 @@ Mantissa.LiveForm.FormWidget.methods(
                 accessors[nodeName][i].set(valueMap[nodeName][i]);
             }
         }
+    });
+
+Mantissa.LiveForm.FormWidget = Mantissa.LiveForm.SubFormWidget.subclass(
+    'Mantissa.LiveForm.FormWidget');
+/**
+ * Represent a form which can be submitted via Athena remote method calls.
+ */
+Mantissa.LiveForm.FormWidget.DOM_DESCEND = Divmod.Runtime.Platform.DOM_DESCEND;
+Mantissa.LiveForm.FormWidget.DOM_CONTINUE = Divmod.Runtime.Platform.DOM_CONTINUE;
+Mantissa.LiveForm.FormWidget.methods(
+    function __init__(self, node, formName) {
+        Mantissa.LiveForm.FormWidget.upcall(self, '__init__', node);
+        self.formName = formName;
+    },
+
+    function submit(self) {
+        var d = self.callRemote('invoke', self.gatherInputs());
+
+        self.showProgressMessage();
+
+        d.addCallback(function(result) {
+            return self.submitSuccess(result);
+        });
+        d.addErrback(function(err) {
+            return self.submitFailure(err);
+        });
+        return d;
+    },
+
+    /**
+     * Try to find the first node with class=C{className}, and display it as a
+     * block element if we find it
+     */
+    function _showMessage(self, className) {
+        var m = self.nodeByAttribute("class", className, null);
+        if(m != null) {
+            m.style.display = "block";
+        }
+    },
+
+    /**
+     * Try to find the first node with class=C{className}, and hide it if we
+     * find it
+     */
+    function _hideMessage(self, className) {
+        var m = self.nodeByAttribute("class", className, null);
+        if(m != null) {
+            m.style.display = "none";
+        }
+    },
+
+    function showProgressMessage(self) {
+        self._showMessage("progress-message");
+    },
+
+    function hideProgressMessage(self) {
+        self._hideMessage("progress-message");
+    },
+
+    function showSuccessMessage(self) {
+        self._showMessage("success-message");
+    },
+
+    function hideSuccessMessage(self) {
+        self._hideMessage("success-message");
+    },
+
+    /**
+     * If C{self.node} is a form element, reset its inputs to their default values.
+     *
+     * Note that this is broken if live renderer for this LiveForm is on any
+     * element other than the form element.  This should probably be
+     * implemented by keeping a structured representation of the form inputs
+     * separate from the DOM (perhaps backed by DOM objects - but the API
+     * should avoid DOM concerns) and performing such actions as form resets
+     * through that interface instead.  This will have the advantage that
+     * subforms can be handled explicitly, either to include them (as happens
+     * now, by accident) or exclude them (which is currently impossible).  This
+     * will also vastly simplify C{gatherInputs} and {setInputValues} and their
+     * associated helper methods.
+     */
+    function reset(self) {
+        if (self.node.tagName.toLowerCase() == "form") {
+            self.node.reset();
+        }
+    },
+
+    function submitSuccess(self, result) {
+        Mantissa.LiveForm.FormWidget.upcall(self, 'submitSuccess', result);
+        var resultstr;
+
+        if (!result) {
+            resultstr = 'Success!';
+        } else {
+            resultstr = ''+result;
+        }
+
+        Divmod.log('liveform', 'Form submitted: ' + resultstr);
+
+        self.reset();
+
+        self.hideProgressMessage();
+
+        var succm = self.nodeByAttribute('class', 'success-message', null);
+        if (succm === null) {
+            return Divmod.Defer.succeed(null);
+        }
+        succm.appendChild(document.createTextNode(resultstr));
+
+        self.showSuccessMessage();
+        var deferred = Divmod.Defer.Deferred();
+        setTimeout(
+            function() {
+                self.hideSuccessMessage();
+                deferred.callback(null);
+            }, 800);
+        return deferred;
+    },
+
+    // Not the best factoring, but we use this as a hook in
+    // Mantissa.Validate.SignupForm - if you can factor this better please do
+    // so.
+
+    function runFader(self, fader) {
+        return fader.start();
+    },
+
+    function submitFailure(self, err) {
+        self.hideProgressMessage();
+        var error = err.check(Mantissa.LiveForm.InputError);
+        if (error !== null) {
+            return self.displayInputError(error);
+        } else {
+            Divmod.log('liveform', 'Error submitting form: ' + err);
+            return err;
+        }
+    },
+
+    /**
+     * Display the given error about rejected input to the user.
+     *
+     * @type err: L{Mantissa.LiveForm.InputError}.
+     * @param err: The exception received from the server.
+     */
+    function displayInputError(self, error) {
+        try {
+            var statusNode = self.nodeById('input-error-message');
+        } catch (err) {
+            if (err instanceof Divmod.Runtime.NodeNotFound) {
+                return;
+            }
+        }
+        while (statusNode.childNodes.length) {
+            statusNode.removeChild(statusNode.childNodes[0]);
+        }
+        statusNode.appendChild(document.createTextNode(error.message))
     });
