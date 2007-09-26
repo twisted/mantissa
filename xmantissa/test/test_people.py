@@ -46,7 +46,8 @@ from xmantissa.people import (
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
-    TEXT_INPUT, FORM_INPUT, InputError, Parameter, LiveForm, RepeatableFormParameter)
+    TEXT_INPUT, InputError, Parameter, LiveForm, RepeatableFormParameter,
+    RepeatableSubmission, CreateObject, EditObject)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
 from xmantissa.signup import UserInfo
@@ -783,24 +784,95 @@ class PeopleModelTestCase(unittest.TestCase):
             [person])
 
 
-    def test_editPerson(self):
+    def test_editPersonChangesName(self):
         """
         L{Organizer.editPerson} should change the I{name} of the given
-        L{Person} and call I{editContactItem} on each element of the edits
-        sequence it is passed.
+        L{Person}.
+        """
+        person = self.organizer.createPerson(u'alice')
+        self.organizer.editPerson(person, u'bob', [])
+        self.assertEqual(person.name, u'bob')
+
+
+    def test_editPersonEditsContactInfo(self):
+        """
+        L{Organizer.editPerson} should call I{editContactItem} on each element
+        of the edits sequence it is passed.
         """
         person = self.organizer.createPerson(u'alice')
         contactType = StubContactType((), None, None)
         contactItem = object()
-        contactInfo = {'foo': 'bar'}
+        contactInfo = {u'foo': u'bar'}
         self.organizer.editPerson(
             person,
-            u'bob',
-            [(contactType, contactItem, contactInfo)])
-        self.assertEqual(person.name, u'bob')
+            u'alice',
+            [(contactType, RepeatableSubmission(
+            [], [EditObject(contactItem, contactInfo)], []))])
         self.assertEqual(
             contactType.editedContacts,
             [(contactItem, contactInfo)])
+
+
+    def test_editPersonCreatesContactInfo(self):
+        """
+        L{Organizer.editPerson} should call I{createContactItem} on each
+        element in the create sequence it is passed.
+        """
+        person = self.organizer.createPerson(u'alice')
+        contactType = StubContactType((), None, None, createContactItems=True)
+        contactInfo = {u'foo': u'bar'}
+        createdObjects = []
+        def setter(createdObject):
+            createdObjects.append(createdObject)
+        self.organizer.editPerson(
+            person,
+            u'alice',
+            [(contactType, RepeatableSubmission(
+            [CreateObject(contactInfo, setter)], [], []))])
+        self.assertEqual(
+            contactType.createdContacts, [(person, contactInfo)])
+        self.assertEqual(createdObjects, [(person, contactInfo)])
+
+
+    def test_editPersonContactCreationNotification(self):
+        """
+        Contact items created through L{Organizer.editPerson} should be sent to
+        L{IOrganizerPlugin.contactItemCreated} for all L{IOrganizerPlugin}
+        powerups on the store.
+        """
+        contactType = StubContactType((), None, None, createContactItems=True)
+        contactInfo = {u'foo': u'bar'}
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        person = self.organizer.createPerson(u'alice')
+        self.organizer.editPerson(
+            person, person.name,
+            [(contactType,
+              RepeatableSubmission([CreateObject(contactInfo,
+                                                 lambda obj: None)],
+                                   [], []))])
+        self.assertEqual(
+            observer.createdContactItems, [(person, contactInfo)])
+
+
+    def test_editPersonDeletesContactInfo(self):
+        """
+        L{Organizer.editPerson} should call L{deleteFromStore} on each element
+        in the delete sequence it is passed.
+        """
+        class DeletableObject(object):
+            deleted = False
+            def deleteFromStore(self):
+                self.deleted = True
+
+        person = self.organizer.createPerson(u'alice')
+        contactType = StubContactType((), None, None)
+        contactItem = DeletableObject()
+        self.organizer.editPerson(
+            person,
+            u'alice',
+            [(contactType, RepeatableSubmission([], [], [contactItem]))])
+        self.assertTrue(contactItem.deleted)
 
 
     def test_editPersonDuplicateNickname(self):
@@ -1016,8 +1088,8 @@ class PeopleModelTestCase(unittest.TestCase):
     def test_getContactCreationParameters(self):
         """
         L{Organizer.getContactCreationParameters} should return a list
-        containing C{FORM_INPUT} parameters for each contact type available in
-        the system.
+        containing a L{RepeatableFormParameter} for each contact type available
+        in the system.
         """
         contactTypes = [StubContactType((), None, None)]
         contactPowerup = StubOrganizerPlugin(
@@ -1032,12 +1104,11 @@ class PeopleModelTestCase(unittest.TestCase):
 
     def test_getContactEditorialParameters(self):
         """
-        L{Organizer.getContactEditParameters} should return a list containing
-        C{FORM_INPUT} parameters for each contact item available in the system.
+        L{Organizer.getContactEditorialParameters} should return a list
+        containing a L{RepeatableFormParameter} for each contact type
+        available in the system.
         """
-        contactItems = [object(), object()]
-        editorialForm = object()
-        contactTypes = [StubContactType((), editorialForm, contactItems)]
+        contactTypes = [StubContactType((), None, [])]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
@@ -1045,19 +1116,27 @@ class PeopleModelTestCase(unittest.TestCase):
         person = self.organizer.createPerson(u'nickname')
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
-        self.assertEqual(len(parameters), 2)
 
-        self.assertIdentical(parameters[0][0], contactTypes[0])
-        self.assertIdentical(parameters[0][1], contactItems[0])
-        self.assertEqual(parameters[0][2].type, FORM_INPUT)
-        self.assertIdentical(parameters[0][2].coercer, editorialForm)
+        self.assertIdentical(parameters[2][0], contactTypes[0])
+        self.failUnless(
+            isinstance(parameters[2][1], RepeatableFormParameter))
 
-        self.assertIdentical(parameters[1][0], contactTypes[0])
-        self.assertIdentical(parameters[1][1], contactItems[1])
-        self.assertEqual(parameters[1][2].type, FORM_INPUT)
-        self.assertIdentical(parameters[1][2].coercer, editorialForm)
 
-        self.assertNotEqual(parameters[0][2].name, parameters[1][2].name)
+    def test_getContactEditorialParametersDefaults(self):
+        """
+        L{Organizer.getContactEditorialParameters} should return some
+        parameters with correctly initialized lists of defaults and model
+        objects.
+        """
+        person = self.organizer.createPerson(u'nickname')
+        contactItems = [PostalAddress(store=self.store, person=person, address=u'1'),
+                        PostalAddress(store=self.store, person=person, address=u'2')]
+        editParameters = list(self.organizer.getContactEditorialParameters(person))
+        (editType, editParameter) = editParameters[1]
+        self.assertEqual(
+            editParameter.defaults, [{u'address': u'1'}, {u'address': u'2'}])
+        self.assertEqual(
+            editParameter.modelObjects, contactItems)
 
 
 
@@ -1069,6 +1148,24 @@ class POBox(Item):
 def _keyword(contactType):
     return contactType.uniqueIdentifier().encode('ascii')
 
+
+CONTACT_EMAIL = u'jlp@starship.enterprise'
+CONTACT_ADDRESS = u'123 Street Rd'
+def createAddPersonContactInfo(store):
+    """
+    Create a structure suitable to be passed to AddPersonFragment.addPerson.
+
+    Since the structure keeps changing slightly, this lets some tests be
+    independent of those details and so avoids requiring them to change every
+    time the structure does.
+    """
+    return {
+        _keyword(EmailContactType(store)): RepeatableSubmission(
+            [CreateObject({u'email': CONTACT_EMAIL}, lambda x: None)],
+            [], []),
+        _keyword(PostalContactType()): RepeatableSubmission(
+            [CreateObject({u'address': CONTACT_ADDRESS}, lambda x: None)],
+            [], [])}
 
 
 class PeopleTests(unittest.TestCase):
@@ -1307,28 +1404,25 @@ class PeopleTests(unittest.TestCase):
 
         addPersonFragment = AddPersonFragment(self.organizer)
 
-        argument = {u'stub': 'value'}
+        values = {u'stub': 'value'}
         addPersonFragment.addPerson(
             u'nickname',
-            **{contactType.uniqueIdentifier().encode('ascii'): [argument],
-               _keyword(EmailContactType(self.store)): [{
-                    u'email': u'user@example.com'}],
-               _keyword(PostalContactType()): [{
-                    u'address': u'123 Street Rd'}]})
+            **{_keyword(contactType): RepeatableSubmission(
+                [CreateObject(values, lambda x: None)], [], [])})
 
         person = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertEqual(contactType.createdContacts, [(person, argument)])
+        self.assertEqual(contactType.createdContacts, [(person, values)])
 
 
-    def testPersonCreation2(self):
+    def test_addPersonWithBuiltinContactItems(self):
+        """
+        L{AddPersonFragment.addPerson} should work correctly when creating
+        contact items with builtin contact types.
+        """
         addPersonFrag = AddPersonFragment(self.organizer)
         addPersonFrag.addPerson(
-            u'Captain P.',
-            **{_keyword(EmailContactType(self.store)): [{
-                    u'email': u'jlp@starship.enterprise'}],
-               _keyword(PostalContactType()): [{
-                    u'address': u'123 Street Rd'}]})
+            u'Captain P.', **createAddPersonContactInfo(self.store))
 
         person = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
@@ -1336,11 +1430,32 @@ class PeopleTests(unittest.TestCase):
 
         email = self.store.findUnique(
             EmailAddress, EmailAddress.person == person)
-        self.assertEquals(email.address, 'jlp@starship.enterprise')
+        self.assertEquals(email.address, CONTACT_EMAIL)
 
         pa = self.store.findUnique(
             PostalAddress, PostalAddress.person == person)
-        self.assertEqual(pa.address, u'123 Street Rd')
+        self.assertEqual(pa.address, CONTACT_ADDRESS)
+
+
+    def test_addPersonCallsCreateSetter(self):
+        """
+        L{AddPersonFragment.addPerson} should call the L{CreateObject.setter}
+        on the appropriate object, for each item it creates.
+        """
+        def setter(object):
+            setter.objects.append(object)
+        setter.objects = []
+
+        addPersonFragment = AddPersonFragment(self.organizer)
+        addPersonFragment.addPerson(
+            u'Name',
+            **{_keyword(EmailContactType(self.store)): RepeatableSubmission(
+                [CreateObject({u'email': u'x@y.z'}, setter)], [], [])})
+
+        person = self.store.findUnique(
+            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
+        email = self.store.findUnique(EmailAddress, EmailAddress.person == person)
+        self.assertEqual(setter.objects, [email])
 
 
     def test_addVeryImportantPerson(self):
@@ -1351,12 +1466,7 @@ class PeopleTests(unittest.TestCase):
         people = []
         argument = {u'stub': 'value'}
         view = AddPersonFragment(self.organizer)
-        view.addPerson(
-            u'alice', True,
-            **{_keyword(EmailContactType(self.store)): [{
-                    u'email': u'user@example.com'}],
-               _keyword(PostalContactType()): [{
-                    u'address': u'123 Street Rd'}]})
+        view.addPerson(u'alice', True)
         alice = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertTrue(alice.vip)
@@ -1708,6 +1818,8 @@ class StubOrganizer(object):
     def linkToPerson(self, person):
         return "/person/" + person.getDisplayName()
 
+
+
 class OrganizerFragmentTests(unittest.TestCase):
     """
     Tests for L{OrganizerFragment}.
@@ -1897,10 +2009,10 @@ class EditPersonViewTests(unittest.TestCase):
         Create an L{EditPersonView} wrapped around a stub person and stub organizer.
         """
         self.contactType = StubContactType((), None, None)
-        self.contactItem = object()
-        self.contactForm = Parameter(u'contact-form', TEXT_INPUT, unicode)
+        self.contactParameter = RepeatableFormParameter(
+            u'blah', [], [], modelObjects=[])
 
-        class StubOrganizer(record('person contactType contactItem contactForm')):
+        class StubOrganizer(record('person contactType contactParameter')):
             """
             L{Organizer}-alike
 
@@ -1919,12 +2031,11 @@ class EditPersonViewTests(unittest.TestCase):
                 return {
                     self.person: [
                         (self.contactType,
-                         self.contactItem,
-                         self.contactForm)]}[person]
+                         self.contactParameter)]}[person]
 
         self.person = StubPerson(None)
         self.person.organizer = StubOrganizer(
-            self.person, self.contactType, self.contactItem, self.contactForm)
+            self.person, self.contactType, self.contactParameter)
         self.view = EditPersonView(self.person)
 
 
@@ -1940,22 +2051,25 @@ class EditPersonViewTests(unittest.TestCase):
             def transact(self, f, *a, **kw):
                 transactions.append(transaction(f, a, kw))
         self.person.store = StubStore()
-        contactInfo = {u'stub': 'value'}
         contactType = StubContactType((), None, None)
-        self.view.contactItems = {'name': (contactType, self.contactItem)}
-        for i in xrange(2):
-            self.view.editContactItems(u'nick', name=contactInfo)
-            self.assertEqual(len(transactions), 1)
-            self.assertEqual(self.person.name, StubPerson.name)
-            self.assertEqual(contactType.editedContacts, [])
-            transactions[0].function(
-                *transactions[0].args, **transactions[0].kwargs)
-            self.assertEqual(
-                self.person.organizer.edits,
-                [(self.person, u'nick',
-                  [(contactType, self.contactItem, contactInfo)])])
-            transactions.pop(0)
-            self.person.organizer.edits.pop(0)
+        self.view.contactTypes = {'contactTypeName': contactType}
+
+        MODEL_OBJECT = object()
+
+        # Submit the form
+        submission = object()
+        self.view.editContactItems(u'nick', contactTypeName=submission)
+        # A transaction should happen, and nothing should change until it's
+        # run.
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(self.person.name, StubPerson.name)
+        self.assertEqual(contactType.editedContacts, [])
+        # Okay run it.
+        transactions[0].function(
+            *transactions[0].args, **transactions[0].kwargs)
+        self.assertEqual(
+            self.person.organizer.edits,
+            [(self.person, u'nick', [(contactType, submission)])])
 
 
     def test_editorialContactForms(self):
@@ -1975,11 +2089,11 @@ class EditPersonViewTests(unittest.TestCase):
         form = forms.children[0]
         self.assertTrue(isinstance(form, LiveForm))
         self.assertEqual(form.callable, self.view.editContactItems)
-        self.assertEqual(form.parameters[1:], [self.contactForm])
+        self.assertEqual(form.parameters[1:], [self.contactParameter])
         self.assertIdentical(form.fragmentParent, self.view)
         self.assertEqual(
-            self.view.contactItems[form.parameters[1].name],
-            (self.contactType, self.contactItem))
+            self.view.contactTypes[form.parameters[1].name],
+            self.contactType)
 
 
     def test_rend(self):
@@ -1994,6 +2108,24 @@ class EditPersonViewTests(unittest.TestCase):
         # assertion). -exarkun
         markup = renderLiveFragment(self.view)
         self.assertIn(self.view.jsClass, markup)
+
+
+    def test_makeEditorialLiveForm(self):
+        """
+        L{EditPersonView.makeEditorialLiveForm} should make a liveform with the
+        correct parameters.
+        """
+        liveForm = self.view.makeEditorialLiveForm()
+        self.assertEqual(len(liveForm.parameters), 2)
+
+        nameParam = liveForm.parameters[0]
+        self.assertEqual(nameParam.name, 'nickname')
+        self.assertEqual(nameParam.default, self.person.name)
+        self.assertEqual(nameParam.type, TEXT_INPUT)
+
+        contactParam = liveForm.parameters[1]
+        self.assertIdentical(contactParam, self.contactParameter)
+
 
 
 

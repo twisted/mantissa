@@ -29,7 +29,7 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader, re
 
 from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
-from xmantissa.liveform import FORM_INPUT, InputError, Parameter, RepeatableFormParameter
+from xmantissa.liveform import InputError, RepeatableFormParameter
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
@@ -573,7 +573,9 @@ class Organizer(item.Item):
         for contactType in self.getContactTypes():
             yield RepeatableFormParameter(
                 contactType.uniqueIdentifier(),
-                contactType.getParameters(None))
+                contactType.getParameters(None),
+                defaults=[],
+                modelObjects=[])
 
 
     def getContactEditorialParameters(self, person):
@@ -582,21 +584,21 @@ class Organizer(item.Item):
         type for the given person.
 
         @type person: L{Person}
-        @return: An iterable of three-tuples.  The first element of each tuple
-            is an L{IContactType} provider.  The second element of each tuple
-            is a contact item which was created by that L{IContactType}
-            provider.  The third element of each tuple is the L{LiveForm}
-            parameter object for that copntact item.
+        @return: An iterable of two-tuples.  The first element of each tuple
+            is an L{IContactType} provider.  The third element of each tuple
+            is the L{LiveForm} parameter object for that contact item.
         """
-        counter = 0
         for contactType in self.getContactTypes():
-            contactItems = contactType.getContactItems(person)
+            contactItems = list(contactType.getContactItems(person))
+            defaults = []
             for contactItem in contactItems:
-                yield (contactType, contactItem, Parameter(
-                        str(counter),
-                        FORM_INPUT,
-                        contactType.getEditorialForm(contactItem)))
-                counter += 1
+                defaultedParameters = contactType.getParameters(contactItem)
+                defaults.append(dict((p.name, p.default) for p in defaultedParameters))
+            yield (contactType, RepeatableFormParameter(
+                contactType.uniqueIdentifier(),
+                contactType.getParameters(None),
+                defaults=defaults,
+                modelObjects=contactItems))
 
 
     def createPerson(self, nickname, vip=False):
@@ -649,6 +651,7 @@ class Organizer(item.Item):
                     in contactInfo.iteritems()]))
         if contactItem is not None:
             self._callOnOrganizerPlugins('contactItemCreated', contactItem)
+        return contactItem
 
 
     def _callOnOrganizerPlugins(self, methodName, *args):
@@ -679,9 +682,9 @@ class Organizer(item.Item):
         @type nickname: C{unicode}
         @param nickname: The new value for L{Person.name}
 
-        @param edits: A list of three-tuples of a L{IContactType} provider, a
-            contact item created by that provider, and a C{dict} giving
-            arguments for the I{editContactItem} method.
+        @type edits: C{list}
+        @param edits: list of tuples of L{IContactType} providers and
+        corresponding L{RepeatableSubmission} objects.
         """
         for existing in self.store.query(Person, Person.name == nickname):
             if existing is person:
@@ -691,8 +694,17 @@ class Organizer(item.Item):
         oldname = person.name
         person.name = nickname
         self._callOnOrganizerPlugins('personNameChanged', person, oldname)
-        for contactType, contactItem, contactInfo in edits:
-            contactType.editContactItem(contactItem, **contactInfo)
+        stringifyKeys = lambda d: dict((k.encode('ascii'), v)
+                                       for (k, v) in d.iteritems())
+        for contactType, submission in edits:
+            for edit in submission.edit:
+                contactType.editContactItem(
+                    edit.object, **stringifyKeys(edit.values))
+            for create in submission.create:
+                create.setter(
+                    self.createContactItem(contactType, person, create.values))
+            for delete in submission.delete:
+                delete.deleteFromStore()
 
 
     def deletePerson(self, person):
@@ -815,13 +827,15 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     @type organizer: L{Organizer}
     @ivar organizer: The organizer for which this is a view.
     """
-    fragmentName = 'people-organizer'
+    docFactory = ThemedDocumentFactory('people-organizer', 'store')
+    fragmentName = None
     live = 'athena'
     title = 'People'
     jsClass = u'Mantissa.People.Organizer'
 
     def __init__(self, organizer):
         self.organizer = organizer
+        self.store = organizer.store
         self.wt = organizer._webTranslator
         athena.LiveFragment.__init__(self)
 
@@ -925,15 +939,15 @@ class EditPersonView(ThemedElement):
 
     @ivar person: L{Person} which can be edited.
 
-    @ivar contactItems: A mapping from parameter names to the contact items
-        those parameters will edit.
+    @ivar contactTypes: A mapping from parameter names to the L{IContactTypes}
+        whose items the parameters are editing.
     """
     fragmentName = 'edit-person'
 
     def __init__(self, person):
         athena.LiveElement.__init__(self)
         self.person = person
-        self.contactItems = {}
+        self.contactTypes = {}
 
 
     def editContactItems(self, nickname, **edits):
@@ -945,26 +959,22 @@ class EditPersonView(ThemedElement):
         @param nickname: New value to use for the I{name} attribute of the
             L{Person}.
 
-        @param **edits: A mapping of parameter names to edit information from
-            that parameter.
+        @param **edits: mapping from contact type identifiers to
+            RepeatableSubmission instances.
         """
-        editedContacts = []
-        for paramName, contactInfo in edits.iteritems():
-            contactType, contactItem = self.contactItems[paramName]
-            contactInfo = dict([
-                    (k.encode('ascii'), v)
-                    for (k, v)
-                    in contactInfo.iteritems()])
-            editedContacts.append((contactType, contactItem, contactInfo))
+        submissions = []
+        for paramName, submission in edits.iteritems():
+            contactType = self.contactTypes[paramName]
+            submissions.append((contactType, submission))
         self.person.store.transact(
             self.person.organizer.editPerson,
-            self.person, nickname, editedContacts)
+            self.person, nickname, submissions)
 
 
-    def editorialContactForms(self, request, tag):
+    def makeEditorialLiveForm(self):
         """
-        Add an L{LiveForm} for editing the contact information of the wrapped
-        L{Person} to the given tag and return it.
+        Make a L{LiveForm} for editing the contact information of the wrapped
+        L{Person}.
         """
         organizer = self.person.organizer
         parameters = [
@@ -973,14 +983,22 @@ class EditPersonView(ThemedElement):
                 _normalizeWhitespace, 'Name',
                 default=self.person.name)]
         for contact in organizer.getContactEditorialParameters(self.person):
-            type, item, param = contact
+            type, param = contact
             parameters.append(param)
-            self.contactItems[param.name] = (type, item)
+            self.contactTypes[param.name] = type
         form = liveform.LiveForm(self.editContactItems, parameters)
         form.compact()
         form.jsClass = u'Mantissa.People.EditPersonForm'
         form.setFragmentParent(self)
-        return tag[form]
+        return form
+
+
+    def editorialContactForms(self, request, tag):
+        """
+        Add a L{LiveForm} for editing the contact information of the wrapped
+        L{Person} to the given tag and return it.
+        """
+        return tag[self.makeEditorialLiveForm()]
     renderer(editorialContactForms)
 
 
@@ -1299,6 +1317,9 @@ class AddPersonFragment(athena.LiveFragment):
         @type vip: C{bool}
         @param vip: Value to which to set the created L{Person}'s C{vip}
             attribute.
+
+        @param **allContactInfo: Mapping of contact type IDs to
+        L{RepeatableSubmission} objects.
         """
         organizer = self.organizer
         person = organizer.createPerson(nickname, vip)
@@ -1308,9 +1329,12 @@ class AddPersonFragment(athena.LiveFragment):
         # generate the form, or vice versa.  I'll happily fix this the very
         # instant a button is present upon a web page which can provoke
         # this behavior. -exarkun
-        for contactType in organizer.getContactTypes():
-            for contactInfo in allContactInfo[contactType.uniqueIdentifier()]:
-                organizer.createContactItem(contactType, person, contactInfo)
+        contactTypes = dict((t.uniqueIdentifier(), t) for t in organizer.getContactTypes())
+        for (contactTypeName, submission) in allContactInfo.iteritems():
+            contactType = contactTypes[contactTypeName]
+            for create in submission.create:
+                create.setter(organizer.createContactItem(
+                    contactType, person, create.values))
         return person
 
 
