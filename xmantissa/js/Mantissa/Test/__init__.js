@@ -287,6 +287,17 @@ Mantissa.Test.FormName.methods(
             inner = outer.childWidgets[0];
         self.assertEquals(outer.formName, null);
         self.assertEquals(inner.formName, 'inner-form');
+    },
+
+    /**
+     * Check that L{Mantissa.LiveForm.FormWidget.gatherInputs} when called out
+     * on the outer form returns a mapping which contains an entry for the
+     * inner form under the right name
+     */
+    function test_gatherInputs(self) {
+        var outer = self.childWidgets[0],
+            inputs = outer.gatherInputs();
+        self.failUnless('inner-parameter' in inputs['inner-form'][0]);
     });
 
 /**
@@ -295,6 +306,31 @@ Mantissa.Test.FormName.methods(
  */
 Mantissa.Test.SetInputValues = Nevow.Athena.Test.TestCase.subclass('Mantissa.Test.SetInputValues');
 Mantissa.Test.SetInputValues.methods(
+    /**
+     * Test gatherInputs(), for each kind of input node
+     */
+    function _checkGatherInputs(self) {
+        var form = self.childWidgets[0];
+        var inputValues = form.gatherInputs();
+        var expected = {choice: "0",
+                        text: "hello world",
+                        textArea: "hello world 2",
+                        passwd: "secret key",
+                        checkbox: true};
+        for(var k in expected) {
+            self.assertArraysEqual([expected[k]], inputValues[k]);
+        }
+        self.assertEquals(1, inputValues["choiceMult"].length);
+        self.assertArraysEqual(["0", "1"], inputValues["choiceMult"][0]);
+    },
+
+    /**
+     * Test gatherInputs(), for each kind of input node
+     */
+    function test_gatherInputs(self) {
+        self._checkGatherInputs();
+    },
+
     /**
      * Test that setInputValues() doesn't change anything if passed the
      * current values of the inputs
@@ -319,7 +355,40 @@ Mantissa.Test.SetInputValues.methods(
         var form = self.childWidgets[0];
         form.setInputValues(inverted);
         return form.submit();
+    },
+
+    /**
+     * Pass setInputValues() an object with a key that doesn't correspond to a
+     * form input, and make sure it throws L{Mantissa.LiveForm.BadInputName}
+     */
+    function test_badInputName(self) {
+        self.assertThrows(
+            Mantissa.LiveForm.BadInputName,
+            function() {
+                self.childWidgets[0].setInputValues({notAnInput: ["hi"]});
+            });
+    },
+
+    /**
+     * Pass setInputValues() an object which has a value with a different number
+     * of values than there are input nodes, and make sure it throws
+     * L{Mantissa.LiveForm.NodeCountMismatch}
+     */
+    function test_nodeCountMismatch(self) {
+        /* too few */
+        self.assertThrows(
+            Mantissa.LiveForm.NodeCountMismatch,
+            function() {
+                self.childWidgets[0].setInputValues({text: []});
+            });
+        /* too many */
+        self.assertThrows(
+            Mantissa.LiveForm.NodeCountMismatch,
+            function() {
+                self.childWidgets[0].setInputValues({text: [1, 2, 3]});
+            });
     });
+
 
 Mantissa.Test.OnlyNick = Mantissa.Test.Forms.subclass('Mantissa.Test.OnlyNick');
 Mantissa.Test.NickNameAndEmailAddress = Mantissa.Test.Forms.subclass('Mantissa.Test.NickNameAndEmailAddress');
@@ -1534,16 +1603,9 @@ Mantissa.Test.EchoingFormWidget = Mantissa.LiveForm.FormWidget.subclass('Mantiss
  * provided to the success handler
  */
 Mantissa.Test.EchoingFormWidget.methods(
-    /**
-     * Don't reset on form submission.
-     */
-    function reset(self) {
-    },
-
     function submitSuccess(self, result) {
-        var div = document.createElement("div");
-        div.appendChild(document.createTextNode(result));
-        document.body.appendChild(div);
+        document.body.appendChild(
+            document.createTextNode(result));
         return Mantissa.Test.EchoingFormWidget.upcall(
             self, 'submitSuccess', result);
     });
