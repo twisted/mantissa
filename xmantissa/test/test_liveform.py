@@ -14,13 +14,14 @@ from nevow.tags import directive, div, span
 from nevow.loaders import stan
 from nevow.flat import flatten
 from nevow.inevow import IQ
-from nevow.athena import LivePage, expose
+from nevow.athena import expose
 
 from xmantissa.liveform import (
     FORM_INPUT, TEXT_INPUT, PASSWORD_INPUT, CHOICE_INPUT, Parameter,
     TextParameterView, PasswordParameterView, ChoiceParameter,
-    ChoiceParameterView, Option, OptionView, LiveForm,
-    ListParameter, RepeatableFormParameterView, RepeatableFormParameter)
+    ChoiceParameterView, Option, OptionView, LiveForm, ListParameter,
+    ListChangeParameterView, ListChangeParameter,
+    RepeatedLiveFormWrapper,_LIVEFORM_JS_CLASS, _SUBFORM_JS_CLASS, EditObject)
 
 from xmantissa.webtheme import getLoader
 from xmantissa.test.rendertools import TagTestingMixin, renderLiveFragment
@@ -614,10 +615,28 @@ class LiveFormTests(TestCase, TagTestingMixin):
         self.assertTrue(len(inputs) >= 1)
 
 
+    def test_liveFormJSClass(self):
+        """
+        Verify that the C{jsClass} attribute of L{LiveForm} is
+        L{_LIVEFORM_JS_CLASS}.
+        """
+        self.assertEqual(LiveForm.jsClass, _LIVEFORM_JS_CLASS)
 
-class RepeatableFormParameterViewTestCase(TestCase):
+
+    def test_subFormJSClass(self):
+        """
+        Verify that the C{jsClass} attribute of the form returned from
+        L{LiveForm.asSubForm} is L{_SUBFORM_JS_CLASS}.
+        """
+        liveForm = LiveForm(lambda **k: None, ())
+        subForm = liveForm.asSubForm(u'subform')
+        self.assertEqual(subForm.jsClass, _SUBFORM_JS_CLASS)
+
+
+
+class ListChangeParameterViewTestCase(TestCase):
     """
-    Tests for L{RepeatableFormParameterView}.
+    Tests for L{ListChangeParameterView}.
     """
     def setUp(self):
         class TestableLiveForm(LiveForm):
@@ -625,35 +644,39 @@ class RepeatableFormParameterViewTestCase(TestCase):
             def compact(self):
                 self._isCompact = True
         self.innerParameters = [Parameter('foo', TEXT_INPUT, int)]
-        self.parameter = RepeatableFormParameter(
-            u'repeatableFoo', self.innerParameters)
+        self.parameter = ListChangeParameter(
+            u'repeatableFoo', self.innerParameters, defaults=[], modelObjects=[])
         self.parameter.liveFormFactory = TestableLiveForm
-        self.parameter.repeatedLiveFormWrapper = lambda lf: lf
-        self.view = RepeatableFormParameterView(self.parameter)
+        self.parameter.repeatedLiveFormWrapper = RepeatedLiveFormWrapper
+        self.view = ListChangeParameterView(self.parameter)
 
 
     def test_patternName(self):
         """
-        L{RepeatableFormParameterView} should use I{repeatable-form} as its
+        L{ListChangeParameterView} should use I{repeatable-form} as its
         C{patternName}
         """
         self.assertEqual(self.view.patternName, 'repeatable-form')
 
 
-    def _doSubFormTest(self, subForm):
+    def _doSubFormTest(self, subFormWrapper):
         """
-        C{subForm} (which we expect to be the result of
-        L{self.parameter.formFactory}) should be a render-ready liveform that
-        knows its a subform.
+        C{subFormWrapper} (which we expect to be the result of
+        L{self.parameter.formFactory}, wrapped in
+        L{self.parameter.repeatedLiveFormWrapper) should be a render-ready
+        liveform that knows its a subform.
         """
+        self.failUnless(
+            isinstance(subFormWrapper, RepeatedLiveFormWrapper))
+        self.assertIdentical(subFormWrapper.fragmentParent, self.view)
+        subForm = subFormWrapper.liveForm
         self.assertEqual(self.innerParameters, subForm.parameters)
         self.assertEqual(subForm.subFormName, 'subform')
-        self.assertIdentical(subForm.fragmentParent, self.view)
 
 
     def test_formsRendererReturnsSubForm(self):
         """
-        The C{forms} renderer of L{RepeatableFormParameterView} should render
+        The C{forms} renderer of L{ListChangeParameterView} should render
         the liveform that was passed to the underlying parameter, as a
         subform.
         """
@@ -663,7 +686,7 @@ class RepeatableFormParameterViewTestCase(TestCase):
 
     def test_repeatFormReturnsSubForm(self):
         """
-        The C{repeatForm} exposed method of L{RepeatableFormParameterView}
+        The C{repeatForm} exposed method of L{ListChangeParameterView}
         should return the liveform that was passed to the underlying
         parameter, as a subform.
         """
@@ -672,49 +695,49 @@ class RepeatableFormParameterViewTestCase(TestCase):
 
     def test_formsRendererCompact(self):
         """
-        The C{forms} renderer of L{RepeatableFormParameterView} should call
+        The C{forms} renderer of L{ListChangeParameterView} should call
         C{compact} on the form it returns, if the parameter it is wrapping had
         C{compact} called on it.
         """
         self.parameter.compact()
         (renderedForm,) = renderer.get(self.view, 'forms')(None, None)
-        self.failUnless(renderedForm._isCompact)
+        self.failUnless(renderedForm.liveForm._isCompact)
 
 
     def test_repeatFormCompact(self):
         """
-        The C{repeatForm} exposed method of of L{RepeatableFormParameterView}
+        The C{repeatForm} exposed method of of L{ListChangeParameterView}
         should call C{compact} on the form it returns, if the parameter it is
         wrapping had C{compact} called on it.
         """
         self.parameter.compact()
         renderedForm = expose.get(self.view, 'repeatForm')()
-        self.failUnless(renderedForm._isCompact)
+        self.failUnless(renderedForm.liveForm._isCompact)
 
 
     def test_formsRendererNotCompact(self):
         """
-        The C{forms} renderer of L{RepeatableFormParameterView} shouldn't call
+        The C{forms} renderer of L{ListChangeParameterView} shouldn't call
         C{compact} on the form it returns, unless the parameter it is wrapping
         had C{compact} called on it.
         """
         (renderedForm,) = renderer.get(self.view, 'forms')(None, None)
-        self.failIf(renderedForm._isCompact)
+        self.failIf(renderedForm.liveForm._isCompact)
 
 
     def test_repeatFormNotCompact(self):
         """
-        The C{repeatForm} exposed method of L{RepeatableFormParameterView}
+        The C{repeatForm} exposed method of L{ListChangeParameterView}
         shouldn't call C{compact} on the form it returns, unless the parameter
         it is wrapping had C{compact} called on it.
         """
         renderedForm = expose.get(self.view, 'repeatForm')()
-        self.failIf(renderedForm._isCompact)
+        self.failIf(renderedForm.liveForm._isCompact)
 
 
     def test_repeaterRenderer(self):
         """
-        The C{repeater} renderer of L{RepeatableFormParameterView} should
+        The C{repeater} renderer of L{ListChangeParameterView} should
         return an instance of the C{repeater} pattern from its docFactory.
         """
         self.view.docFactory = stan(div(pattern='repeater', foo='bar'))
@@ -722,95 +745,320 @@ class RepeatableFormParameterViewTestCase(TestCase):
         self.assertEqual(renderedTag.attributes['foo'], 'bar')
 
 
-    def test_coercion(self):
-        """
-        L{RepeatableFormParameter.coercer} should call the appropriate
-        coercers from the repeatable form's parameters.
-        """
-        self.assertEqual(
-            self.parameter.coercer([{u'foo': [u'-56']}]), [{u'foo': -56}])
 
-
-    def test_invoke(self):
-        """
-        The liveform callable should get back the correctly coerced result
-        when a L{RepeatableFormParameter} is involved.
-        """
-        result = []
-        def theCallable(**k):
-            result.append(k)
-        theForm = LiveForm(theCallable, [self.parameter])
-        theForm.invoke({u'repeatableFoo': [[{u'foo': [u'123']}, {u'foo': [u'-111']}]]})
-        self.assertEqual(result, [{'repeatableFoo': [{'foo': 123}, {'foo': -111}]}])
-
-
-
-class _RepeatedLiveFormWrapper:
-    fragmentName = 'repeated-liveform'
-    def __init__(self, liveForm):
-        self.liveForm = liveForm
-
-
-
-class RepeatableFormParameterTestCase(TestCase):
+class ListChangeParameterTestCase(TestCase):
     """
-    Tests for L{RepeatableFormParameter}.
+    Tests for L{ListChangeParameter}.
     """
+    _someParameters = (Parameter('foo', TEXT_INPUT, int),)
+
+    def setUp(self):
+        self.innerParameters = [Parameter('foo', TEXT_INPUT, int)]
+        self.defaultValues = {u'foo': -56}
+        self.defaultObject = object()
+
+        self.parameter = ListChangeParameter(
+            u'repeatableFoo', self.innerParameters,
+            defaults=[self.defaultValues],
+            modelObjects=[self.defaultObject])
+
+
+    def getListChangeParameter(self, parameters, defaults):
+        return ListChangeParameter(
+            name=u'stateRepeatableFoo', parameters=parameters,
+            defaults=defaults,
+            modelObjects=[object() for i in range(len(defaults))])
+
+
     def test_asLiveForm(self):
         """
-        L{RepeatableFormParameter.asLiveForm} should wrap forms in
-        L{RepeatableFormParameter.liveFormWrapperFactory}.
+        L{ListChangeParameter.asLiveForm} should wrap forms in
+        L{ListChangeParameter.liveFormWrapperFactory}.
         """
-        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
-        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
-        parameter.repeatedLiveFormWrapper = _RepeatedLiveFormWrapper
+        parameter = self.getListChangeParameter(self._someParameters, [])
+        parameter.repeatedLiveFormWrapper = RepeatedLiveFormWrapper
 
         liveFormWrapper = parameter.asLiveForm()
         self.failUnless(
-            isinstance(liveFormWrapper, _RepeatedLiveFormWrapper))
-        self.failUnless(
-            isinstance(liveFormWrapper.liveForm, LiveForm))
+            isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
+        liveForm = liveFormWrapper.liveForm
+        self.failUnless(isinstance(liveForm, LiveForm))
+        self.assertEqual(liveForm.subFormName, 'subform')
+        self.assertEqual(liveForm.parameters, self._someParameters)
 
 
     def test_getInitialLiveForms(self):
         """
-        L{RepeatableFormParameter.getInitialLiveForms} should return a list
-        containing a single unwrapped liveform when L{RepeatableFormParameter}
-        wasn't constructed with any defaults.
+        Same as L{test_asLiveForm}, but looks at the single liveform returned
+        from L{ListChangeParameter.getInitialLiveForms} when the parameter
+        was constructed with no defaults.
         """
-        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
-        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters)
+        parameter = self.getListChangeParameter(self._someParameters, [])
+        parameter.repeatedLiveFormWrapper = RepeatedLiveFormWrapper
 
-        liveForms = parameter.getInitialLiveForms()
-        self.assertEqual(len(liveForms), 1)
-        liveForm = liveForms[0]
+        liveFormWrappers = parameter.getInitialLiveForms()
+        self.assertEqual(len(liveFormWrappers), 1)
+
+        liveFormWrapper = liveFormWrappers[0]
+        self.failUnless(
+            isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
+        liveForm = liveFormWrapper.liveForm
         self.failUnless(isinstance(liveForm, LiveForm))
         self.assertEqual(liveForm.subFormName, 'subform')
-        self.assertEqual(liveForm.parameters, innerParameters)
+        self.assertEqual(liveForm.parameters, self._someParameters)
 
 
     def test_getInitialLiveFormsDefaults(self):
         """
-        L{RepeatableFormParameter.getInitialLiveForms} should return a list
-        containing a liveform for each dictionary of values that was passed in
-        as a default.
+        Same as L{test_getInitialLiveForms}, but for the case where the
+        parameter was constructed with default values.
         """
-        innerParameters = [Parameter('foo', TEXT_INPUT, int)]
         defaults = [{'foo': 1}, {'foo': 3}]
-        parameter = RepeatableFormParameter(u'repeatableFoo', innerParameters, defaults)
-        parameter.repeatedLiveFormWrapper = _RepeatedLiveFormWrapper
+        parameter = self.getListChangeParameter(self._someParameters, defaults)
+        parameter.repeatedLiveFormWrapper = RepeatedLiveFormWrapper
 
-        wrappedLiveForms = parameter.getInitialLiveForms()
-        self.assertEqual(len(wrappedLiveForms), len(defaults))
-        for (wrappedLiveForm, default) in zip(wrappedLiveForms, defaults):
-            self.failUnless(isinstance(wrappedLiveForm, _RepeatedLiveFormWrapper))
+        liveFormWrappers = parameter.getInitialLiveForms()
+        self.assertEqual(len(liveFormWrappers), len(defaults))
+        for (liveFormWrapper, default) in zip(liveFormWrappers, defaults):
+            self.failUnless(
+                isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
 
-            liveForm = wrappedLiveForm.liveForm
+            liveForm = liveFormWrapper.liveForm
+            self.failUnless(isinstance(liveForm, LiveForm))
             self.assertEqual(liveForm.subFormName, 'subform')
             self.assertEqual(len(liveForm.parameters), 1)
 
+            # Matches up with self._someParameters, except the default should
+            # be different.
             parameter = liveForm.parameters[0]
             self.assertEqual(parameter.name, 'foo')
             self.assertEqual(parameter.type, TEXT_INPUT)
             self.assertEqual(parameter.coercer, int)
             self.assertEqual(parameter.default, default['foo'])
+
+
+    def test_identifierMapping(self):
+        """
+        L{ListChangeParameter} should be able to freely convert between
+        python objects and the opaque identifiers generated from them.
+        """
+        defaultObject = object()
+        identifier = self.parameter._idForObject(defaultObject)
+        self.assertIdentical(
+            self.parameter._objectFromID(identifier), defaultObject)
+
+
+    def test_coercion(self):
+        """
+        L{ListChangeParameter._coerceSingleRepetition} should call the
+        appropriate coercers from the repeatable form's parameters.
+        """
+        self.assertEqual(
+            self.parameter._coerceSingleRepetition({u'foo': [u'-56']}), {u'foo': -56})
+
+
+    def test_coercerCreate(self):
+        """
+        L{ListChangeParameter.coercer} should be able to figure out that a
+        repetition is new if it is associated with an identifier generated by
+        C{asLiveForm}.
+        """
+        parameter = ListChangeParameter(
+            u'repeatableFoo', self.innerParameters,
+            defaults=[],
+            modelObjects=[])
+
+        # get an id allocated to us
+        liveFormWrapper = parameter.asLiveForm()
+        submission = parameter.coercer(
+            [{u'foo': [u'-56'],
+              parameter._IDENTIFIER_KEY: liveFormWrapper.identifier}])
+        self.assertEqual(submission.edit, [])
+        self.assertEqual(submission.delete, [])
+        self.assertEqual(len(submission.create), 1)
+        self.assertEqual(submission.create[0].values, {u'foo': -56})
+        CREATED_OBJECT = object()
+        submission.create[0].setter(CREATED_OBJECT)
+        self.assertIdentical(
+            parameter._objectFromID(liveFormWrapper.identifier),
+            CREATED_OBJECT)
+
+
+    def test_coercerCreateNoChange(self):
+        """
+        L{ListChangeParameter.coercer} should be able to figure out when
+        nothing has been done to a set of values created by a previous
+        submission.
+        """
+        parameter = ListChangeParameter(
+            u'repeatableFoo', self.innerParameters,
+            defaults=[],
+            modelObjects=[])
+
+        # get an id allocated to us
+        liveFormWrapper = parameter.asLiveForm()
+        identifier = liveFormWrapper.identifier
+
+        value = {u'foo': [u'-56'], parameter._IDENTIFIER_KEY: identifier}
+        firstSubmission = parameter.coercer([value.copy()])
+        firstSubmission.create[0].setter(None)
+        secondSubmission = parameter.coercer([value.copy()])
+        self.assertEqual(secondSubmission.create, [])
+        self.assertEqual(secondSubmission.edit, [])
+        self.assertEqual(secondSubmission.delete, [])
+
+
+    def test_coercerEdit(self):
+        """
+        L{ListChangeParameter.coercer} should be able to figure out that a
+        repetition is an edit if its identifier corresponds to an entry in the
+        list of defaults.
+        """
+        (identifier,) = self.parameter._idsToObjects.keys()
+
+        submission = self.parameter.coercer(
+            [{u'foo': [u'-57'],
+              self.parameter._IDENTIFIER_KEY: identifier}])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit,
+                         [EditObject(self.defaultObject, {u'foo': -57})])
+        self.assertEqual(submission.delete, [])
+
+
+    def test_repeatedCoercerEdit(self):
+        """
+        L{ListChangeParameter.coercer} should work correctly with respect
+        to repeated edits.
+        """
+        (identifier,) = self.parameter._idsToObjects.keys()
+
+        self.parameter.coercer(
+            [{u'foo': [u'-57'], self.parameter._IDENTIFIER_KEY: identifier}])
+        # edit it back to the initial value
+        submission = self.parameter.coercer(
+            [{u'foo': [u'-56'], self.parameter._IDENTIFIER_KEY: identifier}])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit,
+                         [EditObject(self.defaultObject, {u'foo': -56})])
+        self.assertEqual(submission.delete, [])
+
+
+    def test_coercerNoChange(self):
+        """
+        L{ListChangeParameter.coercer} shouldn't include a repetition
+        anywhere in its result if it corresponds to a default and wasn't
+        edited.
+        """
+        (identifier,) = self.parameter._idsToObjects.keys()
+
+        submission = self.parameter.coercer(
+            [{u'foo': [u'-56'],
+              self.parameter._IDENTIFIER_KEY: identifier}])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit, [])
+        self.assertEqual(submission.delete, [])
+
+
+    def test_repeatedCoercerNoChange(self):
+        """
+        Same as L{test_coercerNoChange}, but with multiple submissions that
+        don't change anything.
+        """
+        (identifier,) = self.parameter._idsToObjects.keys()
+
+        self.parameter.coercer(
+            [{u'foo': [u'-56'],
+              self.parameter._IDENTIFIER_KEY: identifier}])
+
+        submission = self.parameter.coercer(
+            [{u'foo': [u'-56'],
+              self.parameter._IDENTIFIER_KEY: identifier}])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit, [])
+        self.assertEqual(submission.delete, [])
+
+
+    def test_coercerDelete(self):
+        """
+        L{ListChangeParameter.coercer} should be able to figure out that a
+        default was deleted if it doesn't get a repetition with a
+        corresponding identifier.
+        """
+        submission = self.parameter.coercer([])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit, [])
+        self.assertEqual(submission.delete, [self.defaultObject])
+
+
+    def test_repeatedCoercerDelete(self):
+        """
+        L{ListChangeParameter.coercer} should only report a deletion the
+        first time that it doesn't see a particular value.
+        """
+        self.parameter.coercer([])
+        submission = self.parameter.coercer([])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit, [])
+        self.assertEqual(submission.delete, [])
+
+
+    def test_coercerDeleteUnsubmitted(self):
+        """
+        L{ListChangeParameter.coercer} should not report as deleted an
+        internal marker objects when a form is repeated but the repetition is
+        omitted from the submission.
+        """
+        (identifier,) = self.parameter._idsToObjects.keys()
+        repetition = self.parameter.asLiveForm()
+        submission = self.parameter.coercer([
+            {u'foo': [u'-56'],
+             self.parameter._IDENTIFIER_KEY: identifier}])
+        self.assertEqual(submission.create, [])
+        self.assertEqual(submission.edit, [])
+        self.assertEqual(submission.delete, [])
+
+
+    def test_makeDefaultLiveForm(self):
+        """
+        L{ListChangeParameter._makeDefaultLiveForm} should make a live
+        form that has been correctly wrapped and initialized.
+        """
+        liveFormWrapper = self.parameter._makeDefaultLiveForm(
+            (self.parameter.defaults[0], 1234))
+        self.failUnless(isinstance(liveFormWrapper, self.parameter.repeatedLiveFormWrapper))
+        liveForm = liveFormWrapper.liveForm
+        self.failUnless(isinstance(liveForm, LiveForm))
+        self.assertEqual(
+            len(liveForm.parameters), len(self.innerParameters))
+        for parameter in liveForm.parameters:
+            self.assertEqual(parameter.default, self.defaultValues[parameter.name])
+
+
+    def test_asLiveFormIdentifier(self):
+        """
+        L{ListChangeParameter.asLiveForm} should allocate an identifier
+        for the new liveform, pass it to the liveform wrapper and put the
+        placeholder value L{ListChangeParameter._NO_OBJECT_MARKER} into
+        the object mapping.
+        """
+        liveFormWrapper = self.parameter.asLiveForm()
+        self.assertIn(liveFormWrapper.identifier, self.parameter._idsToObjects)
+        self.assertIdentical(
+            self.parameter._objectFromID(liveFormWrapper.identifier),
+            self.parameter._NO_OBJECT_MARKER)
+
+
+    def test_correctIdentifiersFromGetInitialLiveForms(self):
+        """
+        L{ListChangeParameter.getInitialLiveForms} should return a list of
+        L{RepeatedLiveFormWrapper} instances with C{identifier} attributes
+        which correspond to the identifiers associated with corresponding
+        model objects in the L{ListChangeParameter}.
+        """
+        # XXX This should really have more than one model object to make sure
+        # ordering is tested properly.
+        forms = self.parameter.getInitialLiveForms()
+        self.assertEqual(len(forms), 1)
+        self.assertIdentical(
+            self.parameter._objectFromID(forms[0].identifier),
+            self.defaultObject)
