@@ -6,7 +6,9 @@ Tests for L{xmantissa.liveform}.
 from xml.dom.minidom import parseString
 
 from zope.interface import implements
+from zope.interface.verify import verifyObject
 
+from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase
 
 from nevow.page import renderer
@@ -21,11 +23,12 @@ from xmantissa.liveform import (
     TextParameterView, PasswordParameterView, ChoiceParameter,
     ChoiceParameterView, Option, OptionView, LiveForm, ListParameter,
     ListChangeParameterView, ListChangeParameter,
-    RepeatedLiveFormWrapper,_LIVEFORM_JS_CLASS, _SUBFORM_JS_CLASS, EditObject)
+    RepeatedLiveFormWrapper, _LIVEFORM_JS_CLASS, _SUBFORM_JS_CLASS, EditObject,
+    FormParameter, FormParameterView, FormInputParameterView)
 
 from xmantissa.webtheme import getLoader
 from xmantissa.test.rendertools import TagTestingMixin, renderLiveFragment
-from xmantissa.ixmantissa import IParameterView
+from xmantissa.ixmantissa import IParameter, IParameterView
 
 
 class StubView(object):
@@ -53,6 +56,17 @@ class ParameterTestsMixin:
         Instantiate a view object for the given parameter.
         """
         raise NotImplementedError("%s did not implement viewFactory")
+
+
+    def test_fromInputs(self):
+        """
+        The parameter should provide a C{fromInputs} method for LiveForm to poke.
+        """
+        self.assertTrue(
+            hasattr(self.param, 'fromInputs'),
+            "Parameter did not even have fromInputs method, let alone "
+            "implement it correctly.  Override this test method and "
+            "assert something meaningful.")
 
 
     def test_comparison(self):
@@ -272,6 +286,16 @@ class ChoiceParameterTests(TestCase, ParameterTestsMixin, TagTestingMixin):
         self.assertTag(tag, 'div', {'multiple': 'multiple'}, [])
 
 
+    def test_fromInputs(self):
+        """
+        L{ChoiceParameter.fromInputs} should extract the inputs directed at it
+        and pass them on to the coerce function.
+        """
+        self.assertEqual(
+            self.param.fromInputs({self.name: ['0']}),
+            self.choices[0].value)
+
+
     def test_single(self):
         """
         L{ChoiceParameterView.multiple} should not render the multiple
@@ -406,6 +430,151 @@ class OptionTests(TestCase, TagTestingMixin):
 
 
 
+class ListParameterTests(TestCase):
+    """
+    Tests for L{ListParameter}.
+    """
+    def test_fromInputs(self):
+        """
+        L{ListParameter.fromInputs} should extract multiple values from the
+        mapping it is passed and coerce each value, returning a Deferred which
+        fires with a list of all of the coerced values.
+        """
+        name = u'list param'
+        param = ListParameter(name, int, 2)
+        result = param.fromInputs({name + u'_0': [u'1'],
+                                   name + u'_1': [u'3']})
+        result.addCallback(self.assertEqual, [1, 3])
+        return result
+
+
+
+class FormParameterTests(TestCase):
+    """
+    Tests for L{Parameter} created with a type of L{FORM_INPUT} and for
+    L{FormParameter}.
+    """
+    def test_deprecated(self):
+        """
+        Creating a L{Parameter} with a type of L{FORM_INPUT} should emit a
+        deprecation warning referring to L{FormParameter}.
+        """
+        self.assertWarns(
+            DeprecationWarning,
+            "Create a FormParameter, not a Parameter with type FORM_INPUT",
+            __file__,
+            lambda: Parameter(None, FORM_INPUT, None))
+
+
+    def test_viewFactory(self):
+        """
+        L{FormParameter.viewFactory} should return a L{FormParameterView}
+        wrapped around the parameter.
+        """
+        parameter = FormParameter(lambda **kw: None, LiveForm(None, []))
+        view = parameter.viewFactory(parameter, None)
+        self.assertTrue(isinstance(view, FormParameterView))
+        self.assertIdentical(view.parameter, parameter)
+
+
+    def test_provides(self):
+        """
+        L{FormParameter} should provide L{IParameter}.
+        """
+        parameter = FormParameter(u'name', None)
+        self.assertTrue(IParameter.providedBy(parameter))
+        self.assertTrue(verifyObject(IParameter, parameter))
+
+
+    def test_fromInputs(self):
+        """
+        L{FormParameter.fromInputs} should extract the input value which
+        corresponds to the parameter's name and pass it to the invoke method of
+        the wrapped form.
+        """
+        value = '-13'
+        invoked = {}
+        param = u'foo'
+        form = LiveForm(invoked.update, [Parameter(param, TEXT_INPUT, int)])
+        name = u'name'
+        parameter = FormParameter(name, form)
+        parameter.fromInputs({name: [{param: [value]}]})
+        self.assertEqual(invoked, {param: int(value)})
+
+
+    def test_compact(self):
+        """
+        L{FormParameter.compact} should call compact on the wrapped form.
+        """
+        class FakeForm(object):
+            isCompact = False
+            def compact(self):
+                self.isCompact = True
+
+        form = FakeForm()
+        parameter = FormParameter(None, form)
+        parameter.compact()
+        self.assertTrue(form.isCompact)
+
+
+
+class FormParameterViewTests(TestCase):
+    """
+    Tests for L{FormParameterView}.
+    """
+    def test_provides(self):
+        """
+        L{FormParameterView} should provide L{IParameterView}.
+        """
+        self.assertTrue(IParameterView.providedBy(FormParameterView(None)))
+
+
+    def test_inputs(self):
+        """
+        The I{input} renderer of L{FormParameterView} should add a subform from
+        its wrapped form as a child to the tag it is called with.
+        """
+        form = LiveForm(None, [])
+        name = u'bar'
+        parameter = FormParameter(name, form)
+        view = FormParameterView(parameter)
+        tag = div()
+        inputRenderer = renderer.get(view, 'input')
+        tag = inputRenderer(None, div())
+        self.assertEqual(tag.tagName, 'div')
+        self.assertEqual(tag.attributes, {})
+        self.assertEqual(tag.children, [form])
+        self.assertIdentical(form.fragmentParent, view)
+        self.assertEqual(form.subFormName, name)
+
+
+
+class FormInputParameterViewTests(TestCase):
+    """
+    Tests for deprecated L{FormInputParameterView}.
+    """
+    def test_inputs(self):
+        """
+        The I{input} renderer of L{FormParameterView} should add a subform from
+        its wrapped form as a child to the tag it is called with.
+        """
+        form = LiveForm(None, [])
+
+        name = u'bar'
+        type = FORM_INPUT
+        form = LiveForm(None, [])
+        parameter = Parameter(name, type, form)
+        view = FormInputParameterView(parameter)
+        tag = div()
+        inputRenderer = renderer.get(view, 'input')
+        tag = inputRenderer(None, div())
+        self.assertEqual(tag.tagName, 'div')
+        self.assertEqual(tag.attributes, {})
+        self.assertEqual(tag.children, [form])
+        self.assertIdentical(form.fragmentParent, view)
+        self.assertEqual(form.subFormName, name)
+
+
 class LiveFormTests(TestCase, TagTestingMixin):
     """
     Tests for the form generation code in L{LiveForm}.
@@ -415,6 +584,7 @@ class LiveFormTests(TestCase, TagTestingMixin):
     simpleLiveFormTag = div[
         span(pattern='text-input-container'),
         span(pattern='password-input-container'),
+        span(pattern='form-input-container'),
         span(pattern='liveform', _class='liveform-container'),
         span(pattern='subform', _class='subform-container')]
 
@@ -581,6 +751,43 @@ class LiveFormTests(TestCase, TagTestingMixin):
             [PasswordParameterView(param)])
 
 
+    def test_individualFormParameter(self):
+        """
+        L{LiveForm.form} should fill the I{inputs} slot of the tag it uses to
+        fill the I{form} slot with a list consisting of one
+        L{FormParameterView} when the L{LiveForm} is created with one
+        L{FormParameter}.
+        """
+        parameter = FormParameter(u'form param', LiveForm(None, []))
+        formFragment = LiveForm(lambda **kw: None, [parameter])
+        formTag = formFragment.form(None, self.simpleLiveFormTag)
+        self.assertEqual(
+            formTag.slotData['form'].slotData['inputs'],
+            [FormParameterView(parameter)])
+
+
+    def test_individualFormInputParameter(self):
+        """
+        L{LiveForm.form} should fill the I{inputs} slot of the tag it uses to
+        fill the I{form} slot with a list consisting of one
+        L{FormInputParameterView} when the L{LiveForm} is created with one
+        C{FORM_INPUT} L{Parameter}.
+        """
+        def submit(**kw):
+            pass
+
+        name = u'param name'
+        type = FORM_INPUT
+        coercer = LiveForm(None, [])
+        param = Parameter(name, type, coercer)
+
+        formFragment = LiveForm(submit, [param])
+        formTag = formFragment.form(None, self.simpleLiveFormTag)
+        self.assertEqual(
+            formTag.slotData['form'].slotData['inputs'],
+            [FormInputParameterView(param)])
+
+
     def test_liveformTemplateStructuredCorrectly(self):
         """
         When a L{LiveForm} is rendered using the default template, the form
@@ -633,6 +840,80 @@ class LiveFormTests(TestCase, TagTestingMixin):
         self.assertEqual(subForm.jsClass, _SUBFORM_JS_CLASS)
 
 
+    def test_invoke(self):
+        """
+        L{LiveForm.invoke} should take the post dictionary it is passed, call
+        the coercer for each of its parameters, take the output from each,
+        whether it is available synchronously or as a Deferred result, and pass
+        the aggregate to the callablethe L{LiveForm} was instantiated with.  It
+        should return a L{Deferred} which fires with the result of the callable
+        when it is available.
+        """
+        arguments = {}
+        submitResult = object()
+        def submit(**args):
+            arguments.update(args)
+            return submitResult
+
+        syncCoerces = []
+        syncResult = object()
+        def syncCoercer(value):
+            syncCoerces.append(value)
+            return syncResult
+        sync = Parameter(u'sync', None, syncCoercer, None, None, None)
+
+        asyncCoerces = []
+        asyncResult = Deferred()
+        def asyncCoercer(value):
+            asyncCoerces.append(value)
+            return asyncResult
+        async = Parameter(u'async', None, asyncCoercer, None, None, None)
+
+        form = LiveForm(submit, [sync, async])
+        invokeResult = form.invoke({sync.name: [u'sync value'],
+                                    async.name: [u'async value']})
+
+        # Both of the coercers should have been called with their respective
+        # values.
+        self.assertEqual(syncCoerces, [u'sync value'])
+        self.assertEqual(asyncCoerces, [u'async value'])
+
+        # The overall form callable should not have been called yet, since a
+        # Deferred is still outstanding.
+        self.assertEqual(arguments, {})
+
+        # This will be the result of the Deferred from asyncCoercer
+        asyncObject = object()
+
+        def cbInvoke(result):
+            self.assertEqual(result, submitResult)
+            self.assertEqual(arguments, {sync.name: syncResult,
+                                         async.name: asyncObject})
+        invokeResult.addCallback(cbInvoke)
+        asyncResult.callback(asyncObject)
+        return invokeResult
+
+
+    def test_callingInvokes(self):
+        """
+        Calling a LiveForm should be the same as calling its invoke method. 
+        This isn't a public API.
+        """
+        returnValue = object()
+        calledWith = []
+        def coercer(**params):
+            calledWith.append(params)
+            return returnValue
+
+        form = LiveForm(
+            coercer, [Parameter(u'name', TEXT_INPUT, unicode,
+                                u'label', u'descr', u'default')])
+        result = form({u'name': [u'value']})
+        self.assertEqual(calledWith, [{u'name': u'value'}])
+        result.addCallback(self.assertIdentical, returnValue)
+        return result
+
+
 
 class ListChangeParameterViewTestCase(TestCase):
     """
@@ -671,7 +952,7 @@ class ListChangeParameterViewTestCase(TestCase):
         self.assertIdentical(subFormWrapper.fragmentParent, self.view)
         subForm = subFormWrapper.liveForm
         self.assertEqual(self.innerParameters, subForm.parameters)
-        self.assertEqual(subForm.subFormName, 'subform')
+        self.assertEqual(subForm.subFormName, self.parameter.name)
 
 
     def test_formsRendererReturnsSubForm(self):
@@ -783,7 +1064,7 @@ class ListChangeParameterTestCase(TestCase):
             isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
         liveForm = liveFormWrapper.liveForm
         self.failUnless(isinstance(liveForm, LiveForm))
-        self.assertEqual(liveForm.subFormName, 'subform')
+        self.assertEqual(liveForm.subFormName, parameter.name)
         self.assertEqual(liveForm.parameters, self._someParameters)
 
 
@@ -804,7 +1085,7 @@ class ListChangeParameterTestCase(TestCase):
             isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
         liveForm = liveFormWrapper.liveForm
         self.failUnless(isinstance(liveForm, LiveForm))
-        self.assertEqual(liveForm.subFormName, 'subform')
+        self.assertEqual(liveForm.subFormName, parameter.name)
         self.assertEqual(liveForm.parameters, self._someParameters)
 
 
@@ -825,16 +1106,16 @@ class ListChangeParameterTestCase(TestCase):
 
             liveForm = liveFormWrapper.liveForm
             self.failUnless(isinstance(liveForm, LiveForm))
-            self.assertEqual(liveForm.subFormName, 'subform')
+            self.assertEqual(liveForm.subFormName, parameter.name)
             self.assertEqual(len(liveForm.parameters), 1)
 
             # Matches up with self._someParameters, except the default should
             # be different.
-            parameter = liveForm.parameters[0]
-            self.assertEqual(parameter.name, 'foo')
-            self.assertEqual(parameter.type, TEXT_INPUT)
-            self.assertEqual(parameter.coercer, int)
-            self.assertEqual(parameter.default, default['foo'])
+            innerParameter = liveForm.parameters[0]
+            self.assertEqual(innerParameter.name, 'foo')
+            self.assertEqual(innerParameter.type, TEXT_INPUT)
+            self.assertEqual(innerParameter.coercer, int)
+            self.assertEqual(innerParameter.default, default['foo'])
 
 
     def test_identifierMapping(self):
@@ -848,13 +1129,90 @@ class ListChangeParameterTestCase(TestCase):
             self.parameter._objectFromID(identifier), defaultObject)
 
 
+    def test_extractCreations(self):
+        """
+        L{RepeatableFormParameter._extractCreations} should return a list of
+        two-tuples giving the identifiers of new objects being created and
+        their associated uncoerced arguments.
+        """
+        key = u'key'
+
+        (modificationIdentifier,) = self.parameter._idsToObjects.keys()
+        modificationValue = u'edited value'
+
+        creationIdentifier = self.parameter._newIdentifier()
+        creationValue = u'created value'
+
+        dataSets = [
+            {self.parameter._IDENTIFIER_KEY: creationIdentifier,
+             key: creationValue},
+            {self.parameter._IDENTIFIER_KEY: modificationIdentifier,
+             key: modificationValue}]
+
+        creations = list(self.parameter._extractCreations(dataSets))
+        self.assertEqual(creations, [(creationIdentifier, {key: creationValue})])
+
+
+    def test_extractEdits(self):
+        """
+        L{RepeatableFormParameter._extractEdits} should return a list of
+        two-tuples giving the identifiers of existing model objects which might
+        be about to change and their associated uncoerced arguments.
+        """
+        key = u'key'
+
+        creationIdentifier = self.parameter._newIdentifier()
+        creationValue = u'created value'
+
+        modificationIdentifier = self.parameter._idForObject(
+            self.defaultObject)
+        modificationValue = u'edited value'
+
+        dataSets = [
+            {self.parameter._IDENTIFIER_KEY: creationIdentifier,
+             key: creationValue},
+            {self.parameter._IDENTIFIER_KEY: modificationIdentifier,
+             key: modificationValue}]
+
+        edits = list(self.parameter._extractEdits(dataSets))
+        self.assertEqual(
+            edits, [(modificationIdentifier, {key: modificationValue})])
+
+
+    def test_coerceAll(self):
+        """
+        L{RepeatableFormParameter._coerceAll} should take a list of two-tuples
+        and return a L{Deferred} which is called back with a list of tuples
+        where the first element of each tuple is the first element of a tuple
+        from the input and the second element of each tuple is the result of
+        the L{Deferred} returned by a call to
+        L{RepeatableFormParameter._coerceSingleRepetition} with the second
+        element of the same tuple from the input.  The ordering of the input
+        and output lists should be the same.
+        """
+        firstInput = object()
+        firstValue = u'1'
+        secondInput = object()
+        secondValue = u'2'
+        inputs = [(firstInput, {u'foo': firstValue}),
+                  (secondInput, {u'foo': secondValue})]
+
+        coerceDeferred = self.parameter._coerceAll(inputs)
+        coerceDeferred.addCallback(
+            self.assertEqual,
+            [(firstInput, {u'foo': int(firstValue)}),
+             (secondInput, {u'foo': int(secondValue)})])
+        return coerceDeferred
+
+
     def test_coercion(self):
         """
         L{ListChangeParameter._coerceSingleRepetition} should call the
         appropriate coercers from the repeatable form's parameters.
         """
-        self.assertEqual(
-            self.parameter._coerceSingleRepetition({u'foo': [u'-56']}), {u'foo': -56})
+        d = self.parameter._coerceSingleRepetition({u'foo': [u'-56']})
+        d.addCallback(self.assertEqual, {u'foo': -56})
+        return d
 
 
     def test_coercerCreate(self):
@@ -870,18 +1228,21 @@ class ListChangeParameterTestCase(TestCase):
 
         # get an id allocated to us
         liveFormWrapper = parameter.asLiveForm()
-        submission = parameter.coercer(
+        coerceDeferred = parameter.coercer(
             [{u'foo': [u'-56'],
               parameter._IDENTIFIER_KEY: liveFormWrapper.identifier}])
-        self.assertEqual(submission.edit, [])
-        self.assertEqual(submission.delete, [])
-        self.assertEqual(len(submission.create), 1)
-        self.assertEqual(submission.create[0].values, {u'foo': -56})
-        CREATED_OBJECT = object()
-        submission.create[0].setter(CREATED_OBJECT)
-        self.assertIdentical(
-            parameter._objectFromID(liveFormWrapper.identifier),
-            CREATED_OBJECT)
+        def cbCoerced(submission):
+            self.assertEqual(submission.edit, [])
+            self.assertEqual(submission.delete, [])
+            self.assertEqual(len(submission.create), 1)
+            self.assertEqual(submission.create[0].values, {u'foo': -56})
+            CREATED_OBJECT = object()
+            submission.create[0].setter(CREATED_OBJECT)
+            self.assertIdentical(
+                parameter._objectFromID(liveFormWrapper.identifier),
+                CREATED_OBJECT)
+        coerceDeferred.addCallback(cbCoerced)
+        return coerceDeferred
 
 
     def test_coercerCreateNoChange(self):
@@ -900,12 +1261,22 @@ class ListChangeParameterTestCase(TestCase):
         identifier = liveFormWrapper.identifier
 
         value = {u'foo': [u'-56'], parameter._IDENTIFIER_KEY: identifier}
-        firstSubmission = parameter.coercer([value.copy()])
-        firstSubmission.create[0].setter(None)
-        secondSubmission = parameter.coercer([value.copy()])
-        self.assertEqual(secondSubmission.create, [])
-        self.assertEqual(secondSubmission.edit, [])
-        self.assertEqual(secondSubmission.delete, [])
+        coerceDeferred = parameter.coercer([value.copy()])
+
+        def cbFirstSubmit(firstSubmission):
+            firstSubmission.create[0].setter(None)
+
+            # Resubmit the same thing
+            return parameter.coercer([value.copy()])
+
+        def cbSecondSubmit(secondSubmission):
+            self.assertEqual(secondSubmission.create, [])
+            self.assertEqual(secondSubmission.edit, [])
+            self.assertEqual(secondSubmission.delete, [])
+
+        coerceDeferred.addCallback(cbFirstSubmit)
+        coerceDeferred.addCallback(cbSecondSubmit)
+        return coerceDeferred
 
 
     def test_coercerEdit(self):
@@ -916,13 +1287,18 @@ class ListChangeParameterTestCase(TestCase):
         """
         (identifier,) = self.parameter._idsToObjects.keys()
 
-        submission = self.parameter.coercer(
+        editDeferred = self.parameter.coercer(
             [{u'foo': [u'-57'],
               self.parameter._IDENTIFIER_KEY: identifier}])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit,
-                         [EditObject(self.defaultObject, {u'foo': -57})])
-        self.assertEqual(submission.delete, [])
+
+        def cbEdit(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit,
+                             [EditObject(self.defaultObject, {u'foo': -57})])
+            self.assertEqual(submission.delete, [])
+
+        editDeferred.addCallback(cbEdit)
+        return editDeferred
 
 
     def test_repeatedCoercerEdit(self):
@@ -932,15 +1308,23 @@ class ListChangeParameterTestCase(TestCase):
         """
         (identifier,) = self.parameter._idsToObjects.keys()
 
-        self.parameter.coercer(
+        editDeferred = self.parameter.coercer(
             [{u'foo': [u'-57'], self.parameter._IDENTIFIER_KEY: identifier}])
-        # edit it back to the initial value
-        submission = self.parameter.coercer(
-            [{u'foo': [u'-56'], self.parameter._IDENTIFIER_KEY: identifier}])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit,
-                         [EditObject(self.defaultObject, {u'foo': -56})])
-        self.assertEqual(submission.delete, [])
+
+        def cbEdited(ignored):
+            # edit it back to the initial value
+            return self.parameter.coercer(
+                [{u'foo': [u'-56'], self.parameter._IDENTIFIER_KEY: identifier}])
+
+        def cbRestored(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit,
+                             [EditObject(self.defaultObject, {u'foo': -56})])
+            self.assertEqual(submission.delete, [])
+
+        editDeferred.addCallback(cbEdited)
+        editDeferred.addCallback(cbRestored)
+        return editDeferred
 
 
     def test_coercerNoChange(self):
@@ -951,12 +1335,17 @@ class ListChangeParameterTestCase(TestCase):
         """
         (identifier,) = self.parameter._idsToObjects.keys()
 
-        submission = self.parameter.coercer(
+        unchangedDeferred = self.parameter.coercer(
             [{u'foo': [u'-56'],
               self.parameter._IDENTIFIER_KEY: identifier}])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit, [])
-        self.assertEqual(submission.delete, [])
+
+        def cbUnchanged(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit, [])
+            self.assertEqual(submission.delete, [])
+
+        unchangedDeferred.addCallback(cbUnchanged)
+        return unchangedDeferred
 
 
     def test_repeatedCoercerNoChange(self):
@@ -966,16 +1355,24 @@ class ListChangeParameterTestCase(TestCase):
         """
         (identifier,) = self.parameter._idsToObjects.keys()
 
-        self.parameter.coercer(
+        editDeferred = self.parameter.coercer(
             [{u'foo': [u'-56'],
               self.parameter._IDENTIFIER_KEY: identifier}])
 
-        submission = self.parameter.coercer(
-            [{u'foo': [u'-56'],
-              self.parameter._IDENTIFIER_KEY: identifier}])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit, [])
-        self.assertEqual(submission.delete, [])
+        def cbEdited(ignored):
+            # Same values - no edit occurs.
+            return self.parameter.coercer(
+                [{u'foo': [u'-56'],
+                  self.parameter._IDENTIFIER_KEY: identifier}])
+
+        def cbUnedited(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit, [])
+            self.assertEqual(submission.delete, [])
+
+        editDeferred.addCallback(cbEdited)
+        editDeferred.addCallback(cbUnedited)
+        return editDeferred
 
 
     def test_coercerDelete(self):
@@ -984,10 +1381,15 @@ class ListChangeParameterTestCase(TestCase):
         default was deleted if it doesn't get a repetition with a
         corresponding identifier.
         """
-        submission = self.parameter.coercer([])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit, [])
-        self.assertEqual(submission.delete, [self.defaultObject])
+        deleteDeferred = self.parameter.coercer([])
+
+        def cbDeleted(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit, [])
+            self.assertEqual(submission.delete, [self.defaultObject])
+
+        deleteDeferred.addCallback(cbDeleted)
+        return deleteDeferred
 
 
     def test_repeatedCoercerDelete(self):
@@ -995,11 +1397,19 @@ class ListChangeParameterTestCase(TestCase):
         L{ListChangeParameter.coercer} should only report a deletion the
         first time that it doesn't see a particular value.
         """
-        self.parameter.coercer([])
-        submission = self.parameter.coercer([])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit, [])
-        self.assertEqual(submission.delete, [])
+        deleteDeferred = self.parameter.coercer([])
+
+        def cbDeleted(ignored):
+            return self.parameter.coercer([])
+
+        def cbUnchanged(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit, [])
+            self.assertEqual(submission.delete, [])
+
+        deleteDeferred.addCallback(cbDeleted)
+        deleteDeferred.addCallback(cbUnchanged)
+        return deleteDeferred
 
 
     def test_coercerDeleteUnsubmitted(self):
@@ -1009,13 +1419,20 @@ class ListChangeParameterTestCase(TestCase):
         omitted from the submission.
         """
         (identifier,) = self.parameter._idsToObjects.keys()
+
+        # Creates some new state inside the parameter (yea, ick, state).
         repetition = self.parameter.asLiveForm()
-        submission = self.parameter.coercer([
+        unchangedDeferred = self.parameter.coercer([
             {u'foo': [u'-56'],
              self.parameter._IDENTIFIER_KEY: identifier}])
-        self.assertEqual(submission.create, [])
-        self.assertEqual(submission.edit, [])
-        self.assertEqual(submission.delete, [])
+
+        def cbUnchanged(submission):
+            self.assertEqual(submission.create, [])
+            self.assertEqual(submission.edit, [])
+            self.assertEqual(submission.delete, [])
+
+        unchangedDeferred.addCallback(cbUnchanged)
+        return unchangedDeferred
 
 
     def test_makeDefaultLiveForm(self):
@@ -1062,3 +1479,37 @@ class ListChangeParameterTestCase(TestCase):
         self.assertIdentical(
             self.parameter._objectFromID(forms[0].identifier),
             self.defaultObject)
+
+
+    def test_fromInputs(self):
+        """
+        L{RepeatableFormParameter.fromInputs} should call the appropriate
+        coercers from the repeatable form's parameters.
+        """
+        (modifyIdentifier,) = self.parameter._idsToObjects.keys()
+
+        # Make a new object to be deleted
+        deleteObject = object()
+        deleteIdentifier = self.parameter._idForObject(deleteObject)
+
+        createIdentifier = self.parameter._newIdentifier()
+
+        result = self.parameter.fromInputs({
+                self.parameter.name: [[
+                        {self.parameter._IDENTIFIER_KEY: modifyIdentifier,
+                         u'foo': [u'-57']},
+                        {self.parameter._IDENTIFIER_KEY: createIdentifier,
+                         u'foo': [u'18']}]]})
+        def cbCoerced(changes):
+            self.assertEqual(len(changes.create), 1)
+            self.assertEqual(changes.create[0].values, {u'foo': 18})
+            self.assertEqual(len(changes.edit), 1)
+
+            self.assertIdentical(changes.edit[0].object, self.defaultObject)
+            self.assertEqual(changes.edit[0].values, {u'foo': -57})
+
+            self.assertEqual(changes.delete, [deleteObject])
+
+        result.addCallback(cbCoerced)
+        return result
+

@@ -1,4 +1,3 @@
-
 # -*- test-case-name: xmantissa.test.test_liveform -*-
 
 """
@@ -12,6 +11,7 @@ import warnings
 from zope.interface import implements
 
 from twisted.python.components import registerAdapter
+from twisted.internet.defer import maybeDeferred, gatherResults
 
 from epsilon.structlike import record
 
@@ -22,7 +22,7 @@ from nevow.loaders import stan
 
 from xmantissa import webtheme
 from xmantissa.fragmentutils import PatternDictionary, dictFillSlots
-from xmantissa.ixmantissa import IParameterView
+from xmantissa.ixmantissa import IParameter, IParameterView
 
 
 _LIVEFORM_JS_CLASS = u'Mantissa.LiveForm.FormWidget'
@@ -47,20 +47,58 @@ CHECKBOX_INPUT = 'checkbox'
 
 
 
+class _SelectiveCoercer(object):
+    """
+    Mixin defining a L{IParameter.fromInputs} implementation which extracts the
+    input associated with this parameter based on C{self.name} and passes it to
+    C{self.coercer}, returning the result.
+    """
+    def fromInputs(self, inputs):
+        """
+        Extract the inputs associated with the child forms of this parameter
+        from the given dictionary and coerce them using C{self.coercer}.
+
+        @type inputs: C{dict} mapping C{unicode} to C{list} of C{unicode}
+        @param inputs: The contents of a form post, in the conventional
+            structure.
+
+        @rtype: L{Deferred}
+        @return: The structured data associated with this parameter represented
+            by the post data.
+        """
+        try:
+            values = inputs[self.name]
+        except KeyError:
+            raise ConfigurationError(
+                "Missing value for input: " + self.name)
+        return self.coerceMany(values)
+
+
+    def coerceMany(self, values):
+        """
+        Convert the given C{list} of C{unicode} inputs to structured data.
+
+        @param values: The inputs associated with this parameter's name in the
+            overall inputs mapping.
+        """
+        return self.coercer(values[0])
+
+
+
 class Parameter(record('name type coercer label description default '
                        'viewFactory',
                        label=None,
                        description=None,
                        default=None,
-                       viewFactory=IParameterView)):
+                       viewFactory=IParameterView), _SelectiveCoercer):
     """
     @type name: C{unicode}
     @ivar name: A name uniquely identifying this parameter within a particular
         form.
 
     @ivar type: One of C{TEXT_INPUT}, C{PASSWORD_INPUT}, C{TEXTAREA_INPUT},
-        C{FORM_INPUT}, C{RADIO_INPUT}, or C{CHECKBOX_INPUT} indicating the kind
-        of input interface which will be presented for this parameter.
+        C{RADIO_INPUT}, or C{CHECKBOX_INPUT} indicating the kind of input
+        interface which will be presented for this parameter.
 
     @type description: C{unicode} or C{NoneType}
     @ivar description: An explanation of the meaning or purpose of this
@@ -79,6 +117,17 @@ class Parameter(record('name type coercer label description default '
         argument.  The default should be returned if no view can be provided
         for the given parameter.
     """
+    implements(IParameter)
+
+    def __init__(self, *a, **kw):
+        super(Parameter, self).__init__(*a, **kw)
+        if self.type == FORM_INPUT:
+            warnings.warn(
+                "Create a FormParameter, not a Parameter with type FORM_INPUT",
+                category=DeprecationWarning,
+                stacklevel=2)
+
+
     def compact(self):
         """
         Compact FORM_INPUTs by calling their C{compact} method.  Don't do
@@ -86,6 +135,57 @@ class Parameter(record('name type coercer label description default '
         """
         if self.type == FORM_INPUT:
             self.coercer.compact()
+
+
+
+class FormParameter(record('name form label description default viewFactory',
+                           label=None, description=None, default=None,
+                           viewFactory=IParameterView),
+                    _SelectiveCoercer):
+    """
+    A parameter which is a collection of other parameters, as composed by a
+    L{LiveForm}.
+
+    @type name: C{unicode}
+    @ivar name: A name uniquely identifying this parameter within a
+    particular form.
+
+    @type form: L{LiveForm}
+    @ivar form: The form which defines the grouped parameters.
+
+    @type description: C{unicode} or C{NoneType}
+    @ivar description: An explanation of the meaning or purpose of this
+        parameter which will be presented in the view, or C{None} if the user
+        is intended to guess.
+
+    @type default: C{unicode} or C{NoneType}
+    @ivar default: A value which will be initially presented in the view as the
+        value for this parameter, or C{None} if no such value is to be
+        presented.
+
+    @ivar viewFactory: A two-argument callable which returns an
+        L{IParameterView} provider which will be used as the view for this
+        parameter, if one can be provided.  It will be invoked with the
+        parameter as the first argument and a default value as the second
+        argument.  The default should be returned if no view can be provided
+        for the given parameter.
+    """
+    implements(IParameter)
+
+    type = FORM_INPUT
+
+    def compact(self):
+        """
+        Compact the wrapped form.
+        """
+        self.form.compact()
+
+
+    def coercer(self, value):
+        """
+        Invoke the wrapped form with the given value and return its result.
+        """
+        return self.form.invoke(value)
 
 
 
@@ -142,8 +242,11 @@ class ListChanges(record('create edit delete')):
 
 
 
-class ListChangeParameter(record('name parameters defaults modelObjects viewFactory',
-                                     defaults=(), modelObjects=(), viewFactory=IParameterView)):
+class ListChangeParameter(record('name parameters defaults modelObjects '
+                                 'viewFactory',
+                                 defaults=(), modelObjects=(),
+                                 viewFactory=IParameterView),
+                          _SelectiveCoercer):
     """
     Use this parameter if you want to render lists of objects as forms, and to
     allow the objects to be edited and deleted, as well as to have new objects
@@ -213,7 +316,7 @@ class ListChangeParameter(record('name parameters defaults modelObjects viewFact
         @return: a sub form.
         @rtype: L{LiveForm}
         """
-        liveForm = liveForm.asSubForm('subform')
+        liveForm = liveForm.asSubForm(self.name) # XXX Why did this work???
         # if we are compact, tell the liveform so it can tell its parameters
         # also
         if self._parameterIsCompact:
@@ -357,7 +460,62 @@ class ListChangeParameter(record('name parameters defaults modelObjects viewFact
         """
         # make a liveform because there is some logic in _coerced
         form = LiveForm(lambda **k: None, self.parameters, self.name)
-        return form._coerced(dataSet)
+        return form.fromInputs(dataSet)
+
+
+    def _extractCreations(self, dataSets):
+        """
+        Find the elements of C{dataSets} which represent the creation of new
+        objects.
+
+        @param dataSets: C{list} of C{dict} mapping C{unicode} form submission
+            keys to form submission values.
+
+        @return: iterator of C{tuple}s with the first element giving the opaque
+            identifier of an object which is to be created and the second
+            element giving a C{dict} of all the other creation arguments.
+        """
+        for dataSet in dataSets:
+            modelObject = self._objectFromID(dataSet[self._IDENTIFIER_KEY])
+            if modelObject is self._NO_OBJECT_MARKER:
+                dataCopy = dataSet.copy()
+                identifier = dataCopy.pop(self._IDENTIFIER_KEY)
+                yield identifier, dataCopy
+
+
+    def _extractEdits(self, dataSets):
+        """
+        Find the elements of C{dataSets} which represent changes to existing
+        objects.
+
+        @param dataSets: C{list} of C{dict} mapping C{unicode} form submission
+            keys to form submission values.
+
+        @return: iterator of C{tuple}s with the first element giving a model
+            object which is being edited and the second element giving a
+            C{dict} of all the other arguments.
+        """
+        for dataSet in dataSets:
+            modelObject = self._objectFromID(dataSet[self._IDENTIFIER_KEY])
+            if modelObject is not self._NO_OBJECT_MARKER:
+                dataCopy = dataSet.copy()
+                identifier = dataCopy.pop(self._IDENTIFIER_KEY)
+                yield identifier, dataCopy
+
+
+    def _coerceAll(self, inputs):
+        """
+        XXX
+        """
+        def associate(result, obj):
+            return (obj, result)
+
+        coerceDeferreds = []
+        for obj, dataSet in inputs:
+            oneCoerce = self._coerceSingleRepetition(dataSet)
+            oneCoerce.addCallback(associate, obj)
+            coerceDeferreds.append(oneCoerce)
+        return gatherResults(coerceDeferreds)
 
 
     def coercer(self, dataSets):
@@ -386,30 +544,39 @@ class ListChangeParameter(record('name parameters defaults modelObjects viewFact
                 self._lastValues[identifier] = values
             return setter
 
-        created = []
-        edited = []
+        created = self._coerceAll(self._extractCreations(dataSets))
+        edited = self._coerceAll(self._extractEdits(dataSets))
 
-        receivedIdentifiers = []
-        for dataSet in dataSets:
-            identifier = dataSet.pop(self._IDENTIFIER_KEY)
-            receivedIdentifiers.append(identifier)
-            defaultObject = self._objectFromID(identifier)
-            dataSet = self._coerceSingleRepetition(dataSet)
-            if defaultObject is self._NO_OBJECT_MARKER:
-                created.append(
+        coerceDeferred = gatherResults([created, edited])
+        def cbCoerced((created, edited)):
+            receivedIdentifiers = set()
+
+            createObjects = []
+            for (identifier, dataSet) in created:
+                receivedIdentifiers.add(identifier)
+                createObjects.append(
                     CreateObject(dataSet, makeSetter(identifier, dataSet)))
-            else:
+
+            editObjects = []
+            for (identifier, dataSet) in edited:
+                receivedIdentifiers.add(identifier)
                 lastValues = self._lastValues[identifier]
                 if dataSet != lastValues:
-                    edited.append(EditObject(defaultObject, dataSet))
+                    modelObject = self._objectFromID(identifier)
+                    editObjects.append(EditObject(modelObject, dataSet))
                     self._lastValues[identifier] = dataSet
-        deleted = []
-        for identifier in set(self._idsToObjects) - set(receivedIdentifiers):
-            existing = self._objectFromID(identifier)
-            if existing is not self._NO_OBJECT_MARKER:
-                deleted.append(existing)
-            self._idsToObjects.pop(identifier)
-        return ListChanges(created, edited, deleted)
+
+            deleted = []
+            for identifier in set(self._idsToObjects) - receivedIdentifiers:
+                existing = self._objectFromID(identifier)
+                if existing is not self._NO_OBJECT_MARKER:
+                    deleted.append(existing)
+                self._idsToObjects.pop(identifier)
+
+            return ListChanges(createObjects, editObjects, deleted)
+
+        coerceDeferred.addCallback(cbCoerced)
+        return coerceDeferred
 
 
 
@@ -429,6 +596,33 @@ class ListParameter(record('name coercer count label description defaults '
         """
 
 
+    def fromInputs(self, inputs):
+        """
+        Extract the inputs associated with this parameter from the given
+        dictionary and coerce them using C{self.coercer}.
+
+        @type inputs: C{dict} mapping C{str} to C{list} of C{str}
+        @param inputs: The contents of a form post, in the conventional
+            structure.
+
+        @rtype: L{Deferred}
+        @return: A Deferred which will be called back with a list of the
+            structured data associated with this parameter.
+        """
+        outputs = []
+        for i in xrange(self.count):
+            name = self.name + '_' + str(i)
+            try:
+                value = inputs[name][0]
+            except KeyError:
+                raise ConfigurationError(
+                    "Missing value for field %d of %s" % (i, self.name))
+            else:
+                outputs.append(maybeDeferred(self.coercer, value))
+        return gatherResults(outputs)
+
+
+
 CHOICE_INPUT = 'choice'
 MULTI_CHOICE_INPUT = 'multi-choice'
 
@@ -444,7 +638,7 @@ class ChoiceParameter(record('name choices label description multiple '
                              label=None,
                              description="",
                              multiple=False,
-                             viewFactory=IParameterView)):
+                             viewFactory=IParameterView), _SelectiveCoercer):
     """
     A choice parameter, represented by a <select> element in HTML.
 
@@ -470,16 +664,19 @@ class ChoiceParameter(record('name choices label description multiple '
                 stacklevel=2)
             self.choices = [Option(*o) for o in self.choices]
 
+
     def type(self):
         if self.multiple:
             return MULTI_CHOICE_INPUT
         return CHOICE_INPUT
     type = property(type)
 
+
     def coercer(self, value):
         if self.multiple:
             return tuple(self.choices[int(v)].value for v in value)
         return self.choices[int(value)].value
+
 
     def compact(self):
         """
@@ -518,12 +715,7 @@ def _legacySpecialCases(form, patterns, parameter):
     """
     p = patterns[parameter.type + '-input-container']
 
-    if parameter.type == FORM_INPUT:
-        # SUPER SPECIAL CASE
-        subForm = parameter.coercer.asSubForm(parameter.name)
-        subForm.setFragmentParent(form)
-        p = p.fillSlots('input', subForm)
-    elif parameter.type == TEXTAREA_INPUT:
+    if parameter.type == TEXTAREA_INPUT:
         p = dictFillSlots(p, dict(label=parameter.label,
                                   name=parameter.name,
                                   value=parameter.default or ''))
@@ -694,11 +886,22 @@ class _LiveFormMixin(record('callable parameters description',
         @param formPostEmulator: a dict of lists of strings in a format like a
             cgi-module form post.
         """
-        return self.callable(**self._coerced(formPostEmulator))
+        result = self.fromInputs(formPostEmulator)
+        result.addCallback(lambda params: self.callable(**params))
+        return result
     expose(invoke)
 
 
-    def _coerced(self, received):
+    def __call__(self, formPostEmulator):
+        """
+        B{Private} helper which passes through to L{invoke} to support legacy
+        code passing L{LiveForm} instances to L{Parameter} instead of
+        L{FormParameter}.  Do B{not} call this.
+        """
+        return self.invoke(formPostEmulator)
+
+
+    def fromInputs(self, received):
         """
         Convert some random strings received from a browser into structured
         data, using a list of parameters.
@@ -706,36 +909,17 @@ class _LiveFormMixin(record('callable parameters description',
         @param received: a dict of lists of strings, i.e. the canonical Python
             form of web form post.
 
-        @return: a dict mapping parameter names to coerced parameter values.
+        @rtype: L{Deferred}
+        @return: A Deferred which will be called back with a dict mapping
+            parameter names to coerced parameter values.
         """
-        result = {}
+        results = []
         for parameter in self.parameters:
-            if parameter.type == MULTI_TEXT_INPUT:
-                values = list()
-                for i in xrange(parameter.count):
-                    name = parameter.name + '_' + str(i)
-                    try:
-                        inputValue = received[name][0]
-                    except KeyError:
-                        raise ConfigurationError("Missing value for field " +
-                                                 str(i) + " of " + parameter.name)
-                    values.append(parameter.coercer(inputValue))
-                result[parameter.name.encode('ascii')] = values
-            else:
-                try:
-                    inputValue = received[parameter.name][0]
-                except KeyError:
-                    raise ConfigurationError("Missing value for input: " +
-                                            parameter.name)
-                else:
-                    # I want to be super-explicit about this for now, since it's
-                    # doing stuff no other case is doing.
-                    if parameter.type == FORM_INPUT:
-                        coerced = parameter.coercer.invoke(inputValue)
-                    else:
-                        coerced = parameter.coercer(inputValue)
-                    result[parameter.name.encode('ascii')] = coerced
-        return result
+            name = parameter.name.encode('ascii')
+            d = maybeDeferred(parameter.fromInputs, received)
+            d.addCallback(lambda value, name=name: (name, value))
+            results.append(d)
+        return gatherResults(results).addCallback(dict)
 
 
 
@@ -763,7 +947,7 @@ class LiveForm(_LiveFormMixin, athena.LiveElement):
 
 
 
-class _ParameterViewBase(Element):
+class _ParameterViewMixin:
     """
     Base class providing common functionality for different parameter views.
 
@@ -775,13 +959,6 @@ class _ParameterViewBase(Element):
         @param tag: The document template to use to render this view.
         """
         self.parameter = parameter
-
-
-    def setDefaultTemplate(self, tag):
-        """
-        Use the given default template.
-        """
-        self.docFactory = stan(tag)
 
 
     def __eq__(self, other):
@@ -800,6 +977,13 @@ class _ParameterViewBase(Element):
         Define inequality as the negation of equality.
         """
         return not self.__eq__(other)
+
+
+    def setDefaultTemplate(self, tag):
+        """
+        Use the given default template.
+        """
+        self.docFactory = stan(tag)
 
 
     def name(self, request, tag):
@@ -868,7 +1052,7 @@ class RepeatedLiveFormWrapper(athena.LiveElement):
 
 
 
-class _TextLikeParameterView(_ParameterViewBase):
+class _TextLikeParameterView(_ParameterViewMixin, Element):
     """
     View definition base class for L{Parameter} instances which are simple text
     inputs.
@@ -969,20 +1153,21 @@ class OptionView(Element):
 
 def _textParameterToView(parameter):
     """
-    Return a L{TextParameterView} adapter for C{TEXT_INPUT} and
-    C{PASSWORD_INPUT} L{Parameter} instances.
+    Return a L{TextParameterView} adapter for C{TEXT_INPUT}, C{PASSWORD_INPUT},
+    and C{FORM_INPUT} L{Parameter} instances.
     """
     if parameter.type == TEXT_INPUT:
         return TextParameterView(parameter)
     if parameter.type == PASSWORD_INPUT:
         return PasswordParameterView(parameter)
+    if parameter.type == FORM_INPUT:
+        return FormInputParameterView(parameter)
     return None
 
 registerAdapter(_textParameterToView, Parameter, IParameterView)
 
 
-
-class ChoiceParameterView(_ParameterViewBase):
+class ChoiceParameterView(_ParameterViewMixin, Element):
     """
     View definition for L{Parameter} instances with type of C{CHOICE_INPUT}.
     """
@@ -1015,7 +1200,7 @@ registerAdapter(ChoiceParameterView, ChoiceParameter, IParameterView)
 
 
 
-class ListChangeParameterView(athena.LiveElement):
+class ListChangeParameterView(_ParameterViewMixin, athena.LiveElement):
     """
     L{IParameterView} adapter for L{ListChangeParameter}.
 
@@ -1071,8 +1256,58 @@ class ListChangeParameterView(athena.LiveElement):
         return inevow.IQ(self.docFactory).onePattern('repeater')
     page.renderer(repeater)
 
-
-    def setDefaultTemplate(self, tag):
-        self.docFactory = stan(tag(render=tags.directive('liveElement')))
-
 registerAdapter(ListChangeParameterView, ListChangeParameter, IParameterView)
+
+
+
+class FormParameterView(_ParameterViewMixin, athena.LiveElement):
+    """
+    L{IParameterView} adapter for L{FormParameter}.
+
+    @ivar parameter: the parameter being viewed.
+    @type parameter: L{FormParameter}
+    """
+    implements(IParameterView)
+    patternName = 'form'
+
+    def __init__(self, parameter):
+        _ParameterViewMixin.__init__(self, parameter)
+        athena.LiveElement.__init__(self)
+
+
+    def input(self, request, tag):
+        """
+        Add the wrapped form, as a subform, as a child of the given tag.
+        """
+        subform = self.parameter.form.asSubForm(self.parameter.name)
+        subform.setFragmentParent(self)
+        return tag[subform]
+    renderer(input)
+
+registerAdapter(FormParameterView, FormParameter, IParameterView)
+
+
+
+class FormInputParameterView(_ParameterViewMixin, athena.LiveElement):
+    """
+    L{IParameterView} adapter for C{FORM_INPUT} L{Parameter}s.
+
+    @ivar parameter: the parameter being viewed.
+    @type parameter: L{Parameter}
+    """
+    implements(IParameterView)
+    patternName = 'form'
+
+    def __init__(self, parameter):
+        _ParameterViewMixin.__init__(self, parameter)
+        athena.LiveElement.__init__(self)
+
+
+    def input(self, request, tag):
+        """
+        Add the wrapped form, as a subform, as a child of the given tag.
+        """
+        subform = self.parameter.coercer.asSubForm(self.parameter.name)
+        subform.setFragmentParent(self)
+        return tag[subform]
+    renderer(input)

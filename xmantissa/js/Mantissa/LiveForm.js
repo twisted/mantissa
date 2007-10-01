@@ -15,6 +15,16 @@ Mantissa.LiveForm.RepeatedLiveFormWrapper = Nevow.Athena.Widget.subclass(
  * @type identifier: string
  * @ivar identifier: A value which will be inserted into the inputs mapping for
  *     the key C{__repeated-liveform-id__}.
+ *
+ * @type formName: string
+ * @ivar formName: The name of the form which is being wrapped.
+ *     SubFormWidget.gatherInputs uses this as a key in the "mapping" it
+ *     submits to the server, with the results of this widget's gatherInputs as
+ *     the associated value.  It must be the same as the wrapped form's
+ *     formName in order for the values to arrive at the server correctly.  It
+ *     would probably be better if the server were not required to supply
+ *     exactly the correct value here; instead this class could get it from its
+ *     wrapped form somehow.
  */
 Mantissa.LiveForm.RepeatedLiveFormWrapper.methods(
     function __init__(self, node, formName, identifier) {

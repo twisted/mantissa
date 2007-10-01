@@ -61,10 +61,13 @@
   </tr>
 
   <tr nevow:pattern="form-input-container">
-    <td colspan="2"><nevow:slot name="input" /></td>
+    <td colspan="2" nevow:render="input" />
   </tr>
 
-  <tr nevow:pattern="repeatable-form-input-container">
+  <!-- Repeatable forms use Athena and are LiveElements, so this pattern must
+       have the liveElement renderer.
+    -->
+  <tr nevow:render="liveElement" nevow:pattern="repeatable-form-input-container">
     <td colspan="2">
       <nevow:invisible nevow:render="forms" />
       <div class="liveform-repeater" nevow:pattern="repeater">

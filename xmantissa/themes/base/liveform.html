@@ -98,7 +98,10 @@
     <input type="password"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input>
   </div>
 
-  <div nevow:pattern="repeatable-form-input-container">
+  <!-- Repeatable forms use Athena and are LiveElements, so this pattern must
+       have the liveElement renderer.
+    -->
+  <div nevow:render="liveElement" nevow:pattern="repeatable-form-input-container">
     <nevow:invisible nevow:render="forms" />
     <div class="liveform-repeater" nevow:pattern="repeater">
       <a href="#">
@@ -122,7 +125,7 @@
   </div>
 
   <div nevow:pattern="form-input-container">
-    <nevow:slot name="input" />
+    <nevow:invisible nevow:render="input" />
   </div>
 
   <div nevow:pattern="checkbox-input-container">

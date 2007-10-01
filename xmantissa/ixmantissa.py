@@ -812,6 +812,96 @@ class IProtocolFactoryFactory(Interface):
 
 
 
+class IParameter(Interface):
+    """
+    Description of a single variable which will take on a value from external
+    input and be used to perform some calculation or action.
+
+    For example, an HTML form is a collection of IParameters, most likely one
+    per input tag.  When POSTed, each input supplies its text value as the
+    external input to a corresponding IParameter provider and the resulting
+    collection is used to respond to the POST somehow.
+
+    NOTE: This interface is highly unstable and subject to grossly incompatible
+    changes.
+    """
+
+    # XXX - These shouldn't be attributes of IParameter, I expect.  They are
+    # both really view things.  Either they goes into the template which is
+    # used for this parameter (as an explanation to a user what the parameter
+    # is), or some code which creates the view supplies them as parameters to
+    # that object (in which case, it's probably more of a unique identifier in
+    # that view context for this parameter). -exarkun
+    name = Attribute(
+        """
+        A short C{unicode} string uniquely identifying this parameter within
+        the context of a collection of L{IParameter} providers.
+        """)
+
+    label = Attribute(
+        """
+        A short C{unicode} string uniquely identifying this parameter within
+        the context of a collection of L{IParameter} providers.
+        """)
+
+    # XXX - Another thing which belongs on the view.  Who even says this will
+    # be rendered to an HTML form?
+    type = Attribute(
+        """
+        One of C{liveform.TEXT_INPUT}, C{liveform.PASSWORD_INPUT},
+        C{liveform.TEXTAREA_INPUT}, C{liveform.FORM_INPUT},
+        C{liveform.RADIO_INPUT}, or C{liveform.CHECKBOX_INPUT} indicating the
+        kind of input interface which will be presented for this parameter.
+        """)
+
+    # XXX - This shouldn't be an attribute of IParameter.  It's intended to be
+    # displayed to end users, it belongs in a template.
+    description = Attribute(
+        """
+        A long C{unicode} string explaining the meaning or purpose of this
+        parameter.  May be C{None} to provide the end user with an unpleasant
+        experience.
+        """)
+
+    # XXX - At this level, a default should be a structured object, not a
+    # unicode string.  There is presently no way to serialize a structured
+    # object into the view, though, so we use unicode here.
+    default = Attribute(
+        """
+        A C{unicode} string which will be initially presented in the view as
+        the value for this parameter, or C{None} if no such value should be
+        presented.
+        """)
+
+
+    def viewFactory(parameter, default):
+        """
+        @type view: L{IParameter} provider
+        @param view: The parameter for which to create a view.
+
+        @param default: An object to return if no view can be created for the
+            given parameter.
+
+        @rtype: L{IParameterView} provider
+        """
+
+
+    # XXX - This is most definitely a view thing.
+    def compact():
+        """
+        Mutate the parameter so that when a view object is created for it, it
+        is more visually compact than it would otherwise have been.
+        """
+
+
+    def fromInputs(inputs):
+        """
+        Extract the value for this parameter from the given submission
+        dictionary and return a structured value for this parameter.
+        """
+
+
+
 class IParameterView(IRenderer):
     """
     View interface for an individual LiveForm parameter.
