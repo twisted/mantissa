@@ -2,11 +2,13 @@
 
 from twisted.trial import unittest
 
+from axiom.item import Item
+from axiom.attributes import inmemory, integer
 from axiom.store import Store
 from axiom.dependency import installOn
 
 from nevow.url import URL
-from nevow import loaders, tags
+from nevow import loaders, tags, context
 
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
@@ -32,7 +34,7 @@ class FakeNavigator2(object):
 
 
 class NavConfig(unittest.TestCase):
-    def testTabMerge(self):
+    def test_tabMerge(self):
         nav = webnav.getTabs([FakeNavigator1(),
                               FakeNavigator2()])
 
@@ -48,7 +50,7 @@ class NavConfig(unittest.TestCase):
         self.assertEquals(kids, ['Super', 'Ultra', 'Mega', 'Hyper'])
 
 
-    def testSetTabURLs(self):
+    def test_setTabURLs(self):
         """
         Check that L{webnav.setTabURLs} correctly sets the C{linkURL}
         attribute of L{webnav.Tab} instances to the result of
@@ -70,7 +72,7 @@ class NavConfig(unittest.TestCase):
         self.assertEqual(tabs[1].linkURL, '/foo/bar')
 
 
-    def testGetSelectedTabExactMatch(self):
+    def test_getSelectedTabExactMatch(self):
         """
         Check that L{webnav.getSelectedTab} returns the tab whose C{linkURL}
         attribute exactly matches the path of the L{nevow.url.URL} it is passed
@@ -87,7 +89,7 @@ class NavConfig(unittest.TestCase):
         self.failIf(selected)
 
 
-    def testGetSelectedTabPrefixMatch(self):
+    def test_getSelectedTabPrefixMatch(self):
         """
         Check that L[webnav.getSelectedTab} returns the tab whose C{linkURL}
         attribute contains the longest prefix of path segments that appears
@@ -115,6 +117,22 @@ class NavConfig(unittest.TestCase):
 
 
 
+class _MockSearchAggregator(Item):
+    """
+    Implement as much of L{xmantissa.ixmantissa.ISearchAggregator} as is
+    required by L{webnav.NavMixin}.
+    """
+    attribute = integer()
+    _providers = inmemory()
+
+    def providers(self):
+        """
+        Return L{_providers}.
+        """
+        return self._providers
+
+
+
 class NaxMixinTestCase(unittest.TestCase):
     """
     Tests for L{webnav.NavMixin}.
@@ -129,6 +147,8 @@ class NaxMixinTestCase(unittest.TestCase):
         self.navMixin = webnav.NavMixin(
             privapp, privapp, privapp.getPageComponents(), u'user@host')
 
+        self.privateApplication = privapp
+
 
     def test_searchRenderer(self):
         """
@@ -136,11 +156,27 @@ class NaxMixinTestCase(unittest.TestCase):
         I{search} pattern from the navigation template, when there is a search
         aggregator with at least one provider.
         """
-        class _MockSearchAggregator(object):
-            def providers(self):
-                return ['a provider']
-        self.navMixin.pageComponents.searchAggregator = _MockSearchAggregator()
+        searchAggregator = _MockSearchAggregator(_providers=['a provider'])
+        self.navMixin.pageComponents.searchAggregator = searchAggregator
         self.navMixin._navTemplate = loaders.stan(tags.div[
             tags.div(attribute='test_searchRenderer', pattern='search')])
         result = self.navMixin.render_search(None, None)
         self.assertEqual(result.attributes['attribute'], 'test_searchRenderer')
+
+
+    def test_searchFormAction(self):
+        """
+        L{webnav.NavMixin.render_searchFormAction} should fill the
+        I{search-action} slot in its tag with the URL of the search
+        aggregator.
+        """
+        searchAggregator = _MockSearchAggregator(
+            store=Store(), _providers=['a provider'])
+        self.navMixin.pageComponents.searchAggregator = searchAggregator
+        ctx = context.WebContext(
+            tag=tags.div(attribute='test_searchFormAction')[tags.slot('form-action')])
+        result = self.navMixin.render_searchFormAction(ctx, None)
+        self.assertEqual(result.attributes['attribute'], 'test_searchFormAction')
+        self.assertEqual(
+            result.slotData['form-action'],
+            self.privateApplication.linkTo(searchAggregator.storeID))

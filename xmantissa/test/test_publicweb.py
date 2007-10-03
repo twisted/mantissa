@@ -100,7 +100,7 @@ class PublicAthenaLivePageTestCase(TestCase, _PublicAthenaLivePageTestMixin):
     def test_menubarRendererAuthenticated(self):
         """
         Verify that the I{menubar} renderer of L{PublicAthenaLivePage} returns
-        an instance of the I{loginged-in} pattern when the viewer is
+        an instance of the I{logged-in} pattern when the viewer is
         authenticated.
         """
         page = PublicAthenaLivePage(

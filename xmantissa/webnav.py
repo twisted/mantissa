@@ -279,7 +279,7 @@ class NavMixin(object):
         if searchAggregator is None or not searchAggregator.providers():
             action = ''
         else:
-            action = self.webapp.linkTo(searchAggregator.storeID)
+            action = self.translator.linkTo(searchAggregator.storeID)
         return ctx.tag.fillSlots('form-action', action)
 
 
