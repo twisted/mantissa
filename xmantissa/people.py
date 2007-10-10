@@ -496,6 +496,17 @@ class ExtractWrapper(item.Item):
 
 
 
+def _stringifyKeys(d):
+    """
+    Return a copy of C{d} with C{str} keys.
+
+    @type d: C{dict} with C{unicode} keys.
+    @rtype: C{dict} with C{str} keys.
+    """
+    return dict((k.encode('ascii'), v)  for (k, v) in d.iteritems())
+
+
+
 class Organizer(item.Item):
     """
     Oversee the creation, location, destruction, and modification of
@@ -645,13 +656,32 @@ class Organizer(item.Item):
         @return: The contact item, as created by the given contact type.
         """
         contactItem = contactType.createContactItem(
-            person, **dict([
-                    (k.encode('ascii'), v)
-                    for (k, v)
-                    in contactInfo.iteritems()]))
+            person, **_stringifyKeys(contactInfo))
         if contactItem is not None:
             self._callOnOrganizerPlugins('contactItemCreated', contactItem)
         return contactItem
+
+
+    def editContactItem(self, contactType, contactItem, contactInfo):
+        """
+        Edit the given contact item with the given contact type.  Broadcast
+        the edit to all L{IOrganizerPlugin} powerups.
+
+        @type contactType: L{IContactType}
+        @param contactType: The contact type which will be used to edit the
+            contact item.
+
+        @param contactItem: The contact item to edit.
+
+        @type contactInfo: C{dict}
+        @param contactInfo: The contact information to use to edit the
+            contact item.
+
+        @return: C{None}
+        """
+        contactType.editContactItem(
+            contactItem, **_stringifyKeys(contactInfo))
+        self._callOnOrganizerPlugins('contactItemEdited', contactItem)
 
 
     def _callOnOrganizerPlugins(self, methodName, *args):
@@ -694,15 +724,14 @@ class Organizer(item.Item):
         oldname = person.name
         person.name = nickname
         self._callOnOrganizerPlugins('personNameChanged', person, oldname)
-        stringifyKeys = lambda d: dict((k.encode('ascii'), v)
-                                       for (k, v) in d.iteritems())
         for contactType, submission in edits:
             for edit in submission.edit:
-                contactType.editContactItem(
-                    edit.object, **stringifyKeys(edit.values))
+                self.editContactItem(
+                    contactType, edit.object, edit.values)
             for create in submission.create:
                 create.setter(
-                    self.createContactItem(contactType, person, create.values))
+                    self.createContactItem(
+                        contactType, person, create.values))
             for delete in submission.delete:
                 delete.deleteFromStore()
 

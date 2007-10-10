@@ -42,7 +42,7 @@ from xmantissa.people import (
     OrganizerFragment, EditPersonView,
     BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
     PostalContactType, ReadOnlyEmailView,
-    ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL)
+    ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL, _stringifyKeys)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -51,6 +51,29 @@ from xmantissa.liveform import (
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
 from xmantissa.signup import UserInfo
+
+
+
+class StringifyKeysTestCase(unittest.TestCase):
+    """
+    Tests for L{_stringifyKeys}.
+    """
+    def test_stringifyKeys(self):
+        """
+        Verify that L{_stringifyKeys} returns a dictionary which is the same
+        as the input except for having C{str} keys.
+        """
+        input = {u'a': u'b', u'b': u'c'}
+        output = _stringifyKeys(input)
+        self.assertEqual(len(output), 2)
+        keys = output.keys()
+        self.failUnless(isinstance(keys[0], str))
+        self.failUnless(isinstance(keys[1], str))
+        self.assertEqual(sorted(keys), ['a', 'b'])
+        self.failUnless(isinstance(output['a'], unicode))
+        self.failUnless(isinstance(output['b'], unicode))
+        self.assertEqual(output['a'], u'b')
+        self.assertEqual(output['b'], u'c')
 
 
 
@@ -133,6 +156,12 @@ class StubOrganizerPlugin(Item):
         the database.
         """)
 
+    editedContactItems = inmemory(
+        doc="""
+        A list of contact items edited since this item was last loaded from
+        the database.
+        """)
+
     personalization = inmemory(
         doc="""
         An objects to be returned by L{personalize}.
@@ -150,6 +179,7 @@ class StubOrganizerPlugin(Item):
         self.createdPeople = []
         self.renamedPeople = []
         self.createdContactItems = []
+        self.editedContactItems = []
         self.personalization = None
         self.personalizedPeople = []
 
@@ -173,6 +203,13 @@ class StubOrganizerPlugin(Item):
         Record the creation of a contact item.
         """
         self.createdContactItems.append(contactItem)
+
+
+    def contactItemEdited(self, contactItem):
+        """
+        Record the editing of a contact item.
+        """
+        self.editedContactItems.append(contactItem)
 
 
     def getContactTypes(self):
@@ -836,8 +873,8 @@ class PeopleModelTestCase(unittest.TestCase):
 
     def test_editPersonContactCreationNotification(self):
         """
-        Contact items created through L{Organizer.editPerson} should be sent to
-        L{IOrganizerPlugin.contactItemCreated} for all L{IOrganizerPlugin}
+        Contact items created through L{Organizer.editPerson} should be sent
+        to L{IOrganizerPlugin.contactItemCreated} for all L{IOrganizerPlugin}
         powerups on the store.
         """
         contactType = StubContactType((), None, None, createContactItems=True)
@@ -853,6 +890,25 @@ class PeopleModelTestCase(unittest.TestCase):
                                    [], []))])
         self.assertEqual(
             observer.createdContactItems, [(person, contactInfo)])
+
+
+    def test_editPersonContactEditNotification(self):
+        """
+        Contact items edit through L{Organizer.editPerson} should be sent to
+        L{IOrganizerPlugin.contactItemEdited} for all L{IOrganizerPlugin}
+        powerups on the store.
+        """
+        contactType = StubContactType((), None, None)
+        contactItem = object()
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        person = self.organizer.createPerson(u'alice')
+        self.organizer.editPerson(
+            person, person.name,
+            [(contactType,
+              ListChanges([], [EditObject(contactItem, {})], []))])
+        self.assertEqual(
+            observer.editedContactItems, [contactItem])
 
 
     def test_editPersonDeletesContactInfo(self):
@@ -969,8 +1025,8 @@ class PeopleModelTestCase(unittest.TestCase):
 
     def test_createContactItemNotifiesPlugins(self):
         """
-        L{Organizer.createContactItem} should call L{contactItemCreated} on all
-        L{IOrganizerPlugin} powerups on the store.
+        L{Organizer.createContactItem} should call L{contactItemCreated} on
+        all L{IOrganizerPlugin} powerups on the store.
         """
         nickname = u'test person'
         observer = StubOrganizerPlugin(store=self.store)
@@ -988,8 +1044,8 @@ class PeopleModelTestCase(unittest.TestCase):
 
     def test_notificationSkippedForUncreatedContactItems(self):
         """
-        L{Organizer.createContactItem} should not call L{contactItemCreated} on
-        any L{IOrganizerPlugin} powerups on the store if
+        L{Organizer.createContactItem} should not call L{contactItemCreated}
+        on any L{IOrganizerPlugin} powerups on the store if
         L{IContactType.createContactItem} returns C{None} to indicate that it
         is not creating a contact item.
         """
@@ -1002,6 +1058,19 @@ class PeopleModelTestCase(unittest.TestCase):
         contactItem = self.organizer.createContactItem(
             contactType, person, parameters)
         self.assertEqual(observer.createdContactItems, [])
+
+
+    def test_editContactItemNotifiesPlugins(self):
+        """
+        L{Organizer.editContactItem} should call L{contactItemEdited} on all
+        L{IOrganizerPlugin} powerups in the store.
+        """
+        observer = StubOrganizerPlugin(store=self.store)
+        self.store.powerUp(observer, IOrganizerPlugin)
+        contactType = StubContactType((), None, None)
+        contactItem = object()
+        self.organizer.editContactItem(contactType, contactItem, {})
+        self.assertEqual(observer.editedContactItems, [contactItem])
 
 
     def test_createPersonNotifiesPlugins(self):

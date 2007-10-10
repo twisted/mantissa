@@ -700,6 +700,14 @@ class IOrganizerPlugin(Interface):
         """
 
 
+    def contactItemEdited(contact):
+        """
+        Called when an existing contact item has been edited.
+
+        @param contact: The contact item.
+        """
+
+
     def personalize(person):
         """
         Return some plugin-specific state for the given person.
