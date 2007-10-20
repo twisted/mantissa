@@ -10,7 +10,6 @@ from zope.interface import classProvides
 
 from string import lowercase
 
-from twisted.python.util import sibpath
 from twisted.python.reflect import qual
 from twisted.trial import unittest
 
@@ -25,7 +24,7 @@ from epsilon import extime
 from epsilon.extime import Time
 from epsilon.structlike import record
 
-from axiom.store import Store
+from axiom.store import Store, AtomicFile
 from axiom.dependency import installOn, installedOn
 from axiom.item import Item
 from axiom.attributes import inmemory, text
@@ -33,16 +32,17 @@ from axiom.errors import DeletionDisallowed
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
 from xmantissa.scrolltable import UnsortableColumn
+from xmantissa import people
 from xmantissa.people import (
     Organizer, Person, EmailAddress, AddPersonFragment, Mugshot,
     addContactInfoType, contactInfoItemTypeFromClassName,
     _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
     PhoneNumber, setIconURLForContactInfoType, iconURLForContactInfoType,
-    _CONTACT_INFO_ICON_URLS, PersonScrollingFragment,
-    OrganizerFragment, EditPersonView,
-    BaseContactType, EmailContactType, _normalizeWhitespace, PostalAddress,
-    PostalContactType, ReadOnlyEmailView,
-    ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL, _stringifyKeys)
+    _CONTACT_INFO_ICON_URLS, PersonScrollingFragment, OrganizerFragment,
+    EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
+    PostalAddress, PostalContactType, ReadOnlyEmailView,
+    ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL,
+    _stringifyKeys, makeThumbnail)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -53,10 +53,9 @@ from xmantissa.ixmantissa import (
 from xmantissa.signup import UserInfo
 
 
-
-class StringifyKeysTestCase(unittest.TestCase):
+class PeopleUtilitiesTestCase(unittest.TestCase):
     """
-    Tests for L{_stringifyKeys}.
+    Tests for module-level utility functions in L{xmantissa.people}.
     """
     def test_stringifyKeys(self):
         """
@@ -74,6 +73,159 @@ class StringifyKeysTestCase(unittest.TestCase):
         self.failUnless(isinstance(output['b'], unicode))
         self.assertEqual(output['a'], u'b')
         self.assertEqual(output['b'], u'c')
+
+
+    def test_makeThumbnail(self):
+        """
+        Verify that L{makeThumbnail} makes a correctly scaled thumbnail image.
+        """
+        try:
+            from PIL import Image
+        except ImportError:
+            raise unittest.SkipTest('PIL is not available')
+
+        # make an image to thumbnail
+        fullSizePath = self.mktemp()
+        fullSizeFormat = 'JPEG'
+        fullWidth = 543
+        fullHeight = 102
+        Image.new('RGB', (fullWidth, fullHeight)).save(
+            file(fullSizePath, 'w'), fullSizeFormat)
+        # thumbnail it
+        thumbnailPath = self.mktemp()
+        thumbnailSize = 60
+        thumbnailFormat = 'TIFF'
+        makeThumbnail(
+            fullSizePath, thumbnailPath, thumbnailSize, thumbnailFormat)
+        # open the thumbnail, make sure it's the right size and format
+        thumbnailImage = Image.open(file(thumbnailPath))
+        scaleFactor = float(thumbnailSize) / fullWidth
+        expectedHeight = int(fullHeight * scaleFactor)
+        self.assertEqual(
+            thumbnailImage.size, (thumbnailSize, expectedHeight))
+        self.assertEqual(thumbnailImage.format, thumbnailFormat)
+        # make sure the original image is untouched
+        originalImage = Image.open(file(fullSizePath))
+        self.assertEqual(originalImage.format, fullSizeFormat)
+        self.assertEqual(originalImage.size, (fullWidth, fullHeight))
+
+
+
+class MugshotTestCase(unittest.TestCase):
+    """
+    Tests for L{Mugshot}.
+    """
+    def _doFromFileTest(self, store, person):
+        """
+        Verify that the L{Mugshot} returned from L{Mugshot.fromFile} has the
+        correct attribute values.
+        """
+        newBody = store.newFilePath('newBody')
+        newSmallerBody = store.newFilePath('newSmallerBody')
+        newFormat = u'TIFF'
+        def _makeThumbnail(cls, inputFile, person, format, smaller):
+            if smaller:
+                return newSmallerBody
+            return newBody
+        originalMakeThumbnail = Mugshot.makeThumbnail
+        try:
+            Mugshot.makeThumbnail = classmethod(_makeThumbnail)
+            mugshot = Mugshot.fromFile(
+                person, file(self.mktemp(), 'w'), newFormat)
+        finally:
+            Mugshot.makeThumbnail = originalMakeThumbnail
+        # and no others should have been created
+        self.assertEqual(store.count(Mugshot), 1)
+        # the item should have been updated with the paths returned from our
+        # fake Mugshot.makeThumbnail()
+        self.assertEqual(mugshot.body, newBody)
+        self.assertEqual(mugshot.smallerBody, newSmallerBody)
+        # the 'person' attribute should be unchanged
+        self.assertIdentical(mugshot.person, person)
+        # the format attribute should be updated
+        self.assertEqual(mugshot.type, u'image/' + newFormat)
+        return mugshot
+
+
+    def test_fromFileExistingMugshot(self):
+        """
+        Verify that L{Mugshot.fromFile} will update the attributes on an
+        existing L{Mugshot} item for the given person, if one exists.
+        """
+        store = Store(self.mktemp())
+        person = Person(store=store)
+        mugshot = Mugshot(
+            store=store,
+            type=u'JPEG',
+            body=store.newFilePath('body'),
+            smallerBody=store.newFilePath('smallerBody'),
+            person=person)
+        self.assertIdentical(
+            self._doFromFileTest(store, person),
+            mugshot)
+
+
+    def test_fromFileNoMugshot(self):
+        """
+        Verify that L{Mugshot.fromFile} creates a new L{Mugshot} for the given
+        person, if one does not exist.
+        """
+        store = Store(self.mktemp())
+        person = Person(store=store)
+        self._doFromFileTest(store, person)
+
+
+    def _doMakeThumbnailTest(self, smaller):
+        """
+        Verify that L{Mugshot.makeThumbnail} passes the correct arguments to
+        L{makeThumbnail}, when passed the given value for the C{smaller}
+        argument.
+        """
+        makeThumbnailCalls = []
+        def _makeThumbnail(
+            inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
+            makeThumbnailCalls.append((
+                inputFile, outputFile, thumbnailSize, outputFormat))
+
+        store = Store(self.mktemp())
+        person = Person(store=store)
+        inputFile = file(self.mktemp(), 'w')
+        inputFormat = 'JPEG'
+        originalMakeThumbnail = people.makeThumbnail
+        try:
+            people.makeThumbnail = _makeThumbnail
+            thumbnailPath = Mugshot.makeThumbnail(
+                inputFile, person, inputFormat, smaller)
+        finally:
+            people.makeThumbnail = originalMakeThumbnail
+        self.assertEqual(len(makeThumbnailCalls), 1)
+        (gotInputFile, outputFile, thumbnailSize, outputFormat) = (
+            makeThumbnailCalls[0])
+        self.assertEqual(gotInputFile, inputFile)
+        if smaller:
+            self.assertEqual(thumbnailSize, Mugshot.smallerSize)
+        else:
+            self.assertEqual(thumbnailSize, Mugshot.size)
+        self.assertEqual(outputFormat, inputFormat)
+        self.assertIsInstance(outputFile, AtomicFile)
+        # it should return the right path
+        self.assertEqual(outputFile.finalpath, thumbnailPath)
+
+
+    def test_makeThumbnail(self):
+        """
+        Verify that L{Mugshot.makeThumbnail} passes the correct arguments to
+        L{makeThumbnail}.
+        """
+        self._doMakeThumbnailTest(smaller=False)
+
+
+    def test_makeThumbnailSmaller(self):
+        """
+        Like L{test_makeThumbnail}, but for when the method is asked to make a
+        smaller-sized thumbnail.
+        """
+        self._doMakeThumbnailTest(smaller=True)
 
 
 
@@ -1556,38 +1708,11 @@ class PeopleTests(unittest.TestCase):
         self.assertTrue(isinstance(exception.args[0], unicode))
 
 
-    def testMugshot(self):
+    def test_linkToPerson(self):
         """
-        Create a Mugshot item, check that it thumbnails its image correctly.
+        Verify that L{Organizer.linkToPerson} generates the correct URL, with
+        the web ID of the person item appended to the organizer's url.
         """
-
-        try:
-            from PIL import Image
-        except ImportError:
-            raise unittest.SkipTest('PIL is not available')
-
-        s = Store(self.mktemp())
-
-        p = Person(store=s, name=u'Bob')
-
-        imgpath = sibpath(__file__, 'resources/square.png')
-        imgfile = file(imgpath)
-
-        m = Mugshot.fromFile(p, imgfile, u'png')
-
-        self.assertEqual(m.type, 'image/png')
-        self.assertIdentical(m.person,  p)
-
-        self.failUnless(m.body)
-        self.failUnless(m.smallerBody)
-
-        img = Image.open(m.body.open())
-        self.assertEqual(img.size, (m.size, m.size))
-
-        smallerimg = Image.open(m.smallerBody.open())
-        self.assertEqual(smallerimg.size, (m.smallerSize, m.smallerSize))
-
-    def testLinkToPerson(self):
         privapp = self.store.findUnique(PrivateApplication)
         p = Person(store=self.store)
         self.assertEqual(self.organizer.linkToPerson(p),

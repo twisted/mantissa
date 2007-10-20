@@ -39,13 +39,34 @@ from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.webtheme import (
     ThemedDocumentFactory, ThemedFragment, ThemedElement)
 
-def makeThumbnail(infile, outfile, thumbSize, format='jpeg'):
-    assert Image is not None, 'you need PIL installed if you want to thumbnail things'
-    image = Image.open(infile)
-    (width, height) = image.size
-    scale = float(thumbSize) / max(max(width, height), thumbSize)
-    image.resize((int(width * scale),
-                  int(height * scale)), Image.ANTIALIAS).save(outfile, format)
+def makeThumbnail(inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
+    """
+    Make a thumbnail of the image stored at C{inputPath}, preserving its
+    aspect ratio, and write the result to C{outputPath}.
+
+    @param inputFile: The image file (or path to the file) to thumbnail.
+    @type inputFile: C{file} or C{str}
+
+    @param outputFile: The file (or path to the file) to write the thumbnail
+    to.
+    @type outputFile: C{file} or C{str}
+
+    @param thumbnailSize: The maximum length (in pixels) of the longest side of
+    the thumbnail image.
+    @type thumbnailSize: C{int}
+
+    @param outputFormat: The C{format} argument to pass to L{Image.save}.
+    Defaults to I{jpeg}.
+    @type format: C{str}
+    """
+    if Image is None:
+        # throw the ImportError here
+        import PIL
+    image = Image.open(inputFile)
+    image.thumbnail((thumbnailSize, thumbnailSize), Image.ANTIALIAS)
+    image.save(outputFile, outputFormat)
+
+
 
 _CONTACT_INFO_ICON_URLS = {}
 def setIconURLForContactInfoType(itemType, iconPath):
@@ -1422,7 +1443,7 @@ class Mugshot(item.Item):
     """
     An image that is associated with a person
     """
-    schemaVersion = 2
+    schemaVersion = 3
 
     type = attributes.text(doc="""
     Content-type of image data
@@ -1432,6 +1453,9 @@ class Mugshot(item.Item):
     Path to image data
     """, allowNone=False)
 
+    # at the moment we require an upgrader to change the size of either of the
+    # mugshot thumbnails.  we might save ourselves some effort by generating
+    # scaled versions on demand, and caching them.
     smallerBody = attributes.path(doc="""
     Path to smaller version of image data
     """, allowNone=False)
@@ -1441,85 +1465,130 @@ class Mugshot(item.Item):
     """, allowNone=False)
 
     size = 120
-    smallerSize = 22
+    smallerSize = 60
 
-    def fromFile(cls, person, infile, format):
+    def fromFile(cls, person, inputFile, format):
         """
-        Create a Mugshot item from an image file.
+        Create a L{Mugshot} item for C{person} out of the image data in
+        C{inputFile}, or update C{person}'s existing L{Mugshot} item to
+        reflect the new images.
 
-        @param person: L{Person} instance (who the mugshot is of)
-        @param infile: C{file} (where the image data is)
-        @param format: C{unicode} (what format the image data is in)
+        @param inputFile: An image of a person.
+        @type inputFile: C{file}
 
-        @return: L{Mugshot} instance, in the same store as C{person}
+        @param person: The person this mugshot is to be associated with.
+        @type person: L{Person}
+
+        @param format: The format of the data in C{inputFile}.
+        @type format: C{unicode} (e.g. I{jpeg})
+        @type input
+
+        @rtype: L{Mugshot}
         """
+        body = cls.makeThumbnail(inputFile, person, format, smaller=False)
+        inputFile.seek(0)
+        smallerBody = cls.makeThumbnail(
+            inputFile, person, format, smaller=True)
 
-        inst = person.store.findUnique(cls, cls.person == person, default=None)
+        ctype = u'image/' + format
 
-        body = cls.makeThumbnail(infile, person, format)
-        infile.seek(0)
-        smallerBody = cls.makeThumbnail(infile, person, format, smaller=True)
-
-        ctype = 'image/' + format
-
-        if inst is None:
-            inst = cls(store=person.store,
+        self = person.store.findUnique(
+            cls, cls.person == person, default=None)
+        if self is None:
+            self = cls(store=person.store,
                        person=person,
                        type=ctype,
                        body=body,
                        smallerBody=smallerBody)
         else:
-            inst.body = body
-            inst.smallerBody = smallerBody
-            inst.type = ctype
-
-        return inst
+            self.body = body
+            self.smallerBody = smallerBody
+            self.type = ctype
+        return self
     fromFile = classmethod(fromFile)
 
-    def makeThumbnail(cls, infile, person, ctype, smaller=False):
+
+    def makeThumbnail(cls, inputFile, person, format, smaller):
         """
-        Make a thumbnail of an image and store it on disk.
+        Make a thumbnail of a mugshot image and store it on disk.
 
-        @param infile: C{file} (where the image data is)
-        @param person: L{Person} instance (who is this image of)
-        @param ctype: content-type of data in C{infile}
-        @param smaller: thumbnails are available in two sizes.
-                        if C{smaller} is true, then the thumbnail
-                        will be in the smaller of the two sizes.
+        @param inputFile: The image to thumbnail.
+        @type inputFile: C{file}
 
-        @return: filesystem path of the new thumbnail
+        @param person: The person this mugshot thumbnail is associated with.
+        @type person: L{Person}
+
+        @param format: The format of the data in C{inputFile}.
+        @type format: C{str} (e.g. I{jpeg})
+
+        @param smaller: Thumbnails are available in two sizes.  if C{smaller}
+        is C{True}, then the thumbnail will be in the smaller of the two
+        sizes.
+        @type smaller: C{bool}
+
+        @return: path to the thumbnail.
+        @rtype: L{twisted.python.filepath.FilePath}
         """
-
-
         dirsegs = ['mugshots', str(person.storeID)]
-
         if smaller:
             dirsegs.insert(1, 'smaller')
             size = cls.smallerSize
         else:
             size = cls.size
-
-        outfile = person.store.newFile(*dirsegs)
-        makeThumbnail(infile, outfile, size, ctype)
-        outfile.close()
-        return outfile.finalpath
+        atomicOutputFile = person.store.newFile(*dirsegs)
+        makeThumbnail(inputFile, atomicOutputFile, size, format)
+        atomicOutputFile.close()
+        return atomicOutputFile.finalpath
     makeThumbnail = classmethod(makeThumbnail)
 
 
 def mugshot1to2(old):
+    """
+    Upgrader for L{Mugshot} from version 1 to version 2, which sets the
+    C{smallerBody} attribute to the path of a smaller mugshot image.
+    """
     smallerBody = Mugshot.makeThumbnail(old.body.open(),
                                         old.person,
                                         old.type.split('/')[1],
                                         smaller=True)
 
     return old.upgradeVersion(Mugshot.typeName, 1, 2,
+                              person=old.person,
                               type=old.type,
                               body=old.body,
-                              person=old.person,
                               smallerBody=smallerBody)
 
-
 registerUpgrader(mugshot1to2, Mugshot.typeName, 1, 2)
+
+
+
+item.declareLegacyItem(
+    Mugshot.typeName,
+    2,
+    dict(person=attributes.reference(),
+         type=attributes.text(),
+         body=attributes.path(),
+         smallerBody=attributes.path()))
+
+
+
+def mugshot2to3(old):
+    """
+    Upgrader for L{Mugshot} from version 2 to version 3, which re-thumbnails
+    the mugshot to take into account the new value of L{Mugshot.smallerSize}.
+    """
+    new = old.upgradeVersion(Mugshot.typeName, 2, 3,
+                             person=old.person,
+                             type=old.type,
+                             body=old.body,
+                             smallerBody=old.smallerBody)
+    new.smallerBody = new.makeThumbnail(
+        new.body.open(), new.person, new.type[len('image/'):], smaller=True)
+    return new
+
+registerUpgrader(mugshot2to3, Mugshot.typeName, 2, 3)
+
+
 
 class MugshotResource(rend.Page):
     """
