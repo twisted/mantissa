@@ -207,7 +207,7 @@ class MugshotTestCase(unittest.TestCase):
         else:
             self.assertEqual(thumbnailSize, Mugshot.size)
         self.assertEqual(outputFormat, inputFormat)
-        self.assertIsInstance(outputFile, AtomicFile)
+        self.assertTrue(isinstance(outputFile, AtomicFile))
         # it should return the right path
         self.assertEqual(outputFile.finalpath, thumbnailPath)
 
