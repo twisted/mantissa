@@ -47,7 +47,7 @@ from xmantissa.people import (
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
     TEXT_INPUT, InputError, Parameter, LiveForm, ListChangeParameter,
-    ListChanges, CreateObject, EditObject)
+    ListChanges, CreateObject, EditObject, FormParameter)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
 from xmantissa.signup import UserInfo
@@ -418,7 +418,8 @@ class StubContactType(object):
     """
     implements(IContactType)
 
-    def __init__(self, parameters, editorialForm, contactItems, createContactItems=True):
+    def __init__(self, parameters, editorialForm, contactItems,
+            createContactItems=True, allowMultipleContactItems=True):
         self.parameters = parameters
         self.createdContacts = []
         self.editorialForm = editorialForm
@@ -427,6 +428,7 @@ class StubContactType(object):
         self.queriedPeople = []
         self.editedContacts = []
         self.createContactItems = createContactItems
+        self.allowMultipleContactItems = allowMultipleContactItems
 
 
     def getParameters(self, ignore):
@@ -591,6 +593,13 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
     def setUp(self):
         self.store = Store()
         self.contactType = EmailContactType(self.store)
+
+
+    def test_allowsMultipleContactItems(self):
+        """
+        L{EmailContactType.allowMultipleContactItems} should be C{True}.
+        """
+        self.assertTrue(self.contactType.allowMultipleContactItems)
 
 
     def test_organizerIncludesIt(self):
@@ -762,6 +771,13 @@ class PostalContactTests(unittest.TestCase, ContactTestsMixin):
         self.store = Store()
         self.person = Person(store=self.store)
         self.contactType = PostalContactType()
+
+
+    def test_allowsMultipleContactItems(self):
+        """
+        L{PostalContactType.allowMultipleContactItems} should be C{True}.
+        """
+        self.assertTrue(self.contactType.allowMultipleContactItems)
 
 
     def test_organizerIncludesIt(self):
@@ -997,6 +1013,24 @@ class PeopleModelTestCase(unittest.TestCase):
             u'alice',
             [(contactType, ListChanges(
             [], [EditObject(contactItem, contactInfo)], []))])
+        self.assertEqual(
+            contactType.editedContacts,
+            [(contactItem, contactInfo)])
+
+
+    def test_editPersonEditsUnrepeatableContactInfo(self):
+        """
+        Like L{test_editPersonEditsContactInfo}, but for the case where the
+        contact type doesn't support multiple contact items.
+        """
+        person = self.organizer.createPerson(u'alice')
+        contactItem = object()
+        contactType = StubContactType(
+            (), None, contactItems=[contactItem],
+            allowMultipleContactItems=False)
+        contactInfo = {u'foo': u'bar'}
+        self.organizer.editPerson(
+            person, u'alice', [(contactType, contactInfo)])
         self.assertEqual(
             contactType.editedContacts,
             [(contactItem, contactInfo)])
@@ -1310,9 +1344,10 @@ class PeopleModelTestCase(unittest.TestCase):
         """
         L{Organizer.getContactCreationParameters} should return a list
         containing a L{ListChangeParameter} for each contact type available
-        in the system.
+        in the system which allows multiple contact items.
         """
-        contactTypes = [StubContactType((), None, None)]
+        contactTypes = [StubContactType(
+            (), None, None, allowMultipleContactItems=True)]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
@@ -1323,11 +1358,34 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertEqual(parameters[2].name, qual(StubContactType))
 
 
+    def test_getContactCreationParametersUnrepeatable(self):
+        """
+        L{Organizer.getContactCreationParameters} should return a list
+        containing a L{FormParameter} for each contact type which doesn't
+        support multiple contact items.
+        """
+        contactTypeParameters = [Parameter('foo', TEXT_INPUT, lambda x: None)]
+        contactTypes = [StubContactType(
+            contactTypeParameters, None, None,
+            allowMultipleContactItems=False)]
+        contactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=contactTypes)
+        self.store.powerUp(contactPowerup, IOrganizerPlugin)
+
+        parameters = list(self.organizer.getContactCreationParameters())
+        liveFormParameter = parameters[2]
+        self.assertTrue(isinstance(liveFormParameter, FormParameter))
+        self.assertEqual(liveFormParameter.name, qual(StubContactType))
+        liveForm = liveFormParameter.form
+        self.assertTrue(isinstance(liveForm, LiveForm))
+        self.assertEqual(liveForm.parameters, contactTypeParameters)
+
+
     def test_getContactEditorialParameters(self):
         """
         L{Organizer.getContactEditorialParameters} should return a list
-        containing a L{ListChangeParameter} for each contact type
-        available in the system.
+        containing a L{ListChangeParameter} for each contact type available in
+        the system which supports multiple contact items.
         """
         contactTypes = [StubContactType((), None, [])]
         contactPowerup = StubOrganizerPlugin(
@@ -1341,6 +1399,34 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertIdentical(parameters[2][0], contactTypes[0])
         self.failUnless(
             isinstance(parameters[2][1], ListChangeParameter))
+
+
+    def test_getContactEditorialParametersUnrepeatable(self):
+        """
+        L{Organizer.getContactEditorialParameters} should return a list
+        containing a L{FormParameter} for each contact type available in the
+        system which doesn't support multiple contact items.
+        """
+        contactTypeParameters = [Parameter('foo', TEXT_INPUT, lambda x: x)]
+        contactTypes = [StubContactType(
+            contactTypeParameters, None, [None],
+            allowMultipleContactItems=False)]
+
+        contactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=contactTypes)
+        self.store.powerUp(contactPowerup, IOrganizerPlugin)
+
+        person = self.organizer.createPerson(u'nickname')
+
+        parameters = list(self.organizer.getContactEditorialParameters(person))
+
+        (contactType, liveFormParameter) = parameters[2]
+        self.assertIdentical(contactType, contactTypes[0])
+        self.assertTrue(isinstance(liveFormParameter, FormParameter))
+        self.assertEqual(liveFormParameter.name, qual(StubContactType))
+        liveForm = liveFormParameter.form
+        self.assertTrue(isinstance(liveForm, LiveForm))
+        self.assertEqual(liveForm.parameters, contactTypeParameters)
 
 
     def test_getContactEditorialParametersDefaults(self):
@@ -1630,6 +1716,29 @@ class PeopleTests(unittest.TestCase):
             u'nickname',
             **{_keyword(contactType): ListChanges(
                 [CreateObject(values, lambda x: None)], [], [])})
+
+        person = self.store.findUnique(
+            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
+        self.assertEqual(contactType.createdContacts, [(person, values)])
+
+
+    def test_addPersonWithUnrepeatableContactItems(self):
+        """
+        Similar to L{test_addPersonWithContactItems}, but for the case where
+        the L{IContactType} doesn't allow multiple contact items.
+        """
+        contactType = StubContactType(
+            [Parameter('stub', TEXT_INPUT, lambda x: x)], None, None,
+            allowMultipleContactItems=False)
+        observer = StubOrganizerPlugin(
+            store=self.store, contactTypes=[contactType])
+        self.store.powerUp(observer, IOrganizerPlugin)
+
+        addPersonFragment = AddPersonFragment(self.organizer)
+
+        values = {u'stub': 'value'}
+        addPersonFragment.addPerson(
+            u'nickname', **{_keyword(contactType): values})
 
         person = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)

@@ -579,6 +579,11 @@ class IContactType(Interface):
     A means by which communication with a L{Person} might occur.  For example,
     a telephone number.
     """
+    allowMultipleContactItems = Attribute("""
+    C{bool} indicating whether more than one contact item of this type can be
+    created of a particular L{Person}.
+    """)
+
     def getParameters(contactInfoItem):
         """
         Return some liveform parameters, one for each piece of information that is

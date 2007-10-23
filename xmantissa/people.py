@@ -29,7 +29,6 @@ from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader, re
 
 from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
-from xmantissa.liveform import InputError, ListChangeParameter
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
@@ -110,6 +109,8 @@ class BaseContactType(object):
     Base class for L{IContactType} implementations which provides useful
     default behavior.
     """
+    allowMultipleContactItems = True
+
     def uniqueIdentifier(self):
         """
         Uniquely identify this contact type.
@@ -603,11 +604,18 @@ class Organizer(item.Item):
         instance of a particular L{IContactType}.
         """
         for contactType in self.getContactTypes():
-            yield ListChangeParameter(
-                contactType.uniqueIdentifier(),
-                contactType.getParameters(None),
-                defaults=[],
-                modelObjects=[])
+            if contactType.allowMultipleContactItems:
+                yield liveform.ListChangeParameter(
+                    contactType.uniqueIdentifier(),
+                    contactType.getParameters(None),
+                    defaults=[],
+                    modelObjects=[])
+            else:
+                yield liveform.FormParameter(
+                    contactType.uniqueIdentifier(),
+                    liveform.LiveForm(
+                        lambda **k: k,
+                        contactType.getParameters(None)))
 
 
     def getContactEditorialParameters(self, person):
@@ -622,15 +630,25 @@ class Organizer(item.Item):
         """
         for contactType in self.getContactTypes():
             contactItems = list(contactType.getContactItems(person))
-            defaults = []
-            for contactItem in contactItems:
-                defaultedParameters = contactType.getParameters(contactItem)
-                defaults.append(dict((p.name, p.default) for p in defaultedParameters))
-            yield (contactType, ListChangeParameter(
-                contactType.uniqueIdentifier(),
-                contactType.getParameters(None),
-                defaults=defaults,
-                modelObjects=contactItems))
+            if contactType.allowMultipleContactItems:
+                defaults = []
+                for contactItem in contactItems:
+                    defaultedParameters = contactType.getParameters(contactItem)
+                    defaults.append(dict((p.name, p.default)
+                        for p in defaultedParameters))
+                param = liveform.ListChangeParameter(
+                    contactType.uniqueIdentifier(),
+                    contactType.getParameters(None),
+                    defaults=defaults,
+                    modelObjects=contactItems)
+            else:
+                (contactItem,) = contactItems
+                param = liveform.FormParameter(
+                    contactType.uniqueIdentifier(),
+                    liveform.LiveForm(
+                        lambda **k: k,
+                        contactType.getParameters(contactItem)))
+            yield (contactType, param)
 
 
     def createPerson(self, nickname, vip=False):
@@ -735,7 +753,8 @@ class Organizer(item.Item):
 
         @type edits: C{list}
         @param edits: list of tuples of L{IContactType} providers and
-        corresponding L{ListChanges} objects.
+        corresponding L{ListChanges} objects or dictionaries of parameter
+        values.
         """
         for existing in self.store.query(Person, Person.name == nickname):
             if existing is person:
@@ -746,15 +765,20 @@ class Organizer(item.Item):
         person.name = nickname
         self._callOnOrganizerPlugins('personNameChanged', person, oldname)
         for contactType, submission in edits:
-            for edit in submission.edit:
+            if contactType.allowMultipleContactItems:
+                for edit in submission.edit:
+                    self.editContactItem(
+                        contactType, edit.object, edit.values)
+                for create in submission.create:
+                    create.setter(
+                        self.createContactItem(
+                            contactType, person, create.values))
+                for delete in submission.delete:
+                    delete.deleteFromStore()
+            else:
+                (contactItem,) = contactType.getContactItems(person)
                 self.editContactItem(
-                    contactType, edit.object, edit.values)
-            for create in submission.create:
-                create.setter(
-                    self.createContactItem(
-                        contactType, person, create.values))
-            for delete in submission.delete:
-                delete.deleteFromStore()
+                    contactType, contactItem, submission)
 
 
     def deletePerson(self, person):
@@ -794,6 +818,7 @@ class Organizer(item.Item):
             for p
             in self.getOrganizerPlugins())
 
+
     def linkToPerson(self, person):
         """
         @param person: L{Person} instance
@@ -801,6 +826,7 @@ class Organizer(item.Item):
         """
         return (self._webTranslator.linkTo(self.storeID) +
                 '/' + self._webTranslator.toWebID(person))
+
 
     def getTabs(self):
         ourURL = self._webTranslator.linkTo(self.storeID)
@@ -1368,8 +1394,8 @@ class AddPersonFragment(athena.LiveFragment):
         @param vip: Value to which to set the created L{Person}'s C{vip}
             attribute.
 
-        @param **allContactInfo: Mapping of contact type IDs to
-        L{ListChanges} objects.
+        @param **allContactInfo: Mapping of contact type IDs to L{ListChanges}
+        objects or dictionaries of values.
         """
         organizer = self.organizer
         person = organizer.createPerson(nickname, vip)
@@ -1382,9 +1408,13 @@ class AddPersonFragment(athena.LiveFragment):
         contactTypes = dict((t.uniqueIdentifier(), t) for t in organizer.getContactTypes())
         for (contactTypeName, submission) in allContactInfo.iteritems():
             contactType = contactTypes[contactTypeName]
-            for create in submission.create:
-                create.setter(organizer.createContactItem(
-                    contactType, person, create.values))
+            if contactType.allowMultipleContactItems:
+                for create in submission.create:
+                    create.setter(organizer.createContactItem(
+                        contactType, person, create.values))
+            else:
+                organizer.createContactItem(
+                    contactType, person, submission)
         return person
 
 
@@ -1402,14 +1432,14 @@ class AddPersonFragment(athena.LiveFragment):
 
         @return: C{None}
 
-        @raise InputError: When some aspect of person creation raises a
-            L{ValueError}.
+        @raise L{liveform.InputError}: When some aspect of person creation
+        raises a L{ValueError}.
         """
         try:
             self.store.transact(
                 self._addPerson, nickname, vip, **contactInfo)
         except ValueError, e:
-            raise InputError(unicode(e))
+            raise liveform.InputError(unicode(e))
     expose(addPerson)
 
 
