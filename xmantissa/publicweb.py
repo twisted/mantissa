@@ -21,6 +21,24 @@ from xmantissa.webtheme import getLoader, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
 from xmantissa.webnav import NavMixin
 
+
+def _getLoader(store, fragmentName, getInstalledThemes=getInstalledThemes):
+    """
+    This is a temporary function to be used instead of
+    xmantissa.webtheme.getLoader, as that is sometimes broken and will be
+    deprecated soonish. _getLoader is a quick-fix until we have full support
+    for ITemplateNameResolver. See tickets #2343, #2344, and #2345.
+    """
+    loader = None
+    for theme in getInstalledThemes(store):
+        loader = theme.getDocFactory(fragmentName)
+        if loader is not None:
+            return loader
+    if loader is None:
+        raise RuntimeError("No loader for %r anywhere" % (fragmentName,))
+
+
+
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
     Fixture for site-wide public-facing content.
@@ -602,7 +620,7 @@ class LoginPage(PublicPage):
         @param arguments: A dictionary mapping query argument names to lists of
         values for those arguments (see IRequest.args).
         """
-        PublicPage.__init__(self, None, store, getLoader("login"),
+        PublicPage.__init__(self, None, store, _getLoader(store, 'login'),
                             IStaticShellContent(store, None),
                             None)
         self.segments = segments

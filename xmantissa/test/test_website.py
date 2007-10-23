@@ -31,6 +31,8 @@ from xmantissa.port import TCPPort, SSLPort
 from xmantissa import website, signup, publicweb
 from xmantissa.publicweb import LoginPage
 from xmantissa.product import Product
+from xmantissa.offering import installOffering
+from xmantissa.plugins.baseoff import baseOffering
 
 from xmantissa.website import SiteRootMixin, WebSite
 from xmantissa.website import MantissaLivePage
@@ -70,11 +72,16 @@ def createStore(testCase):
 
 
 class WebSiteTestCase(unittest.TestCase):
+
     def setUp(self):
+        """
+        Setup a store with a valid offering to run tests against.
+        """
         self.origFunction = http._logDateTimeStart
         http._logDateTimeStart = lambda: None
 
         self.store = getPristineStore(self, createStore)
+        installOffering(self.store, baseOffering, {})
         self.certPath = self.store.filesdir.child('server.pem')
         svc = service.IService(self.store)
         svc.privilegedStartService()
@@ -411,8 +418,9 @@ class LoginPageTests(unittest.TestCase):
         Create a L{Store}, L{WebSite} and necessary request-related objects to
         test L{LoginPage}.
         """
-        self.store = Store()
+        self.store = getPristineStore(self, createStore)
         website.WebSite(store=self.store)
+        installOffering(self.store, baseOffering, {})
         self.context = WebContext()
         self.request = FakeRequest()
         self.context.remember(self.request)
@@ -523,6 +531,13 @@ class UnguardedWrapperTests(unittest.TestCase):
     """
     Tests for L{UnguardedWrapper}.
     """
+    def setUp(self):
+        """
+        Set up a store with a valid offering to test against.
+        """
+        self.store = getPristineStore(self, createStore)
+        installOffering(self.store, baseOffering, {})
+
     def test_secureLoginRequest(self):
         """
         When queried over HTTPS, L{UnguardedWrapper.locateChild} should consume
@@ -533,11 +548,10 @@ class UnguardedWrapperTests(unittest.TestCase):
             uri='/login/foo',
             currentSegments=[],
             isSecure=True)
-        store = object()
-        wrapper = website.UnguardedWrapper(store, None)
+        wrapper = website.UnguardedWrapper(self.store, None)
         child, segments = wrapper.locateChild(request, ('login', 'foo'))
         self.assertTrue(isinstance(child, LoginPage))
-        self.assertIdentical(child.store, store)
+        self.assertIdentical(child.store, self.store)
         self.assertEqual(child.segments, ())
         self.assertEqual(child.arguments, {})
         self.assertEqual(segments, ('foo',))

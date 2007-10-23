@@ -7,11 +7,62 @@ from axiom.dependency import installOn
 
 from nevow import rend, loaders, tags, context
 
+from xmantissa import signup
+from xmantissa import webtheme
 from xmantissa.website import WebSite
 from xmantissa.webapp import PrivateApplication
 from xmantissa.publicweb import (
-    PublicAthenaLivePage, PublicNavAthenaLivePage, _StandaloneNavFragment)
-from xmantissa import signup
+    _getLoader, PublicAthenaLivePage, PublicNavAthenaLivePage,
+    _StandaloneNavFragment)
+
+
+class MockTheme(object):
+    """
+    Trivial implementation of L{ITemplateNameResolver} which returns document
+    factories from an in-memory dictionary.
+
+    @ivar docFactories: C{dict} mapping fragment names to document factory
+        objects.
+    """
+    def __init__(self, docFactories):
+        self.docFactories = docFactories
+
+
+    def getDocFactory(self, fragmentName, default=None):
+        """
+        Return the document factory for the given name, or the default value if
+        the given name is unknown.
+        """
+        return self.docFactories.get(fragmentName, default)
+
+
+
+class TestPrivateGetLoader(TestCase):
+    """
+    Test case for the private _getLoader function.
+    """
+    def setUp(self):
+        """
+        Setup a store and theme for the test case.
+        """
+        self.store = Store()
+        self.fragmentName = 'private-get-loader'
+        self.docFactory = object()
+        self.theme = MockTheme({self.fragmentName: self.docFactory})
+
+
+    def test_loadersInstalledOfferings(self):
+        """
+        L{_getLoader} should return the document factory for the given template
+        from the list of installed themes.
+        """
+        getInstalledThemes = {self.store: [self.theme]}.get
+        docFactory = _getLoader(
+            self.store, self.fragmentName, getInstalledThemes)
+        self.assertIdentical(docFactory, self.docFactory)
+        self.assertRaises(
+            RuntimeError,
+            _getLoader, self.store, 'unknown-template', getInstalledThemes)
 
 
 
