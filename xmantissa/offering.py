@@ -11,7 +11,7 @@ from nevow.athena import expose
 from axiom import item, userbase, attributes, substore
 from axiom.dependency import installOn
 
-from xmantissa import ixmantissa, webnav, plugins
+from xmantissa import ixmantissa, plugins
 
 class OfferingAlreadyInstalled(Exception):
     """
@@ -159,6 +159,8 @@ class OfferingConfiguration(item.Item):
 
 
     def getTabs(self):
+        # XXX profanity
+        from xmantissa import webnav
         return [webnav.Tab('Admin', self.storeID, 0.3,
                            [webnav.Tab('Offerings', self.storeID, 1.0)],
                            authoritative=True)]

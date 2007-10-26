@@ -4,8 +4,10 @@ from epsilon.structlike import record
 
 from zope.interface import implements
 
-from nevow import url
 from nevow.inevow import IQ
+from nevow import url
+from nevow.rend import Fragment
+from nevow.loaders import stan
 
 from xmantissa.ixmantissa import ITab
 from xmantissa.fragmentutils import dictFillSlots
@@ -195,111 +197,101 @@ def getSelectedTab(tabs, forURL):
             return t
 
 
-class NavMixin(object):
+
+def startMenu(translator, navigation, tag):
     """
-    Mixin for renderables that want to include the mantissa navigation &
-    menubar in their output.  The way to do this is by including a render
-    directive that calls the I{menubar} renderer.
+    Drop-down menu-style navigation view.
 
-    @type resolver: L{xmantissa.ixmantissa.ITemplateNameResolver}
-    @type translator: L{xmantissa.ixmantissa.IWebTranslator}
-    @type pageComponents: L{xmantissa.webapp._PageComponents}
-    @type username: C{unicode}
+    For each primary navigation element available, a copy of the I{tab}
+    pattern will be loaded from the tag.  It will have its I{href} slot
+    filled with the URL for that navigation item.  It will have its I{name}
+    slot filled with the user-visible name of the navigation element.  It
+    will have its I{kids} slot filled with a list of secondary navigation
+    for that element.
+
+    For each secondary navigation element available beneath each primary
+    navigation element, a copy of the I{subtabs} pattern will be loaded
+    from the tag.  It will have its I{kids} slot filled with a self-similar
+    structure.
+
+    @type translator: L{IWebTranslator} provider
+    @type navigation: L{list} of L{Tab}
+
+    @rtype: {nevow.stan.Tag}
     """
-    def __init__(self, resolver, translator, pageComponents, username):
-        self.resolver = resolver
-        self.translator = translator
-        self.pageComponents = pageComponents
-        self.username = username
-        self._navTemplate = translator.getDocFactory('navigation')
-        setTabURLs(pageComponents.navigation, translator)
+    setTabURLs(navigation, translator)
+    getp = IQ(tag).onePattern
 
-
-    def render_appNavigation(self, ctx, data):
-        """
-        Render some navigation tabs.
-        """
-        selectedTab = getSelectedTab(self.pageComponents.navigation,
-                                     url.URL.fromContext(ctx))
-
-        getp = IQ(self._navTemplate).onePattern
-
-        for tab in self.pageComponents.navigation:
-            if tab == selectedTab or selectedTab in tab.children:
-                p = 'selected-app-tab'
-                contentp = 'selected-tab-contents'
+    def fillSlots(tabs):
+        for tab in tabs:
+            if tab.children:
+                kids = getp('subtabs').fillSlots('kids', fillSlots(tab.children))
             else:
-                p = 'app-tab'
-                contentp = 'tab-contents'
+                kids = ''
 
-            yield dictFillSlots(getp(p),
-                    {'name': tab.name,
-                     'tab-contents': getp(contentp).fillSlots('href', tab.linkURL)})
-
-
-    def render_navigation(self, ctx, data):
-        """
-        Render some navigation for the "start menu".
-        """
-        getp = IQ(self._navTemplate).onePattern
-
-        def fillSlots(tabs):
-            for tab in tabs:
-                if tab.children:
-                    kids = getp('subtabs').fillSlots('kids', fillSlots(tab.children))
-                else:
-                    kids = ''
-
-                yield dictFillSlots(getp('tab'), dict(href=tab.linkURL,
-                                                      name=tab.name,
-                                                      kids=kids))
-
-        return fillSlots(self.pageComponents.navigation)
+            yield dictFillSlots(getp('tab'), dict(href=tab.linkURL,
+                                                  name=tab.name,
+                                                  kids=kids))
+    return tag.fillSlots('tabs', fillSlots(navigation))
 
 
-    def render_menubar(self, ctx, data):
-        """
-        Render the Mantissa menubar, by loading the "menubar" pattern from the
-        navigation template.
-        """
-        return IQ(self._navTemplate).onePattern('menubar')
+
+def settingsLink(translator, settings, tag):
+    """
+    Render the URL of the settings page.
+    """
+    return tag[translator.linkTo(settings.storeID)]
 
 
-    def render_search(self, ctx, data):
-        """
-        Render some UI for performing searches, if we know about a search
-        aggregator.
-        """
-        searchAggregator = self.pageComponents.searchAggregator
 
-        if searchAggregator is None or not searchAggregator.providers():
-            return ''
-        return IQ(self._navTemplate).onePattern("search")
+# This is somewhat redundant with startMenu.  The selected/not feature of this
+# renderer should be added to startMenu and then templates can just use that
+# and this can be deleted.
+def applicationNavigation(ctx, translator, navigation):
+    """
+    Horizontal, primary-only navigation view.
 
+    For the navigation element currently being viewed, copies of the
+    I{selected-app-tab} and I{selected-tab-contents} patterns will be
+    loaded from the tag.  For all other navigation elements, copies of the
+    I{app-tab} and I{tab-contents} patterns will be loaded.
 
-    def render_searchFormAction(self, ctx, data):
-        """
-        Render the URL that the search form should post to, if we know about a
-        search aggregator.
-        """
-        searchAggregator = self.pageComponents.searchAggregator
+    For either case, the former pattern will have its I{name} slot filled
+    with the name of the navigation element and its I{tab-contents} slot
+    filled with the latter pattern.  The latter pattern will have its
+    I{href} slot filled with a link to the corresponding navigation
+    element.
 
-        if searchAggregator is None or not searchAggregator.providers():
-            action = ''
+    The I{tabs} slot on the tag will be filled with all the
+    I{selected-app-tab} or I{app-tab} pattern copies.
+
+    @type ctx: L{nevow.context.WebContext}
+    @type translator: L{IWebTranslator} provider
+    @type navigation: L{list} of L{Tab}
+
+    @rtype: {nevow.stan.Tag}
+    """
+    setTabURLs(navigation, translator)
+    selectedTab = getSelectedTab(navigation,
+                                 url.URL.fromContext(ctx))
+
+    getp = IQ(ctx.tag).onePattern
+    tabs = []
+
+    for tab in navigation:
+        if tab == selectedTab or selectedTab in tab.children:
+            p = 'selected-app-tab'
+            contentp = 'selected-tab-contents'
         else:
-            action = self.translator.linkTo(searchAggregator.storeID)
-        return ctx.tag.fillSlots('form-action', action)
+            p = 'app-tab'
+            contentp = 'tab-contents'
 
+        tabs.append(
+            dictFillSlots(
+                getp(p),
+                {'name': tab.name,
+                 'tab-contents': getp(contentp).fillSlots(
+                        'href', tab.linkURL)}))
 
-    def render_username(self, ctx, data):
-        """
-        Render the name of the user whose store is being viewed.
-        """
-        return ctx.tag[self.username]
-
-
-    def data_settingsLink(self, ctx, data):
-        """
-        Render the URL of the settings page.
-        """
-        return self.translator.linkTo(self.pageComponents.settings.storeID)
+    ctx.tag.fillSlots('tabs', tabs)
+    return ctx.tag

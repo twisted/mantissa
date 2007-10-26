@@ -7,9 +7,162 @@
   </head>
 
   <body>
-    <nevow:invisible nevow:render="menubar" />
+    <table style="width: 100%;" cellspacing="0" cellpadding="0" class="mantissa-global-menubar">
+      <thead />
+      <tbody>
+        <tr valign="center">
+          <!-- This is always empty.  Eliminate it and the corresponding Python code. -->
+          <td class="header" nevow:render="header" />
+
+          <td class="divmod-menu-container" onclick="MantissaShell.menuClick(this);" nevow:render="startmenu">
+            <div class="divmod-menu-icon" onmouseover="MantissaShell.menuButtonHover()" />
+            <ul id="divmod-menu" style="display: none">
+              <nevow:slot name="tabs" />
+              <li nevow:pattern="tab">
+                <a class="tab-link"
+                   onmouseover="MantissaShell.tabHover(this)"
+                   onmouseout="MantissaShell.tabUnhover(this)">
+                  <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+                  <nevow:slot name="name" />
+                </a>
+                <nevow:slot name="kids" />
+              </li>
+              <ul nevow:pattern="subtabs" class="subtabs" style="display: none"
+                  onmouseover="MantissaShell.subtabHover(this)">
+                <nevow:slot name="kids" />
+              </ul>
+              <li><div class="menu-separator" /></li>
+              <li class="tab">
+                <a class="tab-link">
+                  <nevow:attr name="href" nevow:render="settingsLink" />
+                  Settings
+                </a>
+              </li>
+              <li><div class="menu-separator" /></li>
+              <li class="tab">
+                <a class="tab-link" href="/__logout__">Logout</a>
+              </li>
+            </ul>
+          </td>
+
+          <td class="mantissa-global-navigation-spacer" />
+
+          <td class="search-container" align="right">
+            <table cellpadding="0" cellspacing="0" style="height: 100%">
+              <thead />
+              <tbody>
+                <tr valign="center">
+                  <td>
+                    <span class="mantissa-global-username" nevow:render="username">
+                      You are logged in as
+                    </span>
+                    <a class="mantissa-global-navigation-link" href="/__logout__" nevow:render="logout">
+                      <span class="mantissa-global-navigation-separator">|</span>
+                      Log out
+                    </a>
+                  </td>
+                  <td nevow:render="search">
+                    <a href="#"
+                       onclick="MantissaShell.searchButtonClicked(this); return false"
+                       id="search-button">
+                      <img src="/Mantissa/images/search-button-unselected.png" border="0" />
+                    </a>
+                    <form id="search-form" style="display: none">
+                      <nevow:attr name="action"><nevow:slot name="form-action" /></nevow:attr>
+                      <table>
+                        <tr valign="center">
+                          <td>
+                            <input name="term" class="search-text" type="text" />
+	                    <input type="hidden" name="_charset_" />
+                          </td>
+                          <td>
+                            <a href="#" onclick="document.forms['search-form'].submit(); return false">
+                              <img src="/Mantissa/images/search-button-small.png" border="0" />
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </form>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot />
+            </table>
+          </td>
+
+          <td class="mantissa-global-navigation-links" nevow:render="authenticateLinks">
+            <a class="mantissa-global-navigation-link" href="/login/private">Log in</a>
+            <a class="mantissa-global-navigation-link" nevow:pattern="signup-link">
+              <span class="mantissa-global-navigation-separator">|</span>
+              <nevow:attr name="href"><nevow:slot name="url" /></nevow:attr>
+              <nevow:slot name="prompt" />
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table style="width: 100%;" cellspacing="0" cellpadding="0" class="mantissa-application-menubar">
+      <thead />
+      <tbody>
+        <tr>
+          <td style="height: 2em;" />
+          <td class="app-nav-container" nevow:render="applicationNavigation">
+            <nevow:slot name="tabs" />
+            <div nevow:pattern="app-tab" class="tab-button">
+              <nevow:slot name="tab-contents" />
+            </div>
+            <div nevow:pattern="selected-app-tab" class="selected-tab-button">
+              <nevow:slot name="tab-contents" />
+            </div>
+            <table nevow:pattern="selected-tab-contents" cellpadding="0" cellspacing="0">
+              <tr class="tab-button-row">
+                <td class="tab-tl-corner" />
+                <td class="tab-top-edge" />
+                <td class="tab-tr-corner" />
+              </tr>
+              <tr class="tab-text-row">
+                <td class="tab-left-edge" />
+                <td class="tab-text-cell">
+                  <div>
+                    <a onmouseover="MantissaShell.tabHover(this)"
+                       onmouseout="MantissaShell.tabUnhover(this)">
+                      <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+                      <nevow:slot name="name" />
+                    </a>
+                  </div>
+                </td>
+                <td class="tab-right-edge" />
+              </tr>
+            </table>
+            <table nevow:pattern="tab-contents" cellpadding="0" cellspacing="0">
+              <tr class="tab-button-row">
+                <td class="tab-tl-corner" />
+                <td class="tab-top-edge" />
+                <td class="tab-tr-corner" />
+              </tr>
+              <tr class="tab-text-row">
+                <td class="tab-left-edge" />
+                <td class="tab-text-cell">
+                  <a onmouseover="MantissaShell.tabHover(this)"
+                     onmouseout="MantissaShell.tabUnhover(this)">
+                    <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+                    <nevow:slot name="name" />
+                  </a>
+                </td>
+                <td class="tab-right-edge" />
+              </tr>
+              <tr class="tab-button-row">
+                <td class="tab-bl-corner" />
+                <td class="tab-bottom-edge" />
+                <td class="tab-br-corner" />
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </tbody>
+    </table>
     <div class="private-fragment-content" nevow:render="content" />
     <div id="mantissa-footer" nevow:render="footer" />
   </body>
-
 </html>

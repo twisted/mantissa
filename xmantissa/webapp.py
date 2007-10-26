@@ -21,7 +21,7 @@ from axiom.userbase import getAccountNames
 
 from nevow.rend import Page, NotFound
 from nevow import livepage, athena
-from nevow.inevow import IRequest, IResource
+from nevow.inevow import IQ, IRequest, IResource
 from nevow import tags as t
 from nevow import url
 
@@ -29,7 +29,8 @@ from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite
 from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
-from xmantissa.webnav import getTabs, NavMixin
+from xmantissa.webnav import getTabs, startMenu, settingsLink, applicationNavigation
+
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
 from xmantissa.offering import getInstalledOfferings
 
@@ -59,9 +60,16 @@ class _WebIDFormatException(TypeError):
     An inbound web ID was not formatted as expected.
     """
 
-class _ShellRenderingMixin(NavMixin):
+class _ShellRenderingMixin(object):
     fragmentName = 'main'
     searchPattern = None
+
+    def __init__(self, resolver, translator, pageComponents, username):
+        self.resolver = resolver
+        self.translator = translator
+        self.pageComponents = pageComponents
+        self.username = username
+
 
     def getDocFactory(self, fragmentName, default=None):
         """
@@ -94,6 +102,57 @@ class _ShellRenderingMixin(NavMixin):
             return ctx.tag[header]
         else:
             return ctx.tag
+
+
+    def render_startmenu(self, ctx, data):
+        """
+        Add start-menu style navigation to the given tag.
+
+        @see {xmantissa.webnav.startMenu}
+        """
+        return startMenu(
+            self.translator, self.pageComponents.navigation, ctx.tag)
+
+
+    def render_settingsLink(self, ctx, data):
+        """
+        Add the URL of the settings page to the given tag.
+
+        @see L{xmantissa.webnav.settingsLink}
+        """
+        return settingsLink(
+            self.translator, self.pageComponents.settings, ctx.tag)
+
+
+    def render_applicationNavigation(self, ctx, data):
+        """
+        Add primary application navigation to the given tag.
+
+        @see L{xmantissa.webnap.applicationNavigation}
+        """
+        return applicationNavigation(
+            ctx, self.translator, self.pageComponents.navigation)
+
+
+    def render_search(self, ctx, data):
+        searchAggregator = self.pageComponents.searchAggregator
+        if searchAggregator is None or not searchAggregator.providers():
+            return ''
+        return ctx.tag.fillSlots(
+            'form-action', self.translator.linkTo(searchAggregator.storeID))
+
+
+    def render_username(self, ctx, data):
+        return ctx.tag[self.username]
+
+
+    def render_logout(self, ctx, data):
+        return ctx.tag
+
+
+    def render_authenticateLinks(self, ctx, data):
+        return ''
+
 
     def _getVersions(self):
         versions = []
@@ -277,6 +336,7 @@ class PrivateRootPage(Page, _ShellRenderingMixin):
 
     def __init__(self, webapp, pageComponents, username):
         self.webapp = webapp
+        self.username = username
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
 

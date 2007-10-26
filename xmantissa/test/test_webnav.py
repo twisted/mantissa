@@ -16,6 +16,7 @@ from axiom.dependency import installOn
 
 from nevow.url import URL
 from nevow import loaders, tags, context
+from nevow.testutil import FakeRequest
 
 from xmantissa import webnav
 from xmantissa.webapp import PrivateApplication
@@ -155,66 +156,92 @@ class NavConfigTests(unittest.TestCase):
 
 
 
-class _MockSearchAggregator(Item):
+class FakeTranslator(object):
     """
-    Implement as much of L{xmantissa.ixmantissa.ISearchAggregator} as is
-    required by L{webnav.NavMixin}.
+    A dumb translator which follows a very simple translation rule and can only
+    translate in one direction.
     """
-    attribute = integer()
-    _providers = inmemory()
-
-    def providers(self):
+    def linkTo(self, obj):
         """
-        Return L{_providers}.
+        Return a fake link based on the given object.
         """
-        return self._providers
+        return '/link/' + str(obj)
 
 
 
-class NaxMixinTestCase(unittest.TestCase):
+class RendererTests(unittest.TestCase):
     """
-    Tests for L{webnav.NavMixin}.
+    Tests for certain free functions in L{xmantissa.webnav} which render
+    different things.
     """
-    def setUp(self):
-        store = Store()
-        store.parent = store
-
-        privapp = PrivateApplication(store=store)
-        installOn(privapp, store)
-
-        self.navMixin = webnav.NavMixin(
-            privapp, privapp, privapp.getPageComponents(), u'user@host')
-
-        self.privateApplication = privapp
-
-
-    def test_searchRenderer(self):
+    def test_startMenuSetsTabURLs(self):
         """
-        L{webnav.NavMixin.render_search} should return an instance of the
-        I{search} pattern from the navigation template, when there is a search
-        aggregator with at least one provider.
+        L{Tabs<Tab>} which have C{None} for a C{linkURL} attribute should have
+        a value set for that attribute based on the L{IWebTranslator} passed to
+        L{startMenu}.
         """
-        searchAggregator = _MockSearchAggregator(_providers=['a provider'])
-        self.navMixin.pageComponents.searchAggregator = searchAggregator
-        self.navMixin._navTemplate = loaders.stan(tags.div[
-            tags.div(attribute='test_searchRenderer', pattern='search')])
-        result = self.navMixin.render_search(None, None)
-        self.assertEqual(result.attributes['attribute'], 'test_searchRenderer')
+        tab = webnav.Tab('alpha', 123, 0)
+        webnav.startMenu(FakeTranslator(), [tab], tags.span())
+        self.assertEqual(tab.linkURL, '/link/123')
 
 
-    def test_searchFormAction(self):
+    def test_startMenuRenders(self):
         """
-        L{webnav.NavMixin.render_searchFormAction} should fill the
-        I{search-action} slot in its tag with the URL of the search
-        aggregator.
+        Test that the L{startMenu} renderer creates a tag for each tab, filling
+        its I{href}, I{name}, and I{kids} slots.
         """
-        searchAggregator = _MockSearchAggregator(
-            store=Store(), _providers=['a provider'])
-        self.navMixin.pageComponents.searchAggregator = searchAggregator
-        ctx = context.WebContext(
-            tag=tags.div(attribute='test_searchFormAction')[tags.slot('form-action')])
-        result = self.navMixin.render_searchFormAction(ctx, None)
-        self.assertEqual(result.attributes['attribute'], 'test_searchFormAction')
-        self.assertEqual(
-            result.slotData['form-action'],
-            self.privateApplication.linkTo(searchAggregator.storeID))
+        tabs = [
+            webnav.Tab('alpha', 123, 0),
+            webnav.Tab('beta', 234, 0)]
+        node = tags.span[tags.div(pattern='tab')]
+
+        tag = webnav.startMenu(FakeTranslator(), tabs, node)
+        self.assertEqual(tag.tagName, 'span')
+        navTags = list(tag.slotData['tabs'])
+        self.assertEqual(len(navTags), 2)
+        alpha, beta = navTags
+        self.assertEqual(alpha.slotData['name'], 'alpha')
+        self.assertEqual(alpha.slotData['href'], '/link/123')
+        self.assertEqual(alpha.slotData['kids'], '')
+        self.assertEqual(beta.slotData['name'], 'beta')
+        self.assertEqual(beta.slotData['href'], '/link/234')
+        self.assertEqual(beta.slotData['kids'], '')
+
+
+    def test_settingsLink(self):
+        """
+        L{settingsLink} should add a link to the settings item supplied as a
+        child of the tag supplied.
+        """
+        self.storeID = 123
+        node = tags.span()
+        tag = webnav.settingsLink(FakeTranslator(), self, node)
+        self.assertEqual(tag.tagName, 'span')
+        self.assertEqual(tag.children, ['/link/123'])
+
+
+    def test_applicationNavigation(self):
+        """
+        Test that the L{applicationNavigation} renderer creates a tag for each
+        tab, fillings I{name} and I{tab-contents} slots.
+        """
+        tabs = [
+            webnav.Tab('alpha', 123, 0),
+            webnav.Tab('beta', 234, 0)]
+        node = tags.span[tags.div(pattern='app-tab'),
+                         tags.div(pattern='tab-contents')]
+        ctx = context.WebContext(tag=node)
+        request = FakeRequest()
+        ctx.remember(request)
+
+        tag = webnav.applicationNavigation(ctx, FakeTranslator(), tabs)
+        self.assertEqual(tag.tagName, 'span')
+        navTags = list(tag.slotData['tabs'])
+        self.assertEqual(len(navTags), 2)
+        alpha, beta = navTags
+        self.assertEqual(alpha.slotData['name'], 'alpha')
+        alphaContents = alpha.slotData['tab-contents']
+        self.assertEqual(alphaContents.slotData['href'], '/link/123')
+        self.assertEqual(beta.slotData['name'], 'beta')
+        betaContents = beta.slotData['tab-contents']
+        self.assertEqual(betaContents.slotData['href'], '/link/234')

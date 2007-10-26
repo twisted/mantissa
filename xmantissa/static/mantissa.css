@@ -2,9 +2,24 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
-.mantissa-menubar-links {
-    float: right;
+/**
+ * This is the class of the container of either the signup/login UI (for
+ * unauthenticated users) or the application menubar and username label (for
+ * authenticated users) used by the shell template.
+ */
+.mantissa-global-navigation-links {
+    width: 100%;
+    /* This height must be the same as the height for divmod-menu-icon.  It is
+     * the height of divorg-menu.png.
+     */
+    height: 25px;
+    text-align: right;
     margin-right: 1px;
+    background-image: url(/Mantissa/images/menubar-bg.png);
+}
+
+.mantissa-global-navigation-separator {
+    color: #757575;
 }
 
 .forgot-password:visited, .forgot-password:link {
@@ -365,7 +380,11 @@ body {
 }
 
 #divmod-menu {
-    min-width: 50px;
+    /* This width is and must be exactly the width of divorg-menu.png.
+     * .divmod-menu-icon and .divmod-menu-container also reference this
+     * value.
+     */
+    min-width: 41px;
     z-index: 99;
     white-space: nowrap;
 }
@@ -378,10 +397,18 @@ body {
     padding: 2px 2px 2px 4px;
 }
 
-/* make sure the menu displays below the icon on IE, not next to it */
+/**
+ * make sure the menu displays below the icon on IE, not next to it.
+ */
 .divmod-menu-icon {
-    width: 50px;
-    height: 32px;
+    /* This width is and must be exactly the width of divorg-menu.png.
+     * #divmod-menu and .divmod-menu-container also reference this value.
+     */
+    width: 41px;
+    /*
+     * This height must be the same as the height for mantissa-menubar-links.
+     */
+    height: 25px;
     background-image: url(/Mantissa/images/divorg-menu.png);
 }
 
@@ -413,7 +440,10 @@ body {
     background-color: #000000;
     border-right: solid 1px #666666;
     vertical-align: top;
-    width: 50px;
+    /* This width is and must be exactly the width of divorg-menu.png.
+     * #divmod-menu and .divmod-menu-icon also reference this value.
+     */
+    width: 41px;
     cursor: pointer;
 }
 
@@ -426,13 +456,8 @@ body {
     vertical-align: middle;
 }
 
-.search-container .username {
+.mantissa-global-username {
     color: #FFFFFF;
-    font-weight: bold;
-    background-color: #525252;
-    border: solid 1px #666666;
-    padding: 4px;
-    margin-right: 4px;
     font-size: 90%;
 }
 
@@ -852,10 +877,6 @@ input.password-input, input.text-input {
     width: 100%
 }
 
-.username {
-    font-weight: bold
-}
-
 #mantissa-footer {
     text-align: center;
 }
@@ -999,8 +1020,12 @@ a.childsellink {
     font-weight: bold;
 }
 
-.mantissa-menubar {
+.mantissa-global-menubar {
     background-image: url(/Mantissa/images/menubar-bg.png);
+}
+
+.mantissa-application-menubar {
+    background-color: #44B4D9;
 }
 
 

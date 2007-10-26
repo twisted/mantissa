@@ -5,12 +5,14 @@ This module contains code for the publicly-visible areas of a Mantissa
 server's web interface.
 """
 
+from warnings import warn
+
 from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.python import util
 
-from nevow import rend, tags, inevow, static, loaders
+from nevow import rend, tags, inevow, static
 from nevow.inevow import IRequest, IResource
 from nevow.url import URL
 
@@ -19,7 +21,7 @@ from axiom import item, attributes, upgrade, userbase
 from xmantissa import ixmantissa, website, offering
 from xmantissa.webtheme import getLoader, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
-from xmantissa.webnav import NavMixin
+from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
 
 
 def _getLoader(store, fragmentName, getInstalledThemes=getInstalledThemes):
@@ -318,20 +320,24 @@ class PublicPageMixin(object):
             return super(PublicPageMixin, self).renderHTTP(ctx)
 
 
-    def render_navigation(self, ctx, data):
-        """
-        Return the empty string; do not provide the public site with any
-        navigation.
-        """
-        return ""
+    def _getViewerPrivateApplication(self):
+        ls = self.store.findUnique(userbase.LoginSystem)
+        substore = ls.accountByAddress(*self.username.split('@')).avatars.open()
+        from xmantissa.webapp import PrivateApplication
+        return substore.findUnique(PrivateApplication)
 
 
-    def render_menubar(self, ctx, data):
+    def render_authenticateLinks(self, ctx, data):
         """
-        Return an instance of the I{login-links} pattern, filling the
-        I{signups} slot with an instance of the I{signup} pattern, one for
-        each signup we know about.
+        For unauthenticated users, add login and signup links to the given tag.
+        For authenticated users, remove the given tag from the output.
+
+        When necessary, the I{signup-link} pattern will be loaded from the tag.
+        Each copy of it will have I{prompt} and I{url} slots filled.  The list
+        of copies will be added as children of the tag.
         """
+        if self.username is not None:
+            return ''
         # there is a circular import here which should probably be avoidable,
         # since we don't actually need signup links on the signup page.  on the
         # other hand, maybe we want to eventually put those there for
@@ -340,13 +346,8 @@ class PublicPageMixin(object):
         # problems...  -glyph
         from xmantissa.signup import _getPublicSignupInfo
 
-        IQ = inevow.IQ(self.docFactory)
-
-        if self.username is not None:
-            return IQ.onePattern('logged-in').fillSlots(
-                'username', self.username)
-
-        signupPattern = IQ.patternGenerator('signup')
+        IQ = inevow.IQ(ctx.tag)
+        signupPattern = IQ.patternGenerator('signup-link')
 
         signups = []
         for (prompt, url) in _getPublicSignupInfo(self.store):
@@ -354,8 +355,80 @@ class PublicPageMixin(object):
                     'prompt', prompt).fillSlots(
                     'url', url))
 
-        loginLinks = IQ.onePattern('login-links')
-        return loginLinks.fillSlots('signups', signups)
+        return ctx.tag[signups]
+
+
+    def render_startmenu(self, ctx, data):
+        """
+        For authenticated users, add the start-menu style navigation to the
+        given tag.  For unauthenticated users, remove the given tag from the
+        output.
+
+        @see L{xmantissa.webnav.startMenu}
+        """
+        if self.username is None:
+            return ''
+        translator = self._getViewerPrivateApplication()
+        pageComponents = translator.getPageComponents()
+        return startMenu(translator, pageComponents.navigation, ctx.tag)
+
+
+    def render_settingsLink(self, ctx, data):
+        """
+        For authenticated users, add the URL of the settings page to the given
+        tag.  For unauthenticated users, remove the given tag from the output.
+        """
+        if self.username is None:
+            return ''
+        translator = self._getViewerPrivateApplication()
+        return settingsLink(
+            translator,
+            translator.getPageComponents().settings,
+            ctx.tag)
+
+
+    def render_applicationNavigation(self, ctx, data):
+        """
+        For authenticated users, add primary application navigation to the
+        given tag.  For unauthenticated users, remove the given tag from the
+        output.
+
+        @see L{xmantissa.webnav.applicationNavigation}
+        """
+        if self.username is None:
+            return ''
+        translator = self._getViewerPrivateApplication()
+        return applicationNavigation(
+            ctx,
+            translator,
+            translator.getPageComponents().navigation)
+
+
+    def render_search(self, ctx, data):
+        """
+        Render some UI for performing searches, if we know about a search
+        aggregator.
+        """
+        if self.username is None:
+            return ''
+        translator = self._getViewerPrivateApplication()
+        searchAggregator = translator.getPageComponents().searchAggregator
+        if searchAggregator is None or not searchAggregator.providers():
+            return ''
+        return ctx.tag.fillSlots(
+            'form-action', translator.linkTo(searchAggregator.storeID))
+
+
+    def render_username(self, ctx, data):
+        if self.username is None:
+            return ''
+        return ctx.tag[self.username]
+
+
+    def render_logout(self, ctx, data):
+        if self.username is None:
+            return ''
+        return ctx.tag
 
 
     def render_title(self, ctx, data):
@@ -379,6 +452,7 @@ class PublicPageMixin(object):
             return ctx.tag[header]
         else:
             return ctx.tag
+
 
     def render_footer(self, ctx, data):
         """
@@ -450,7 +524,7 @@ class PublicPage(PublicPageMixin, rend.Page):
 
         @param forUser: a string, the external ID of a user to customize for.
         """
-        super(PublicPage, self).__init__(original, docFactory=getLoader("public-shell"))
+        super(PublicPage, self).__init__(original, docFactory=getLoader("shell"))
         self.store = store
         self.fragment = fragment
         self.staticContent = staticContent
@@ -754,16 +828,13 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         @param fragment: The L{INavigableFragment} provider which will be
         displayed on this page.
 
-        This page draws its HTML from the 'public-shell' template in the active
-        theme.  If loaded in a browser that does not support Athena, the page
-        provided by the 'athena-unsupported' template will be displayed
-        instead.
+        This page draws its HTML from the 'shell' template in the active theme.
+        If loaded in a browser that does not support Athena, the page provided
+        by the 'athena-unsupported' template will be displayed instead.
         """
         self.store = store
         super(PublicAthenaLivePage, self).__init__(
-            IResource(store),
-            docFactory=getLoader("public-shell"),
-            *a, **k)
+            IResource(store), docFactory=getLoader('shell'), *a, **k)
         if fragment is not None:
             self.fragment = fragment
             # everybody who calls this has a different idea of what 'fragment'
@@ -810,38 +881,16 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
 
 
 
-# this exists so that PublicNavAthenaLivePage doesn't have to inherit from
-# NavMixin.  PublicNavAthenaLivePage supports the unauthenticated user case,
-# and so may not be able to provide the NavMixin constructor with the objects
-# it needs
-class _StandaloneNavFragment(rend.Fragment, NavMixin):
-    """
-    Trivial extension of L{NavMixin} which supplies a docFactory which will
-    include the Mantissa menubar in its output.
-    """
-    docFactory = loaders.stan(tags.invisible(render=tags.directive('menubar')))
-
-    def __init__(self, resolver, translator, pageComponents, username):
-        rend.Fragment.__init__(self)
-        NavMixin.__init__(self, resolver, translator, pageComponents, username)
-
-
-
 class PublicNavAthenaLivePage(PublicAthenaLivePage):
     """
+    DEPRECATED!  Use PublicAthenaLivePage.
+
     A L{PublicAthenaLivePage} which optionally includes a menubar and
     navigation if the viewer is authenticated.
     """
-    def render_menubar(self, ctx, data):
-        """
-        Render the Mantissa menubar if the user is authenticated, by deferring
-        to L{_StandaloneNavFragment}.
-        """
-        if self.username is None:
-            return PublicAthenaLivePage.render_menubar(self, ctx, data)
-        ls = self.store.findUnique(userbase.LoginSystem)
-        substore = ls.accountByAddress(*self.username.split('@')).avatars.open()
-        from xmantissa.webapp import PrivateApplication
-        webapp = substore.findUnique(PrivateApplication)
-        return _StandaloneNavFragment(
-            webapp, webapp, webapp.getPageComponents(), self.username)
+    def __init__(self, *a, **kw):
+        PublicAthenaLivePage.__init__(self, *a, **kw)
+        warn(
+            "Use PublicAthenaLivePage instead of PublicNavAthenaLivePage",
+            category=DeprecationWarning,
+            stacklevel=2)

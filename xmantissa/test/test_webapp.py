@@ -18,7 +18,7 @@ from nevow.inevow import IRequest, IResource
 
 from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa import website, webapp
-
+from xmantissa.test.test_publicweb import AuthenticatedNavigationTestMixin
 
 class FakeResourceItem(Item):
     unused = integer()
@@ -99,31 +99,38 @@ class TestClientFactory(object):
             return self.returnValue
 
 
-class GenericNavigationAthenaPageTests(TestCase):
+class GenericNavigationAthenaPageTests(TestCase,
+                                       AuthenticatedNavigationTestMixin):
     """
     Tests for L{GenericNavigationAthenaPage}.
     """
+    username = None
 
     def setUp(self):
         """
         Set up a site store, user store, and page instance to test with.
         """
-        s = Store(self.mktemp())
-        installOn(website.WebSite(store=s), s)
-        s.parent = s
+        self.siteStore = Store(self.mktemp())
+        installOn(website.WebSite(store=self.siteStore), self.siteStore)
 
-        ss = SubStore.createNew(s, ['child', 'lookup'])
-        ss = ss.open()
+        self.userStore = SubStore.createNew(
+            self.siteStore, ['child', 'lookup']).open()
 
-        privapp = webapp.PrivateApplication(store=ss)
-        installOn(privapp, ss)
+        self.privateApp = webapp.PrivateApplication(store=self.userStore)
+        installOn(self.privateApp, self.userStore)
 
-        self.navpage = webapp.GenericNavigationAthenaPage(
-            privapp,
+        self.navpage = self.createPage(None)
+
+
+    def createPage(self, username):
+        """
+        Create a L{webapp.GenericNavigationAthenaPage} for the given user.
+        """
+        return webapp.GenericNavigationAthenaPage(
+            self.privateApp,
             TestFragment(),
-            privapp.getPageComponents(),
+            self.privateApp.getPageComponents(),
             None)
-
 
     def test_childLookup(self):
         """
