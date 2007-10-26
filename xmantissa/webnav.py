@@ -21,12 +21,14 @@ TabInfo = record('priority storeID children linkURL authoritative',
                  authoritative=None)
 
 class Tab(object):
-    """Represent part or all of the layout of a single navigation tab.
+    """
+    Represent part or all of the layout of a single navigation tab.
 
     @ivar name: This tab's name.
 
-    @ivar storeID: A /-separated string containing URL segments to be
-    rendered as part of a link on the web.
+    @type storeID: C{int}
+    @ivar storeID: The Axiom store identifier of the Item to which the user
+    should be directed when this tab is activated.
 
     @ivar priority: A float between 0 and 1 indicating the relative ordering of
     this tab amongst its peers.  Higher priorities sort sooner.
@@ -38,6 +40,10 @@ class Tab(object):
     the conceptual tab with this name.  It is an error for two instances of the
     same conceptual tab to be authoritative.
 
+    @type linkURL: C{NoneType} or C{str}
+    @ivar linkURL: If not C{None}, the location to which the user should be
+    directed when this tab is activated.  This will override whatever value
+    is supplied for C{storeID}.
     """
 
     _item = None
@@ -115,6 +121,7 @@ def getTabs(navElements):
                         info.authoritative = True
                         info.priority = tab.priority
                         info.storeID = tab.storeID
+                        info.linkURL = tab.linkURL
                 info.children.extend(tab.children)
 
     # Sort the tabs and their children by their priority
@@ -127,7 +134,8 @@ def getTabs(navElements):
         info.children.sort(key=key)
 
         resultTabs.append(
-            Tab(name, info.storeID, info.priority, info.children))
+            Tab(name, info.storeID, info.priority, info.children,
+                linkURL=info.linkURL))
 
     resultTabs.sort(key=key)
 

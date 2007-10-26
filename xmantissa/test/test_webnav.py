@@ -1,6 +1,13 @@
-# Copyright 2005 Divmod, Inc.  See LICENSE file for details
+# Copyright 2007 Divmod, Inc.
+# See LICENSE file for details
+
+"""
+Tests for L{xmantissa.webnav}.
+"""
 
 from twisted.trial import unittest
+
+from epsilon.structlike import record
 
 from axiom.item import Item
 from axiom.attributes import inmemory, integer
@@ -15,39 +22,70 @@ from xmantissa.webapp import PrivateApplication
 
 
 
-class FakeNavigator1(object):
+class FakeNavigator(record('tabs')):
     def getTabs(self):
-        return [webnav.Tab('Hello', 1234, 0.5,
-                           [webnav.Tab('Super', 'sup', 1.0),
-                            webnav.Tab('Mega', 'meg', 0.5)],
-                           False)]
+        return self.tabs
 
 
-
-class FakeNavigator2(object):
-    def getTabs(self):
-        return [webnav.Tab('Hello', 5678, 1.,
-                           [webnav.Tab('Ultra', 'ult', 0.75),
-                            webnav.Tab('Hyper', 'hyp', 0.25)]),
-                webnav.Tab('Goodbye', None, 0.9)]
-
-
-
-class NavConfig(unittest.TestCase):
+class NavConfigTests(unittest.TestCase):
+    """
+    Tests for free functions in L{xmantissa.webnav}.
+    """
     def test_tabMerge(self):
-        nav = webnav.getTabs([FakeNavigator1(),
-                              FakeNavigator2()])
+        """
+        L{webnav.getTabs} should combine tabs from the L{INavigableElement}
+        providers passed to it into a single structure.  It should preserve the
+        attributes of all of the tabs and order them and their children by
+        priority.
+        """
+        nav = webnav.getTabs([
+                FakeNavigator([webnav.Tab('Hello', 1, 0.5,
+                                          [webnav.Tab('Super', 2, 1.0, (), False, '/Super/2'),
+                                           webnav.Tab('Mega', 3, 0.5, (), False, '/Mega/3')],
+                                          False, '/Hello/1')]),
+                FakeNavigator([webnav.Tab('Hello', 4, 1.,
+                                          [webnav.Tab('Ultra', 5, 0.75, (), False, '/Ultra/5'),
+                                           webnav.Tab('Hyper', 6, 0.25, (), False, '/Hyper/6')],
+                                          True, '/Hello/4'),
+                               webnav.Tab('Goodbye', 7, 0.9, (), True, '/Goodbye/7')])])
 
-        self.assertEquals(
-            nav[0].name, 'Hello')
-        self.assertEquals(
-            nav[0].storeID, 5678)
+        hello, goodbye = nav
+        self.assertEqual(hello.name, 'Hello')
+        self.assertEqual(hello.storeID, 4)
+        self.assertEqual(hello.priority, 1.0)
+        self.assertEqual(hello.authoritative,True)
+        self.assertEqual(hello.linkURL, '/Hello/4')
 
-        self.assertEquals(
-            nav[1].name, 'Goodbye')
+        super, ultra, mega, hyper = hello.children
+        self.assertEqual(super.name, 'Super')
+        self.assertEqual(super.storeID, 2)
+        self.assertEqual(super.priority, 1.0)
+        self.assertEqual(super.authoritative, False)
+        self.assertEqual(super.linkURL, '/Super/2')
 
-        kids = [x.name for x in nav[0].children]
-        self.assertEquals(kids, ['Super', 'Ultra', 'Mega', 'Hyper'])
+        self.assertEqual(ultra.name, 'Ultra')
+        self.assertEqual(ultra.storeID, 5)
+        self.assertEqual(ultra.priority, 0.75)
+        self.assertEqual(ultra.authoritative, False)
+        self.assertEqual(ultra.linkURL, '/Ultra/5')
+
+        self.assertEqual(mega.name, 'Mega')
+        self.assertEqual(mega.storeID, 3)
+        self.assertEqual(mega.priority, 0.5)
+        self.assertEqual(mega.authoritative, False)
+        self.assertEqual(mega.linkURL, '/Mega/3')
+
+        self.assertEqual(hyper.name, 'Hyper')
+        self.assertEqual(hyper.storeID, 6)
+        self.assertEqual(hyper.priority, 0.25)
+        self.assertEqual(hyper.authoritative, False)
+        self.assertEqual(hyper.linkURL, '/Hyper/6')
+
+        self.assertEqual(goodbye.name, 'Goodbye')
+        self.assertEqual(goodbye.storeID, 7)
+        self.assertEqual(goodbye.priority, 0.9)
+        self.assertEqual(goodbye.authoritative, True)
+        self.assertEqual(goodbye.linkURL, '/Goodbye/7')
 
 
     def test_setTabURLs(self):
