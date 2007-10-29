@@ -111,7 +111,7 @@ Mantissa.LiveForm.RepeatableForm.methods(
             function(widget) {
                 var repeater = self.firstNodeByAttribute(
                     'class', 'liveform-repeater');
-                repeater.parentNode.insertBefore(widget.node, repeater);
+                repeater.parentNode.appendChild(widget.node);
             });
         return result;
 

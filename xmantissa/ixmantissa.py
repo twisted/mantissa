@@ -633,6 +633,15 @@ class IContactType(Interface):
         """
 
 
+    def descriptiveIdentifier():
+        """
+        A descriptive name for this type of contact information.
+
+        @rtype: C{unicode}
+        """
+
+
+
     def getEditorialForm(contact):
         """
         Return a L{LiveForm} which will allow the given contact item to be

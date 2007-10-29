@@ -42,7 +42,7 @@ from xmantissa.people import (
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
     PostalAddress, PostalContactType, ReadOnlyEmailView,
     ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL,
-    _stringifyKeys, makeThumbnail)
+    _stringifyKeys, makeThumbnail, _descriptiveIdentifier)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -108,6 +108,39 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
         originalImage = Image.open(file(fullSizePath))
         self.assertEqual(originalImage.format, fullSizeFormat)
         self.assertEqual(originalImage.size, (fullWidth, fullHeight))
+
+
+    def test_descriptiveIdentifier(self):
+        """
+        Verify that L{_descriptiveIdentifier} returns the result of the
+        C{descriptiveIdentifier} method if its passed an object that defines
+        one.
+        """
+        identifier = u'lol identifier'
+        class MyContactType:
+            def descriptiveIdentifier(self):
+                return identifier
+        self.assertEqual(
+            _descriptiveIdentifier(MyContactType()), identifier)
+
+
+    def test_noDescriptiveIdentifier(self):
+        """
+        Verify that L{_descriptiveIdentifier} returns a sensible identifier
+        based on the class name of the object it is passed, and issues a
+        warning, if the object doesn't implement C{descriptiveIdentifier}.
+        """
+        class MyContactType:
+            pass
+        self.assertEqual(
+            _descriptiveIdentifier(MyContactType()), u'My Contact Type')
+        self.assertWarns(
+            PendingDeprecationWarning,
+            "IContactType now has the 'descriptiveIdentifier'"
+            " method, xmantissa.test.test_people.MyContactType"
+            " did not implement it",
+            people.__file__,
+            lambda: _descriptiveIdentifier(MyContactType()))
 
 
 
@@ -415,11 +448,14 @@ class StubContactType(object):
     @ivar createContactItems: A boolean indicating whether C{createContactItem}
         will return an object pretending to be a new contact item (C{True}) or
         C{None} to indicate no contact item was created (C{False}).
+    @ivar theDescriptiveIdentifier: The object to return from
+    L{descriptiveIdentifier}.
     """
     implements(IContactType)
 
     def __init__(self, parameters, editorialForm, contactItems,
-            createContactItems=True, allowMultipleContactItems=True):
+            createContactItems=True, allowMultipleContactItems=True,
+            theDescriptiveIdentifier=u''):
         self.parameters = parameters
         self.createdContacts = []
         self.editorialForm = editorialForm
@@ -429,6 +465,7 @@ class StubContactType(object):
         self.editedContacts = []
         self.createContactItems = createContactItems
         self.allowMultipleContactItems = allowMultipleContactItems
+        self.theDescriptiveIdentifier = theDescriptiveIdentifier
 
 
     def getParameters(self, ignore):
@@ -443,6 +480,13 @@ class StubContactType(object):
         Return the L{qual} of this class.
         """
         return qual(self.__class__).decode('ascii')
+
+
+    def descriptiveIdentifier(self):
+        """
+        Return L{theDescriptiveIdentifier}.
+        """
+        return self.theDescriptiveIdentifier
 
 
     def getEditorialForm(self, contact):
@@ -593,6 +637,14 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
     def setUp(self):
         self.store = Store()
         self.contactType = EmailContactType(self.store)
+
+
+    def test_descriptiveIdentifier(self):
+        """
+        L{EmailContactType.descriptiveIdentifier} should be "Email Address".
+        """
+        self.assertEqual(
+            self.contactType.descriptiveIdentifier(), u'Email Address')
 
 
     def test_allowsMultipleContactItems(self):
@@ -771,6 +823,14 @@ class PostalContactTests(unittest.TestCase, ContactTestsMixin):
         self.store = Store()
         self.person = Person(store=self.store)
         self.contactType = PostalContactType()
+
+
+    def test_descriptiveIdentifier(self):
+        """
+        L{PostalContactType.descriptiveIdentifier} should be "Postal Address".
+        """
+        self.assertEqual(
+            self.contactType.descriptiveIdentifier(), u'Postal Address')
 
 
     def test_allowsMultipleContactItems(self):
@@ -1347,7 +1407,9 @@ class PeopleModelTestCase(unittest.TestCase):
         in the system which allows multiple contact items.
         """
         contactTypes = [StubContactType(
-            (), None, None, allowMultipleContactItems=True)]
+            (), None, None,
+            allowMultipleContactItems=True,
+            theDescriptiveIdentifier=u'Very Descriptive')]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
@@ -1355,6 +1417,8 @@ class PeopleModelTestCase(unittest.TestCase):
         parameters = list(self.organizer.getContactCreationParameters())
         self.assertEqual(len(parameters), 3)
         self.assertTrue(isinstance(parameters[2], ListChangeParameter))
+        self.assertEqual(
+            parameters[2].modelObjectDescription, u'Very Descriptive')
         self.assertEqual(parameters[2].name, qual(StubContactType))
 
 
@@ -1387,7 +1451,8 @@ class PeopleModelTestCase(unittest.TestCase):
         containing a L{ListChangeParameter} for each contact type available in
         the system which supports multiple contact items.
         """
-        contactTypes = [StubContactType((), None, [])]
+        contactTypes = [StubContactType(
+            (), None, [], theDescriptiveIdentifier=u'So Descriptive')]
         contactPowerup = StubOrganizerPlugin(
             store=self.store, contactTypes=contactTypes)
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
@@ -1399,6 +1464,8 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertIdentical(parameters[2][0], contactTypes[0])
         self.failUnless(
             isinstance(parameters[2][1], ListChangeParameter))
+        self.assertEqual(
+            parameters[2][1].modelObjectDescription, u'So Descriptive')
 
 
     def test_getContactEditorialParametersUnrepeatable(self):

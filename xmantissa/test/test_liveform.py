@@ -1062,6 +1062,7 @@ class ListChangeParameterTestCase(TestCase):
         liveFormWrapper = parameter.asLiveForm()
         self.failUnless(
             isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
+        self.assertTrue(liveFormWrapper.removable)
         liveForm = liveFormWrapper.liveForm
         self.failUnless(isinstance(liveForm, LiveForm))
         self.assertEqual(liveForm.subFormName, parameter.name)
@@ -1083,6 +1084,7 @@ class ListChangeParameterTestCase(TestCase):
         liveFormWrapper = liveFormWrappers[0]
         self.failUnless(
             isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
+        self.assertFalse(liveFormWrapper.removable)
         liveForm = liveFormWrapper.liveForm
         self.failUnless(isinstance(liveForm, LiveForm))
         self.assertEqual(liveForm.subFormName, parameter.name)
@@ -1103,6 +1105,7 @@ class ListChangeParameterTestCase(TestCase):
         for (liveFormWrapper, default) in zip(liveFormWrappers, defaults):
             self.failUnless(
                 isinstance(liveFormWrapper, RepeatedLiveFormWrapper))
+            self.assertTrue(liveFormWrapper.removable)
 
             liveForm = liveFormWrapper.liveForm
             self.failUnless(isinstance(liveForm, LiveForm))
@@ -1513,3 +1516,21 @@ class ListChangeParameterTestCase(TestCase):
         result.addCallback(cbCoerced)
         return result
 
+
+
+class RepeatedLiveFormWrapperTestCase(TestCase):
+    """
+    Tests for L{RepeatedLiveFormWrapper}.
+    """
+    def test_removeLinkRenderer(self):
+        """
+        Verify that the I{removeLink} renderer of L{RepeatedLiveFormWrapper}
+        only returns the tag if the C{removable} argument passed to the
+        constructor is C{True}.
+        """
+        fragment = RepeatedLiveFormWrapper(None, None, removable=True)
+        removeLinkRenderer = renderer.get(fragment, 'removeLink', None)
+        tag = div()
+        self.assertIdentical(removeLinkRenderer(None, tag), tag)
+        fragment.removable = False
+        self.assertEqual(removeLinkRenderer(None, tag), '')

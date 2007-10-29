@@ -18,6 +18,7 @@ from nevow import rend, athena, inevow, static, url
 from nevow.athena import expose
 from nevow.loaders import stan
 from nevow.page import Element, renderer
+from formless import nameToLabel
 
 from epsilon import extime
 
@@ -104,6 +105,41 @@ def _normalizeWhitespace(text):
 
 
 
+def _guessDescriptiveIdentifier(contactType):
+    """
+    Figure out a possibly-useful default descriptive identifier for
+    C{contactType}.
+
+    @type contactType: L{IContactType} provider.
+
+    @rtype: C{unicode}
+    """
+    return nameToLabel(contactType.__class__.__name__).lstrip()
+
+
+
+def _descriptiveIdentifier(contactType):
+    """
+    Get a descriptive identifier for C{contactType}, taking into account the
+    fact that it might not have implemented the C{descriptiveIdentifier}
+    method.
+
+    @type contactType: L{IContactType} provider.
+
+    @rtype: C{unicode}
+    """
+    descriptiveIdentifierMethod = getattr(
+        contactType, 'descriptiveIdentifier', None)
+    if descriptiveIdentifierMethod is not None:
+        return descriptiveIdentifierMethod()
+    warn(
+        "IContactType now has the 'descriptiveIdentifier'"
+        " method, %s did not implement it" % (contactType.__class__,),
+        category=PendingDeprecationWarning)
+    return _guessDescriptiveIdentifier(contactType)
+
+
+
 class BaseContactType(object):
     """
     Base class for L{IContactType} implementations which provides useful
@@ -187,6 +223,13 @@ class EmailContactType(BaseContactType):
             liveform.Parameter('email', liveform.TEXT_INPUT,
                                _normalizeWhitespace, 'Email Address',
                                default=address)]
+
+
+    def descriptiveIdentifier(self):
+        """
+        Return 'Email Address'
+        """
+        return u'Email Address'
 
 
     def _existing(self, email):
@@ -605,11 +648,13 @@ class Organizer(item.Item):
         """
         for contactType in self.getContactTypes():
             if contactType.allowMultipleContactItems:
+                descriptiveIdentifier = _descriptiveIdentifier(contactType)
                 yield liveform.ListChangeParameter(
                     contactType.uniqueIdentifier(),
                     contactType.getParameters(None),
                     defaults=[],
-                    modelObjects=[])
+                    modelObjects=[],
+                    modelObjectDescription=descriptiveIdentifier)
             else:
                 yield liveform.FormParameter(
                     contactType.uniqueIdentifier(),
@@ -636,11 +681,13 @@ class Organizer(item.Item):
                     defaultedParameters = contactType.getParameters(contactItem)
                     defaults.append(dict((p.name, p.default)
                         for p in defaultedParameters))
+                descriptiveIdentifier = _descriptiveIdentifier(contactType)
                 param = liveform.ListChangeParameter(
                     contactType.uniqueIdentifier(),
                     contactType.getParameters(None),
                     defaults=defaults,
-                    modelObjects=contactItems)
+                    modelObjects=contactItems,
+                    modelObjectDescription=descriptiveIdentifier)
             else:
                 (contactItem,) = contactItems
                 param = liveform.FormParameter(
@@ -1209,6 +1256,13 @@ class PostalContactType(BaseContactType):
         return [
             liveform.Parameter('address', liveform.TEXT_INPUT,
                                unicode, 'Postal Address', default=address)]
+
+
+    def descriptiveIdentifier(self):
+        """
+        Return 'Postal Address'
+        """
+        return u'Postal Address'
 
 
     def createContactItem(self, person, address):

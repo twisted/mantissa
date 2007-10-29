@@ -243,8 +243,9 @@ class ListChanges(record('create edit delete')):
 
 
 class ListChangeParameter(record('name parameters defaults modelObjects '
-                                 'viewFactory',
+                                 'modelObjectDescription viewFactory',
                                  defaults=(), modelObjects=(),
+                                 modelObjectDescription=u'',
                                  viewFactory=IParameterView),
                           _SelectiveCoercer):
     """
@@ -269,6 +270,10 @@ class ListChangeParameter(record('name parameters defaults modelObjects '
     @type modelObjects: C{list}
     @ivar modelObjects: A sequence of opaque objects, one for each item in
     C{defaults}.
+
+    @type modelObjectDescription: C{unicode}
+    @param modelObjectDescription: A description of the type of model object
+    being edited, e.g. 'Email Address'.  Defaults to the empty string.
 
     @type viewFactory: callable
     @ivar viewFactory: A two-argument callable which returns an
@@ -392,7 +397,7 @@ class ListChangeParameter(record('name parameters defaults modelObjects '
         return id
 
 
-    def _makeALiveForm(self, parameters, identifier):
+    def _makeALiveForm(self, parameters, identifier, removable=True):
         """
         Make a live form with the parameters C{parameters}, which will be used
         to edit the values/model object with identifier C{identifier}.
@@ -402,11 +407,13 @@ class ListChangeParameter(record('name parameters defaults modelObjects '
 
         @type identifier: C{int}
 
+        @type removable: C{bool}
+
         @rtype: L{repeatedLiveFormWrapper}
         """
         liveForm = self.liveFormFactory(lambda **k: None, parameters, self.name)
         liveForm = self._prepareSubForm(liveForm)
-        liveForm = self.repeatedLiveFormWrapper(liveForm, identifier)
+        liveForm = self.repeatedLiveFormWrapper(liveForm, identifier, removable)
         liveForm.docFactory = webtheme.getLoader(liveForm.fragmentName)
         return liveForm
 
@@ -439,7 +446,9 @@ class ListChangeParameter(record('name parameters defaults modelObjects '
                 liveForms.append(self._makeDefaultLiveForm(values))
         else:
             # or only one, for the first new thing
-            liveForms.append(self.asLiveForm())
+            liveForms.append(
+                self._makeALiveForm(
+                    self.parameters, self._newIdentifier(), False))
         return liveForms
 
 
@@ -1025,14 +1034,18 @@ class RepeatedLiveFormWrapper(athena.LiveElement):
 
     @ivar identifier: An integer identifying this repetition.
     @type identifier: C{int}
+
+    @ivar removable: Whether this repetition can be unrepeated/removed.
+    @type removable: C{bool}
     """
     fragmentName = 'repeated-liveform'
     jsClass = u'Mantissa.LiveForm.RepeatedLiveFormWrapper'
 
-    def __init__(self, liveForm, identifier):
+    def __init__(self, liveForm, identifier, removable=True):
         athena.LiveElement.__init__(self)
         self.liveForm = liveForm
         self.identifier = identifier
+        self.removable = removable
 
 
     def getInitialArguments(self):
@@ -1049,6 +1062,17 @@ class RepeatedLiveFormWrapper(athena.LiveElement):
         self.liveForm.setFragmentParent(self)
         return self.liveForm
     page.renderer(realForm)
+
+
+    def removeLink(self, req, tag):
+        """
+        Render C{tag} if L{removable} is C{True}, otherwise return the
+        empty string.
+        """
+        if self.removable:
+            return tag
+        return ''
+    page.renderer(removeLink)
 
 
 
@@ -1253,7 +1277,9 @@ class ListChangeParameterView(_ParameterViewMixin, athena.LiveElement):
         """
         Render some UI for repeating our form.
         """
-        return inevow.IQ(self.docFactory).onePattern('repeater')
+        repeater = inevow.IQ(self.docFactory).onePattern('repeater')
+        return repeater.fillSlots(
+            'object-description', self.parameter.modelObjectDescription)
     page.renderer(repeater)
 
 registerAdapter(ListChangeParameterView, ListChangeParameter, IParameterView)
