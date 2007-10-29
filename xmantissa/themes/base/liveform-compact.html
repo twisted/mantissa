@@ -41,23 +41,23 @@
   </tr>
 
   <tr nevow:pattern="text-input-container">
-    <td><nevow:invisible nevow:render="label" /></td>
+    <td class="liveform-input-label"><nevow:invisible nevow:render="label" /></td>
     <td><input type="text"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input></td>
   </tr>
 
   <tr nevow:pattern="multi-text-input-container" valign="top">
-    <td><nevow:slot name="label" /></td>
+    <td class="liveform-input-label"><nevow:slot name="label" /></td>
     <td class="multi-text-input-list"><nevow:slot name="inputs" /></td>
   </tr>
 
   <tr nevow:pattern="password-input-container">
-    <td><nevow:invisible nevow:render="label" /></td>
+    <td class="liveform-input-label"><nevow:invisible nevow:render="label" /></td>
     <td><input type="password"><nevow:attr name="name" nevow:render="name" /><nevow:attr name="value" nevow:render="default" /></input></td>
   </tr>
 
   <tr nevow:pattern="radio-input-container">
     <td><nevow:slot name="input" /></td>
-    <td><nevow:slot name="label" /></td>
+    <td class="liveform-input-label"><nevow:slot name="label" /></td>
   </tr>
 
   <tr nevow:pattern="form-input-container">
@@ -71,7 +71,7 @@
     <td colspan="2">
       <nevow:invisible nevow:render="forms" />
       <div class="liveform-repeater" nevow:pattern="repeater">
-        <a href="#">
+        <a href="#" class="repeatable-form-repeat-link">
           <athena:handler event="onclick" handler="dom_repeat" />
           Add another <nevow:slot name="object-description" />
         </a>
@@ -81,10 +81,8 @@
   </tr>
 
   <tr nevow:pattern="checkbox-input-container">
-    <td colspan="2">
-      <nevow:slot name="input" />
-      <nevow:slot name="label" />
-    </td>
+    <td class="liveform-input-label"><nevow:slot name="label" /></td>
+    <td><nevow:slot name="input" /></td>
   </tr>
 
   <input nevow:pattern="input">

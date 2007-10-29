@@ -2,6 +2,37 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+.add-person .liveform-input-label {
+    width: 10em;
+    padding-right: 1em;
+    text-align: right;
+    font-weight: bold;
+    color: #666666;
+    font-size: 80%;
+}
+
+.add-person .repeatable-form-repeat-link,
+.add-person .repeated-form-remove-link {
+    margin-left: 11em;
+}
+
+.add-person .liveform-repeater,
+.add-person .repeated-form-remove-link-container {
+    margin-top: 4px;
+}
+
+.add-person input[type=text] {
+    width: 15em;
+}
+
+.add-person table td {
+    padding-top: 6px;
+}
+
+.add-person table {
+    border-collapse: collapse;
+}
+
 /**
  * This is the class of the container of either the signup/login UI (for
  * unauthenticated users) or the application menubar and username label (for
