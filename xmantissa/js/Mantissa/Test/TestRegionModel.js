@@ -16,6 +16,7 @@
 // import Divmod.UnitTest
 // import Divmod.Defer
 // import Mantissa.ScrollTable
+// import Nevow.Test.WidgetUtil
 
 Mantissa.Test.TestRegionModel.ArrayRegionServer = Divmod.Class.subclass(
     'Mantissa.Test.TestRegionModel.ArrayRegionServer');
@@ -2262,30 +2263,7 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
      */
     function setUp(self) {
         self.table = self.makeFakeTable();
-        self.originalMessageDeliverer = Nevow.Athena._rdm;
-        /* Event processing requires a reliable message delivery channel; in
-         * order to deliver an event, 'pause' and 'unpause' methods must be
-         * present on this object.  Our fake table will never actually try to
-         * deliver events (its callRemote has been neutered), so this is
-         * appropriate for the duration of this test notwithstanding the
-         * realism of the environment.  It also needs to find a widget based
-         * on its ID in a global object.
-         *
-         * This is really a bug in the interaction between Nevow's
-         * event-handling and the test framework.  Eventually, the test
-         * framework should integrate with the widget hierarchy so that Nevow
-         * can find the widgets that it needs to invoke events on, and this
-         * hack should be deleted.
-         *
-         * However, this is the first and only real test I've written so far
-         * that uses an event, so I don't feel comfortable putting it into the
-         * framework just yet.  When the time comes, this is Divmod ticket
-         * #2148.
-         */
-        Nevow.Athena._rdm = {
-          pause: function () {},
-          unpause: function () {}
-        };
+        self.unmock = Nevow.Test.WidgetUtil.mockTheRDM();
         self.originalWidget = Nevow.Athena.Widget._athenaWidgets['1'];
         Nevow.Athena.Widget._athenaWidgets['1'] = self.table;
     },
@@ -2297,7 +2275,7 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
      * environments that may initialize more properly than nevow.
      */
     function tearDown(self) {
-        Nevow.Athena._rdm = self.originalMessageDeliverer;
+        self.unmock();
         Nevow.Athena.Widget._athenaWidgets['1'] = self.originalWidget;
     },
 
