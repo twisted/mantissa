@@ -4,6 +4,8 @@ from zope.interface import implements
 from twisted.trial.unittest import TestCase
 from twisted.trial.util import suppress as SUPPRESS
 
+from epsilon.structlike import record
+
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer, inmemory
@@ -22,7 +24,8 @@ from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
 from xmantissa.publicweb import (
-    _getLoader, PublicAthenaLivePage, PublicNavAthenaLivePage)
+    _getLoader, PublicAthenaLivePage, PublicNavAthenaLivePage, _OfferingsFragment)
+from xmantissa import publicweb
 
 
 class MockTheme(object):
@@ -94,6 +97,61 @@ class TestPrivateGetLoader(TestCase):
             RuntimeError,
             _getLoader, self.store, 'unknown-template', getInstalledThemes)
 
+
+
+class TestHonorInstalledThemes(TestCase):
+    """
+    Various classes should be using _getLoader to determine which theme to use
+    based on a site store.
+    """
+
+    def setUp(self):
+        """
+        Replace _getLoader with a temporary method of this test case.
+        """
+        publicweb._getLoader = self.fakeGetLoader
+        self.template = object()
+        self.store = object()
+
+
+    def tearDown(self):
+        """
+        Replace the original _getLoader.
+        """
+        publicweb._getLoader = _getLoader
+
+
+    def fakeGetLoader(self, store, fragmentName):
+        """
+        Pretend to be the private _getLoader function for the duration of the
+        test.
+        """
+        self.getLoaderStore = store
+        self.getLoaderName = fragmentName
+        return self.template
+
+
+    def test_offeringsFragmentLoader(self):
+        """
+        L{_OfferingsFragment} should honor the installed themes list by using
+        _getLoader.
+        """
+        original = record('store')(self.store)
+        offeringsFragment = _OfferingsFragment(original)
+        self.assertIdentical(self.getLoaderStore, self.store)
+        self.assertEqual(self.getLoaderName, 'front-page')
+        self.assertIdentical(offeringsFragment.docFactory, self.template)
+
+
+    def test_loginPageLoader(self):
+        """
+        L{LoginPage} should honor the installed themes list by using
+        _getLoader.
+        """
+        loginPage = publicweb.LoginPage(self.store)
+        self.assertIdentical(self.getLoaderStore, self.store)
+        self.assertEqual(self.getLoaderName, 'login')
+        self.assertIdentical(loginPage.fragment, self.template)
 
 
 

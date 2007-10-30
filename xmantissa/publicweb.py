@@ -1,4 +1,4 @@
-# -*- test-case-name: xmantissa.test.test_website -*-
+# -*- test-case-name: xmantissa.test.test_publicweb -*-
 
 """
 This module contains code for the publicly-visible areas of a Mantissa
@@ -546,7 +546,7 @@ class _OfferingsFragment(rend.Fragment):
         @param original: a L{FrontPage} item.
         """
         super(_OfferingsFragment, self).__init__(
-            original, docFactory=getLoader('front-page'))
+            original, docFactory=_getLoader(original.store, 'front-page'))
 
 
     def data_offerings(self, ctx, data):
