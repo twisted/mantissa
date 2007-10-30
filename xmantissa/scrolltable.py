@@ -30,6 +30,8 @@ TYPE_FRAGMENT = 'fragment'
 TYPE_WIDGET = 'widget'
 
 
+INTEGER_COLUMN = TEXT_COLUMN = TIMESTAMP_COLUMN = BOOLEAN_COLUMN = None
+
 
 class AttributeColumn(object):
     """

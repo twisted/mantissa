@@ -13,7 +13,7 @@ from twisted.trial import unittest
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, text
+from axiom.attributes import integer, text, timestamp, boolean
 from axiom.dependency import installOn
 from axiom.test.util import QueryCounter
 
@@ -31,14 +31,23 @@ from xmantissa.scrolltable import (
     StoreIDSequenceScrollingFragment,
     AttributeColumn,
     UnsortableColumnWrapper,
-    UnsortableColumn)
+    UnsortableColumn,
+    INTEGER_COLUMN,
+    TEXT_COLUMN,
+    TIMESTAMP_COLUMN,
+    BOOLEAN_COLUMN)
 
 
 
 class DataThunk(Item):
+    """
+    An Item subclass with lots of attributes for tests to poke and prod.
+    """
     a = integer()
     b = integer()
     c = text()
+    timestampAttribute = timestamp()
+    booleanAttribute = boolean()
 
 
 
@@ -905,3 +914,57 @@ class UnsortableColumnWrapperTestCase(unittest.TestCase):
         self.assertEquals(typ, col.getType())
 
         self.assertEquals(unsortableCol.sortAttribute(), None)
+
+
+
+class AttributeColumnTests(unittest.TestCase):
+    """
+    L{AttributeColumn} tests.
+    """
+    def _columnTest(self, attribute, column):
+        """
+        Assert that an L{AttributeColumn} created with the given attribute has
+        a C{jsClass} attribute set to the given JavaScript class.
+
+        @type attribute: L{IAttribute}
+        @type column: C{str}
+        """
+        self.assertEqual(AttributeColumn(attribute).jsClass, column)
+
+
+    def test_integerJavaScriptClass(self):
+        """
+        An L{AttributeColumn} instantiated with an integer attribute should
+        refer to the JavaScript integer column.
+        """
+        self._columnTest(DataThunk.a, INTEGER_COLUMN)
+
+
+    def test_textJavaScriptClass(self):
+        """
+        An L{AttributeColumn} instantiated with a text attribute should refer
+        to the JavaScript text column.
+        """
+        self._columnTest(DataThunk.c, TEXT_COLUMN)
+
+
+    def test_timestampJavaScriptClass(self):
+        """
+        An L{AttributeColumn} instantiated with a timestamp attribute should
+        refer to the JavaScript timestamp column.
+        """
+        self._columnTest(DataThunk.timestampAttribute, TIMESTAMP_COLUMN)
+
+
+    def test_booleanJavaScriptClass(self):
+        """
+        An L{AttributeColumn} instantiated with a boolean attribute should
+        refer to the JavaScript boolean column.
+        """
+        self._columnTest(DataThunk.booleanAttribute, BOOLEAN_COLUMN)
+
+
+    def test_athenaTransportability(self):
+        """
+        L{AttributeColumn} instances should be adaptable to L{IAthenaTransportable}
+        """
