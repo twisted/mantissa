@@ -922,17 +922,21 @@ class ScrollingElement(InequalityModel, ScrollableView, LiveElement):
 
     def _getColumnList(self):
         """
-        Get a list of serializable objects that describe the interesting columns on
-        our item type.
+        Get a list of serializable objects that describe the interesting
+        columns on our item type.  Columns which report having no type will be
+        treated as having the type I{text}.
 
         @rtype: C{list} of C{dict}
         """
         columnList = []
         for columnName in self.columnNames:
             column = self.columns[columnName]
+            type = column.getType()
+            if type is None:
+                type = 'text'
             columnList.append(
                 {u'name': columnName,
-                 u'type': column.getType().decode('utf-8')})
+                 u'type': type.decode('ascii')})
         return columnList
 
 
@@ -941,11 +945,16 @@ class ScrollingElement(InequalityModel, ScrollableView, LiveElement):
         Return the constructor arguments required for the JavaScript client class,
         Mantissa.ScrollTable.ScrollTable.
 
-        @return: a 2-tuple of the unicode attribute ID of my current sort
-        column, and a list of dictionaries with 'name' and 'type' keys which
-        are strings describing the name and type of all the columns in this
-        table.
+        @return: a 3-tuple of::
+
+          - The unicode attribute ID of my current sort column
+          - A list of dictionaries with 'name' and 'type' keys which are
+            strings describing the name and type of all the columns in this
+            table.
+          - A bool indicating whether the sort direction is initially
+            ascending.
         """
         ic = IColumn(self.currentSortColumn)
-        return [ic.attributeID.decode('ascii'), self._getColumnList(),
+        return [ic.attributeID.decode('ascii'),
+                self._getColumnList(),
                 self.isAscending]

@@ -502,7 +502,7 @@ class ScrollingElementTests(unittest.TestCase):
 
     def test_deprecatedNoToComparableValue(self):
         """
-        If L{IColumn.toComparableValue} is ''not'' provided by the sort column,
+        If L{IColumn.toComparableValue} is I{not} provided by the sort column,
         then L{ScrollingElement} should notify the developer of a deprecation
         warning but default to using the value itself.
         """
@@ -560,6 +560,31 @@ class ScrollingElementTests(unittest.TestCase):
                           {u"name": u"c",
                            u"type": u"text"}],
                           True])
+
+
+    def test_missingTypeDefaultsToText(self):
+        """
+        When constructed with an L{IColumn} which returns C{None} from its
+        C{getType} method, L{ScrollingElement} should use the default of
+        C{text} for that column's type.
+        """
+        class UntypedColumn(object):
+            implements(IColumn)
+            attributeID = 'foo'
+            def sortAttribute(self):
+                return None
+            def getType(self):
+                return None
+        column = UntypedColumn()
+
+        scroller = ScrollingElement(
+            None, None, None, [DataThunk.a, column], None,
+            webTranslator=object())
+        attribute, columnList, ascending = scroller.getInitialArguments()
+        self.assertEqual(
+            columnList,
+            [{u'type': u'integer', u'name': u'a'},
+             {u'type': u'text', u'name': u'foo'}])
 
 
 
