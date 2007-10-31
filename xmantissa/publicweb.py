@@ -302,7 +302,6 @@ class PublicPageMixin(object):
     @ivar needsSecure: whether this page requires SSL to be rendered.
     """
     fragment = None
-    title = ''
     username = None
     needsSecure = False
 
@@ -433,10 +432,10 @@ class PublicPageMixin(object):
 
     def render_title(self, ctx, data):
         """
-        Return the current context tag containing the 'title' attribute of this
-        page.
+        Return the current context tag containing C{self.fragment}'s C{title}
+        attribute, or "Divmod".
         """
-        return ctx.tag[self.title]
+        return ctx.tag[getattr(self.fragment, 'title', 'Divmod')]
 
 
     def render_header(self, ctx, data):

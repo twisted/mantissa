@@ -14,7 +14,8 @@ from axiom.plugins.mantissacmd import Mantissa
 from axiom.dependency import installOn
 
 from nevow import rend, context
-from nevow.tags import div, span, h1, h2
+from nevow.flat import flatten
+from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
 
 from xmantissa import signup
@@ -284,6 +285,20 @@ class AuthenticatedNavigationTestMixin:
             fooContent.slotData['href'], self.privateApp.linkTo(123))
 
 
+    def test_title(self):
+        """
+        The I{title} renderer should add the wrapped fragment's title
+        attribute, if any, or the default "Divmod".
+        """
+        page = self.createPage(self.username)
+        titleTag = title()
+        tag = page.render_title(context.WebContext(tag=titleTag), None)
+        self.assertIdentical(tag, titleTag)
+        flattened = flatten(tag)
+        self.assertSubstring(flatten(getattr(page.fragment, 'title', 'Divmod')),
+                             flattened)
+
+
 
 class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     """
@@ -393,13 +408,18 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
 
 
 
+class TestFragment(rend.Fragment):
+    title = u'a test fragment'
+
+
+
 class PublicAthenaLivePageTestCase(_PublicAthenaLivePageTestMixin, TestCase):
     """
     Tests for L{PublicAthenaLivePage}.
     """
     def createPage(self, forUser):
         return PublicAthenaLivePage(
-            self.siteStore, rend.Fragment(), forUser=forUser)
+            self.siteStore, TestFragment(), forUser=forUser)
 
 
 
@@ -411,4 +431,4 @@ class PublicNavAthenaLivePageTestCase(_PublicAthenaLivePageTestMixin, TestCase):
 
     def createPage(self, forUser):
         return PublicNavAthenaLivePage(
-            self.siteStore, rend.Fragment(), forUser=forUser)
+            self.siteStore, TestFragment(), forUser=forUser)

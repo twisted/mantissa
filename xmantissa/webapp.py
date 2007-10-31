@@ -209,10 +209,11 @@ class FragmentWrapperMixin:
         return ctx.tag[extras]
 
     def render_title(self, ctx, data):
-        title = getattr(self.fragment, 'title', None)
-        if not title:
-            title = 'Divmod'
-        return ctx.tag[title]
+        """
+        Return the current context tag containing C{self.fragment}'s C{title}
+        attribute, or "Divmod".
+        """
+        return ctx.tag[getattr(self.fragment, 'title', 'Divmod')]
 
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
