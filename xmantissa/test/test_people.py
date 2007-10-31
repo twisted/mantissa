@@ -2,6 +2,7 @@
 """
 Tests for L{xmantissa.people}.
 """
+import warnings
 
 from xml.dom.minidom import parseString
 
@@ -40,9 +41,9 @@ from xmantissa.people import (
     PhoneNumber, setIconURLForContactInfoType, iconURLForContactInfoType,
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment, OrganizerFragment,
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
-    PostalAddress, PostalContactType, ReadOnlyEmailView,
-    ReadOnlyPostalAddressView, MugshotUploadPage, getPersonURL,
-    _stringifyKeys, makeThumbnail, _descriptiveIdentifier)
+    PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
+    ReadOnlyEmailView, ReadOnlyPostalAddressView, MugshotUploadPage,
+    getPersonURL, _stringifyKeys, makeThumbnail, _descriptiveIdentifier)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -810,6 +811,90 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
 
 
 
+class VIPPersonContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
+    """
+    Tests for L{VIPPersonContactType}.
+    """
+    def setUp(self):
+        """
+        Create a L{Person} and a L{VIPPersonContactType}.
+        """
+        self.person = Person(vip=False)
+        self.contactType = VIPPersonContactType()
+
+
+    def test_createContactItem(self):
+        """
+        L{VIPPersonContactType.createContactItem} should set the C{vip}
+        attribute of the given person to the specified value, and return a
+        L{_PersonVIPStatus} wrapping the person.
+        """
+        contactItem = self.contactType.createContactItem(
+            self.person, True)
+        self.assertTrue(isinstance(contactItem, _PersonVIPStatus))
+        self.assertIdentical(contactItem.person, self.person)
+        self.assertTrue(self.person.vip)
+        contactItem = self.contactType.createContactItem(
+            self.person, False)
+        self.assertTrue(isinstance(contactItem, _PersonVIPStatus))
+        self.assertIdentical(contactItem.person, self.person)
+        self.assertFalse(self.person.vip)
+
+
+    def test_editContactItem(self):
+        """
+        L{VIPPersonContactType.editContactItem} should set the C{vip}
+        attribute of the wrapped person to the specified value.
+        """
+        self.contactType.editContactItem(
+            _PersonVIPStatus(self.person), True)
+        self.assertTrue(self.person.vip)
+        self.contactType.editContactItem(
+            _PersonVIPStatus(self.person), False)
+        self.assertFalse(self.person.vip)
+
+
+    def test_getParametersNoPerson(self):
+        """
+        L{VIPPersonContactType.getParameters} should return a parameter with a
+        default of C{False} when it's passed C{None}.
+        """
+        params = self.contactType.getParameters(None)
+        self.assertEqual(len(params), 1)
+        param = params[0]
+        self.assertFalse(param.default)
+
+
+    def test_getParametersPerson(self):
+        """
+        L{VIPPersonContactType.getParameters} should return a parameter with
+        the correct default when it's passed a L{_PersonVIPStatus} wrapping a
+        person.
+        """
+        params = self.contactType.getParameters(
+            _PersonVIPStatus(self.person))
+        self.assertEqual(len(params), 1)
+        param = params[0]
+        self.assertFalse(param.default)
+        self.person.vip = True
+        params = self.contactType.getParameters(
+            _PersonVIPStatus(self.person))
+        self.assertEqual(len(params), 1)
+        param = params[0]
+        self.assertTrue(param.default)
+
+
+    def test_getReadOnlyView(self):
+        """
+        L{VIPPersonContactType.getReadOnlyView} should return something which
+        flattens to the empty string.
+        """
+        view = self.contactType.getReadOnlyView(
+            _PersonVIPStatus(self.person))
+        self.assertEqual(flatten(view), '')
+
+
+
 class PostalContactTests(unittest.TestCase, ContactTestsMixin):
     """
     Tests for snail-mail address contact information represented by
@@ -1217,10 +1302,31 @@ class PeopleModelTestCase(unittest.TestCase):
     def test_createVeryImportantPerson(self):
         """
         L{Organizer.createPerson} should set L{Person.vip} to match the value
-        it is passed for the C{vip} parameter.
+        it is passed for the C{vip} parameter, and issue a deprecation
+        warning.
         """
-        alice = self.organizer.createPerson(u'alice', True)
+        self.assertWarns(
+            DeprecationWarning,
+            "Usage of Organizer.createPerson's 'vip' parameter is deprecated",
+            people.__file__,
+            lambda: self.organizer.createPerson(u'alice', True))
+        alice = self.store.findUnique(Person, Person.name == u'alice')
         self.assertTrue(alice.vip)
+
+
+    def test_createPersonNoVIP(self):
+        """
+        L{Organizer.createPerson} shouldn't issue a warning if no C{vip}
+        argument is passed.
+        """
+        originalWarnExplicit = warnings.warn_explicit
+        def warnExplicit(*args):
+            self.fail('Organizer.createPerson warned us: %r' % (args[0],))
+        try:
+            warnings.warn_explicit = warnExplicit
+            person = self.organizer.createPerson(u'alice')
+        finally:
+            warnings.warn_explicit = originalWarnExplicit
 
 
     def test_noMugshot(self):
@@ -1372,9 +1478,9 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(
             secondContactPowerup, IOrganizerPlugin, priority=0)
 
-        # Skip the first two for EmailContacType and PostalContactType.
+        # Skip the first three (builtin) contact types
         self.assertEqual(
-            list(self.organizer.getContactTypes())[2:],
+            list(self.organizer.getContactTypes())[3:],
             firstContactTypes + secondContactTypes)
 
 
@@ -1415,11 +1521,11 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        self.assertEqual(len(parameters), 3)
-        self.assertTrue(isinstance(parameters[2], ListChangeParameter))
+        self.assertEqual(len(parameters), 4)
+        self.assertTrue(isinstance(parameters[3], ListChangeParameter))
         self.assertEqual(
-            parameters[2].modelObjectDescription, u'Very Descriptive')
-        self.assertEqual(parameters[2].name, qual(StubContactType))
+            parameters[3].modelObjectDescription, u'Very Descriptive')
+        self.assertEqual(parameters[3].name, qual(StubContactType))
 
 
     def test_getContactCreationParametersUnrepeatable(self):
@@ -1437,7 +1543,7 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        liveFormParameter = parameters[2]
+        liveFormParameter = parameters[3]
         self.assertTrue(isinstance(liveFormParameter, FormParameter))
         self.assertEqual(liveFormParameter.name, qual(StubContactType))
         liveForm = liveFormParameter.form
@@ -1461,11 +1567,11 @@ class PeopleModelTestCase(unittest.TestCase):
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
 
-        self.assertIdentical(parameters[2][0], contactTypes[0])
+        self.assertIdentical(parameters[3][0], contactTypes[0])
         self.failUnless(
-            isinstance(parameters[2][1], ListChangeParameter))
+            isinstance(parameters[3][1], ListChangeParameter))
         self.assertEqual(
-            parameters[2][1].modelObjectDescription, u'So Descriptive')
+            parameters[3][1].modelObjectDescription, u'So Descriptive')
 
 
     def test_getContactEditorialParametersUnrepeatable(self):
@@ -1487,7 +1593,7 @@ class PeopleModelTestCase(unittest.TestCase):
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
 
-        (contactType, liveFormParameter) = parameters[2]
+        (contactType, liveFormParameter) = parameters[3]
         self.assertIdentical(contactType, contactTypes[0])
         self.assertTrue(isinstance(liveFormParameter, FormParameter))
         self.assertEqual(liveFormParameter.name, qual(StubContactType))
@@ -1506,7 +1612,7 @@ class PeopleModelTestCase(unittest.TestCase):
         contactItems = [PostalAddress(store=self.store, person=person, address=u'1'),
                         PostalAddress(store=self.store, person=person, address=u'2')]
         editParameters = list(self.organizer.getContactEditorialParameters(person))
-        (editType, editParameter) = editParameters[1]
+        (editType, editParameter) = editParameters[2]
         self.assertEqual(
             editParameter.defaults, [{u'address': u'1'}, {u'address': u'2'}])
         self.assertEqual(
@@ -1755,7 +1861,7 @@ class PeopleTests(unittest.TestCase):
         # With no plugins, only the EmailContactType and PostalContactType
         # parameters should be returned.
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 3)
+        self.assertEqual(len(addPersonForm.parameters), 4)
 
         contactTypes = [StubContactType((), None, None)]
         observer = StubOrganizerPlugin(
@@ -1763,7 +1869,7 @@ class PeopleTests(unittest.TestCase):
         self.store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 4)
+        self.assertEqual(len(addPersonForm.parameters), 5)
 
 
     def test_addPersonWithContactItems(self):
@@ -1857,13 +1963,14 @@ class PeopleTests(unittest.TestCase):
 
     def test_addVeryImportantPerson(self):
         """
-        L{AddPersonFragment.addPerson} should pass the value of the C{vip}
-        parameter on to L{Organizer.createPerson}.
+        L{AddPersonFragment.addPerson} should use L{VIPPersonContactType} to
+        set the C{vip} attribute of the new person.
         """
         people = []
         argument = {u'stub': 'value'}
         view = AddPersonFragment(self.organizer)
-        view.addPerson(u'alice', True)
+        view.addPerson(
+            u'alice', **{_keyword(VIPPersonContactType()): {u'vip': True}})
         alice = self.store.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertTrue(alice.vip)

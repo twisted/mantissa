@@ -14,7 +14,7 @@ from zope.interface import implements
 from twisted.python import components
 from twisted.python.reflect import qual
 
-from nevow import rend, athena, inevow, static, url
+from nevow import rend, athena, inevow, static, url, tags
 from nevow.athena import expose
 from nevow.loaders import stan
 from nevow.page import Element, renderer
@@ -188,6 +188,91 @@ class BaseContactType(object):
         contact item using the parameters returned by L{getParameters}.
         """
         return liveform.LiveForm(self.coerce, self.getParameters(contact))
+
+
+
+class _PersonVIPStatus:
+    """
+    Contact item type used by L{VIPPersonContactType}.
+
+    @param person: The person whose VIP status we're interested in.
+    @type person: L{Person}
+    """
+    def __init__(self, person):
+        self.person = person
+
+
+
+class VIPPersonContactType(BaseContactType):
+    """
+    A contact type for controlling whether L{Person.vip} is set.
+    """
+    implements(IContactType)
+    allowMultipleContactItems = False
+
+    def getParameters(self, contactItem):
+        """
+        Return a list containing a single parameter suitable for changing the
+        VIP status of a person.
+
+        @type contactItem: L{_PersonVIPStatus}
+
+        @rtype: C{list} of L{liveform.Parameter}
+        """
+        isVIP = False # default
+        if contactItem is not None:
+            isVIP = contactItem.person.vip
+        return [liveform.Parameter(
+            'vip', liveform.CHECKBOX_INPUT, bool, 'VIP', default=isVIP)]
+
+
+    def getContactItems(self, person):
+        """
+        Return a list containing a L{_PersonVIPStatus} instance for C{person}.
+
+        @type person: L{Person}
+
+        @rtype: C{list} of L{_PersonVIPStatus}
+        """
+        return [_PersonVIPStatus(person)]
+
+
+    def createContactItem(self, person, vip):
+        """
+        Set the VIP status of C{person} to C{vip}.
+
+        @type person: L{Person}
+
+        @type vip: C{bool}
+
+        @rtype: L{_PersonVIPStatus}
+        """
+        person.vip = vip
+        return _PersonVIPStatus(person)
+
+
+    def editContactItem(self, contactItem, vip):
+        """
+        Change the VIP status of C{contactItem}'s person to C{vip}.
+
+        @type contactItem: L{_PersonVIPStatus}
+
+        @type vip: C{bool}
+
+        @rtype: C{NoneType}
+        """
+        contactItem.person.vip = vip
+
+
+    def getReadOnlyView(self, contactItem):
+        """
+        Return a fragment which will render as the empty string.
+
+        @type contactItem: L{_PersonVIPStatus}
+
+        @rtype: L{Element}
+        """
+        return Element(docFactory=stan(tags.invisible()))
 
 
 
@@ -625,6 +710,7 @@ class Organizer(item.Item):
         Return an iterator of L{IContactType} providers available to this
         organizer's store.
         """
+        yield VIPPersonContactType()
         yield EmailContactType(self.store)
         yield PostalContactType()
         for plugin in self.getOrganizerPlugins():
@@ -698,7 +784,9 @@ class Organizer(item.Item):
             yield (contactType, param)
 
 
-    def createPerson(self, nickname, vip=False):
+    _NO_VIP = object()
+
+    def createPerson(self, nickname, vip=_NO_VIP):
         """
         Create a new L{Person} with the given name in this organizer.
 
@@ -706,7 +794,8 @@ class Organizer(item.Item):
         @param nickname: The value for the new person's C{name} attribute.
 
         @type vip: C{bool}
-        @param vip: Value to set the created person's C{vip} attribute to.
+        @param vip: Value to set the created person's C{vip} attribute to
+        (deprecated).
 
         @rtype: L{Person}
         """
@@ -716,8 +805,15 @@ class Organizer(item.Item):
             store=self.store,
             created=extime.Time(),
             organizer=self,
-            name=nickname,
-            vip=vip)
+            name=nickname)
+
+        if vip is not self._NO_VIP:
+            warn(
+                "Usage of Organizer.createPerson's 'vip' parameter"
+                " is deprecated",
+                category=DeprecationWarning)
+            person.vip = vip
+
         self._callOnOrganizerPlugins('personCreated', person)
         return person
 
@@ -1406,9 +1502,7 @@ class AddPersonFragment(athena.LiveFragment):
 
     _baseParameters = [
         liveform.Parameter('nickname', liveform.TEXT_INPUT,
-                           _normalizeWhitespace, 'Name'),
-        liveform.Parameter('vip', liveform.CHECKBOX_INPUT,
-                           bool, 'VIP')]
+                           _normalizeWhitespace, 'Name')]
 
     def _addPersonParameters(self):
         """
@@ -1434,7 +1528,7 @@ class AddPersonFragment(athena.LiveFragment):
         return addPersonForm
 
 
-    def _addPerson(self, nickname, vip, **allContactInfo):
+    def _addPerson(self, nickname, **allContactInfo):
         """
         Implementation of L{Person} creation.
 
@@ -1444,15 +1538,11 @@ class AddPersonFragment(athena.LiveFragment):
         @param nickname: The value for the I{name} attribute of the created
             L{Person}.
 
-        @type vip: C{bool}
-        @param vip: Value to which to set the created L{Person}'s C{vip}
-            attribute.
-
         @param **allContactInfo: Mapping of contact type IDs to L{ListChanges}
         objects or dictionaries of values.
         """
         organizer = self.organizer
-        person = organizer.createPerson(nickname, vip)
+        person = organizer.createPerson(nickname)
 
         # XXX This has the potential for breakage, if a new contact type is
         # returned by this call which was not returned by the call used to
@@ -1472,17 +1562,13 @@ class AddPersonFragment(athena.LiveFragment):
         return person
 
 
-    def addPerson(self, nickname, vip=False, **contactInfo):
+    def addPerson(self, nickname, **contactInfo):
         """
         Create a new L{Person} with the given C{nickname} and contact items.
 
         @type nickname: C{unicode}
         @param nickname: The value for the I{name} attribute of the created
             L{Person}.
-
-        @type vip: C{bool}
-        @param vip: Value to which to set the created L{Person}'s C{vip}
-            attribute.
 
         @return: C{None}
 
@@ -1491,7 +1577,7 @@ class AddPersonFragment(athena.LiveFragment):
         """
         try:
             self.store.transact(
-                self._addPerson, nickname, vip, **contactInfo)
+                self._addPerson, nickname, **contactInfo)
         except ValueError, e:
             raise liveform.InputError(unicode(e))
     expose(addPerson)
