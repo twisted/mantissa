@@ -139,11 +139,57 @@ class TimestampAttributeColumn(AttributeColumn):
 
 
 
+class UnsortableColumnWrapper(object):
+    """
+    Wraps an L{AttributeColumn} and makes it unsortable
+
+    @ivar column: L{AttributeColumn}
+    """
+    implements(IColumn)
+
+    def __init__(self, column):
+        self.column = column
+        self.attribute = column.attribute
+        self.attributeID = column.attributeID
+
+
+    def extractValue(self, model, item):
+        """
+        Delegate to the wrapped column's value extraction method.
+        """
+        return self.column.extractValue(model, item)
+
+
+    def sortAttribute(self):
+        """
+        Prevent sorting on this column by ignoring the wrapped column's sort
+        attribute and always returning C{None}.
+        """
+        return None
+
+
+    def getType(self):
+        """
+        Return the wrapped column's type.
+        """
+        return self.column.getType()
+
+
+
 class UnsortableColumn(AttributeColumn):
     """
     An axiom attribute column which does not allow server-side sorting for
     policy or performance reasons.
     """
+    def __init__(self, *a, **kw):
+        warnings.warn(
+            category=DeprecationWarning,
+            message=(
+                "Use UnsortableColumnWrapper(AttributeColumn(*a, **kw)) instead "
+                "of UnsortableColumn(*a, **kw)."),
+            stacklevel=2)
+        AttributeColumn.__init__(self, *a, **kw)
+
 
     def sortAttribute(pelf):
         """
@@ -153,28 +199,13 @@ class UnsortableColumn(AttributeColumn):
         return None
 
 
-
-class UnsortableColumnWrapper:
-    """
-    Wraps an L{AttributeColumn} and makes it unsortable
-
-    @ivar col: L{AttributeColumn}
-    """
-    implements(IColumn)
-
-    def __init__(self, col):
-        self.col = col
-        self.attribute = col.attribute
-        self.attributeID = col.attributeID
-
-    def extractValue(self, model, item):
-        return self.col.extractValue(model, item)
-
-    def sortAttribute(self):
-        return None
-
     def getType(self):
-        return self.col.getType()
+        """
+        Clobber the inherited implementation to work around the fact that
+        sortAttribute returns None so that a useful value is still returned.
+        """
+        return self.attribute.__class__.__name__
+
 
 
 class _ScrollableBase(object):

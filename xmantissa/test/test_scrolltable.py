@@ -3,6 +3,8 @@
 This module includes tests for the L{xmantissa.scrolltable} module.
 """
 
+from re import escape
+
 from epsilon.hotfix import require
 
 require("twisted", "trial_assertwarns")
@@ -10,6 +12,7 @@ require("twisted", "trial_assertwarns")
 from zope.interface import implements
 
 from twisted.trial import unittest
+from twisted.trial.util import suppress as SUPPRESS
 
 from axiom.store import Store
 from axiom.item import Item
@@ -32,6 +35,13 @@ from xmantissa.scrolltable import (
     AttributeColumn,
     UnsortableColumnWrapper,
     UnsortableColumn)
+
+
+_unsortableColumnSuppression = SUPPRESS(
+    message=escape(
+        "Use UnsortableColumnWrapper(AttributeColumn(*a, **kw)) "
+        "instead of UnsortableColumn(*a, **kw)."),
+    category=DeprecationWarning)
 
 
 
@@ -130,8 +140,8 @@ class ScrollingFragmentTestCase(ScrollTestMixin,
                 self.store, DataThunk, None,
                 (UnsortableColumn(DataThunk.a),
                  DataThunk.b))
-
         self.assertEquals(sf.currentSortColumn, DataThunk.b)
+    testSortsOnFirstSortable.suppress = [_unsortableColumnSuppression]
 
 
     def testSortsOnFirstSortable2(self):
@@ -145,6 +155,7 @@ class ScrollingFragmentTestCase(ScrollTestMixin,
 
         self.assertIdentical(sf.currentSortColumn.sortAttribute(),
                              DataThunk.a)
+    testSortsOnFirstSortable2.suppress = [_unsortableColumnSuppression]
 
 
     def testTestNoSortables(self):
@@ -158,6 +169,31 @@ class ScrollingFragmentTestCase(ScrollTestMixin,
                  UnsortableColumn(DataThunk.b)))
 
         self.assertEquals(sf.currentSortColumn, None)
+    testTestNoSortables.suppress = [_unsortableColumnSuppression]
+
+
+    def test_unsortableColumnType(self):
+        """
+        L{UnsortableColumn.getType} should return the same value as
+        L{AttributeColumn.getType} for a particular attribute.
+        """
+        self.assertEqual(
+            AttributeColumn(DataThunk.a).getType(),
+            UnsortableColumn(DataThunk.a).getType())
+    test_unsortableColumnType.suppress = [_unsortableColumnSuppression]
+
+
+    def test_unsortableColumnDeprecated(self):
+        """
+        L{UnsortableColumn} is a deprecated almost-alias for
+        L{UnsortableColumnWrapper}.
+        """
+        self.assertWarns(
+            DeprecationWarning,
+            "Use UnsortableColumnWrapper(AttributeColumn(*a, **kw)) "
+            "instead of UnsortableColumn(*a, **kw).",
+            __file__,
+            lambda: UnsortableColumn(DataThunk.a))
 
 
     def testUnsortableColumnWrapper(self):
@@ -187,6 +223,7 @@ class ScrollingFragmentTestCase(ScrollTestMixin,
         cols = meta[1]
         self.assertEquals(cols['a'][1], False)
         self.assertEquals(cols['b'][1], False)
+    test_allUnsortableSortMetadata.suppress = [_unsortableColumnSuppression]
 
 
     def test_oneSortableSortMetadata(self):
@@ -202,6 +239,7 @@ class ScrollingFragmentTestCase(ScrollTestMixin,
         cols = meta[1]
         self.assertEquals(cols['a'][1], True)
         self.assertEquals(cols['b'][1], False)
+    test_oneSortableSortMetadata.suppress = [_unsortableColumnSuppression]
 
 
 
@@ -293,6 +331,7 @@ class InequalityModelTestCase(unittest.TestCase):
                                             [UnsortableColumn(DataThunk.a)],
                                             None, True)
         self.assertRaises(Unsortable, makeModel)
+    test_noSortableColumns = [_unsortableColumnSuppression]
 
 
     def test_rowsAtStart(self):
