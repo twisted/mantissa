@@ -91,9 +91,10 @@ class PasswordResetResource(Page):
             elif req.args.get('email', ('',))[0]:
                 email = req.args['email'][0].decode('ascii')
                 acct = self.accountByAddress(email)
-                username = '@'.join(
-                    userbase.getAccountNames(acct.avatars.open()).next())
-                self.handleRequestForUser(username, URL.fromContext(ctx))
+                if acct is not None:
+                    username = '@'.join(
+                        userbase.getAccountNames(acct.avatars.open()).next())
+                    self.handleRequestForUser(username, URL.fromContext(ctx))
                 self.docFactory = getLoader('reset-check-email')
             else:
                 (password,) = req.args['password1']
@@ -201,7 +202,11 @@ class PasswordResetResource(Page):
         """
         @return: L{userbase.LoginAccount} for C{username} or None
         """
-        return self.loginSystem.accountByAddress(*username.split('@', 1))
+        userAndDomain = username.split('@', 1)
+        if len(userAndDomain) != 2:
+            return None
+        return self.loginSystem.accountByAddress(*userAndDomain)
+
 
     def resetPassword(self, attempt, newPassword):
         """

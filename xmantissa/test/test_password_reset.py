@@ -163,3 +163,47 @@ class PasswordResetTestCase(TestCase):
             self.assertEqual(requests[0][0], 'joe@divmod.com')
         d.addCallback(lambda ign: completedRequest())
         return d
+
+
+    def specifyBogusEmail(self, bogusEmail):
+        """
+        If an email address (which is not present in the system) and no
+        username is specified, then the password reset should still ask the
+        user to check their email.  No distinction is provided to discourage
+        "oafish attempts at hacking", as duncan poetically put it.
+        """
+        requests = []
+        def handleRequest(username, url):
+            requests.append((username, url))
+
+        class Request(AccumulatingFakeRequest):
+            method = 'POST'
+            def __init__(self, *a, **k):
+                AccumulatingFakeRequest.__init__(self, *a, **k)
+                self.args = {'username': [''],
+                             'email': [bogusEmail]}
+
+        self.reset.handleRequestForUser = handleRequest
+        d = renderPage(self.reset, reqFactory=Request)
+        def completedRequest():
+            self.assertEqual(len(requests), 0)
+        d.addCallback(lambda ign: completedRequest())
+        return d
+
+
+    def test_notPresentEmailAddress(self):
+        """
+        If an email address is not present in the system, no notification
+        should be sent, but the user should receive the same feedback as if it
+        worked, to discourage cracking attempts.
+        """
+        return self.specifyBogusEmail('not-in-the-system@example.com')
+
+
+    def test_malformedEmailAddress(self):
+        """
+        If a malformed email address is provided, no notification should be
+        sent, but the user should receive the same feedback as if it worked, to
+        discourage cracking attempts.
+        """
+        return self.specifyBogusEmail('hello, world!')
