@@ -1,12 +1,28 @@
 from twisted.trial.unittest import TestCase
+
+from nevow.inevow import IResource
+from nevow import loaders
 from nevow.testutil import AccumulatingFakeRequest, renderPage
+
 from axiom.store import Store
 from axiom import userbase
+from axiom.dependency import installOn
+
+from xmantissa import ixmantissa
+from xmantissa import signup
+from xmantissa.website import WebSite
+from xmantissa.port import SSLPort
+from xmantissa.publicweb import _getLoader
+from xmantissa.prefs import PreferenceAggregator
+from xmantissa.webapp import PrivateApplication
 from xmantissa.signup import PasswordResetResource, _PasswordResetAttempt
 
 
 class PasswordResetTestCase(TestCase):
     def setUp(self):
+        """
+        Set up a fake objects and methods for the password reset tests.
+        """
         store = Store(self.mktemp())
         self.loginSystem = userbase.LoginSystem(store=store)
         la = self.loginSystem.addAccount(
@@ -29,9 +45,33 @@ class PasswordResetTestCase(TestCase):
             internal=True)
 
         self.store = store
+        ws = WebSite(store=self.store, hostname=u'example.com')
+        installOn(ws, self.store)
+        securePort = SSLPort(store=self.store, portNumber=0, factory=ws)
+        installOn(securePort, self.store)
+
+        # Set up the user store to have all the elements necessary to redirect
+        # in the case where the user is already logged in.
+        substore = la.avatars.open()
+        usws = WebSite(store=substore)
+        installOn(usws, substore)
+        uswa = PrivateApplication(store=substore)
+        installOn(uswa, substore)
+        uspa = PreferenceAggregator(store=substore)
+        installOn(uspa, substore)
+
+        self.substore = substore
         self.loginAccount = la
         self.nonExternalAccount = account
+        signup._getLoader = lambda store, fragmentName: loaders.xmlstr('<html />')
         self.reset = PasswordResetResource(self.store)
+
+
+    def tearDown(self):
+        """
+        Put things back the way they were.
+        """
+        signup._getLoader = _getLoader
 
 
     def test_reset(self):
@@ -95,6 +135,27 @@ class PasswordResetTestCase(TestCase):
         # be sent.
         self.reset.handleRequestForUser(u'jill@divmod.com', url)
         self.assertEquals(myFunc.emailsSent, 1)
+
+
+    def test_redirectToSettingsWhenLoggedIn(self):
+        """
+        When a user is already logged in, navigating to /resetPassword should
+        redirect to the settings page, since the user can change their password
+        from there.
+        """
+        self.assertNotIdentical(self.substore.parent, None) # sanity check
+        prefPage = ixmantissa.IPreferenceAggregator(self.substore)
+        urlPath = ixmantissa.IWebTranslator(self.substore).linkTo(prefPage.storeID)
+        app = IResource(self.substore)
+        rsc = IResource(app.child_resetPassword(None))
+        afr = AccumulatingFakeRequest()
+        d = renderPage(rsc, reqFactory=lambda : afr)
+        def rendered(result):
+            self.assertEquals(
+                'http://localhost' + urlPath,
+                afr.redirected_to)
+        d.addCallback(rendered)
+        return d
 
 
     def test_getExternalEmail(self):

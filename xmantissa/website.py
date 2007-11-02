@@ -38,7 +38,8 @@ from axiom.userbase import LoginSystem
 from axiom.dependency import installOn
 
 from xmantissa.ixmantissa import (
-    ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory)
+    ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory,
+    IWebTranslator, IPreferenceAggregator)
 from xmantissa import websession
 from xmantissa.port import TCPPort, SSLPort
 
@@ -483,9 +484,13 @@ class AxiomPage(Page):
     def renderHTTP(self, ctx):
         return self.store.transact(Page.renderHTTP, self, ctx)
 
+
+
 class AxiomFragment(Fragment):
     def rend(self, ctx, data):
         return self.store.transact(Fragment.rend, self, ctx, data)
+
+
 
 class WebSite(Item, SiteRootMixin):
     """
@@ -660,8 +665,32 @@ class WebSite(Item, SiteRootMixin):
 
 
     def child_resetPassword(self, ctx):
-        from xmantissa.signup import PasswordResetResource
-        return PasswordResetResource(self.store)
+        """
+        Return a page which will allow the user to re-set their password.
+
+        If the user is logged in, locate their IPreferenceAggregator and return
+        that so that they can set their password on the settings page.
+        Otherwise, return a L{PasswordResetResource} so that anonymous users
+        may request their password be emailed to them.
+
+        Note: the mechanism used to determine whether a user is 'logged in'
+        here is simply looking for an IPreferenceAggregator; in other words, it
+        assumes that one will never be installed on a site store.  If you do
+        that, users will not be able to reset their passwords.  Eventually,
+        there ought to be separate objects for handling user-store and
+        site-store IResource behavior, and this could be on one but not the
+        other.  For now, though, the additional check for being logged in would
+        be redundant, since there is no really clean way to check for the
+        user's logged-in-ness either.
+        """
+        pa = IPreferenceAggregator(self.store, None)
+        wt = IWebTranslator(self.store, None)
+        if pa is not None and wt is not None:
+            path = wt.linkTo(pa.storeID)
+            return url.here.click(path)
+        else:
+            from xmantissa.signup import PasswordResetResource
+            return PasswordResetResource(self.store)
 
 
     # IProtocolFactoryFactory

@@ -32,6 +32,7 @@ from xmantissa.ixmantissa import (
     INavigableFragment, ISignupMechanism)
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.websession import usernameFromRequest
+from xmantissa.publicweb import _getLoader
 from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
 from xmantissa.webnav import Tab
 from xmantissa.webapp import PrivateApplication
@@ -42,7 +43,7 @@ from xmantissa.error import ArgumentError
 from xmantissa.product import Product
 
 
-class PasswordResetResource(Page):
+class PasswordResetResource(PublicPage):
     """
     I handle the user-facing parts of password reset - the web form junk and
     sending of emails.
@@ -68,7 +69,8 @@ class PasswordResetResource(Page):
     attempt = None
 
     def __init__(self, store):
-        Page.__init__(self, None, docFactory=getLoader('reset'))
+        PublicPage.__init__(self, None, store, _getLoader(store, 'reset'),
+                            None, None)
         self.store = store
         self.loginSystem = store.findUnique(userbase.LoginSystem, default=None)
 
@@ -87,7 +89,7 @@ class PasswordResetResource(Page):
             if req.args.get('username', ('',))[0]:
                 user = unicode(usernameFromRequest(req), 'ascii')
                 self.handleRequestForUser(user, URL.fromContext(ctx))
-                self.docFactory = getLoader('reset-check-email')
+                self.fragment = _getLoader(self.store, 'reset-check-email')
             elif req.args.get('email', ('',))[0]:
                 email = req.args['email'][0].decode('ascii')
                 acct = self.accountByAddress(email)
@@ -95,15 +97,15 @@ class PasswordResetResource(Page):
                     username = '@'.join(
                         userbase.getAccountNames(acct.avatars.open()).next())
                     self.handleRequestForUser(username, URL.fromContext(ctx))
-                self.docFactory = getLoader('reset-check-email')
+                self.fragment = _getLoader(self.store, 'reset-check-email')
             else:
                 (password,) = req.args['password1']
                 self.resetPassword(self.attempt, unicode(password))
-                self.docFactory = getLoader('reset-done')
+                self.fragment = _getLoader(self.store, 'reset-done')
         elif self.attempt:
-            self.docFactory = getLoader('reset-step-two')
+            self.fragment = _getLoader(self.store, 'reset-step-two')
 
-        return Page.renderHTTP(self, ctx)
+        return PublicPage.renderHTTP(self, ctx)
 
     def handleRequestForUser(self, username, url):
         """

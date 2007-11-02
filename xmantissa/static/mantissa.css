@@ -1095,3 +1095,34 @@ li.installing {
     top: 100px; left: 100px;
     background-color: red;
 }
+
+/* password reset */
+
+.password-reset-form .form-field-help {
+    font-size: 105%;
+    color: #999;
+    padding-top: 1em;
+}
+
+.password-reset h1 {
+    font-size: 125%;
+    font-color: #666;
+    padding: 2em;
+    padding-bottom: 0.5em;
+}
+
+.password-reset p {
+    font-size: 110%;
+    padding-left: 2.4em;
+}
+
+.password-reset a {
+    color: #44b4d9;
+    font-weight: bold;
+}
+
+.password-reset-form .divmod-table-header-left-block {
+    background-image: url(/Mantissa/images/password-reset-table-header-left-block.png);
+    background-repeat: no-repeat;
+    width: 153px;
+}

@@ -27,9 +27,10 @@ from xmantissa.webnav import Tab
 from xmantissa.publicweb import (
     _getLoader, PublicAthenaLivePage, PublicNavAthenaLivePage, _OfferingsFragment)
 from xmantissa import publicweb
+from xmantissa.signup import PasswordResetResource
 
 
-class MockTheme(object):
+class FakeTheme(object):
     """
     Trivial implementation of L{ITemplateNameResolver} which returns document
     factories from an in-memory dictionary.
@@ -49,7 +50,7 @@ class MockTheme(object):
 
 
 
-class StubNavigableElement(Item):
+class FakeNavigableElement(Item):
     """
     Navigation contributing powerup tests can use to verify the behavior of the
     navigation renderers.
@@ -71,6 +72,16 @@ class StubNavigableElement(Item):
 
 
 
+class FakeStore(object):
+    """
+    A trivial store with attributes needed for mocking stores used by various
+    tests.
+    """
+    def findUnique(self, *args, **kwds):
+        pass
+
+
+
 class TestPrivateGetLoader(TestCase):
     """
     Test case for the private _getLoader function.
@@ -82,7 +93,7 @@ class TestPrivateGetLoader(TestCase):
         self.store = Store()
         self.fragmentName = 'private-get-loader'
         self.docFactory = object()
-        self.theme = MockTheme({self.fragmentName: self.docFactory})
+        self.theme = FakeTheme({self.fragmentName: self.docFactory})
 
 
     def test_loadersInstalledOfferings(self):
@@ -111,8 +122,9 @@ class TestHonorInstalledThemes(TestCase):
         Replace _getLoader with a temporary method of this test case.
         """
         publicweb._getLoader = self.fakeGetLoader
+        signup._getLoader = self.fakeGetLoader
         self.template = object()
-        self.store = object()
+        self.store = FakeStore()
 
 
     def tearDown(self):
@@ -120,6 +132,7 @@ class TestHonorInstalledThemes(TestCase):
         Replace the original _getLoader.
         """
         publicweb._getLoader = _getLoader
+        signup._getLoader = _getLoader
 
 
     def fakeGetLoader(self, store, fragmentName):
@@ -155,6 +168,17 @@ class TestHonorInstalledThemes(TestCase):
         self.assertIdentical(loginPage.fragment, self.template)
 
 
+    def test_passwordResetLoader(self):
+        """
+        L{LoginPage} should honor the installed themes list by using
+        _getLoader.
+        """
+        resetPage = PasswordResetResource(self.store)
+        self.assertIdentical(self.getLoaderStore, self.store)
+        self.assertEqual(self.getLoaderName, 'reset')
+        self.assertIdentical(resetPage.fragment, self.template)
+
+
 
 class AuthenticatedNavigationTestMixin:
     """
@@ -186,7 +210,7 @@ class AuthenticatedNavigationTestMixin:
         is passed if it is called on a L{PublicPageMixin} being rendered for an
         authenticated user.
         """
-        navigable = StubNavigableElement(store=self.userStore)
+        navigable = FakeNavigableElement(store=self.userStore)
         installOn(navigable, self.userStore)
         navigable.tabs = [Tab('foo', 123, 0, [Tab('bar', 432, 0)])]
 
@@ -259,7 +283,7 @@ class AuthenticatedNavigationTestMixin:
         elements to the tag it is passed if it is called on a
         L{PublicPageMixin} being rendered for an authenticated user.
         """
-        navigable = StubNavigableElement(store=self.userStore)
+        navigable = FakeNavigableElement(store=self.userStore)
         installOn(navigable, self.userStore)
         navigable.tabs = [Tab('foo', 123, 0, [Tab('bar', 432, 0)])]
         request = FakeRequest()
