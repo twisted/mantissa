@@ -1,3 +1,14 @@
+0.6.8 (2007-10-16):
+
+  - website.WebSite.maybeEncryptedRoot deprecated in favor of
+    website.WebSite.rootURL. CSS is now served using the same URL
+    scheme as the page including it.
+  - "Private" mantissa navigation/menubar now displayed on share pages
+    when the viewer is authenticated.
+  - LiveForm coercers may now return Deferreds and processing of the
+    form will be delayed until these Deferreds are called back.
+  - Added a new IOrganizerPlugin callback: "contactItemEdited".
+  - Improvements to repeated forms.
 0.6.7 (2007-09-05):
   - A bug preventing mugshot uploads was fixed.
   - The scrolltable now only requests more rows when the user can see blank
