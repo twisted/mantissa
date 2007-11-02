@@ -5,6 +5,10 @@ Unit tests for the L{xmantissa.sharing} module.
 
 from zope.interface import Interface, implements
 
+from epsilon.hotfix import require
+
+require("twisted", "trial_assertwarns")
+
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer, boolean
@@ -258,17 +262,40 @@ class SimpleSharing(unittest.TestCase):
         self.assertEquals(asBob.retrieveSomeState(), 789+5)
 
 
+    def test_simpleShareMethods(self):
+        """
+        Verify that an item which is shared with Role.shareItem can be
+        retrieved and manipulated with Role.getShare.  This is the new-style
+        API, which isn't yet widely used, but should be preferred in new code.
+        """
+        t = PrivateThing(store=self.store, publicData=456)
+        bob = sharing.getPrimaryRole(self.store, u'bob@example.com',
+                                     createIfNotFound=True)
+        shareItemResult = bob.shareItem(t)
+        gotShare = bob.getShare(shareItemResult.shareID)
+        gotShare.mutateSomeState()
+        self.assertEquals(t.publicData, 456 + 5)
+
+
     def test_simpleShare(self):
         """
         Verify that an item which is shared with shareItem can be retrieved and
-        manipulated with getShare.
+        manipulated with getShare.  This is an older-style API, on its way to
+        deprecation.
         """
         t = PrivateThing(store=self.store, publicData=456)
-        shareItemResult = sharing.shareItem(t, toName=u'bob@example.com')
-        gotShare = sharing.getShare(self.store,
-                                    sharing.getPrimaryRole(self.store,
-                                                           u'bob@example.com'),
-                                    shareItemResult.shareID)
+        shareItemResult = self.assertWarns(
+            PendingDeprecationWarning,
+            "Use Role.shareItem() instead of sharing.shareItem().",
+            __file__,
+            lambda : sharing.shareItem(t, toName=u'bob@example.com'))
+        bob = sharing.getPrimaryRole(self.store, u'bob@example.com')
+        gotShare = self.assertWarns(
+            PendingDeprecationWarning,
+            "Use Role.getShare() instead of sharing.getShare().",
+            __file__,
+            lambda :
+                sharing.getShare(self.store, bob, shareItemResult.shareID))
         gotShare.mutateSomeState()
         self.assertEquals(t.publicData, 456 + 5)
 
@@ -495,6 +522,31 @@ class AccessibilityQuery(unittest.TestCase):
                 interfaces=[IPrivateThing]))
 
 
+    def test_asAccessibleTo(self):
+        """
+        Ensure that L{Role.asAccessibleTo} returns only items actually
+        accessible to the given role.
+        """
+        for i in range(10):
+            self.addSomeThings()
+
+        query = self.store.query(PrivateThing)
+        aliceQuery = list(self.alice.asAccessibleTo(query))
+        bobQuery = list(self.bob.asAccessibleTo(query))
+
+        self.assertEqual(map(sharing.itemFromProxy, bobQuery),
+                         map(lambda x: x.sharedItem, self.bobThings))
+        self.assertEqual(map(sharing.itemFromProxy, aliceQuery),
+                         map(lambda x: x.sharedItem, self.aliceThings))
+
+        self.assertEqual([p.sharedInterfaces
+                          for p in aliceQuery], [[IPrivateThing]] * 10)
+        self.assertEqual([p.sharedInterfaces
+                          for p in bobQuery], [[IReadOnly]] * 10)
+
+
+
+
     def test_accessibilityQuery(self):
         """
         Ensure that asAccessibleTo returns only items actually accessible to
@@ -504,7 +556,11 @@ class AccessibilityQuery(unittest.TestCase):
             self.addSomeThings()
 
         query = self.store.query(PrivateThing)
-        aliceQuery = list(sharing.asAccessibleTo(self.alice, query))
+        aliceQuery = self.assertWarns(
+            PendingDeprecationWarning,
+            "Use Role.asAccessibleTo() instead of sharing.asAccessibleTo().",
+            __file__,
+            lambda : list(sharing.asAccessibleTo(self.alice, query)))
         bobQuery = list(sharing.asAccessibleTo(self.bob, query))
 
         self.assertEqual(map(sharing.itemFromProxy, bobQuery),

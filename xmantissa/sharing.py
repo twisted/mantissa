@@ -5,6 +5,7 @@ This module provides various abstractions for sharing public data in Axiom.
 """
 
 import os
+import warnings
 
 from zope.interface import implementedBy, directlyProvides, Interface
 
@@ -16,10 +17,15 @@ from axiom.attributes import reference, text, AND
 from axiom.upgrade import registerUpgrader
 
 
+ALL_IMPLEMENTED_DB = u'*'
+ALL_IMPLEMENTED = object()
+
+
 class NoSuchShare(Exception):
     """
     User requested an object that doesn't exist, was not allowed.
     """
+
 
 
 class ConflictingNames(Exception):
@@ -50,7 +56,6 @@ class RoleRelationship(Item):
 
 
 
-
 class Role(Item):
     """
     A Role is an identifier for a group or individual which has certain
@@ -62,6 +67,7 @@ class Role(Item):
 
     schemaVersion = 1
     typeName = 'sharing_role'
+
     externalID = text(
         doc="""
         This is the external identifier which the role is known by.  This field is
@@ -74,6 +80,7 @@ class Role(Item):
         display identifier.  Group roles should never have an '@' character in
         them, however, to avoid confusion with user roles.
         """, allowNone=False)
+
     # XXX TODO: In addition to the externalID, we really need to have something
     # that identifies what protocol the user for the role is expected to log in
     # as, and a way to identify the way that their role was associated with
@@ -91,6 +98,7 @@ class Role(Item):
         user's real name.
         """)
 
+
     def becomeMemberOf(self, groupRole):
         """
         Instruct this (user or group) Role to become a member of a group role.
@@ -100,6 +108,7 @@ class Role(Item):
         self.store.findOrCreate(RoleRelationship,
                                 group=groupRole,
                                 member=self)
+
 
     def allRoles(self, memo=None):
         """
@@ -123,6 +132,93 @@ class Role(Item):
                                               RoleRelationship.group == Role.storeID)):
             for roleRole in groupRole.allRoles(memo):
                 yield roleRole
+
+
+    def shareItem(self, sharedItem, shareID=None, interfaces=ALL_IMPLEMENTED):
+        """
+        Share an item with this role.  This provides a way to expose items to
+        users for later retrieval with L{Role.getShare}.
+
+        @param sharedItem: an item to be shared.
+
+        @param shareID: a unicode string.  If provided, specify the ID under which
+        the shared item will be shared.
+
+        @param interfaces: a list of Interface objects which specify the methods
+        and attributes accessible to C{toRole} on C{sharedItem}.
+
+        @return: a L{Share} which records the ability of the given role to
+        access the given item.
+        """
+        if shareID is None:
+            shareID = genShareID(sharedItem.store)
+        return Share(store=self.store,
+                     shareID=shareID,
+                     sharedItem=sharedItem,
+                     sharedTo=self,
+                     sharedInterfaces=interfaces)
+
+
+    def getShare(self, shareID):
+        """
+        Retrieve a proxy object for a given shareID, previously shared with
+        this role or one of its group roles via L{Role.shareItem}.
+
+        @return: a L{SharedProxy}.  This is a wrapper around the shared item
+        which only exposes those interfaces explicitly allowed for the given
+        role.
+
+        @raise: L{NoSuchShare} if there is no item shared to the given role for
+        the given shareID.
+        """
+        shares = list(
+            self.store.query(Share,
+                             AND(Share.shareID == shareID,
+                                 Share.sharedTo.oneOf(self.allRoles()))))
+        interfaces = []
+        for share in shares:
+            interfaces += share.sharedInterfaces
+        if shares:
+            return SharedProxy(shares[0].sharedItem,
+                               interfaces,
+                               shareID)
+        raise NoSuchShare()
+
+
+    def asAccessibleTo(self, query):
+        """
+        @param query: An Axiom query describing the Items to retrieve, which this
+        role can access.
+        @type query: an L{iaxiom.IQuery} provider.
+
+        @return: an iterable which yields the shared proxies that are available
+        to the given role, from the given query.
+        """
+        # XXX TODO #2371: this method really *should* be returning an L{IQuery}
+        # provider as well, but that is kind of tricky to do.  Currently, doing
+        # queries leaks authority, because the resulting objects have stores
+        # and "real" items as part of their interface; having this be a "real"
+        # query provider would obviate the need to escape the L{SharedProxy}
+        # security constraints in order to do any querying.
+        allRoles = list(self.allRoles())
+        count = 0
+        unlimited = query.cloneQuery(limit=None)
+        for result in unlimited:
+            allShares = list(query.store.query(
+                    Share,
+                    AND(Share.sharedItem == result,
+                        Share.sharedTo.oneOf(allRoles))))
+            interfaces = []
+            for share in allShares:
+                interfaces += share.sharedInterfaces
+            if allShares:
+                count += 1
+                yield SharedProxy(result, interfaces, allShares[0].shareID)
+                if count == query.limit:
+                    return
+
+
+
 
 class _really(object):
     """
@@ -171,7 +267,7 @@ class SharedProxy(object):
     """
     A shared proxy is a dynamic proxy which provides exposes methods and
     attributes declared by shared interfaces on a given Item.  These are
-    returned from L{getShare} and yielded from L{asAccessibleTo}.
+    returned from L{Role.getShare} and yielded from L{Role.asAccessibleTo}.
 
     Shared proxies are unlike regular items because they do not have 'storeID'
     or 'store' attributes (unless explicitly exposed).  They are designed
@@ -283,9 +379,6 @@ class SharedProxy(object):
 
 
 
-ALL_IMPLEMENTED_DB = u'*'
-ALL_IMPLEMENTED = object()
-
 def _interfacesToNames(interfaces):
     """
     Convert from a list of interfaces to a unicode string of names suitable for
@@ -312,8 +405,8 @@ class Share(Item):
     A Share is a declaration that users with a given role can access a given
     set of functionality, as described by an Interface object.
 
-    They should be created with L{shareItem} and retrieved with
-    L{asAccessibleTo} and L{getShare}.
+    They should be created with L{Role.shareItem} and retrieved with
+    L{Role.asAccessibleTo} and L{Role.getShare}.
     """
 
     schemaVersion = 2
@@ -491,7 +584,8 @@ def getSelfRole(store):
     belongs.
     """
     for (localpart, domain) in userbase.getAccountNames(store):
-        return getPrimaryRole(store, u'%s@%s' % (localpart, domain), createIfNotFound=True)
+        return getPrimaryRole(store, u'%s@%s' % (localpart, domain),
+                              createIfNotFound=True)
     raise ValueError("Cannot get self-role for unnamed account.")
 
 
@@ -499,8 +593,10 @@ def getSelfRole(store):
 def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
               interfaces=ALL_IMPLEMENTED):
     """
-    Share an item with a given set of roles.  This provides a way to expose
-    items to users for later retrieval with L{getShare}.
+    Share an item with a given role.  This provides a way to expose items to
+    users for later retrieval with L{Role.getShare}.
+
+    This API is slated for deprecation.  Prefer L{Role.shareItem} in new code.
 
     @param sharedItem: an item to be shared.
 
@@ -516,19 +612,19 @@ def shareItem(sharedItem, toRole=None, toName=None, shareID=None,
 
     @param interfaces: a list of Interface objects which specify the methods
     and attributes accessible to C{toRole} on C{sharedItem}.
+
+    @return: a L{Share} which records the ability of the given role to access
+    the given item.
     """
-    if shareID is None:
-        shareID = genShareID(sharedItem.store)
+    warnings.warn("Use Role.shareItem() instead of sharing.shareItem().",
+                  PendingDeprecationWarning,
+                  stacklevel=2)
     if toRole is None:
         if toName is not None:
             toRole = getPrimaryRole(sharedItem.store, toName, True)
         else:
             toRole = getEveryoneRole(sharedItem.store)
-    return Share(store=sharedItem.store,
-                 shareID=shareID,
-                 sharedItem=sharedItem,
-                 sharedTo=toRole,
-                 sharedInterfaces=interfaces)
+    return toRole.shareItem(sharedItem, shareID, interfaces)
 
 
 
@@ -601,6 +697,9 @@ def getShare(store, role, shareID):
     Retrieve the accessible facet of an Item previously shared with
     L{shareItem}.
 
+    This method is pending deprecation, and L{Role.getShare} should be
+    preferred in new code.
+
     @param store: an axiom store (XXX must be the same as role.store)
 
     @param role: a L{Role}, the primary role for a user attempting to retrieve
@@ -612,17 +711,10 @@ def getShare(store, role, shareID):
     @raise: L{NoSuchShare} if there is no item shared to the given role for the
     given shareID.
     """
-    shares = list(
-        store.query(Share, AND(Share.shareID == shareID,
-                               Share.sharedTo.oneOf(role.allRoles()))))
-    interfaces = []
-    for share in shares:
-        interfaces += share.sharedInterfaces
-    if shares:
-        return SharedProxy(shares[0].sharedItem,
-                           interfaces,
-                           shareID)
-    raise NoSuchShare()
+    warnings.warn("Use Role.getShare() instead of sharing.getShare().",
+                  PendingDeprecationWarning,
+                  stacklevel=2)
+    return role.getShare(shareID)
 
 
 
@@ -631,33 +723,44 @@ def asAccessibleTo(role, query):
     Return an iterable which yields the shared proxies that are available to
     the given role, from the given query.
 
+    This method is pending deprecation, and L{Role.asAccessibleTo} should be
+    preferred in new code.
+
     @param role: The role to retrieve L{SharedProxy}s for.
 
     @param query: An Axiom query describing the Items to retrieve, which this
     role can access.
     @type query: an L{iaxiom.IQuery} provider.
     """
-    allRoles = list(role.allRoles())
-    count = 0
-    unlimited = query.cloneQuery(limit=None)
-    for result in unlimited:
-        allShares = list(query.store.query(
-                Share,
-                AND(Share.sharedItem == result,
-                    Share.sharedTo.oneOf(allRoles))))
-        interfaces = []
-        for share in allShares:
-            interfaces += share.sharedInterfaces
-        if allShares:
-            count += 1
-            yield SharedProxy(result, interfaces, allShares[0].shareID)
-            if count == query.limit:
-                return
+    warnings.warn(
+        "Use Role.asAccessibleTo() instead of sharing.asAccessibleTo().",
+        PendingDeprecationWarning,
+        stacklevel=2)
+    return role.asAccessibleTo(query)
 
 
 
 def itemFromProxy(obj):
     """
+    Retrieve the real, underlying Item based on a L{SharedProxy} object, so
+    that you can access all of its attributes and methods.
+
+    This function is provided because sometimes it's hard to figure out how to
+    cleanly achieve some behavior, especially running a query which relates to
+    a shared proxy which you have retrieved.  However, if you find yourself
+    calling it a lot, that's a very bad sign: calling this method is implicitly
+    a breach of the security that the sharing system tries to provide.
+    Normally, if your code is acting as an agent of role X, it has access to a
+    L{SharedProxy} that only provides interfaces explicitly allowed to X.  If
+    you make a mistake and call a method that the user is not supposed to be
+    able to access, the user will receive an exception rather than be allowed
+    to violate the system's security constraints.
+
+    However, once you have retrieved the underlying item, all bets are off, and
+    you have to perform your own security checks.  This is error-prone, and
+    should be avoided.  We suggest, instead, adding explicitly allowed methods
+    for performing any queries which your objects need.
+
     @param obj: a L{SharedProxy} instance
 
     @return: the underlying Item instance of the given L{SharedProxy}, with all
@@ -665,11 +768,15 @@ def itemFromProxy(obj):
     """
     return object.__getattribute__(obj, '_sharedItem')
 
+
+
 def unShare(sharedItem):
     """
     Remove all instances of this item from public or shared view.
     """
     sharedItem.store.query(Share, Share.sharedItem == sharedItem).deleteFromStore()
+
+
 
 def randomEarlyShared(store, role):
     """
