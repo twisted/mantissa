@@ -9,6 +9,8 @@
 // import Divmod.UnitTest
 // import Mantissa.Validate
 
+// import Nevow.Test.Util
+
 /**
  *
  */
@@ -20,6 +22,7 @@ Mantissa.Test.TestValidate.ValidateTests.methods(
      * sufficient only to test I{defaultUsername}.
      */
     function setUp(self) {
+        self.faker = Nevow.Test.Util.Faker();
         self.node = document.createElement('div');
         self.node.id = 'athena:987';
 
@@ -48,6 +51,44 @@ Mantissa.Test.TestValidate.ValidateTests.methods(
         self.node.appendChild(self.realNameNode);
 
         self.signup = Mantissa.Validate.SignupForm(self.node);
+    },
+
+    /**
+     * Restore all fake state.
+     */
+    function tearDown(self) {
+        self.faker.stop();
+    },
+
+    /**
+     * Successful submission of the form ought to hide the 'progress' message,
+     * then show the 'success' message associated with this form.  Unlike
+     * other live forms, the success message includes a link to the next step,
+     * so there should be no timed event to remove it.
+     */
+    function test_hideAndShow(self) {
+        var timeouts = [];
+        var progressHidden = false;
+        var successShown = false;
+        self.faker.fake("setTimeout", function (thunk, timeout) {
+            timeouts.push(thunk);
+        });
+        self.signup.hideProgressMessage = function () {
+            progressHidden = true;
+        };
+        self.signup.showSuccessMessage = function () {
+            successShown = true;
+        };
+        self.signup.hideSuccessMessage = function () {
+            successShown = false;
+        }
+        self.signup.submitSuccess();
+        self.assert(progressHidden);
+        self.assert(successShown);
+        for (var i = 0; i < timeouts.length; i++) {
+            timeouts[i]();
+        }
+        self.assert(successShown);
     },
 
     /**

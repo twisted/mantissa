@@ -6,47 +6,25 @@
   onsubmit="Nevow.Athena.Widget.get(this).submit(); return false"
   class="user-info-signup-form"
   >
-  <div style="display: none;
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    background-color: gray;
-    display: none;
-    opacity: 0.8;
-    color: black;
-    font-weight: bold;
-    text-align: center;
-    "
-    class="progress-message"
-    >
+  <div class="progress-message"
+       style="display: none">
     Signing Up...
   </div>
 
-  <div style="display: none;
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    background-color: #00aa00;
-    color: #88ff88;
-    font-weight: bold;
-    font-size: 72px;
-    "
-    class="success-message">
+  <div class="success-message"
+       style="display: none">
+    <div>
+      Congratulations!  You've signed up.
+    </div>
+    <div>
+      <a href="/login">Now, to start using the site, click here to log in.</a>
+    </div>
   </div>
 
-  <div style="display: none;
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
-    background-color: green;
-    "
+  <div style="display: none"
     class="failure-message">
+    Your attempt to sign up has failed on the server for some reason.  This
+    should really never happen: please report this error to <a href="mailto:support@divmod.com">Divmod support</a>.
   </div>
 
   <table cellpadding="0" cellspacing="0" align="center" class="divmod-table">

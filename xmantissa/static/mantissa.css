@@ -300,11 +300,47 @@ body {
     width: 61px;
 }
 
+.user-info-signup-form {
+    position: relative;
+}
+
 .user-info-signup-form .divmod-table-header-left-block {
     background-image: url(/Mantissa/images/signup-table-header-left-block.png);
     background-repeat: no-repeat;
     width: 71px;
 }
+
+.user-info-signup-form .success-message a {
+    text-decoration: underline;
+}
+
+.user-info-signup-form .success-message,
+.user-info-signup-form .failure-message,
+.user-info-signup-form .progress-message
+{
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    background-color: white;
+    color: #999999;
+    font-weight: bold;
+    font-size: 72px;
+    padding-top: 1em;
+    padding-left: 3em;
+    padding-right: 3em;
+
+    /* This appears over a form button, which apparently has some wonky z-index
+     * property of its own; without this, the form button sticks out. */
+
+    z-index: 1000;
+}
+
+.user-info-signup-form .failure-message {
+    color: red;
+}
+
 
 .divmod-table-header-title {
     margin-left: 16px;

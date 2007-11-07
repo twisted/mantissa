@@ -1,3 +1,5 @@
+// -*- test-case-name: xmantissa.test.test_javascript -*-
+
 // import MochiKit.DOM
 // import Mantissa.LiveForm
 
@@ -76,18 +78,14 @@ Mantissa.Validate.SignupForm.methods(
     },
 
 
-    // see LiveForm for explanation
-    function runFader(self, fader) {
-        return fader.fadeIn();
-    },
-
-
+    /**
+     * Override submitSuccess to simply hide the progress message and show the
+     * success message, since this form should not be submitted multiple
+     * times, and the success message has instructions on the next step.
+     */
     function submitSuccess(self, result) {
-        var d = Mantissa.Validate.SignupForm.upcall(self, 'submitSuccess', result);
-        d.addCallback(function() {
-            window.location = '/login';
-        });
-        return d;
+        self.hideProgressMessage();
+        self.showSuccessMessage();
     },
 
 
