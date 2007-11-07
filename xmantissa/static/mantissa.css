@@ -2,6 +2,12 @@ body {
     font: 80% Helvetica, Arial, sans-serif;
 }
 
+.mantissa-inequality-scroller {
+    overflow: auto;
+    position: relative;
+    height: 300px;
+}
+
 .add-person .liveform-input-label {
     width: 10em;
     padding-right: 1em;
@@ -51,6 +57,157 @@ body {
 
 .mantissa-global-navigation-separator {
     color: #757575;
+}
+
+.read-only-contact-item-label {
+    padding-right: 1em;
+    font-weight: bold;
+    color: #666666;
+    font-size: 80%;
+    width: 150px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.read-only-contact-item {
+    padding-bottom: 8px;
+}
+
+.person-summary-name {
+    font-size: 140%;
+}
+
+.person-summary {
+    margin-bottom: 6px;
+}
+
+.people-organizer {
+    margin: 8px;
+}
+
+.people-table-arrow {
+}
+
+.people-table-list-cell {
+    border-right: solid 1px #EDEFF3;
+    border-left: solid 1px #DED0ED;
+    border-top: solid 1px #DBDBDC;
+    border-bottom: solid 1px #B6C0D1;
+    width: 200px;
+    height: 100%;
+}
+
+.people-table-list-cell .mantissa-row-region-node {
+    width: 200px;
+}
+
+.people-table-list-cell > div {
+    overflow-x: hidden;
+    overflow-y: auto;
+    width: 200px;
+}
+
+.people-table-person-cell {
+    border-left: solid 1px #C4CFDB;
+    border-top: solid 1px #DBDBDC;
+    border-bottom: solid 1px #B6C0D1;
+    border-right: solid 1px #B6C0D1;
+    height: 100%;
+}
+
+.people-table-person-cell > div {
+    width: 550px;
+    height: 450px;
+    overflow: auto;
+    padding: 6px;
+}
+
+.person-list-person-row, .person-list-selected-person-row {
+    border: 0px;
+    padding: 4px;
+    margin: 0px;
+    width: 100%;
+}
+
+.person-list-selected-person-row {
+    color: #FFFFFF;
+    background-color: #0071BB;
+    background-image: url(/Mantissa/images/people-table-arrow.png);
+    background-repeat: no-repeat;
+    background-position: 92% 50%;
+}
+
+.person-list-person-row {
+    color: #0071BB;
+}
+
+.person-list-person-row:hover {
+    cursor: pointer;
+}
+
+.person-list-person-row img, .person-list-selected-person-row img {
+    border-width: 0px;
+    padding-left: 4px;
+}
+
+.cancel-form-link img {
+    border-width: 0px;
+}
+
+.person-summary {
+    padding-left: 6px;
+}
+
+.people-table {
+    height: 100%;
+}
+
+.people-table-person-col-header {
+    border-right: solid 1px #BBBDBF;
+}
+
+.people-table-list-col-header {
+    border-left: solid 1px #BBBDBF;
+}
+
+.people-table-person-col-header a:link,
+.people-table-person-col-header a:visited,
+.people-table-person-col-header a:active,
+.people-table-list-col-header a:link,
+.people-table-list-col-header a:visited,
+.people-table-list-col-header a:active,
+.people-table-person-container a:link,
+.people-table-person-container a:visited,
+.people-table-person-container a:active {
+    color: #0071BB;
+}
+
+.people-table-person-col-header,
+.people-table-list-col-header {
+    background-image: url(/Mantissa/images/people-table-column-header-bg.png);
+    background-position: top left;
+    background-repeat: repeat-x;
+    background-color: #E3E3E3;
+    color: #000000;
+    font-weight: bold;
+    padding: 8px 0px 4px 8px;
+    border-bottom: solid 1px #DEDEDF;
+    border-top: solid 1px #DDDDDE;
+}
+
+.people-table a:link,
+.people-table a:visited,
+.people-table a:active {
+    font-weight: normal;
+    font-size: 80%;
+}
+
+.people-table-person-name {
+    padding-left: 20px;
+}
+
+.people-table-vip-person-name {
+    padding-left: 6px;
 }
 
 .forgot-password:visited, .forgot-password:link {

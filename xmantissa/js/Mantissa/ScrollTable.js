@@ -2952,6 +2952,7 @@ Mantissa.ScrollTable.DOMRegionView.methods(
      */
     function _makeNodeForRegion(self) {
         var regionNode = document.createElement('div');
+        regionNode.setAttribute('class', 'mantissa-row-region-node');
         regionNode.style.border = '0px';
         regionNode.style.margin = '0px';
         regionNode.style.padding = '0px';
@@ -3160,13 +3161,6 @@ Mantissa.ScrollTable.ScrollTable.methods(
         self.sortColumn = columns[currentSortColumn];
         self.model = Mantissa.ScrollTable.RegionModel(
             self, self, self.sortColumn, defaultSortAscending);
-
-        /* Treat this widget's node to convert it into a scrolling table.
-         */
-        self.node.style.overflow = 'auto';
-        self.node.style.position = 'relative';
-        self.node.style.height = '300px'; // provide hooks to calculate this
-                                          // better
 
         self.connectDOMEvent("onscroll");
         self._debounceInterval = 0.5;

@@ -15,7 +15,7 @@ from twisted.python import components
 from twisted.python.reflect import qual
 
 from nevow import rend, athena, inevow, static, url, tags
-from nevow.athena import expose
+from nevow.athena import expose, LiveElement
 from nevow.loaders import stan
 from nevow.page import Element, renderer
 from formless import nameToLabel
@@ -34,10 +34,9 @@ from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
-from xmantissa.scrolltable import ScrollingFragment, UnsortableColumn
+from xmantissa.scrolltable import ScrollingElement, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
-from xmantissa.webtheme import (
-    ThemedDocumentFactory, ThemedFragment, ThemedElement)
+from xmantissa.webtheme import ThemedDocumentFactory, ThemedFragment
 
 def makeThumbnail(inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
     """
@@ -267,6 +266,8 @@ class VIPPersonContactType(BaseContactType):
     def getReadOnlyView(self, contactItem):
         """
         Return a fragment which will render as the empty string.
+        L{PersonSummaryView} handles the rendering of VIP status in the
+        read-only L{Person} view.
 
         @type contactItem: L{_PersonVIPStatus}
 
@@ -1005,9 +1006,15 @@ registerAttributeCopyingUpgrader(Organizer, 2, 3)
 
 
 
-class PersonScrollingFragment(ScrollingFragment):
+class VIPColumn(UnsortableColumn):
+    def getType(self):
+        return 'boolean'
+
+
+
+class PersonScrollingFragment(ScrollingElement):
     """
-    Scrolling fragment which displays L{Person} objects and allows actions to
+    Scrolling element which displays L{Person} objects and allows actions to
     be taken on them.
 
     @ivar _performAction: A function of two arguments which will be invoked
@@ -1017,27 +1024,114 @@ class PersonScrollingFragment(ScrollingFragment):
     jsClass = u'Mantissa.People.PersonScroller'
 
     def __init__(self, store, baseConstraint, defaultSortColumn,
-                 webTranslator, performAction):
-        ScrollingFragment.__init__(
+            webTranslator):
+        ScrollingElement.__init__(
             self,
             store,
             Person,
             baseConstraint,
-            [Person.name,
-             UnsortableColumn(Person.vip, 'vip')],
+            [VIPColumn(Person.vip, 'vip'),
+             Person.name],
             defaultSortColumn=defaultSortColumn,
             webTranslator=webTranslator)
-        self._performAction = performAction
 
 
-    def performAction(self, actionName, rowIdentifier):
+
+
+class PersonSummaryView(Element):
+    """
+    Fragment which renders a business card-like summary of a L{Person}: their
+    mugshot, vip status, and name.
+
+    @type person: L{Person}
+    @ivar person: The person to summarize.
+    """
+    docFactory = ThemedDocumentFactory('person-summary', 'store')
+
+    def __init__(self, person):
+        self.person = person
+        self.organizer = person.organizer
+        self.store = person.store
+
+
+    def mugshotURL(self, req, tag):
         """
-        Dispatch the given action to C{self._performAction}.
+        Render the URL of L{person}'s mugshot, or the URL of a placeholder
+        mugshot if they don't have one set.
         """
-        return self._performAction(
-            actionName,
-            self.itemFromLink(rowIdentifier))
-    expose(performAction)
+        self.mugshot = self.person.getMugshot()
+        if self.mugshot is None:
+            return '/Mantissa/images/smaller-mugshot-placeholder.png'
+        return self.organizer.linkToPerson(self.person) + '/mugshot/smaller'
+    renderer(mugshotURL)
+
+
+    def personName(self, req, tag):
+        """
+        Render the display name of L{person}.
+        """
+        return self.person.getDisplayName()
+    renderer(personName)
+
+
+    def vipStatus(self, req, tag):
+        """
+        Return C{tag} if L{person} is a VIP, otherwise return the empty
+        string.
+        """
+        if self.person.vip:
+            return tag
+        return ''
+    renderer(vipStatus)
+
+
+
+class ReadOnlyContactInfoView(Element):
+    """
+    Fragment which renders a read-only version of a person's contact
+    information.
+
+    @ivar person: A person.
+    @type person: L{Person}
+    """
+    docFactory = ThemedDocumentFactory(
+        'person-read-only-contact-info', 'store')
+
+    def __init__(self, person):
+        self.person = person
+        self.organizer = person.organizer
+        self.store = person.store
+        Element.__init__(self)
+
+
+    def personSummary(self, request, tag):
+        """
+        Render a L{PersonSummaryView} for L{person}.
+        """
+        return PersonSummaryView(self.person)
+    renderer(personSummary)
+
+
+    def contactInfo(self, request, tag):
+        """
+        Render the result of calling L{IContactType.getReadOnlyView} on the
+        corresponding L{IContactType} for each piece of contact info
+        associated with L{person}.
+        """
+        for contactType in self.organizer.getContactTypes():
+            for contactItem in contactType.getContactItems(self.person):
+                yield contactType.getReadOnlyView(contactItem)
+    renderer(contactInfo)
+
+
+    def peoplePlugins(self, request, tag):
+        """
+        Render the result of adapting each item returned from
+        L{Organizer.peoplePlugins} to L{IPersonFragment}.
+        """
+        for peoplePlugin in self.organizer.peoplePlugins(self.person):
+            yield IPersonFragment(peoplePlugin)
+    renderer(peoplePlugins)
 
 
 
@@ -1059,6 +1153,20 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
         athena.LiveFragment.__init__(self)
 
 
+    def getInitialArguments(self):
+        """
+        Include L{organizer}'s C{storeOwnerPerson}'s name.
+        """
+        return (self.organizer.storeOwnerPerson.name,)
+
+
+    def head(self):
+        """
+        Do nothing.
+        """
+        return None
+
+
     def getAddPerson(self):
         """
         Return an L{AddPersonFragment} which is a child of this fragment and
@@ -1070,6 +1178,32 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     expose(getAddPerson)
 
 
+    def getEditPerson(self, name):
+        """
+        Get an L{EditPersonView} for editing the person named C{name}.
+
+        @param name: A person name.
+        @type name: C{unicode}
+
+        @rtype: L{EditPersonView}
+        """
+        view = EditPersonView(self.organizer.personByName(name))
+        view.setFragmentParent(self)
+        return view
+    expose(getEditPerson)
+
+
+    def deletePerson(self, name):
+        """
+        Delete the person named C{name}
+
+        @param name: A person name.
+        @type name: C{unicode}
+        """
+        self.organizer.deletePerson(self.organizer.personByName(name))
+    expose(deletePerson)
+
+
     def render_peopleTable(self, ctx, data):
         """
         Return a L{PersonScrollingFragment} which will display the L{Person}
@@ -1079,80 +1213,33 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
                 self.organizer.store,
                 None,
                 Person.name,
-                self.wt,
-                self.performAction)
+                self.wt)
         f.setFragmentParent(self)
         f.docFactory = webtheme.getLoader(f.fragmentName)
         return f
 
 
-    def head(self):
-        return None
-
-
-    def getContactInformation(self, nickname):
+    def getContactInfoWidget(self, name):
         """
-        Return a list of fragments giving information about the L{Person} with
-        the given C{nickname}.
+        Return the L{ReadOnlyContactInfoView} for the person named
+        C{name}.
 
-        @type nickname: C{unicode}
-        @param nickname: A value which corresponds to the I{nickname} attribute
-            of an extant L{Person}.
+        @type name: C{unicode}
+        @param name: A value which corresponds to the I{name} attribute of an
+        extant L{Person}.
 
-        @rtype: L{list}
-        @return: A list of view objects which will display contact information
-            for the specified person.
+        @type: L{ReadOnlyContactInfoView}
         """
-        person = self.organizer.personByName(nickname)
-        information = [
-            contactType.getReadOnlyView(item)
-            for contactType
-            in self.organizer.getContactTypes()
-            for item
-            in contactType.getContactItems(person)]
-        # At the moment, this whole list is just blobs of opaque view garbage.
-        # So, there's not really any reason to want to have contact view
-        # objects separate from `personalize' stuff.  However, if these stop
-        # being blobs and become structured objects, it might make sense to
-        # have two different methods, one for each kind of thing. -exarkun
-        information.extend([
-                IPersonFragment(plugin)
-                for plugin
-                in self.organizer.peoplePlugins(person)])
-        return information
-    expose(getContactInformation)
-
-
-    def performAction(self, actionName, person):
-        """
-        Do something with an item by dispatching to a method suitable for the
-        action with the given name.
-
-        @type person: L{Person}
-        """
-        return getattr(self, 'action_' + actionName)(person)
-
-
-    def action_edit(self, person):
-        """
-        Create a form which can be used to edit the given person.
-        """
-        view = EditPersonView(person)
-        view.setFragmentParent(self)
-        return view
-
-
-    def action_delete(self, person):
-        """
-        Delete the given person.
-        """
-        self.organizer.deletePerson(person)
+        fragment = ReadOnlyContactInfoView(
+            self.organizer.personByName(name))
+        return fragment
+    expose(getContactInfoWidget)
 
 components.registerAdapter(OrganizerFragment, Organizer, ixmantissa.INavigableFragment)
 
 
 
-class EditPersonView(ThemedElement):
+class EditPersonView(LiveElement):
     """
     Render a view for editing the contact information for a L{Person}.
 
@@ -1161,11 +1248,15 @@ class EditPersonView(ThemedElement):
     @ivar contactTypes: A mapping from parameter names to the L{IContactTypes}
         whose items the parameters are editing.
     """
+    docFactory = ThemedDocumentFactory('edit-person', 'store')
     fragmentName = 'edit-person'
+    jsClass = u'Mantissa.People.EditPerson'
 
     def __init__(self, person):
         athena.LiveElement.__init__(self)
         self.person = person
+        self.store = person.store
+        self.organizer = person.organizer
         self.contactTypes = {}
 
 
@@ -1186,7 +1277,7 @@ class EditPersonView(ThemedElement):
             contactType = self.contactTypes[paramName]
             submissions.append((contactType, submission))
         self.person.store.transact(
-            self.person.organizer.editPerson,
+            self.organizer.editPerson,
             self.person, nickname, submissions)
 
 
@@ -1195,17 +1286,17 @@ class EditPersonView(ThemedElement):
         Make a L{LiveForm} for editing the contact information of the wrapped
         L{Person}.
         """
-        organizer = self.person.organizer
         parameters = [
             liveform.Parameter(
                 'nickname', liveform.TEXT_INPUT,
                 _normalizeWhitespace, 'Name',
                 default=self.person.name)]
-        for contact in organizer.getContactEditorialParameters(self.person):
+        for contact in self.organizer.getContactEditorialParameters(self.person):
             type, param = contact
             parameters.append(param)
             self.contactTypes[param.name] = type
-        form = liveform.LiveForm(self.editContactItems, parameters)
+        form = liveform.LiveForm(
+            self.editContactItems, parameters, u'Save')
         form.compact()
         form.jsClass = u'Mantissa.People.EditPersonForm'
         form.setFragmentParent(self)
@@ -1219,6 +1310,14 @@ class EditPersonView(ThemedElement):
         """
         return tag[self.makeEditorialLiveForm()]
     renderer(editorialContactForms)
+
+
+    def mugshotUploadURL(self, request, tag):
+        """
+        Return the URL the mugshot upload form should post to.
+        """
+        return self.organizer.linkToPerson(self.person) + '/uploadMugshot'
+    renderer(mugshotUploadURL)
 
 
 
@@ -1589,25 +1688,45 @@ class PersonExtractFragment(TabularDataView):
         return inevow.IQ(
                 webtheme.getLoader('person-extracts')).onePattern('navigation')
 
+
+
 class ExtractWrapperColumnView(ColumnViewBase):
     def stanFromValue(self, idx, item, value):
         return inevow.IRenderer(item.extract)
 
-class MugshotUploadPage(rend.Page):
+
+
+class RedirectingUploadResource(rend.Page):
+    """
+    Resource which redirects to a given URL after a POST request.
+
+    @ivar cbGotFile: Function to call after a successful upload.  It will be
+    passed the C{unicode} content-type of the uploaded data and a file
+    containing the uploaded data.
+
+    @ivar redirectTo: URL to redirect to after the upload is complete.
+    """
     def __init__(self, cbGotFile, redirectTo):
         self._cbGotFile = cbGotFile
         self._redirectTo = redirectTo
         rend.Page.__init__(self)
 
+
     def renderHTTP(self, ctx):
+        """
+        Extract the data from the I{uploaddata} field of the request and pass
+        it to our callback.
+        """
         req = inevow.IRequest(ctx)
         if req.method == 'POST':
             udata = req.fields['uploaddata']
-            self._cbGotFile(udata.type, udata.file)
+            self._cbGotFile(udata.type.decode('ascii'), udata.file)
             req.redirect(url.URL.fromString(self._redirectTo))
             return ''
         else:
             return rend.Page.renderHTTP(self, ctx)
+
+
 
 class Mugshot(item.Item):
     """
@@ -1774,11 +1893,13 @@ class MugshotResource(rend.Page):
         self.mugshot = mugshot
         rend.Page.__init__(self)
 
+
     def locateChild(self, ctx, segments):
         if segments == ('smaller',):
             self.smaller = True
             return (self, ())
         return rend.NotFound
+
 
     def renderHTTP(self, ctx):
         if self.smaller:
@@ -1997,13 +2118,13 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
     def _gotMugshotFile(self, ctype, infile):
         (majortype, minortype) = ctype.split('/')
         if majortype == 'image':
-            Mugshot.fromFile(self.person, infile, unicode(minortype, 'ascii'))
+            Mugshot.fromFile(self.person, infile, minortype)
 
     def child_uploadMugshot(self, ctx):
         """
         Return the resource for uploading a mugshot picture for this Person.
         """
-        return MugshotUploadPage(self._gotMugshotFile, getPersonURL(self.person))
+        return RedirectingUploadResource(self._gotMugshotFile, getPersonURL(self.person))
 
     def child_mugshot(self, ctx):
         """

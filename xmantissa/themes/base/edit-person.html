@@ -1,3 +1,14 @@
 <div class="add-person" xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveElement">
   <nevow:invisible nevow:render="editorialContactForms" />
+  <p />
+  <center>
+    <form enctype="multipart/form-data" method="POST" name="mugshot"
+      class="mugshot-form">
+      <nevow:attr name="action">
+        <nevow:invisible nevow:render="mugshotUploadURL" />
+      </nevow:attr>
+      <input type="file" name="uploaddata" />
+      <input type="submit" name="upload" value="Upload Mugshot" />
+    </form>
+  </center>
 </div>

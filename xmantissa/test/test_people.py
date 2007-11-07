@@ -7,11 +7,11 @@ import warnings
 from xml.dom.minidom import parseString
 
 from zope.interface import implements
-from zope.interface import classProvides
 
 from string import lowercase
 
 from twisted.python.reflect import qual
+from twisted.python.components import registerAdapter
 from twisted.trial import unittest
 
 from nevow.loaders import stan
@@ -42,15 +42,16 @@ from xmantissa.people import (
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment, OrganizerFragment,
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
     PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
-    ReadOnlyEmailView, ReadOnlyPostalAddressView, MugshotUploadPage,
-    getPersonURL, _stringifyKeys, makeThumbnail, _descriptiveIdentifier)
+    ReadOnlyEmailView, ReadOnlyPostalAddressView, RedirectingUploadResource,
+    getPersonURL, _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
+    ReadOnlyContactInfoView, PersonSummaryView)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
     TEXT_INPUT, InputError, Parameter, LiveForm, ListChangeParameter,
     ListChanges, CreateObject, EditObject, FormParameter)
 from xmantissa.ixmantissa import (
-    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment, IColumn)
+    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment)
 from xmantissa.signup import UserInfo
 
 
@@ -326,7 +327,6 @@ class StubOrganizerPlugin(Item):
         doc="""
         A list of L{IContact} implementors to return from L{getContactTypes}.
         """)
-
 
     renamedPeople = inmemory(
         doc="""
@@ -2016,6 +2016,7 @@ class StubPerson(object):
 
     def __init__(self, contactItems):
         self.contactItems = contactItems
+        self.store = object()
 
 
     def createContactInfoItem(self, cls, attr, value):
@@ -2140,6 +2141,7 @@ class ContactInfoViewTests(unittest.TestCase):
         renderLiveFragment(fragment)
 
 
+
 class PersonDetailFragmentTests(unittest.TestCase):
     """
     Tests for L{xmantissa.people.PersonDetailFragment}.
@@ -2153,7 +2155,8 @@ class PersonDetailFragmentTests(unittest.TestCase):
         person.organizer = StubOrganizer()
         fragment = PersonDetailFragment(person)
         rsrc, segs = fragment.locateChild(None, ('uploadMugshot',))
-        self.failUnless(isinstance(rsrc, MugshotUploadPage))
+        self.failUnless(isinstance(rsrc, RedirectingUploadResource))
+
 
     def test_getPersonURL(self):
         """
@@ -2162,6 +2165,7 @@ class PersonDetailFragmentTests(unittest.TestCase):
         person = StubPerson([])
         person.organizer = StubOrganizer()
         self.assertEqual(getPersonURL(person), "/person/Alice")
+
 
     def test_displayMugshot(self):
         """
@@ -2180,6 +2184,8 @@ class PersonDetailFragmentTests(unittest.TestCase):
         rsrc, segs = fragment.locateChild(None, ('mugshot',))
         self.assertIdentical(rsrc.mugshot, image)
 
+
+
 class StubTranslator(object):
     """
     Translate between a dummy row identifier and a dummy object.
@@ -2195,46 +2201,19 @@ class PersonScrollingFragmentTests(unittest.TestCase):
     """
     Tests for L{PersonScrollingFragment}.
     """
-    def test_performAction(self):
-        """
-        L{PersonScrollingFragment.performAction} should dispatch the action to
-        the object given to the L{PersonScrollingFragment}'s initializer.
-        """
-        actionName = u'the-action'
-        rowIdentifier = u'12345'
-        item = object()
-
-        performedActions = []
-        def performAction(actionName, rowIdentifier):
-            """
-            Record an action performed.
-            """
-            performedActions.append((actionName, rowIdentifier))
-
-        scrollingFragment = PersonScrollingFragment(
-            None, None, None,
-            StubTranslator(rowIdentifier, item),
-            performAction)
-        performAction = expose.get(scrollingFragment, 'performAction')
-        performAction(actionName, rowIdentifier)
-
-        self.assertEqual(performedActions, [(actionName, item)])
-
-
     def test_scrollingAttributes(self):
         """
         L{PersonScrollingFragment} should have the attributes its base class
         wants to use.
         """
         baseConstraint = object()
-        class sort:
-            classProvides(IColumn)
 
         fragment = PersonScrollingFragment(
-            None, baseConstraint, sort,
-            StubTranslator(None, None), None)
+            None, baseConstraint, Person.name,
+            StubTranslator(None, None))
         self.assertIdentical(fragment.baseConstraint, baseConstraint)
-        self.assertIdentical(fragment.currentSortColumn, sort)
+        self.assertIdentical(
+            fragment.currentSortColumn.sortAttribute(), Person.name)
         self.assertIdentical(fragment.itemType, Person)
         self.assertEqual(len(fragment.columns), 2)
         self.assertEqual(fragment.columns['name'], Person.name)
@@ -2247,19 +2226,29 @@ class StubOrganizer(object):
     """
     Mimic some of the API presented by L{Organizer}.
 
-    @ivar people: A C{dict} mapping C{unicode} strings giving person
-        names to person objects.  These person objects will be returned
-        from appropriate calls to L{personByName}.
+    @ivar people: A C{dict} mapping C{unicode} strings giving person names to
+    person objects.  These person objects will be returned from appropriate
+    calls to L{personByName}.
+
     @ivar peoplePluginList: a C{list} of L{IOrganizerPlugin}s.
+
     @ivar contactTypes: a C{list} of L{IContactType}s.
+
+    @ivar editedPeople: A list of the arguments which have been passed to the
+    C{editPerson} method.
+
     @ivar deletedPeople: A list of the arguments which have been passed to the
     C{deletePerson} method.
+
+    @ivar contactEditorialParameters: A mapping of people to lists.  When
+    passed a person, L{getContactEditorialParameters} will return the
+    corresponding list.
     """
     _webTranslator = StubTranslator(None, None)
 
     def __init__(self, store=None, peoplePlugins=None, contactTypes=None,
-                 deletedPeople=None):
-
+            deletedPeople=None, editedPeople=None,
+            contactEditorialParameters=None):
         self.store = store
         self.people = {}
         if peoplePlugins is None:
@@ -2268,9 +2257,16 @@ class StubOrganizer(object):
             contactTypes = []
         if deletedPeople is None:
             deletedPeople = []
+        if editedPeople is None:
+            editedPeople = []
+        if contactEditorialParameters is None:
+            contactEditorialParameters = []
         self.peoplePluginList = peoplePlugins
         self.contactTypes = contactTypes
         self.deletedPeople = deletedPeople
+        self.editedPeople = editedPeople
+        self.contactEditorialParameters = contactEditorialParameters
+
 
     def peoplePlugins(self, person):
         return [p.personalize(person) for p in self.peoplePluginList]
@@ -2286,6 +2282,14 @@ class StubOrganizer(object):
 
     def deletePerson(self, person):
         self.deletedPeople.append(person)
+
+
+    def editPerson(self, person, name, edits):
+        self.editedPeople.append((person, name, edits))
+
+
+    def getContactEditorialParameters(self, person):
+        return self.contactEditorialParameters[person]
 
 
     def getContactTypes(self):
@@ -2321,8 +2325,8 @@ class OrganizerFragmentTests(unittest.TestCase):
 
         self.store = Store()
         self.contactTypes = contactTypes
-        self.organizer = StubOrganizer(self.store, peoplePlugins,
-                                       contactTypes, deletedPeople)
+        self.organizer = StubOrganizer(
+            self.store, peoplePlugins, contactTypes, deletedPeople)
         self.fragment = OrganizerFragment(self.organizer)
         self.deletedPeople = deletedPeople
         self.peoplePlugins = peoplePlugins
@@ -2349,93 +2353,48 @@ class OrganizerFragmentTests(unittest.TestCase):
         self.assertIdentical(addPersonFragment.fragmentParent, self.fragment)
 
 
-    def test_getContactInformation(self):
+    def test_getEditPerson(self):
         """
-        L{OrganizerFragment.getContactInformation} should return a list of
-        elements or fragments, each of which represents a contact item
-        associated with the indicated person.
+        L{OrganizerFragment.getEditPerson} should return an
+        L{EditPersonView}.
         """
-        nickname = u'testuser'
-        person = object()
-        self.organizer.people[nickname] = person
+        name = u'testuser'
+        person = Person()
+        self.organizer.people[name] = person
 
-        self.contactTypes.extend([
-                StubContactType((), None, [object(), object()]),
-                StubContactType((), None, [object()])])
-
-        contactInformation = expose.get(
-            self.fragment, 'getContactInformation')(nickname)
-        self.assertEqual(
-            len(contactInformation),
-            sum(len(contactType.contactItems)
-                for contactType
-                in self.contactTypes))
-        for contactInfo in contactInformation:
-            self.assertTrue(isinstance(contactInfo, StubReadOnlyView))
-            # Make sure the contact item was passed to the right contact type
-            # to get the view.
-            self.assertIn(contactInfo.item, contactInfo.type.contactItems)
+        editPersonFragment = expose.get(
+            self.fragment, 'getEditPerson')(name)
+        self.assertTrue(isinstance(editPersonFragment, EditPersonView))
+        self.assertIdentical(editPersonFragment.person, person)
+        self.assertIdentical(editPersonFragment.fragmentParent, self.fragment)
 
 
-    def test_getPersonalizedFragments(self):
+    def test_deletePerson(self):
         """
-        L{OrganizerFragment.getContactInformation} should include
-        L{IPersonFragment} providers based on the results of the I{personalize}
-        method of each L{IOrganizerPlugin} powerup on the store.
+        L{OrganizerFragment.deletePerson} should call
+        L{Organizer.deletePerson}.
         """
-        nickname = u'testuser'
-        person = object()
-        self.organizer.people[nickname] = person
+        name = u'testuser'
+        person = Person()
+        self.organizer.people[name] = person
 
-        personalizedFragment = object()
-        class StubPersonalization(object):
-            def __conform__(self, interface):
-                if interface is IPersonFragment:
-                    return personalizedFragment
-                return None
-
-        plugin = StubOrganizerPlugin(store=self.store)
-        plugin.personalization = StubPersonalization()
-        self.peoplePlugins.append(plugin)
-
-        peoplePlugins = expose.get(
-            self.fragment, 'getContactInformation')(nickname)
-
-        self.assertEqual(peoplePlugins, [personalizedFragment])
+        expose.get(self.fragment, 'deletePerson', None)(name)
+        self.assertEqual(self.fragment.organizer.deletedPeople, [person])
 
 
-    def test_performAction(self):
+    def test_getContactInfoWidget(self):
         """
-        L{OrganizerFragment.performAction} should dispatch to a
-        C{action_}-prefixed method.
+        L{OrganizerFragment.getContactInfoWidget} should return a
+        L{ReadOnlyContactInfoView} for the named person.
         """
-        ran = []
-        item = object()
-        self.fragment.action_mock = ran.append
-        self.fragment.performAction(u'mock', item)
-        self.assertEqual(ran, [item])
+        name = u'testuser'
+        person = Person()
+        self.organizer.people[name] = person
 
-
-    def test_editAction(self):
-        """
-        L{OrganizerFragment.action_edit} should return an L{EditPersonView}
-        wrapped around the appropriate person item.
-        """
-        item = object()
-        editView = self.fragment.action_edit(item)
-        self.assertTrue(isinstance(editView, EditPersonView))
-        self.assertIdentical(editView.person, item)
-        self.assertIdentical(editView.fragmentParent, self.fragment)
-
-
-    def test_deleteAction(self):
-        """
-        L{OrganizerFragment.action_delete} should call L{deletePerson} on the
-        object it wraps, passing it the person object it received.
-        """
-        person = object()
-        self.fragment.action_delete(person)
-        self.assertEqual(self.deletedPeople, [person])
+        widget = expose.get(
+            self.fragment, 'getContactInfoWidget')(name)
+        self.assertTrue(isinstance(widget, ReadOnlyContactInfoView))
+        self.assertIdentical(widget.person, person)
 
 
 
@@ -2477,6 +2436,167 @@ class AddPersonFragmentTests(unittest.TestCase):
 
 
 
+class ReadOnlyContactInfoViewTestCase(unittest.TestCase):
+    """
+    Tests for L{ReadOnlyContactInfoView}.
+    """
+    def test_personSummary(self):
+        """
+        The I{personSummary} renderer should return a L{PersonSummaryView}
+        for the wrapped person.
+        """
+        person = Person()
+        personSummary = renderer.get(
+            ReadOnlyContactInfoView(person),
+            'personSummary',
+            None)
+        fragment = personSummary(None, None)
+        self.assertTrue(isinstance(fragment, PersonSummaryView))
+        self.assertIdentical(fragment.person, person)
+
+
+    def test_contactInfo(self):
+        """
+        The I{contactInfo} renderer should return the result of calling
+        L{IContactType.getReadOnlyView} on each contact type for each contact
+        item of the wrapped person.
+        """
+        person = StubPerson([])
+        contactItems = [object(), object(), object()]
+        person.organizer = StubOrganizer(
+            contactTypes=[
+                StubContactType(None, None, [contactItems[0]]),
+                StubContactType(None, None, contactItems[1:])])
+        contactInfo = renderer.get(
+            ReadOnlyContactInfoView(person),
+            'contactInfo',
+            None)
+        fragments = list(contactInfo(None, None))
+        self.assertEqual(len(fragments), 3)
+
+        self.assertTrue(isinstance(fragments[0], StubReadOnlyView))
+        self.assertIdentical(fragments[0].item, contactItems[0])
+
+        self.assertTrue(isinstance(fragments[1], StubReadOnlyView))
+        self.assertIdentical(fragments[1].item, contactItems[1])
+        self.assertTrue(isinstance(fragments[2], StubReadOnlyView))
+        self.assertIdentical(fragments[2].item, contactItems[2])
+
+
+    def test_peoplePlugins(self):
+        """
+        The I{peoplePlugins} renderer should return the result of adapting
+        each element in L{Organizer.peoplePlugins} to L{IPersonFragment}.
+        """
+        person = StubPerson([])
+        class _SimpleStubOrganizerPlugin:
+            adapted = False
+            personalizedFor = None
+
+            def personalize(self, person):
+                self.personalizedFor = person
+                return self
+
+        def adapter(plugin):
+            plugin.adapted = True
+            return plugin
+
+        registerAdapter(adapter, _SimpleStubOrganizerPlugin, IPersonFragment)
+
+        person.organizer = StubOrganizer(peoplePlugins=[
+            _SimpleStubOrganizerPlugin()])
+        peoplePlugins = renderer.get(
+            ReadOnlyContactInfoView(person),
+            'peoplePlugins',
+            None)
+        fragments = list(peoplePlugins(None, None))
+        self.assertEqual(len(fragments), 1)
+        self.assertTrue(
+            isinstance(fragments[0], _SimpleStubOrganizerPlugin))
+        self.assertIdentical(fragments[0].personalizedFor, person)
+        self.assertTrue(fragments[0].adapted)
+
+
+
+class PersonSummaryViewTestCase(unittest.TestCase):
+    """
+    Tests for L{PersonSummaryView}.
+    """
+    def test_mugshotURL(self):
+        """
+        The I{mugshotURL} renderer should return the correct URL if the person
+        has a mugshot.
+        """
+        store = Store(self.mktemp())
+        organizer = Organizer(store=store)
+        installOn(organizer, store)
+        person = Person(store=store, organizer=organizer)
+        Mugshot(
+            store=store,
+            person=person,
+            body=store.newFilePath(u'body'),
+            smallerBody=store.newFilePath(u'smallerBody'),
+            type=u'image/jpeg')
+        mugshotURL = renderer.get(
+            PersonSummaryView(person), 'mugshotURL', None)
+        self.assertEqual(
+            mugshotURL(None, None),
+            organizer.linkToPerson(person) + '/mugshot/smaller')
+
+
+    def test_mugshotURLNoMugshot(self):
+        """
+        The I{mugshotURL} renderer should return the URL of a placeholder
+        image if the person has no mugshot.
+        """
+        mugshotURL = renderer.get(
+            PersonSummaryView(Person(store=Store())),
+            'mugshotURL',
+            None)
+        self.assertEqual(
+            mugshotURL(None, None),
+            '/Mantissa/images/smaller-mugshot-placeholder.png')
+
+
+    def test_personName(self):
+        """
+        The I{personName} renderer should return the display name of the
+        wrapped person.
+        """
+        name = u'A Person Name'
+        personName = renderer.get(
+            PersonSummaryView(Person(store=Store(), name=name)),
+            'personName',
+            None)
+        self.assertEqual(personName(None, None), name)
+
+
+    def test_vipStatus(self):
+        """
+        The I{vipStatus} renderer should return its tag if the wrapped person
+        is a VIP.
+        """
+        vipStatus = renderer.get(
+            PersonSummaryView(Person(store=Store(), vip=True)),
+            'vipStatus',
+            None)
+        tag = object()
+        self.assertIdentical(vipStatus(None, tag), tag)
+
+
+    def test_vipStatusNoVip(self):
+        """
+        The I{vipStatus} renderer should return the empty string if the
+        wrapped person is not a VIP.
+        """
+        vipStatus = renderer.get(
+            PersonSummaryView(Person(store=Store(), vip=False)),
+            'vipStatus',
+            None)
+        self.assertEqual(vipStatus(None, None), '')
+
+
+
 class EditPersonViewTests(unittest.TestCase):
     """
     Tests for L{EditPersonView}.
@@ -2489,30 +2609,10 @@ class EditPersonViewTests(unittest.TestCase):
         self.contactParameter = ListChangeParameter(
             u'blah', [], [], modelObjects=[])
 
-        class StubOrganizer(record('person contactType contactParameter')):
-            """
-            L{Organizer}-alike
-
-            @ivar edits: A list of three-tuples giving the arguments passed to
-                editPerson.
-            """
-            def __init__(self, *a, **kw):
-                super(StubOrganizer, self).__init__(*a, **kw)
-                self.edits = []
-
-            def editPerson(self, person, nickname, edits):
-                self.edits.append((person, nickname, edits))
-
-
-            def getContactEditorialParameters(self, person):
-                return {
-                    self.person: [
-                        (self.contactType,
-                         self.contactParameter)]}[person]
-
         self.person = StubPerson(None)
         self.person.organizer = StubOrganizer(
-            self.person, self.contactType, self.contactParameter)
+            contactEditorialParameters={self.person: [
+                (self.contactType, self.contactParameter)]})
         self.view = EditPersonView(self.person)
 
 
@@ -2545,7 +2645,7 @@ class EditPersonViewTests(unittest.TestCase):
         transactions[0].function(
             *transactions[0].args, **transactions[0].kwargs)
         self.assertEqual(
-            self.person.organizer.edits,
+            self.person.organizer.editedPeople,
             [(self.person, u'nick', [(contactType, submission)])])
 
 
@@ -2573,7 +2673,7 @@ class EditPersonViewTests(unittest.TestCase):
             self.contactType)
 
 
-    def test_rend(self):
+    def test_renderable(self):
         """
         L{EditPersonView} should be renderable in the typical manner.
         """
@@ -2583,7 +2683,12 @@ class EditPersonViewTests(unittest.TestCase):
         # an extant template; the LiveForm had no fragment parent (for which I
         # also updated test_editorialContactForms to do a direct
         # assertion). -exarkun
-        markup = renderLiveFragment(self.view)
+        store = Store()
+        installOn(PrivateApplication(store=store), store)
+        organizer = Organizer(store=store)
+        installOn(organizer, store)
+        person = organizer.createPerson(u'Alice')
+        markup = renderLiveFragment(EditPersonView(person))
         self.assertIn(self.view.jsClass, markup)
 
 
@@ -2602,7 +2707,6 @@ class EditPersonViewTests(unittest.TestCase):
 
         contactParam = liveForm.parameters[1]
         self.assertIdentical(contactParam, self.contactParameter)
-
 
 
 

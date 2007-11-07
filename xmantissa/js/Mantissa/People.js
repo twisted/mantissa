@@ -1,50 +1,81 @@
 // import Mantissa.LiveForm
 // import Mantissa.ScrollTable
 
+Mantissa.People.OrganizerView = Divmod.Class.subclass(
+    'Mantissa.People.OrganizerView');
 /**
- * ScrollTable action which allows the user to edit the contact details for the
- * selected person.
+ * View abstraction for L{Mantissa.People.Organizer}.
+ *
+ * @ivar nodeById: Callable which takes a node ID and returns a node.
+ * @type nodeById: C{Function}
  */
-Mantissa.People.EditAction = Mantissa.ScrollTable.Action.subclass(
-    'Mantissa.People.EditAction');
-Mantissa.People.EditAction.methods(
+Mantissa.People.OrganizerView.methods(
+    function __init__(self, nodeById) {
+        self.nodeById = nodeById;
+    },
+
     /**
-     * Initialize the action by calling the base initializer with edit-specific
-     * values.
+     * Remove the existing detail node and insert the specified one in its
+     * place.
+     *
+     * @type nodes: A DOM node.
      */
-    function __init__(self) {
-        Mantissa.People.EditAction.upcall(
-            self, '__init__', 'edit', 'Edit',
-            function(peopleScroller, row, editWidgetInfo) {
-                var parent = peopleScroller.widgetParent;
-                var d = parent.addChildWidgetFromWidgetInfo(editWidgetInfo);
-                d.addCallback(function(widget) {
-                        parent.setDetailWidget(widget);
-                    });
-            });
-    });
+    function setDetailNode(self, node) {
+        self.clearDetailNodes();
+        self.nodeById('detail').appendChild(node);
+    },
 
-
-
-/**
- * ScrollTable action which allows the user to delete the selected person.
- */
-Mantissa.People.DeleteAction = Mantissa.ScrollTable.Action.subclass(
-    'Mantissa.People.DeleteAction');
-Mantissa.People.DeleteAction.methods(
     /**
-     * Initialize the action by calling the base initializer with
-     * delete-specific values.
+     * Remove any existing detail nodes.
      */
-    function __init__(self) {
-        Mantissa.People.DeleteAction.upcall(
-            self, '__init__', 'delete', 'Delete',
-            function(peopleScroller, row, ignored) {
-                var index = peopleScroller.model.findIndex(row.__id__);
-                peopleScroller.removeRow(index);
-            });
-    });
+    function clearDetailNodes(self) {
+        var detailNode = self.nodeById('detail');
+        while(0 < detailNode.childNodes.length) {
+            detailNode.removeChild(detailNode.childNodes[0]);
+        }
+    },
 
+    /**
+     * Show the edit link.
+     */
+    function showEditLink(self) {
+        self.nodeById('edit-link').style.display = '';
+    },
+
+    /**
+     * Hide the edit link.
+     */
+    function hideEditLink(self) {
+        self.nodeById('edit-link').style.display = 'none';
+    },
+
+    /**
+     * Show the delete link.
+     */
+    function showDeleteLink(self) {
+        self.nodeById('delete-link').style.display = '';
+    },
+
+    /**
+     * Hide the delete link.
+     */
+    function hideDeleteLink(self) {
+        self.nodeById('delete-link').style.display = 'none';
+    },
+
+    /**
+     * Show the "cancel form" link.
+     */
+    function showCancelFormLink(self) {
+        self.nodeById('cancel-form-link').style.display = '';
+    },
+
+    /**
+     * Hide the "cancel form" link.
+     */
+    function hideCancelFormLink(self) {
+        self.nodeById('cancel-form-link').style.display = 'none';
+    });
 
 
 /**
@@ -55,6 +86,15 @@ Mantissa.People.DeleteAction.methods(
  *
  * @ivar existingDetailWidget: The current widget displayed in the detail area,
  *     or C{null} if there is none.
+ *
+ * @ivar storeOwnerPersonName: The name of the "store owner person" (this
+ * person can't be deleted).
+ * @type storeOwnerPersonName: C{String}
+ *
+ * @ivar currentlyViewingName: The name of the person currently being viewed.
+ * @type currentlyViewingName: C{String} or C{null}
+ *
+ * @type view: L{Mantissa.People.OrganizerView}
  */
 Mantissa.People.Organizer = Nevow.Athena.Widget.subclass(
     'Mantissa.People.Organizer');
@@ -62,29 +102,15 @@ Mantissa.People.Organizer.methods(
     /**
      * Initialize C{existingDetailWidget} to C{null}.
      */
-    function __init__(self, node) {
+    function __init__(self, node, storeOwnerPersonName) {
         Mantissa.People.Organizer.upcall(self, '__init__', node);
         self.existingDetailWidget = null;
-    },
-
-    function cbPersonError(self, err) {
-        alert("Sorry something broke: " + new String(err));
-    },
-
-    /**
-     * Remove the existing detail nodes and insert the specified ones in their
-     * place.
-     *
-     * @type nodes: An Array of DOM Nodes.
-     */
-    function setDetailNodes(self, nodes) {
-        var detail = self.nodeById('detail');
-        while (detail.childNodes.length) {
-            detail.removeChild(detail.childNodes[0]);
-        }
-        for (var i = 0; i < nodes.length; ++i) {
-            detail.appendChild(nodes[i]);
-        }
+        self.storeOwnerPersonName = storeOwnerPersonName;
+        self.currentlyViewingName = null;
+        self.view = Mantissa.People.OrganizerView(
+            function nodeById(id) {
+                return self.nodeById(id);
+            });
     },
 
     /**
@@ -92,7 +118,7 @@ Mantissa.People.Organizer.methods(
      * existing detail nodes with the node for the given widget.
      */
     function setDetailWidget(self, widget) {
-        self.setDetailNodes([widget.node]);
+        self.view.setDetailNode(widget.node);
         if (self.existingDetailWidget !== null) {
             self.existingDetailWidget.detach();
         }
@@ -103,6 +129,9 @@ Mantissa.People.Organizer.methods(
      * Get an add person widget from the server and put it in the detail area.
      */
     function displayAddPerson(self) {
+        self.view.hideEditLink();
+        self.view.hideDeleteLink();
+        self.view.hideCancelFormLink();
         var result = self.callRemote('getAddPerson');
         result.addCallback(
             function(widgetInfo) {
@@ -110,59 +139,266 @@ Mantissa.People.Organizer.methods(
             });
         result.addCallback(
             function(widget) {
-                widget.observePersonCreation(
-                    function(nickname) {
-                        self.displayPersonInfo(nickname);
+                self.view.showCancelFormLink();
+                widget.observeSubmission(
+                    function(name) {
+                        self._cbPersonModified(name);
                     });
                 self.setDetailWidget(widget);
             });
+        return false;
     },
 
     /**
-     * Get a person info widget for the person with the specified nickname and
-     * put it in the detail area.
-     *
-     * @type nickname: String
-     * @param nickname: The I{nickname} of the L{xmantissa.people.Person} for
-     *     which to load an info widget.
+     * Called when a person has been added, with their name.  Updates the
+     * person list, and selects the newly-created person.
      */
-    function displayPersonInfo(self, nickname) {
-        var result = self.callRemote('getContactInformation', nickname);
+    function _cbPersonModified(self, name) {
+        self.displayPersonInfo(name);
+        var result = self.refreshPersonList();
         result.addCallback(
-            function(contactInformation) {
-                var nodes = [];
-                for (var i = 0; i < contactInformation.length; ++i) {
-                    nodes.push(
-                        Divmod.Runtime.theRuntime.parseXHTMLString(
-                            contactInformation[i]).documentElement);
-                }
-                self.setDetailNodes(nodes);
+            function(ignore) {
+                self.selectInPersonList(name);
             });
+        return result;
     },
 
-    function replaceTDB(self, data) {
-        // this is so bad
-        var tdbc = Mantissa.TDB.Controller.get(
-            self.nodeByAttribute(
-                "athena:class", "Mantissa.TDB.Controller"));
-        if(tdbc) {
-            tdbc._setTableContent(data[0]);
+    /**
+     * Get our child L{Mantissa.People.PersonScroller}.
+     *
+     * @rtype: L{Mantissa.People.PersonScroller}
+     */
+    function getPersonScroller(self) {
+        return self.childWidgets[0];
+    },
+
+    /**
+     * Call C{emptyAndRefill} on our child L{Mantissa.People.PersonScroller}.
+     */
+    function refreshPersonList(self) {
+        return self.getPersonScroller().emptyAndRefill();
+    },
+
+    /**
+     * Call C{selectNamedPerson} on our child
+     * L{Mantissa.People.PersonScroller}.
+     */
+    function selectInPersonList(self, name) {
+        return self.getPersonScroller().selectNamedPerson(name);
+    },
+
+    /**
+     * Shows a form for editing the person with L{nickname}.
+     */
+    function displayEditPerson(self) {
+        var result = self.callRemote(
+            'getEditPerson', self.currentlyViewingName);
+        result.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.view.hideEditLink();
+                self.view.hideDeleteLink();
+                self.view.showCancelFormLink();
+                self.setDetailWidget(widget);
+                widget.observeSubmission(
+                    function(name) {
+                        self._cbPersonModified(name);
+                    });
+            });
+        return result;
+    },
+
+    /**
+     * DOM event handler which calls L{displayEditPerson}.
+     */
+    function dom_displayEditPerson(self) {
+        self.displayEditPerson();
+        return false;
+    },
+
+    /**
+     * Delete the person currently being viewed by calling the remote
+     * C{deletePerson} method.
+     */
+    function deletePerson(self) {
+        var result = self.callRemote(
+            'deletePerson', self.currentlyViewingName);
+        result.addCallback(
+            function(passThrough) {
+                self.view.clearDetailNodes();
+                self.view.hideEditLink();
+                self.view.hideDeleteLink();
+                self.refreshPersonList();
+                return passThrough;
+            });
+        return result;
+    },
+
+    /**
+     * DOM event handler which calls L{deletePerson}.
+     */
+    function dom_deletePerson(self) {
+        self.deletePerson();
+        return false;
+    },
+
+    /**
+     * "Cancel" the currently displayed form by loading the last-viewed
+     * person.
+     */
+    function cancelForm(self) {
+        self.view.clearDetailNodes();
+        if(self.currentlyViewingName !== null) {
+            self.displayPersonInfo(self.currentlyViewingName);
         }
+        self.view.hideCancelFormLink();
+    },
+
+    /**
+     * DOM event handler which calls L{cancelForm}.
+     */
+    function dom_cancelForm(self) {
+        self.cancelForm();
+        return false;
+    },
+
+    /**
+     * Get a person info widget for the person with the specified name and put
+     * it in the detail area.
+     *
+     * @type name: String
+     * @param name: The I{name} of the L{xmantissa.people.Person} for
+     *     which to load an info widget.
+     */
+    function displayPersonInfo(self, name) {
+        self.view.hideEditLink();
+        self.view.hideDeleteLink();
+        self.view.hideCancelFormLink();
+        self.currentlyViewingName = name;
+        var result = self.callRemote('getContactInfoWidget', name);
+        result.addCallback(
+            function(markup) {
+                self.view.setDetailNode(
+                    Divmod.Runtime.theRuntime.parseXHTMLString(
+                        markup).documentElement);
+                self.view.showEditLink();
+                if(name !== self.storeOwnerPersonName) {
+                    self.view.showDeleteLink();
+                }
+            });
     });
 
 
+Mantissa.People.PersonScroller = Mantissa.ScrollTable.ScrollTable.subclass(
+    'Mantissa.People.PersonScroller');
 /**
  * A flexible-height scrolling widget which allows contact information for
  * people to be edited.
+ *
+ * @ivar _nameToRow: A mapping of person names to DOM row nodes.
  */
-Mantissa.People.PersonScroller = Mantissa.ScrollTable.FlexHeightScrollingWidget.subclass(
-    'Mantissa.People.PersonScroller');
 Mantissa.People.PersonScroller.methods(
-    function __init__(self, node, metadata) {
-        self.actions = [Mantissa.People.EditAction(),
-                        Mantissa.People.DeleteAction()];
+    function __init__(self, node, currentSortColumn, columnList, defaultSortAscending) {
         Mantissa.People.PersonScroller.upcall(
-            self, '__init__', node, metadata, 10);
+            self, '__init__', node, currentSortColumn, columnList, defaultSortAscending);
+        self._nameToRow = {};
+    },
+
+    /**
+     * Override the base implementation to not show any feedback.
+     */
+    function startShowingFeedback(self) {
+        return {stop: function() {}};
+    },
+
+    /**
+     * Get some DOM which visually represents the VIP status of a person.
+     *
+     * @param isVIP: Whether the person is a VIP.
+     * @type isVIP: C{Boolean}
+     *
+     * @rtype: L{MochiKit.DOM.IMG}
+     */
+    function _getVIPColumnDOM(self, isVIP) {
+        if(isVIP) {
+            return MochiKit.DOM.IMG({src: "/Mantissa/images/vip-flag.png"});
+        }
+    },
+
+    /**
+     * Apply the I{person-list-selected-person-row} class to C{node}, and
+     * remove it from the previously-selected row.
+     */
+    function _rowSelected(self, node) {
+        if(self._selectedRow === node) {
+            return;
+        }
+        node.setAttribute('class', 'person-list-selected-person-row');
+        if(self._selectedRow !== undefined) {
+            self._selectedRow.setAttribute('class', 'person-list-person-row');
+        }
+        self._selectedRow = node;
+    },
+
+    /**
+     * Select the row of the person named C{name}.
+     *
+     * @param name: A person name.
+     * @type name: C{String}
+     */
+    function selectNamedPerson(self, name) {
+        self._rowSelected(self._nameToRow[name]);
+    },
+
+    /**
+     * DOM event handler for when a cell is clicked.  Calls
+     * L{Mantissa.People.Organizer.displayPersonInfo} on our parent organizer
+     * with the name of the clicked person.
+     *
+     * @return: C{false}
+     * @rtype: C{Boolean}
+     */
+    function dom_cellClicked(self, node) {
+        self._rowSelected(node);
+        self.widgetParent.displayPersonInfo(
+            MochiKit.DOM.scrapeText(node));
+        return false;
+    },
+
+    /**
+     * Override the base implementation to make the whole row clickable.
+     */
+    function makeRowElement(self, rowOffset, rowData, cells) {
+        var node = MochiKit.DOM.DIV(
+            {"class": "person-list-person-row"},
+            cells);
+        self._nameToRow[rowData.name] = node;
+        self.connectDOMEvent("onclick", "dom_cellClicked", node);
+        return node;
+    },
+
+    /**
+     * Override the base implementation to return an image node for the VIP
+     * status cell, and a simpler, easier-to-style node for the person name
+     * cell
+     */
+    function makeCellElement(self, colName, rowData) {
+        if(colName == 'vip') {
+            return self._getVIPColumnDOM(rowData.vip);
+        }
+        var columnObject = self.columns[colName];
+        var columnValue = columnObject.extractValue(rowData);
+        var columnNode = columnObject.valueToDOM(columnValue, self);
+
+        if(rowData.vip) {
+            className = 'people-table-vip-person-name';
+        } else {
+            className = 'people-table-person-name';
+        }
+        return MochiKit.DOM.SPAN({'class': className}, columnNode);
     });
 
 
@@ -339,11 +575,48 @@ Mantissa.People.ContactInfo.methods(
     });
 
 
+Mantissa.People._SubmitNotificationForm = Mantissa.LiveForm.FormWidget.subclass(
+    'Mantissa.People._SubmitNotificationForm');
 /**
- * Specialized L{Mantissa.LiveForm.FormWidget} which doesn't reset its inputs
- * to their default values after being submitted.
+ * L{Mantissa.LiveForm.FormWidget} subclass which notifies registered
+ * observers with the value of the form's I{nickname} input after a successful
+ * submission.
+ *
+ * @ivar observers: An array of observer functions which have been registered.
  */
-Mantissa.People.EditPersonForm = Mantissa.LiveForm.FormWidget.subclass(
+Mantissa.People._SubmitNotificationForm.methods(
+    function __init__(self, node, formName) {
+        Mantissa.People._SubmitNotificationForm.upcall(
+            self, '__init__', node, formName);
+        self.observers = [];
+    },
+
+    /**
+     * Register a callable to be invoked with a nickname string after a
+     * successful submission.
+     *
+     * @param observer: A one-argument callable.
+     */
+    function observeSubmission(self, observer) {
+        self.observers.push(observer);
+    },
+
+    /**
+     * Handle creation success by invoking any registered observers.
+     */
+    function submitSuccess(self, result) {
+        var nickname = self.gatherInputAccessors().nickname[0].get();
+        for (var i = 0; i < self.observers.length; ++i) {
+            self.observers[i](nickname);
+        }
+    });
+
+
+/**
+ * Specialized L{Mantissa.People._SubmitNotificationForm} which doesn't reset
+ * its inputs to their default values after being submitted.
+ */
+Mantissa.People.EditPersonForm = Mantissa.People._SubmitNotificationForm.subclass(
     'Mantissa.People.EditPersonForm');
 Mantissa.People.EditPersonForm.methods(
     /**
@@ -355,51 +628,41 @@ Mantissa.People.EditPersonForm.methods(
 
 
 /**
- * Overall representation of the interface for adding a new person.  Doesn't do
- * much except expose a method of the L{AddPersonForm} it contains to outside
- * widgets.
+ * Trivial L{Mantissa.People._SubmitNotificationForm} subclass, used for
+ * adding new people to the address book.
  */
-Mantissa.People.AddPerson = Nevow.Athena.Widget.subclass(
-    'Mantissa.People.AddPerson');
-Mantissa.People.AddPerson.methods(
+Mantissa.People.AddPersonForm = Mantissa.People._SubmitNotificationForm.subclass(
+    'Mantissa.People.AddPersonForm');
+
+
+Mantissa.People._SubmitNotificationFormWrapper = Nevow.Athena.Widget.subclass(
+    'Mantissa.People._SubmitNotificationFormWrapper');
+/**
+ * Trivial L{Nevow.Athena.Widget} subclass which forwards L{observeSubmission}
+ * calls to its child form.
+ */
+Mantissa.People._SubmitNotificationFormWrapper.methods(
     /**
-     * Add a person creation observer to my L{AddPersonForm}.
+     * Notify our child widget.
      */
-    function observePersonCreation(self, observer) {
-        self.childWidgets[0].observePersonCreation(observer);
+    function observeSubmission(self, observer) {
+        self.childWidgets[0].observeSubmission(observer);
     });
 
 
 /**
- * Specialized L{Mantissa.LiveForm.FormWidget} which registered observer
- * functions with the nickname of each newly created person.
- *
- * @ivar observer: An array of observer functions which have been registered.
+ * Overall representation of the interface for adding a new person.  Doesn't do
+ * much except expose a method of the L{AddPersonForm} it contains to outside
+ * widgets.
  */
-Mantissa.People.AddPersonForm = Mantissa.LiveForm.FormWidget.subclass(
-    'Mantissa.People.AddPersonForm');
-Mantissa.People.AddPersonForm.methods(
-    function __init__(self, node) {
-        Mantissa.People.AddPersonForm.upcall(self, '__init__', node);
-        self.observers = [];
-    },
-    /**
-     * Register a callable to be invoked with the nickname of any new person
-     * created with this form.
-     *
-     * @param observer: A one-argument callable.
-     */
-    function observePersonCreation(self, observer) {
-        self.observers.push(observer);
-    },
+Mantissa.People.AddPerson = Mantissa.People._SubmitNotificationFormWrapper.subclass(
+    'Mantissa.People.AddPerson');
 
-    /**
-     * Handle creation success by invoking C{personCreated} on any registered
-     * observers.
-     */
-    function submitSuccess(self, result) {
-        var nickname = self.gatherInputAccessors().nickname[0].get();
-        for (var i = 0; i < self.observers.length; ++i) {
-            self.observers[i](nickname);
-        }
-    });
+
+/**
+ * Overall representation of the interface for editing an existing person.
+ * Doesn't do much except expose a method of the L{EditPersonForm} it contains
+ * to outside widgets.
+ */
+Mantissa.People.EditPerson = Mantissa.People._SubmitNotificationFormWrapper.subclass(
+    'Mantissa.People.EditPerson');

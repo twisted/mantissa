@@ -8,7 +8,10 @@
 // import Divmod.Defer
 // import Divmod.UnitTest
 // import Mantissa.People
+// import Nevow.Test.WidgetUtil
 
+Mantissa.Test.TestPeople.StubWidget = Divmod.Class.subclass(
+    'Mantissa.Test.TestPeople.StubWidget');
 /**
  * Stub implementation of L{Nevow.Athena.Widget} used by tests to verify that
  * the correct remote calls are made.
@@ -25,8 +28,6 @@
  *
  * @ivar wasDetached: A flag indicating whether C{detach} was called.
  */
-Mantissa.Test.TestPeople.StubWidget = Divmod.Class.subclass(
-    'Mantissa.Test.TestPeople.StubWidget');
 Mantissa.Test.TestPeople.StubWidget.methods(
     function __init__(self) {
         self.node = document.createElement('span');
@@ -66,17 +67,18 @@ Mantissa.Test.TestPeople.StubWidget.methods(
     });
 
 
+Mantissa.Test.TestPeople.StubPersonForm = Divmod.Class.subclass(
+    'Mantissa.Test.TestPeople.StubPersonForm');
 /**
- * Stub implementation of L{Mantissa.People.AddPersonForm}.
+ * Stub implementation of L{Mantissa.People.AddPersonForm} and
+ * L{Mantissa.People.EditPersonForm}.
  *
- * @ivar creationObservers: An array of the objects passed to
- *     L{observePersonCreation}.
+ * @ivar submissionObservers: An array of the objects passed to
+ * L{observeSubmission}
  */
-Mantissa.Test.TestPeople.StubAddPersonForm = Divmod.Class.subclass(
-    'Mantissa.Test.TestPeople.StubAddPersonForm');
-Mantissa.Test.TestPeople.StubAddPersonForm.methods(
+Mantissa.Test.TestPeople.StubPersonForm.methods(
     function __init__(self) {
-        self.creationObservers = [];
+        self.submissionObservers = [];
     },
 
     /**
@@ -86,127 +88,224 @@ Mantissa.Test.TestPeople.StubAddPersonForm.methods(
     },
 
     /**
-     * Remember a person creation observer in C{self.observers}.
+     * Remember an observer in L{submissionObservers}.
      */
-    function observePersonCreation(self, observer) {
-        self.creationObservers.push(observer);
+    function observeSubmission(self, observer) {
+        self.submissionObservers.push(observer);
     });
 
 
+Mantissa.Test.TestPeople.StubOrganizerView = Divmod.UnitTest.TestCase.subclass(
+    'Mantisa.Test.TestPeople.StubOrganizerView');
 /**
- * Tests for L{Mantissa.People.EditAction}.
+ * Stub L{Mantissa.People.OrganizerView}.
+ *
+ * @ivar detailNode: The current detail node.
+ * @type detailNode: DOM Node or C{null}.
+ *
+ * @ivar editLinkVisible: Whether the "edit" link is currently visible.
+ * Defaults to C{false}.
+ * @type editLinkVisible: C{Boolean}
+ *
+ * @ivar deleteLinkVisible: Whether the "delete" link is currently visible.
+ * Defaults to C{false}.
+ * @type deleteLinkVisible: C{Boolean}
+ *
+ * @ivar cancelFormLinkVisible: Whether the "cancel form" link is currently
+ * visible.  Defaults to C{false}.
+ * @type cancelFormLinkVisible: C{Boolean}
  */
-Mantissa.Test.TestPeople.EditActionTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.OrganizerActionTests');
-Mantissa.Test.TestPeople.EditActionTests.methods(
-    /**
-     * L{Mantissa.People.EditAction.enact} should invoke the edit action on the
-     * server and call L{Mantissa.People.EditAction.handleSuccess} when the
-     * server responds successfully.
-     */
-    function test_enact(self) {
-        var scroller = Mantissa.Test.TestPeople.StubWidget();
-        var action = Mantissa.People.EditAction();
-        var row = {};
-        row.__id__ = '123';
-        var d = action.enact(scroller, row);
-        self.assertIdentical(scroller.results.length, 1);
-        self.assertIdentical(scroller.results[0].method, 'performAction');
-        self.assertIdentical(scroller.results[0].args.length, 2);
-        self.assertIdentical(scroller.results[0].args[0], 'edit');
-        self.assertIdentical(scroller.results[0].args[1], row.__id__);
+Mantissa.Test.TestPeople.StubOrganizerView.methods(
+    function __init__(self) {
+        self.detailNode = null;
+        self.editLinkVisible = false;
+        self.deleteLinkVisible = false;
+        self.cancelFormLinkVisible = false;
     },
 
     /**
-     * L{Mantissa.People.EditAction.handleSuccess} should hand the widget it is
-     * given to the widget parent of the scrolling widget it is passed.
+     * Set L{detailNode} to C{node}.
      */
-    function test_handleSuccess(self) {
-        var action = Mantissa.People.EditAction();
-        var info = Mantissa.Test.TestPeople.StubWidget();
-        var widget = Mantissa.Test.TestPeople.StubWidget();
-        var scroller = Mantissa.Test.TestPeople.StubWidget();
-        var parent = Mantissa.Test.TestPeople.StubWidget();
-        parent.addChildWidgetFromWidgetInfo = function(widgetInfo) {
-            results.widgetInfo = widgetInfo;
-            return Divmod.Defer.succeed(widget);
-        };
-        parent.setDetailWidget = function(detailWidget) {
-            results.detailWidget = detailWidget;
-        };
-        scroller.widgetParent = parent;
-
-        var results = {};
-        action.handleSuccess(scroller, null, info);
-        self.assertIdentical(results.widgetInfo, info);
-        self.assertIdentical(results.detailWidget, widget);
-    });
-
-
-/**
- * Tests for L{Mantissa.People.DeleteAction}.
- */
-Mantissa.Test.TestPeople.DeleteActionTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.DeleteActionTests');
-Mantissa.Test.TestPeople.DeleteActionTests.methods(
-    /**
-     * L{Mantissa.People.DeleteAction.enact} should invoke the delete action on
-     * the server and call L{Mantissa.People.DeleteAction.handleSuccess} when
-     * the server responds successfully.
-     */
-    function test_enact(self) {
-        var scroller = Mantissa.Test.TestPeople.StubWidget();
-        var action = Mantissa.People.DeleteAction();
-        var row = {};
-        row.__id__ = '321';
-        var d = action.enact(scroller, row);
-        self.assertIdentical(scroller.results.length, 1);
-        self.assertIdentical(scroller.results[0].method, 'performAction');
-        self.assertIdentical(scroller.results[0].args.length, 2);
-        self.assertIdentical(scroller.results[0].args[0], 'delete');
-        self.assertIdentical(scroller.results[0].args[1], row.__id__);
+    function setDetailNode(self, node) {
+        self.detailNode = node;
     },
 
     /**
-     * L{Mantissa.People.DeleteAction.handleSuccess} should remove the row for
-     * the deleted person from the scroll table.
+     * Set L{detailNode} to C{null}.
      */
-    function test_handleSuccess(self) {
-        var scroller = Mantissa.Test.TestPeople.StubWidget();
-        var row = {};
-        row.__id__ = '321';
-        scroller.model = Mantissa.ScrollTable.ScrollModel();
-        scroller.model.setRowData(0, row);
-        var action = Mantissa.People.DeleteAction();
-        action.handleSuccess(scroller, row, null);
-        self.assertIdentical(scroller.removedRows.length, 1);
-        self.assertIdentical(scroller.removedRows[0], 0);
+    function clearDetailNodes(self) {
+        self.detailNode = null;
+    },
+
+    /**
+     * Set L{deleteLinkVisible} to C{true}.
+     */
+    function showDeleteLink(self) {
+        self.deleteLinkVisible = true;
+    },
+
+    /**
+     * Set L{deleteLinkVisible} to C{false}.
+     */
+    function hideDeleteLink(self) {
+        self.deleteLinkVisible = false;
+    },
+
+    /**
+     * Set L{editLinkVisible} to C{true}.
+     */
+    function showEditLink(self) {
+        self.editLinkVisible = true;
+    },
+
+    /**
+     * Set L{editLinkVisible} to C{false}.
+     */
+    function hideEditLink(self) {
+        self.editLinkVisible = false;
+    },
+
+    /**
+     * Set L{cancelFormLinkVisible} to C{true}.
+     */
+    function showCancelFormLink(self) {
+        self.cancelFormLinkVisible = true;
+    },
+
+    /**
+     * Set L{cancelFormLinkVisible} to C{false}.
+     */
+    function hideCancelFormLink(self) {
+        self.cancelFormLinkVisible = false;
     });
 
 
+Mantissa.Test.TestPeople.OrganizerViewTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.OrganizerViewTests');
+/**
+ * Tests for L{Mantissa.People.OrganizerView}.
+ */
+Mantissa.Test.TestPeople.OrganizerViewTests.methods(
+    /**
+     * Construct a L{Mantissa.People.OrganizerView}.
+     */
+    function setUp(self) {
+        self.nodes = {
+            'detail': document.createElement('span'),
+            'edit-link': document.createElement('a'),
+            'delete-link': document.createElement('a'),
+            'cancel-form-link': document.createElement('a')};
+        self.view = Mantissa.People.OrganizerView(
+            function nodeById(id) {
+                return self.nodes[id];
+            });
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.setDetailNode} should clear any current
+     * detail nodes and append the given node.
+     */
+    function test_setDetailNode(self) {
+        self.nodes['detail'].appendChild(
+            document.createElement('span'));
+        var detailNode = document.createElement('img');
+        self.view.setDetailNode(detailNode);
+        self.assertIdentical(
+            self.nodes['detail'].childNodes.length, 1);
+        self.assertIdentical(
+            self.nodes['detail'].childNodes[0], detailNode);
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.clearDetailNodes} should clear any
+     * current detail nodes.
+     */
+    function test_clearDetailNodes(self) {
+        self.nodes['detail'].appendChild(
+            document.createElement('img'));
+        self.nodes['detail'].appendChild(
+            document.createElement('span'));
+        self.view.clearDetailNodes();
+        self.assertIdentical(self.nodes['detail'].childNodes.length, 0);
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.hideEditLink} should hide the edit
+     * link.
+     */
+    function test_hideEditLink(self) {
+        self.view.hideEditLink();
+        self.assertIdentical(
+            self.nodes['edit-link'].style.display, 'none');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.hideDeleteLink} should hide the delete
+     * link.
+     */
+    function test_hideDeleteLink(self) {
+        self.view.hideDeleteLink();
+        self.assertIdentical(
+            self.nodes['delete-link'].style.display, 'none');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.showEditLink} should show the edit
+     * link.
+     */
+    function test_showEditLink(self) {
+        self.view.hideEditLink();
+        self.view.showEditLink();
+        self.assertIdentical(
+            self.nodes['edit-link'].style.display, '');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.showDeleteLink} should show the delete
+     * link.
+     */
+    function test_showDeleteLink(self) {
+        self.view.hideDeleteLink();
+        self.view.showDeleteLink();
+        self.assertIdentical(
+            self.nodes['delete-link'].style.display, '');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.hideCancelFormLink} should hide the
+     * cancel form link.
+     */
+    function test_hideCancelFormLink(self) {
+        self.view.hideCancelFormLink();
+        self.assertIdentical(
+            self.nodes['cancel-form-link'].style.display, 'none');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.showCancelFormLink} should show the
+     * cancel form link.
+     */
+    function test_showCancelFormLink(self) {
+        self.view.hideCancelFormLink();
+        self.view.showCancelFormLink();
+        self.assertIdentical(
+            self.nodes['cancel-form-link'].style.display, '');
+    });
+
+
+Mantissa.Test.TestPeople.OrganizerTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.OrganizerTests');
 /**
  * Tests for L{Mantissa.People.Organizer}.
  */
-Mantissa.Test.TestPeople.OrganizerTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.OrganizerTests');
 Mantissa.Test.TestPeople.OrganizerTests.methods(
     /**
      * Create an Organizer for use by test methods.
      */
     function setUp(self) {
-        self.node = document.createElement('span');
-        self.detail = document.createElement('span');
-        self.existing = document.createElement('img');
-        /*
-         * XXX - Athena ought to have a public API for constructing these
-         * strings, perhaps? -exarkun
-         */
-        self.node.id = 'athena:123';
-        self.detail.id = 'athenaid:123-detail';
-        self.detail.appendChild(self.existing);
-        self.node.appendChild(self.detail);
-        document.body.appendChild(self.node);
+        self.node = Nevow.Test.WidgetUtil.makeWidgetNode();
         self.organizer = Mantissa.People.Organizer(self.node);
+        self.organizer.view = self.view = Mantissa.Test.TestPeople.StubOrganizerView();
 
         self.calls = [];
         self.organizer.callRemote = function(name) {
@@ -229,8 +328,7 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var widget = {};
         widget.node = document.createElement('table');
         self.organizer.setDetailWidget(widget);
-        self.assertIdentical(self.detail.childNodes.length, 1);
-        self.assertIdentical(self.detail.childNodes[0], widget.node);
+        self.assertIdentical(self.view.detailNode, widget.node);
     },
 
     /**
@@ -247,6 +345,69 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
+     * L{Mantissa.People.Organizer.deletePerson} should call the remote
+     * I{deletePerson} method.
+     */
+    function test_deletePerson(self) {
+        var personName = 'A Person Name';
+        self.organizer.currentlyViewingName = personName;
+        self.organizer.deletePerson().callback(null);
+        self.assertIdentical(self.calls.length, 1);
+        self.assertIdentical(self.calls[0].name, 'deletePerson');
+        self.assertIdentical(self.calls[0].args.length, 1);
+        self.assertIdentical(self.calls[0].args[0], personName);
+
+        self.assertIdentical(self.view.detailNode, null);
+        self.assertIdentical(self.view.editLinkVisible, false);
+        self.assertIdentical(self.view.deleteLinkVisible, false);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.dom_deletePerson} should call
+     * L{Mantissa.People.Organizer.deletePerson}.
+     */
+    function test_domDeletePerson(self) {
+        var calls = 0;
+        self.organizer.deletePerson = function() {
+            calls++;
+        }
+        self.assertIdentical(self.organizer.dom_deletePerson(), false);
+        self.assertIdentical(calls, 1);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.cancelForm} should load the last-viewed
+     * person and hide the form.
+     */
+    function test_cancelForm(self) {
+        var formNode = document.createElement('form');
+        self.view.detailNode = formNode;
+        var personName = 'Person Name';
+        self.organizer.currentlyViewingName = personName;
+        var displayedPerson;
+        self.organizer.displayPersonInfo = function(name) {
+            displayedPerson = name;
+        }
+        self.organizer.cancelForm();
+        self.assertIdentical(self.view.detailNode, null);
+        self.assertIdentical(displayedPerson, personName);
+        self.assertIdentical(self.view.cancelFormLinkVisible, false);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.dom_cancelForm} should call
+     * L{Mantissa.People.Organizer.cancelForm}.
+     */
+    function test_domCancelForm(self) {
+        var calls = 0;
+        self.organizer.cancelForm = function() {
+            calls++;
+        }
+        self.assertIdentical(self.organizer.dom_cancelForm(), false);
+        self.assertIdentical(calls, 1);
+    },
+
+    /**
      * L{Mantissa.People.Organizer.displayAddPerson} should call
      * I{getAddPerson} on the server and set the resulting widget as the detail
      * widget.
@@ -256,6 +417,37 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         self.assertIdentical(self.calls.length, 1);
         self.assertIdentical(self.calls[0].name, 'getAddPerson');
         self.assertIdentical(self.calls[0].args.length, 0);
+        self.assertIdentical(self.view.editLinkVisible, false);
+        self.assertIdentical(self.view.deleteLinkVisible, false);
+        self.assertIdentical(self.view.cancelFormLinkVisible, false);
+
+        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            return widgetInfo;
+        };
+        var detailWidget = null;
+        self.organizer.setDetailWidget = function(widget) {
+            detailWidget = widget;
+        };
+        var resultingWidget = Mantissa.Test.TestPeople.StubPersonForm();
+        self.calls[0].result.callback(resultingWidget);
+        self.assertIdentical(resultingWidget, detailWidget);
+        self.assertIdentical(self.view.editLinkVisible, false);
+        self.assertIdentical(self.view.deleteLinkVisible, false);
+        self.assertIdentical(self.view.cancelFormLinkVisible, true);
+    },
+
+    /**
+     * Similar to L{test_getAddPerson}, but for
+     * L{Mantissa.People.Organizer.displayEditPerson}.
+     */
+    function test_getEditPerson(self) {
+        var name = "A Person's name";
+        self.organizer.currentlyViewingName = name;
+        var result = self.organizer.displayEditPerson();
+        self.assertIdentical(self.calls.length, 1);
+        self.assertIdentical(self.calls[0].name, 'getEditPerson');
+        self.assertIdentical(self.calls[0].args.length, 1);
+        self.assertIdentical(self.calls[0].args[0], name);
 
         var detailWidget = null;
         self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
@@ -264,17 +456,78 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         self.organizer.setDetailWidget = function(widget) {
             detailWidget = widget;
         };
-        var resultingWidget = Mantissa.Test.TestPeople.StubAddPersonForm();
+        var resultingWidget = Mantissa.Test.TestPeople.StubPersonForm();
         self.calls[0].result.callback(resultingWidget);
         self.assertIdentical(resultingWidget, detailWidget);
+        self.assertIdentical(self.view.editLinkVisible, false);
+        self.assertIdentical(self.view.deleteLinkVisible, false);
+        self.assertIdentical(self.view.cancelFormLinkVisible, true);
     },
 
     /**
-     * L{Organizer} should add an observer to L{AddPersonForm} which calls
-     * L{Organizer.displayPersonInfo} with the nickname it is passed.
+     * L{Mantissa.People.Organizer.dom_displayEditPerson} should call
+     * L{Mantissa.People.Organizer.displayEditPerson}.
      */
-    function test_personCreationObservation(self) {
-        var result = self.organizer.displayAddPerson();
+    function test_domDisplayEditPerson(self) {
+        var calls = 0;
+        self.organizer.displayEditPerson = function() {
+            calls++;
+        }
+        self.assertIdentical(self.organizer.dom_displayEditPerson(), false);
+        self.assertIdentical(calls, 1);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.getPersonScroller} should return the first
+     * child widget.
+     */
+    function test_getPersonScroller(self) {
+        var personScroller = {};
+        self.organizer.childWidgets = [personScroller];
+        self.assertIdentical(
+            self.organizer.getPersonScroller(), personScroller);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.refreshPersonList} should call
+     * C{emptyAndRefill} on the child scrolltable.
+     */
+    function test_refreshPersonList(self) {
+        var calls = 0;
+        self.organizer.childWidgets = [
+            {emptyAndRefill: function() {
+                calls++;
+            }}];
+        self.organizer.refreshPersonList();
+        self.assertIdentical(calls, 1);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.selectInPersonList} should call
+     * C{selectNamedPerson} on the child scrolltable.
+     */
+    function test_selectInPersonList(self) {
+        var names = [];
+        self.organizer.childWidgets = [
+            {selectNamedPerson: function(name) {
+                names.push(name);
+            }}];
+        var personName = 'A person name';
+        self.organizer.selectInPersonList(personName);
+        self.assertIdentical(names.length, 1);
+        self.assertIdentical(names[0], personName);
+    },
+
+    /**
+     * Test that calling back C{displayDeferred} with a
+     * L{Mantissa.Test.TestPeople.StubPersonForm} results in a submission
+     * observer being added to the form, and that invoking the observer pokes
+     * the appropriate state.
+     *
+     * @param displayDeferred: Deferred from display{Edit,Add}Person.
+     * @type displayDeferred: L{Divmod.Defer.Deferred}
+     */
+    function _doObservationTest(self, displayDeferred) {
         var nickname = 'test nick';
         self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
             return widgetInfo;
@@ -282,15 +535,38 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         self.organizer.displayPersonInfo = function(nickname) {
             displaying = nickname;
         };
-        var addPersonForm = Mantissa.Test.TestPeople.StubAddPersonForm();
-        self.calls[0].result.callback(addPersonForm);
-        addPersonForm.creationObservers[0](nickname);
+        var refreshed = false;
+        self.organizer.refreshPersonList = function() {
+            refreshed = true;
+            return Divmod.Defer.succeed(undefined);
+        }
+        var form = Mantissa.Test.TestPeople.StubPersonForm();
+        self.calls[0].result.callback(form);
+        form.submissionObservers[0](nickname);
         self.assertIdentical(displaying, nickname);
+        self.assertIdentical(refreshed, true);
+    },
+
+    /**
+     * L{Organizer} should add an observer to L{AddPersonForm} which calls
+     * L{Organizer.displayPersonInfo} with the nickname it is passed.
+     */
+    function test_personCreationObservation(self) {
+        self._doObservationTest(self.organizer.displayAddPerson());
+    },
+
+    /**
+     * Similar to L{test_personCreationObservation}, but for
+     * L{Mantissa.People.Organizer.displayEditPerson} and person edit
+     * notification.
+     */
+    function test_personEditObservation(self) {
+        self._doObservationTest(self.organizer.displayEditPerson());
     },
 
     /**
      * L{Mantissa.People.Organizer.displayPersonInfo} should call
-     * I{getContactInformation} with the nickname it is passed put the
+     * I{getContactInfoWidget} with the nickname it is passed put the
      * resulting markup in the detail area.
      */
     function test_displayPersonInfo(self) {
@@ -298,46 +574,35 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var result = self.organizer.displayPersonInfo(nickname);
 
         self.assertIdentical(self.calls.length, 1);
-        self.assertIdentical(self.calls[0].name, 'getContactInformation');
+        self.assertIdentical(self.calls[0].name, 'getContactInfoWidget');
         self.assertIdentical(self.calls[0].args.length, 1);
         self.assertIdentical(self.calls[0].args[0], nickname);
 
-        var detailNodes = null;
-        self.organizer.setDetailNodes = function(nodes) {
-            detailNodes = nodes;
-        };
-
-        var resultingFragments = [{}, {}];
+        var resultingFragment = {};
 
         var parsedStrings = [];
-        var returnedNodes = [];
+        var returnedNode = document.createElement('span');
         var parseXHTMLString = Divmod.Runtime.theRuntime.parseXHTMLString;
         Divmod.Runtime.theRuntime.parseXHTMLString = function(xhtml) {
             parsedStrings.push(xhtml);
-            returnedNodes.push(document.createElement('span'));
-            var doc = {};
-            doc.documentElement = returnedNodes[returnedNodes.length - 1];
-            return doc;
+            return {documentElement: returnedNode};
         };
         try {
-            self.calls[0].result.callback(resultingFragments);
+            self.calls[0].result.callback(resultingFragment);
         } finally {
             Divmod.Runtime.theRuntime.parseXHTMLString = parseXHTMLString;
         }
-        self.assertIdentical(detailNodes.length, 2);
-        self.assertIdentical(detailNodes[0], returnedNodes[0]);
-        self.assertIdentical(detailNodes[1], returnedNodes[1]);
-        self.assertIdentical(parsedStrings.length, 2);
-        self.assertIdentical(parsedStrings[0], resultingFragments[0]);
-        self.assertIdentical(parsedStrings[1], resultingFragments[1]);
+        self.assertIdentical(self.view.detailNode, returnedNode);
+        self.assertIdentical(parsedStrings.length, 1);
+        self.assertIdentical(parsedStrings[0], resultingFragment);
     });
 
 
+Mantissa.Test.TestPeople.EditPersonFormTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.EditPersonFormTests');
 /**
  * Tests for L{Mantissa.People.EditPersonForm}.
  */
-Mantissa.Test.TestPeople.EditPersonFormTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.EditPersonFormTests');
 Mantissa.Test.TestPeople.EditPersonFormTests.methods(
     /**
      * L{Mantissa.People.EditPersonForm.reset} shouldn't reset the values of
@@ -357,18 +622,18 @@ Mantissa.Test.TestPeople.EditPersonFormTests.methods(
     });
 
 
+Mantissa.Test.TestPeople.SubmitNotificationFormTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.SubmitNotificationFormTests');
 /**
- * Tests for L{Mantissa.People.AddPersonForm}.
+ * Tests for L{Mantissa.Peoople._SubmitNotificationForm}.
  */
-Mantissa.Test.TestPeople.AddPersonFormTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.AddPersonFormTests');
-Mantissa.Test.TestPeople.AddPersonFormTests.methods(
+Mantissa.Test.TestPeople.SubmitNotificationFormTests.methods(
     /**
      * After successful submission, the form widget should notify all
-     * registered person creation observers of the nickname of the person which
-     * was just created.
+     * registered observers of the nickname of the person which was just
+     * modified.
      */
-    function test_personCreationNotification(self) {
+    function test_observeSubmission(self) {
         var createdPeople = [];
         function personCreationObserver(nickname) {
             createdPeople.push(nickname);
@@ -381,33 +646,201 @@ Mantissa.Test.TestPeople.AddPersonFormTests.methods(
         input.value = nickname;
         input.type = 'text';
         node.appendChild(input);
-        var form = Mantissa.People.AddPersonForm(node, 'name');
-        form.observePersonCreation(personCreationObserver);
+        var form = Mantissa.People._SubmitNotificationForm(node, 'name');
+        form.observeSubmission(personCreationObserver);
         form.submitSuccess(null);
         self.assertIdentical(createdPeople.length, 1);
         self.assertIdentical(createdPeople[0], nickname);
     });
 
 
+Mantissa.Test.TestPeople.AddPersonTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.AddPersonTests');
 /**
  * Tests for L{Mantissa.People.AddPerson}.
  */
-Mantissa.Test.TestPeople.AddPersonTests = Divmod.UnitTest.TestCase.subclass(
-    'Mantissa.Test.TestPeople.AddPersonTests');
 Mantissa.Test.TestPeople.AddPersonTests.methods(
     /**
-     * L{AddPerson.observePersonCreation} should pass the observer it is called
-     * with to the C{observePersonCreation} method of the L{AddPersonForm}
-     * instance it contains.
+     * L{Mantissa.People.AddPerson.observeSubmission} should pass the observer
+     * it is called with to the C{observeSubmission} method of the
+     * L{AddPersonForm} instance it contains.
      */
     function test_observePersonCreation(self) {
         var node = document.createElement('span');
         node.id = 'athena:123';
         var addPerson = Mantissa.People.AddPerson(node);
-        var addPersonForm = Mantissa.Test.TestPeople.StubAddPersonForm();
+        var addPersonForm = Mantissa.Test.TestPeople.StubPersonForm();
         addPerson.addChildWidget(addPersonForm);
         var observer = {};
-        addPerson.observePersonCreation(observer);
-        self.assertIdentical(addPersonForm.creationObservers.length, 1);
-        self.assertIdentical(addPersonForm.creationObservers[0], observer);
+        addPerson.observeSubmission(observer);
+        self.assertIdentical(addPersonForm.submissionObservers.length, 1);
+        self.assertIdentical(addPersonForm.submissionObservers[0], observer);
+    });
+
+
+Mantissa.Test.TestPeople.EditPersonTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.EditPersonTests');
+/**
+ * Tests for L{Mantissa.People.EditPerson}.
+ */
+Mantissa.Test.TestPeople.EditPersonTests.methods(
+    /**
+     * L{Mantissa.People.EditPerson.observeSubmission} should pass the
+     * observer it is called with to the C{observeSubmission} method of the
+     * L{Mantissa.People.EditPersonForm} instance it contains.
+     */
+    function test_observePersonEdits(self) {
+        var editPerson = Mantissa.People.EditPerson(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var editPersonForm = Mantissa.Test.TestPeople.StubPersonForm();
+        editPerson.addChildWidget(editPersonForm);
+        var observer = {};
+        editPerson.observeSubmission(observer);
+        self.assertIdentical(editPersonForm.submissionObservers.length, 1);
+        self.assertIdentical(editPersonForm.submissionObservers[0], observer);
+    });
+
+
+Mantissa.Test.TestPeople.PersonScrollerTestCase = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.PersonScrollerTestCase');
+/**
+ * Tests for L{Mantissa.People.PersonScroller}.
+ */
+Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
+    /**
+     * Construct a L{Mantissa.People.PersonScroller}.
+     */
+    function setUp(self) {
+        self.scroller = Mantissa.People.PersonScroller(
+            Nevow.Test.WidgetUtil.makeWidgetNode(), null, []);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.dom_cellClicked} should call the
+     * C{displayPersonInfo} method on the parent widget.
+     */
+    function test_domCellClicked(self) {
+        var displayingPerson;
+        self.scroller.widgetParent = {
+            displayPersonInfo: function(name) {
+                displayingPerson = name;
+            }}
+        var personName = 'A person name';
+        var rowNode = document.createElement('div');
+        rowNode.appendChild(document.createTextNode(personName));
+        self.assertIdentical(self.scroller.dom_cellClicked(rowNode), false);
+        self.assertIdentical(displayingPerson, personName);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.dom_cellClicked} should make the row
+     * appear selected.
+     */
+    function test_domCellClickedSelection(self) {
+        self.scroller.widgetParent = {
+            displayPersonInfo: function(name) {
+        }};
+        var rowNode = document.createElement('div');
+        self.scroller.dom_cellClicked(rowNode);
+        self.assertIdentical(
+            rowNode.getAttribute('class'),
+            'person-list-selected-person-row');
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.dom_cellClicked} should unselect the
+     * previously-selected row.
+     */
+    function test_domCellClickedDeselection(self) {
+        self.scroller.widgetParent = {
+            displayPersonInfo: function(name) {
+        }};
+        var rowNode = document.createElement('div');
+        self.scroller.dom_cellClicked(rowNode);
+        var secondRowNode = document.createElement('div');
+        self.scroller.dom_cellClicked(secondRowNode);
+        self.assertIdentical(
+            rowNode.getAttribute('class'),
+            'person-list-person-row');
+        self.assertIdentical(
+            secondRowNode.getAttribute('class'),
+            'person-list-selected-person-row');
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.selectNamedPerson} should make the
+     * given person's row appear selected.
+     */
+    function test_selectNamedPerson(self) {
+        var personName = 'A person name';
+        var firstJunkRowNode = self.scroller.makeRowElement(
+            0, {name: 'Some other person name'}, []);
+        var rowNode = self.scroller.makeRowElement(
+            1, {name: personName}, []);
+        var secondJunkRowNode = self.scroller.makeRowElement(
+            2, {name: 'A third person name'}, []);
+        self.scroller.selectNamedPerson(personName);
+        self.assertIdentical(
+            rowNode.getAttribute('class'),
+            'person-list-selected-person-row');
+        self.assertIdentical(
+            firstJunkRowNode.getAttribute('class'),
+            'person-list-person-row');
+        self.assertIdentical(
+            secondJunkRowNode.getAttribute('class'),
+            'person-list-person-row');
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeRowElement} should make a
+     * link-like node.
+     */
+    function test_makeRowElement(self) {
+        var cellElement = document.createElement('span');
+        var rowData = {name: 'A person name'};
+        var rowElement = self.scroller.makeRowElement(
+            0, rowData, [cellElement]);
+        self.assertIdentical(rowElement.tagName, 'DIV');
+        self.assertIdentical(rowElement.childNodes.length, 1);
+        self.assertIdentical(rowElement.childNodes[0], cellElement);
+        if(rowElement.onclick === undefined) {
+            self.fail('row element has no onclick handler');
+        }
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} should return an
+     * image tag for the C{vip} column.
+     */
+    function test_makeCellElementVIP(self) {
+        var cellElement = self.scroller.makeCellElement(
+            'vip', {vip: true});
+        self.assertIdentical(cellElement.tagName, 'IMG');
+        cellElement = self.scroller.makeCellElement(
+            'vip', {vip: false});
+        self.assertIdentical(cellElement, undefined);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} should return a span
+     * tag for the C{name} column.
+     */
+    function test_makeCellElementName(self) {
+        self.scroller.columns = {name: {
+            extractValue: function(rowData) {
+                return rowData.name;
+            },
+            valueToDOM: function(value) {
+                return value;
+            }}};
+        var cellElement = self.scroller.makeCellElement(
+            'name', {name: 'A person name', vip: false});
+        self.assertIdentical(cellElement.tagName, 'SPAN');
+        self.assertIdentical(
+            cellElement.className, 'people-table-person-name');
+        cellElement = self.scroller.makeCellElement(
+            'name', {name: 'A VIP person name', vip: true});
+        self.assertIdentical(cellElement.tagName, 'SPAN');
+        self.assertIdentical(
+            cellElement.className, 'people-table-vip-person-name');
     });

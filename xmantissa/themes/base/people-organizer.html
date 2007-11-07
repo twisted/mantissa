@@ -1,21 +1,58 @@
-<div xmlns:nevow="http://nevow.com/ns/nevow/0.1" nevow:render="liveFragment"
-     xmlns:athena="http://divmod.org/ns/athena/0.7">
-  <table width="100%">
-    <tbody>
-      <tr>
-        <td id="people" width="20%">
-          <div>
-            <button>
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
+  nevow:render="liveFragment"
+  xmlns:athena="http://divmod.org/ns/athena/0.7"
+  class="people-organizer">
+  <a nevow:pattern="private-link">LOLOL</a>
+  <center>
+    <table cellpadding="0" cellspacing="0" class="people-table">
+      <thead>
+        <tr>
+          <td class="people-table-list-col-header">
+            People
+            <a href="#">
               <athena:handler event="onclick" handler="displayAddPerson" />
-              Add Person
-            </button>
-          </div>
-          <div>
+              Add
+            </a>
+          </td>
+          <td class="people-table-person-col-header">
+            Person
+            <a id="edit-link" style="display: none" href="#">
+              <athena:handler event="onclick" handler="dom_displayEditPerson" />
+              Edit
+            </a>
+            <a id="delete-link" style="display: none" href="#">
+              <athena:handler event="onclick" handler="dom_deletePerson" />
+              Delete
+            </a>
+          </td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr valign="top">
+          <td class="people-table-list-cell">
             <nevow:invisible nevow:render="peopleTable" />
-          </div>
-        </td>
-        <td id="detail" />
-      </tr>
-    </tbody>
-  </table>
+          </td>
+          <td class="people-table-person-cell">
+            <div class="people-table-person-container">
+              <table style="width: 100%">
+                <tr>
+                  <td align="right">
+                    <a id="cancel-form-link" class="cancel-form-link" style="display: none" href="#">
+                      <athena:handler event="onclick" handler="dom_cancelForm" />
+                      <img src="/Mantissa/images/delete.png" />
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div id="detail"></div>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </center>
 </div>
