@@ -56,10 +56,18 @@
                     <span class="mantissa-global-username" nevow:render="username">
                       You are logged in as
                     </span>
-                    <a class="mantissa-global-navigation-link" href="/__logout__" nevow:render="logout">
+                    <span class="mantissa-global-navigation-link"
+                       nevow:render="logout">
                       <span class="mantissa-global-navigation-separator">|</span>
-                      Log out
-                    </a>
+                      <a class="mantissa-global-navigation-link">
+                        <nevow:attr name="href" nevow:render="settingsLink" />
+                        Settings
+                      </a>
+                      <span class="mantissa-global-navigation-separator">|</span>
+                      <a href="/__logout__">
+                        Log out
+                      </a>
+                    </span>
                   </td>
                   <td nevow:render="search">
                     <a href="#"
