@@ -1,3 +1,14 @@
+0.6.10 (2007-11-07):
+  - Made the Required User Information Signup page a bit clearer about
+    what the user has to do next. Instead of depositing the user
+    directly on the login page, make sure that they know that they've
+    succeded, and then ask them to sign in by clicking on a link.
+  - Made the Mantissa "Address Book" look a whole lot nicer.  The most
+    visible change is the introduction of a two-pane view, with a list
+    of people in a scrolltable, and an area where read-only Person
+    views and Person edit forms are rendered.
+  - Added a 'settings' link to the global nav.
+
 0.6.9 (2007-11-02):
   - Made the mugshot thumbnail image larger.
   - Allowed IContactTypes to declare they don't support multiple
