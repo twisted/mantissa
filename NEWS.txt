@@ -1,5 +1,22 @@
-0.6.8 (2007-10-16):
+0.6.9 (2007-11-02):
+  - Made the mugshot thumbnail image larger.
+  - Allowed IContactTypes to declare they don't support multiple
+    contact items per person.
+  - Ensured that the login page comes from a template in an offering
+    that is actually installed.
+  - Fixed webnav.getTabs to respect Tab.linkURL on primary nav
+    elements.
+  - Eliminated the separate public-shell and navigation templates.
+    Instead, the shell template is now used to define both public and
+    private views and to define the navigation.
+  - Deprecated scrolltable.UnsortableColumn in favor of
+    scrolltable.UnsortableColumnWrapper.
+  - Public-page-wrapped fragments can now specify the page title.
+  - Bogus email addresses used for password reset are handled better
+    now.
+  - Password reset form styling updated.
 
+0.6.8 (2007-10-16):
   - website.WebSite.maybeEncryptedRoot deprecated in favor of
     website.WebSite.rootURL. CSS is now served using the same URL
     scheme as the page including it.
@@ -9,6 +26,7 @@
     form will be delayed until these Deferreds are called back.
   - Added a new IOrganizerPlugin callback: "contactItemEdited".
   - Improvements to repeated forms.
+
 0.6.7 (2007-09-05):
   - A bug preventing mugshot uploads was fixed.
   - The scrolltable now only requests more rows when the user can see blank
