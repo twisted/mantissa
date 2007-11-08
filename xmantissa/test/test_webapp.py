@@ -104,8 +104,6 @@ class GenericNavigationAthenaPageTests(TestCase,
     """
     Tests for L{GenericNavigationAthenaPage}.
     """
-    username = None
-
     def setUp(self):
         """
         Set up a site store, user store, and page instance to test with.
@@ -130,7 +128,7 @@ class GenericNavigationAthenaPageTests(TestCase,
             self.privateApp,
             TestFragment(),
             self.privateApp.getPageComponents(),
-            None)
+            username)
 
     def test_childLookup(self):
         """

@@ -13,7 +13,7 @@ from axiom.plugins.userbasecmd import Create
 from axiom.plugins.mantissacmd import Mantissa
 from axiom.dependency import installOn
 
-from nevow import rend, context
+from nevow import rend, context, inevow
 from nevow.flat import flatten
 from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
@@ -184,6 +184,9 @@ class AuthenticatedNavigationTestMixin:
     """
     Mixin defining test methods for the authenticated navigation view.
     """
+    userinfo = (u'testuser', u'example.com')
+    username = u'@'.join(userinfo)
+
     def createPage(self):
         """
         Create a subclass of L{PublicPageMixin} to be used by tests.
@@ -323,6 +326,77 @@ class AuthenticatedNavigationTestMixin:
                              flattened)
 
 
+    def test_noUsername(self):
+        """
+        The I{username} renderer should remove its node from the output when
+        presented with a None username.
+        """
+        page = self.createPage(None)
+        result = page.render_username(None, None)
+        self.assertEqual(result, "")
+
+
+    def usernameRenderingTest(self, username, hostHeader, expectedUsername):
+        """
+        Verify that the username will be rendered appropriately given the host
+        of the HTTP request.
+
+        @param username: the user's full login identifier.
+        @param hostHeader: the value of the 'host' header.
+        @param expectedUsername: the expected value of the rendered username.
+        """
+        page = self.createPage(username)
+        userTag = span()
+        req = FakeRequest()
+        req.setHeader('Host', hostHeader)
+        ctx = context.WebContext(tag=userTag)
+        ctx.remember(req, inevow.IRequest)
+        tag = page.render_username(ctx, None)
+        self.assertEqual(tag.tagName, 'span')
+        self.assertEqual(tag.children, [expectedUsername])
+
+
+    def test_localUsername(self):
+        """
+        The I{username} renderer should render just the username when the
+        username domain is the same as the HTTP request's domain. otherwise it
+        should render the full username complete with domain.
+        """
+        domainUser = self.username.split('@')[0]
+        return self.usernameRenderingTest(
+            self.username, 'example.com', domainUser)
+
+
+    def test_remoteUsername(self):
+        """
+        The I{username} renderer should render username with the domain when
+        the username domain is different than the HTTP request's domain.
+        """
+        return self.usernameRenderingTest(
+            self.username, 'not-example.com', self.username)
+
+
+    def test_usernameWithHostPort(self):
+        """
+        The I{username} renderer should respect ports in the host headers.
+        """
+        domainUser = self.username.split('@')[0]
+        return self.usernameRenderingTest(
+            self.username, 'example.com:8080', domainUser)
+
+
+    def test_prefixedDomainUsername(self):
+        """
+        The I{username} renderer should render just the username in the case
+        where you are viewing a subdomain as well; if bob is viewing
+        'jethro.divmod.com' or 'www.divmod.com', he should still see the
+        username 'bob'.
+        """
+        domainUser = self.username.split('@')[0]
+        return self.usernameRenderingTest(
+            self.username, 'www.example.com', domainUser)
+
+
 
 class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     """
@@ -330,9 +404,6 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     the various L{xmantissa.publicweb.PublicPageMixin} subclasses, like
     L{PublicAthenaLivePage} and L{PublicNavAthenaLivePage}.
     """
-    userinfo = (u'testuser', u'example.com')
-    username = u'@'.join(userinfo)
-
     signupURL = u'sign/up'
     signupPrompt = u'sign up now'
 

@@ -25,7 +25,7 @@ from nevow.inevow import IQ, IRequest, IResource
 from nevow import tags as t
 from nevow import url
 
-from xmantissa.publicweb import CustomizedPublicPage
+from xmantissa.publicweb import CustomizedPublicPage, renderShortUsername
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite
 from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
@@ -143,7 +143,7 @@ class _ShellRenderingMixin(object):
 
 
     def render_username(self, ctx, data):
-        return ctx.tag[self.username]
+        return renderShortUsername(ctx, self.username)
 
 
     def render_logout(self, ctx, data):
