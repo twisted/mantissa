@@ -20,6 +20,7 @@ from nevow.flat import flatten
 from nevow.athena import expose
 from nevow.page import renderer
 from nevow.testutil import FakeRequest
+from nevow import context
 
 from epsilon import extime
 from epsilon.extime import Time
@@ -42,9 +43,9 @@ from xmantissa.people import (
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment, OrganizerFragment,
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
     PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
-    ReadOnlyEmailView, ReadOnlyPostalAddressView, RedirectingUploadResource,
-    getPersonURL, _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
-    ReadOnlyContactInfoView, PersonSummaryView)
+    ReadOnlyEmailView, ReadOnlyPostalAddressView, getPersonURL,
+    _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
+    ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -143,6 +144,63 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
             " did not implement it",
             people.__file__,
             lambda: _descriptiveIdentifier(MyContactType()))
+
+
+
+class MugshotUploadFormTestCase(unittest.TestCase):
+    """
+    Tests for L{MugshotUploadForm}.
+    """
+    def setUp(self):
+        """
+        Construct a L{Person}, suitable for passing to L{MugshotUploadForm}'s
+        constructor.
+        """
+        # can't use mock objects because we need ITemplateNameResolver to
+        # render MugshotUploadForm
+        store = Store()
+        self.organizer = Organizer(store=store)
+        installOn(self.organizer, store)
+        self.person = Person(store=store, organizer=self.organizer)
+
+
+    def test_callback(self):
+        """
+        Verify that L{MugshotUploadForm} calls the supplied callback after a
+        successful POST.
+        """
+        cbGotMugshotArgs = []
+        def cbGotMugshot(contentType, file):
+            cbGotMugshotArgs.append((contentType, file))
+        form = MugshotUploadForm(self.person, cbGotMugshot)
+
+        theContentType = 'image/tiff'
+        theFile = object()
+        class FakeUploadField:
+            type = theContentType
+            file = theFile
+
+        request = FakeRequest()
+        request.method = 'POST'
+        request.fields = {'uploaddata': FakeUploadField}
+        ctx = context.PageContext(
+            tag=form, parent=context.RequestContext(
+                tag=request))
+        form.renderHTTP(ctx)
+        self.assertEqual(
+            cbGotMugshotArgs,
+            [(u'image/tiff', theFile)])
+
+
+    def test_smallerMugshotURL(self):
+        """
+        L{MugshotUploadForm.render_smallerMugshotURL} should return the
+        correct URL.
+        """
+        form = MugshotUploadForm(self.person, None)
+        self.assertEqual(
+            form.render_smallerMugshotURL(None, None),
+            self.organizer.linkToPerson(self.person) + '/mugshot/smaller')
 
 
 
@@ -1093,6 +1151,7 @@ class PeopleModelTestCase(unittest.TestCase):
                 organizer=self.organizer,
                 created=Time(),
                 name=name)
+
 
     def test_createPerson(self):
         """
@@ -2146,16 +2205,18 @@ class PersonDetailFragmentTests(unittest.TestCase):
     """
     Tests for L{xmantissa.people.PersonDetailFragment}.
     """
-    def test_uploadMugshot(self):
+    def test_mugshotUploadForm(self):
         """
-        Test that L{PersonDetailFragment} has a child page that allows picture
-        uploads.
+        L{PersonDetailFragment}'s I{mugshotUploadForm} child should return a
+        L{MugshotUploadForm}.
         """
         person = StubPerson([])
         person.organizer = StubOrganizer()
         fragment = PersonDetailFragment(person)
-        rsrc, segs = fragment.locateChild(None, ('uploadMugshot',))
-        self.failUnless(isinstance(rsrc, RedirectingUploadResource))
+        (resource, segments) = fragment.locateChild(
+            None, ('mugshotUploadForm',))
+        self.assertTrue(isinstance(resource, MugshotUploadForm))
+        self.assertIdentical(resource.person, person)
 
 
     def test_getPersonURL(self):
@@ -2671,6 +2732,18 @@ class EditPersonViewTests(unittest.TestCase):
         self.assertEqual(
             self.view.contactTypes[form.parameters[1].name],
             self.contactType)
+
+
+    def test_mugshotFormURL(self):
+        """
+        The I{mugshotFormURL} renderer of L{EditPersonView} should return the
+        correct URL.
+        """
+        mugshotFormURLRenderer = renderer.get(
+            self.view, 'mugshotFormURL')
+        self.assertEqual(
+            mugshotFormURLRenderer(None, None),
+            '/person/Alice/mugshotUploadForm')
 
 
     def test_renderable(self):

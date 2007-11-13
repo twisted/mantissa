@@ -2,13 +2,8 @@
   <nevow:invisible nevow:render="editorialContactForms" />
   <p />
   <center>
-    <form enctype="multipart/form-data" method="POST" name="mugshot"
-      class="mugshot-form">
-      <nevow:attr name="action">
-        <nevow:invisible nevow:render="mugshotUploadURL" />
-      </nevow:attr>
-      <input type="file" name="uploaddata" />
-      <input type="submit" name="upload" value="Upload Mugshot" />
-    </form>
+    <iframe class="mugshot-upload">
+      <nevow:attr name="src"><nevow:invisible nevow:render="mugshotFormURL" /></nevow:attr>
+    </iframe>
   </center>
 </div>

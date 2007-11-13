@@ -1303,6 +1303,14 @@ class EditPersonView(LiveElement):
         return form
 
 
+    def mugshotFormURL(self, request, tag):
+        """
+        Render a URL for L{MugshotUploadForm}.
+        """
+        return self.organizer.linkToPerson(self.person) + '/mugshotUploadForm'
+    renderer(mugshotFormURL)
+
+
     def editorialContactForms(self, request, tag):
         """
         Add a L{LiveForm} for editing the contact information of the wrapped
@@ -1310,14 +1318,6 @@ class EditPersonView(LiveElement):
         """
         return tag[self.makeEditorialLiveForm()]
     renderer(editorialContactForms)
-
-
-    def mugshotUploadURL(self, request, tag):
-        """
-        Return the URL the mugshot upload form should post to.
-        """
-        return self.organizer.linkToPerson(self.person) + '/uploadMugshot'
-    renderer(mugshotUploadURL)
 
 
 
@@ -1696,20 +1696,26 @@ class ExtractWrapperColumnView(ColumnViewBase):
 
 
 
-class RedirectingUploadResource(rend.Page):
+class MugshotUploadForm(rend.Page):
     """
-    Resource which redirects to a given URL after a POST request.
+    Resource which presents some UI for assocating a new mugshot with
+    L{person}.
 
-    @ivar cbGotFile: Function to call after a successful upload.  It will be
-    passed the C{unicode} content-type of the uploaded data and a file
-    containing the uploaded data.
+    @ivar person: The person whose mugshot is going to be changed.
+    @type person: L{Person}
 
-    @ivar redirectTo: URL to redirect to after the upload is complete.
+    @ivar cbGotImage: Function to call after a successful upload.  It will be
+    passed the C{unicode} content-type of the uploaded image and a file
+    containing the uploaded image.
     """
-    def __init__(self, cbGotFile, redirectTo):
-        self._cbGotFile = cbGotFile
-        self._redirectTo = redirectTo
+    docFactory = ThemedDocumentFactory('mugshot-upload-form', 'store')
+
+    def __init__(self, person, cbGotMugshot):
         rend.Page.__init__(self)
+        self.person = person
+        self.organizer  = person.organizer
+        self.store = person.store
+        self.cbGotMugshot = cbGotMugshot
 
 
     def renderHTTP(self, ctx):
@@ -1720,11 +1726,15 @@ class RedirectingUploadResource(rend.Page):
         req = inevow.IRequest(ctx)
         if req.method == 'POST':
             udata = req.fields['uploaddata']
-            self._cbGotFile(udata.type.decode('ascii'), udata.file)
-            req.redirect(url.URL.fromString(self._redirectTo))
-            return ''
-        else:
-            return rend.Page.renderHTTP(self, ctx)
+            self.cbGotMugshot(udata.type.decode('ascii'), udata.file)
+        return rend.Page.renderHTTP(self, ctx)
+
+
+    def render_smallerMugshotURL(self, ctx, data):
+        """
+        Render the URL of a smaller version of L{person}'s mugshot.
+        """
+        return self.organizer.linkToPerson(self.person) + '/mugshot/smaller'
 
 
 
@@ -2106,6 +2116,7 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
         f.setFragmentParent(self)
         return f
 
+
     def render_organizerPlugins(self, ctx, data):
         pat = inevow.IQ(self.docFactory).patternGenerator('person-fragment')
         for f in self.personFragments:
@@ -2115,16 +2126,20 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
                                 dict(title=f.title,
                                      fragment=f))
 
+
     def _gotMugshotFile(self, ctype, infile):
         (majortype, minortype) = ctype.split('/')
         if majortype == 'image':
             Mugshot.fromFile(self.person, infile, minortype)
 
-    def child_uploadMugshot(self, ctx):
+
+    def child_mugshotUploadForm(self, ctx):
         """
-        Return the resource for uploading a mugshot picture for this Person.
+        Return a L{MugshotUploadForm}, which will render some UI for
+        associating a new mugshot with this person.
         """
-        return RedirectingUploadResource(self._gotMugshotFile, getPersonURL(self.person))
+        return MugshotUploadForm(self.person, self._gotMugshotFile)
+
 
     def child_mugshot(self, ctx):
         """
