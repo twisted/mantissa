@@ -1,3 +1,7 @@
+0.6.12 (2007-11-13):
+  - The mugshot upload form is now rendered in an iframe,
+    and renders the current mugshot alongside it.
+
 0.6.11 (2007-11-09):
   - Usernames now do not have their domain rendered when viewed on a page
     served from that domain.
