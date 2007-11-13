@@ -1,3 +1,7 @@
+0.6.11 (2007-11-09):
+  - Usernames now do not have their domain rendered when viewed on a page
+    served from that domain.
+
 0.6.10 (2007-11-07):
   - Made the Required User Information Signup page a bit clearer about
     what the user has to do next. Instead of depositing the user
