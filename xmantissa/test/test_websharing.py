@@ -12,6 +12,7 @@ from nevow.context import WovenContext
 from nevow.athena import LiveElement
 from nevow.testutil import FakeRequest
 
+
 from axiom.item import Item
 from axiom.attributes import integer, text
 from axiom.store import Store
@@ -62,7 +63,7 @@ class WebSharingTestCase(TestCase):
         """
         Set up some state.
         """
-        self.s = Store(self.mktemp())
+        self.s = Store()
         self.ls = LoginSystem(store=self.s)
         installOn(self.ls, self.s)
         acct = self.ls.addAccount(
@@ -181,8 +182,8 @@ class WebSharingTestCase(TestCase):
 
 class _UserIdentificationMixin:
     def setUp(self):
-        self.siteStore = Store(self.mktemp())
-        Mantissa().installSite(self.siteStore, '/')
+        self.siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, "/", generateCert=False)
         Mantissa().installAdmin(self.siteStore, 'admin@localhost', '')
         for off in offering.getOfferings():
             if off.name == 'mantissa':

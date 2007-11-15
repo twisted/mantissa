@@ -153,8 +153,7 @@ class WebThemeTestCase(TestCase):
         particular store are returned by
         L{xmantissa.webtheme.getInstalledThemes}.
         """
-        dbdir = self.mktemp()
-        s = Store(dbdir)
+        s = Store()
         self.assertEquals(getInstalledThemes(s), [])
 
         installOffering(s, baseOffering, {})
@@ -200,7 +199,7 @@ class WebThemeTestCase(TestCase):
         Test that L{_ThemedMixin.getWebSite} finds the right object whether it
         is wrapped around a user store or the store store.
         """
-        siteStore = Store(self.mktemp())
+        siteStore = Store()
         siteSite = WebSite(store=siteStore)
         installOn(siteSite, siteStore)
 
@@ -432,7 +431,7 @@ class AthenaUnsupported(TestCase):
         Test that L{webapp.GenericNavigationLivePage} supports themeing
         of Athena's unsupported-browser page.
         """
-        s = Store(self.mktemp())
+        s = Store()
         installOn(WebSite(store=s), s)
         s.parent = s
         ss = SubStore.createNew(s, ['athena', 'unsupported'])
@@ -453,7 +452,7 @@ class AthenaUnsupported(TestCase):
         Test that L{webapp.GenericNavigationLivePage} renders something when
         Athena is unsupported, even if there's no customization installed.
         """
-        s = Store(self.mktemp())
+        s = Store()
         installOn(WebSite(store=s), s)
         s.parent = s
         ss = SubStore.createNew(s, ['athena', 'unsupported'])

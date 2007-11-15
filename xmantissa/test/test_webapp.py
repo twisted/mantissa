@@ -3,6 +3,7 @@ from zope.interface import implements
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
+from axiom.userbase import LoginSystem
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.substore import SubStore
@@ -27,7 +28,7 @@ class FakeResourceItem(Item):
 class WebIDLocationTest(TestCase):
 
     def setUp(self):
-        store = Store(self.mktemp())
+        store = Store()
         ss = SubStore.createNew(store, ['test']).open()
         self.pa = webapp.PrivateApplication(store=ss)
         installOn(self.pa, ss)
@@ -108,7 +109,7 @@ class GenericNavigationAthenaPageTests(TestCase,
         """
         Set up a site store, user store, and page instance to test with.
         """
-        self.siteStore = Store(self.mktemp())
+        self.siteStore = Store()
         installOn(website.WebSite(store=self.siteStore), self.siteStore)
 
         self.userStore = SubStore.createNew(
@@ -166,9 +167,8 @@ class PrivateApplicationTestCase(TestCase):
     Tests for L{webapp.PrivateApplication}.
     """
     def setUp(self):
-        self.dbdir = self.mktemp()
-        self.siteStore = Store(self.dbdir)
-        Mantissa().installSite(self.siteStore, '/')
+        self.siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, "/", generateCert=False)
 
         self.userAccount = Create().addAccount(
             self.siteStore, u'testuser', u'example.com', u'password')

@@ -23,7 +23,7 @@ class PasswordResetTestCase(TestCase):
         """
         Set up a fake objects and methods for the password reset tests.
         """
-        store = Store(self.mktemp())
+        store = Store()
         self.loginSystem = userbase.LoginSystem(store=store)
         la = self.loginSystem.addAccount(
             u'joe', u'divmod.com', u'secret', internal=True)

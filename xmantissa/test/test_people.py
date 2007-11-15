@@ -245,7 +245,7 @@ class MugshotTestCase(unittest.TestCase):
         Verify that L{Mugshot.fromFile} will update the attributes on an
         existing L{Mugshot} item for the given person, if one exists.
         """
-        store = Store(self.mktemp())
+        store = Store(filesdir=self.mktemp())
         person = Person(store=store)
         mugshot = Mugshot(
             store=store,
@@ -263,7 +263,7 @@ class MugshotTestCase(unittest.TestCase):
         Verify that L{Mugshot.fromFile} creates a new L{Mugshot} for the given
         person, if one does not exist.
         """
-        store = Store(self.mktemp())
+        store = Store(filesdir=self.mktemp())
         person = Person(store=store)
         self._doFromFileTest(store, person)
 
@@ -280,7 +280,7 @@ class MugshotTestCase(unittest.TestCase):
             makeThumbnailCalls.append((
                 inputFile, outputFile, thumbnailSize, outputFormat))
 
-        store = Store(self.mktemp())
+        store = Store(filesdir=self.mktemp())
         person = Person(store=store)
         inputFile = file(self.mktemp(), 'w')
         inputFormat = 'JPEG'
@@ -1402,8 +1402,7 @@ class PeopleModelTestCase(unittest.TestCase):
         L{Person.getMugshot} should return the L{Mugshot} item which refers to
         the person on which it is called when one exists.
         """
-        dbdir = self.mktemp()
-        store = Store(dbdir)
+        store = Store(filesdir=self.mktemp())
         person = Person(store=store)
         image = Mugshot(
             store=store, type=u"image/png",
@@ -2232,8 +2231,7 @@ class PersonDetailFragmentTests(unittest.TestCase):
         """
         Test that L{PersonDetailFragment} has a child page that displays a mugshot image.
         """
-        dbdir = self.mktemp()
-        store = Store(dbdir)
+        store = Store(filesdir=self.mktemp())
         person = Person(store=store)
         person.organizer = Organizer(store=store)
         fragment = PersonDetailFragment(person)

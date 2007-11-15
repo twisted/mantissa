@@ -4,10 +4,13 @@ from zope.interface import Interface
 from twisted.trial import unittest
 
 from axiom import store, item, attributes, userbase
-from axiom.scripts import axiomatic
+
+from axiom.plugins.mantissacmd import Mantissa
+
 from axiom.dependency import installedOn
 
 from xmantissa import ixmantissa, offering
+
 
 class TestSiteRequirement(item.Item):
     typeName = 'test_site_requirement'
@@ -37,11 +40,12 @@ class ITestInterface(Interface):
 
 class OfferingTest(unittest.TestCase):
     def setUp(self):
-        self.dbpath = self.mktemp()
-        axiomatic.main(['-d', self.dbpath, 'mantissa', '--admin-password', 'password'])
-        self.store = store.Store(self.dbpath)
+        self.store = store.Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.store, "/", generateCert=False)
+        Mantissa().installAdmin(self.store, u'admin@localhost', u'asdf')
         self.userbase = self.store.findUnique(userbase.LoginSystem)
         self.adminAccount = self.userbase.accountByAddress(u'admin', u'localhost')
+
 
     def testInstallation(self):
         conf = self.adminAccount.avatars.open().findUnique(offering.OfferingConfiguration)

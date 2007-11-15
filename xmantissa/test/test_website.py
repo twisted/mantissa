@@ -25,7 +25,6 @@ from epsilon.scripts import certcreate
 from axiom import userbase
 from axiom.store import Store
 from axiom.dependency import installOn
-from axiom.test.util import getPristineStore
 
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa import website, signup, publicweb
@@ -51,27 +50,25 @@ maybeEncryptedRootSuppression = util.suppress(
 
 
 
-def createStore(testCase):
+def createStore(path=None):
     """
-    Create a new Store in a temporary directory retrieved from C{testCase}.
-    Give it a LoginSystem and create an SSL certificate in its files directory.
-
-    @param testCase: The L{unittest.TestCase} by which the returned Store will
-    be used.
+    Create a new in-memory Store.  Give it a LoginSystem and create an SSL
+    certificate in its files directory.
 
     @rtype: L{Store}
     """
-    dbdir = testCase.mktemp()
-    store = Store(dbdir)
+
+    store = Store(path)
     login = userbase.LoginSystem(store=store)
     installOn(login, store)
-    certPath = store.newFilePath('server.pem')
-    certcreate.main(['--filename', certPath.path, '--quiet'])
     return store
 
 
 
 class WebSiteTestCase(unittest.TestCase):
+    """
+    Tests for L{xmantissa.website.WebSite}.
+    """
 
     def setUp(self):
         """
@@ -80,9 +77,8 @@ class WebSiteTestCase(unittest.TestCase):
         self.origFunction = http._logDateTimeStart
         http._logDateTimeStart = lambda: None
 
-        self.store = getPristineStore(self, createStore)
+        self.store = createStore()
         installOffering(self.store, baseOffering, {})
-        self.certPath = self.store.filesdir.child('server.pem')
         svc = service.IService(self.store)
         svc.privilegedStartService()
         svc.startService()
@@ -318,50 +314,6 @@ class WebSiteTestCase(unittest.TestCase):
         self.assertEqual(str(ws.rootURL(None)), '/')
 
 
-    def testOnlySecureSignup(self):
-        """
-        Make sure the signup page is only displayed over HTTPS.
-        """
-        ws = website.WebSite(store=self.store)
-        installOn(ws, self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        installOn(port, self.store)
-        securePort = SSLPort(store=self.store, portNumber=0, certificatePath=self.certPath, factory=ws)
-        installOn(securePort, self.store)
-
-        self.store.parent = self.store #blech
-
-        securePortNum = securePort.listeningPort.getHost().port
-
-        sc = signup.SignupConfiguration(store=self.store)
-        installOn(sc, self.store)
-        sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
-        signupPage = sg.createResource()
-        fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
-        result = renderPage(signupPage, reqFactory=lambda: fr)
-
-        def rendered(ignored):
-            self.assertEqual(fr.redirected_to, 'https://localhost:%s/signup' % (securePortNum,))
-        result.addCallback(rendered)
-        return result
-
-
-    def testOnlySecureLogin(self):
-        """
-        Make sure the login page is only displayed over HTTPS.
-        """
-        ws = website.WebSite(store=self.store)
-        installOn(ws, self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        installOn(port, self.store)
-        securePort = SSLPort(store=self.store, portNumber=0, certificatePath=self.certPath, factory=ws)
-        installOn(securePort, self.store)
-
-        url, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
-        self.assertEquals(url.scheme, "https")
-
-
     def testOnlyHTTPLogin(self):
         """
         If there's no secure port, work over HTTP anyway.
@@ -409,6 +361,80 @@ class WebSiteTestCase(unittest.TestCase):
 
 
 
+class SSLWebSiteTestCase(unittest.TestCase):
+    """
+    WebSite tests that require an SSL certificate to be generated.
+    """
+    def setUp(self):
+        """
+        Setup a store with a valid offering to run tests against.
+        """
+        self.store = createStore(self.mktemp())
+        self.certPath = self.store.newFilePath('server.pem')
+        certcreate.main(['--filename', self.certPath.path, '--quiet'])
+
+        self.origFunction = http._logDateTimeStart
+        http._logDateTimeStart = lambda: None
+
+        installOffering(self.store, baseOffering, {})
+        svc = service.IService(self.store)
+        svc.privilegedStartService()
+        svc.startService()
+
+
+    def tearDown(self):
+        http._logDateTimeStart = self.origFunction
+        del self.origFunction
+        svc = service.IService(self.store)
+        return svc.stopService()
+
+
+
+    def testOnlySecureSignup(self):
+        """
+        Make sure the signup page is only displayed over HTTPS.
+        """
+        ws = website.WebSite(store=self.store)
+        installOn(ws, self.store)
+        port = TCPPort(store=self.store, portNumber=0, factory=ws)
+        installOn(port, self.store)
+        securePort = SSLPort(store=self.store, portNumber=0, certificatePath=self.certPath, factory=ws)
+        installOn(securePort, self.store)
+
+        self.store.parent = self.store #blech
+
+        securePortNum = securePort.listeningPort.getHost().port
+
+        sc = signup.SignupConfiguration(store=self.store)
+        installOn(sc, self.store)
+        sg = sc.createSignup(u"test", signup.UserInfoSignup,
+                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
+        signupPage = sg.createResource()
+        fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
+        result = renderPage(signupPage, reqFactory=lambda: fr)
+
+        def rendered(ignored):
+            self.assertEqual(fr.redirected_to, 'https://localhost:%s/signup' % (securePortNum,))
+        result.addCallback(rendered)
+        return result
+
+
+    def testOnlySecureLogin(self):
+        """
+        Make sure the login page is only displayed over HTTPS.
+        """
+        ws = website.WebSite(store=self.store)
+        installOn(ws, self.store)
+        port = TCPPort(store=self.store, portNumber=0, factory=ws)
+        installOn(port, self.store)
+        securePort = SSLPort(store=self.store, portNumber=0, certificatePath=self.certPath, factory=ws)
+        installOn(securePort, self.store)
+
+        url, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
+        self.assertEquals(url.scheme, "https")
+
+
+
 class LoginPageTests(unittest.TestCase):
     """
     Tests for functionality related to login.
@@ -418,7 +444,7 @@ class LoginPageTests(unittest.TestCase):
         Create a L{Store}, L{WebSite} and necessary request-related objects to
         test L{LoginPage}.
         """
-        self.store = getPristineStore(self, createStore)
+        self.store = createStore()
         website.WebSite(store=self.store)
         installOffering(self.store, baseOffering, {})
         self.context = WebContext()
@@ -535,7 +561,7 @@ class UnguardedWrapperTests(unittest.TestCase):
         """
         Set up a store with a valid offering to test against.
         """
-        self.store = getPristineStore(self, createStore)
+        self.store = createStore()
         installOffering(self.store, baseOffering, {})
 
     def test_secureLoginRequest(self):

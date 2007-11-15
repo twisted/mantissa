@@ -80,9 +80,9 @@ class Mantissa(axiomatic.AxiomaticCommand):
         s.transact(self.installAdmin, s, adminUser, adminPassword)
 
 
-    def installSite(self, s, publicURL):
-        certPath = s.dbdir.child("files").child("server.pem")
-        if not certPath.exists():
+    def installSite(self, s, publicURL, generateCert=True):
+        certPath = s.filesdir.child("server.pem")
+        if generateCert and not certPath.exists():
             certcreate.main(['--filename', certPath.path, '--quiet', '--serial-number', str(genSerial())])
         # Install a user database so that people can log in.
         installOn(s.findOrCreate(userbase.LoginSystem), s)

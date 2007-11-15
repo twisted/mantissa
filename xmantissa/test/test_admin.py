@@ -1,4 +1,3 @@
-
 """
 Test cases for the L{xmantissa.webadmin} module.
 """
@@ -28,15 +27,13 @@ from xmantissa.webadmin import (
 from xmantissa.product import Product
 
 
-
 class UserInteractionFragmentTestCase(TestCase):
     def setUp(self):
         """
         Create a site store and a user store with a L{LocalUserBrowser}
         installed on it.
         """
-        self.sitedir = self.mktemp()
-        self.siteStore = Store(self.sitedir)
+        self.siteStore = Store()
         self.loginSystem = LoginSystem(store=self.siteStore)
         installOn(self.loginSystem, self.siteStore)
 
@@ -106,9 +103,8 @@ class ActionsTestCase(TestCase):
         web administrative tools, setting the instance variables described in
         this class's docstring.
         """
-        self.siteStore = Store(self.mktemp())
-
-        Mantissa().installSite(self.siteStore, None)
+        self.siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, "/", generateCert=False)
         Mantissa().installAdmin(self.siteStore, u'admin@localhost', u'asdf')
 
         self.siteMethod = self.siteStore.findUnique(
@@ -152,8 +148,7 @@ class RenderingTestCase(TestCase):
         Verify that the given fragment class will render without raising an
         exception.
         """
-        sitedir = self.mktemp()
-        siteStore = Store(sitedir)
+        siteStore = Store()
 
         loginSystem = LoginSystem(store=siteStore)
         installOn(loginSystem, siteStore)

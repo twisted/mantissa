@@ -13,8 +13,7 @@ from xmantissa.product import Product, Installation
 
 class SignupCreationTestCase(unittest.TestCase):
     def setUp(self):
-        self.dbdir = self.mktemp()
-        self.store = store.Store(self.dbdir)
+        self.store = store.Store()
         self.ls = userbase.LoginSystem(store=self.store)
         self.admin = self.ls.addAccount(u'admin', u'localhost', None,
                                         internal=True, verified=True)

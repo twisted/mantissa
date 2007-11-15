@@ -681,8 +681,7 @@ class InequalityPerformanceTests(unittest.TestCase):
     L{InequalityModel}.
     """
     def setUp(self):
-        self.dbdir = self.mktemp()
-        self.store = Store(self.dbdir)
+        self.store = Store()
         privApp = PrivateApplication(store=self.store)
         installOn(privApp, self.store)
         self.model = TestableInequalityModel(

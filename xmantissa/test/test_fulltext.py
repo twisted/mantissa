@@ -1,4 +1,5 @@
 
+
 from zope.interface import implements
 
 from twisted.trial import unittest
@@ -97,9 +98,8 @@ class IndexerTestsMixin:
 
 
     def setUp(self):
-        self.dbdir = self.mktemp()
         self.path = u'index'
-        self.store = store.Store(self.dbdir)
+        self.store = store.Store(filesdir=self.mktemp())
         installOn(Scheduler(store=self.store), self.store)
         self.indexer = self.createIndexer()
 

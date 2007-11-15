@@ -408,12 +408,12 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     signupPrompt = u'sign up now'
 
     def setUp(self):
-        self.store = Store()
+        self.store = Store(filesdir=self.mktemp())
         installOn(WebSite(store=self.store), self.store)
-        self.siteStore = Store(self.mktemp())
+        self.siteStore = Store(filesdir=self.mktemp())
 
         def siteStoreTxn():
-            Mantissa().installSite(self.siteStore, '/')
+            Mantissa().installSite(self.siteStore, "/", generateCert=False)
             ticketed = signup.FreeTicketSignup(
                 store=self.siteStore, prefixURL=self.signupURL,
                 prompt=self.signupPrompt)
