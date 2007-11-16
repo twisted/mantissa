@@ -52,7 +52,7 @@ class ThemedDocumentFactoryTests(TestCase):
         callable and a loader for the template for the fragment name the
         descriptor was created with to be created and returned.
         """
-        docFactory = object()
+        _docFactory = object()
         loadAttempts = []
         fragmentName = 'abc'
         class Dummy(object):
@@ -60,10 +60,10 @@ class ThemedDocumentFactoryTests(TestCase):
                 classProvides(ITemplateNameResolver)
                 def getDocFactory(name):
                     loadAttempts.append(name)
-                    return docFactory
+                    return _docFactory
                 getDocFactory = staticmethod(getDocFactory)
             docFactory = ThemedDocumentFactory(fragmentName, 'StubResolver')
-        self.assertIdentical(Dummy().docFactory, docFactory)
+        self.assertIdentical(Dummy().docFactory, _docFactory)
         self.assertEqual(loadAttempts, [fragmentName])
 
 
