@@ -12,6 +12,7 @@ except ImportError:
 from zope.interface import implements
 
 from twisted.python import components
+from twisted.python.filepath import FilePath
 from twisted.python.reflect import qual
 
 from nevow import rend, athena, inevow, static, url, tags
@@ -1084,9 +1085,6 @@ class PersonSummaryView(Element):
         Render the URL of L{person}'s mugshot, or the URL of a placeholder
         mugshot if they don't have one set.
         """
-        self.mugshot = self.person.getMugshot()
-        if self.mugshot is None:
-            return '/Mantissa/images/smaller-mugshot-placeholder.png'
         return self.organizer.linkToPerson(self.person) + '/mugshot/smaller'
     renderer(mugshotURL)
 
@@ -2090,8 +2088,8 @@ registerUpgrader(mugshot2to3, Mugshot.typeName, 2, 3)
 
 class MugshotResource(rend.Page):
     """
-    Web accessible resource that serves Mugshot images. Serves
-    a smaller mugshot if the final path segment is "smaller"
+    Web accessible resource that serves Mugshot images. Serves a smaller
+    mugshot if the final path segment is "smaller"
     """
     smaller = False
 
@@ -2342,9 +2340,20 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def child_mugshot(self, ctx):
         """
-        Return the resource displaying this Person's mugshot picture.
+        Return the resource displaying this Person's mugshot picture, or a
+        placeholder mugshot.
         """
-        return MugshotResource(self.person.getMugshot())
+        mugshot = self.person.getMugshot()
+        if mugshot is None:
+            imageDir = FilePath(__file__).parent().child(
+                'static').child('images')
+            mugshot = Mugshot(
+                type=u'image/png',
+                body=imageDir.child('mugshot-placeholder.png'),
+                smallerBody=imageDir.child(
+                    'smaller-mugshot-placeholder.png'),
+                person=self.person)
+        return MugshotResource(mugshot)
 
 
 
