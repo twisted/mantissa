@@ -8,13 +8,14 @@ Run this test like this::
     $ firefox http://localhost:8080/
     (where testname is one of "coerce", "inputerrors",
      "listChangeParameter", "listChangeParameterCompact",
-     "listChangeParameterNoDefaults")
+     "listChangeParameterNoDefaults", "choiceParameter",
+     "choiceParameterCompact")
 
 This will display a form which rejects most inputs.
 """
 
 from xmantissa.liveform import (TEXT_INPUT, InputError, Parameter, LiveForm,
-    ListChangeParameter)
+    ListChangeParameter, ChoiceParameter, Option)
 
 
 def coerce(theText):
@@ -38,8 +39,8 @@ def inputerrors():
     return form
 
 
-_parameterDefaults = [{u'foo': 1,  u'bar': 2},
-                      {u'foo': 10, u'bar': 20}]
+_parameterDefaults = [{u'foo': 1,  u'bar': 2,  u'baz': ['1']},
+                      {u'foo': 10, u'bar': 20, u'baz': ['2']}]
 
 
 def _listChangeParameter(**parameterKwargs):
@@ -56,7 +57,12 @@ def _listChangeParameter(**parameterKwargs):
         [ListChangeParameter(
             u'repeatableFoo',
             [Parameter('foo', TEXT_INPUT, int, 'Enter a number'),
-             Parameter('bar', TEXT_INPUT, int, 'And another')],
+             Parameter('bar', TEXT_INPUT, int, 'And another'),
+             ChoiceParameter(
+                 'baz',
+                 [Option('Value 1', '1', True),
+                  Option('Value 2', '2', False)],
+                 'Pick something')],
             modelObjectDescription=u'Repeatable Foo',
             **parameterKwargs)])
     form.jsClass = u'Mantissa.Test.EchoingFormWidget'
@@ -89,3 +95,28 @@ def listChangeParameterNoDefaults():
     Create a L{LiveForm} with a L{ListChangeParameter} and no defaults.
     """
     return _listChangeParameter(defaults=[], modelObjects=[])
+
+
+
+def choiceParameter():
+    """
+    Create a L{LiveForm} with a L{ChoiceParameter}.
+    """
+    return LiveForm(
+        lambda **k: unicode(k),
+        [ChoiceParameter(
+            'choice',
+            [Option('Thing 1', 'thing-one', False),
+             Option('Thing 2', 'thing-two', True),
+             Option('Thing 3', 'thing-three', False)],
+            'This is a choice between things')])
+
+
+
+def choiceParameterCompact():
+    """
+    Compact version of the form returned by L{choiceParameter}.
+    """
+    liveForm = choiceParameter()
+    liveForm.compact()
+    return liveForm

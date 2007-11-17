@@ -137,6 +137,27 @@ class Parameter(record('name type coercer label description default '
             self.coercer.compact()
 
 
+    def clone(self, default):
+        """
+        Make a copy of this parameter, supplying a different default.
+
+        @type default: C{unicode} or C{NoneType}
+        @param default: A value which will be initially presented in the view
+        as the value for this parameter, or C{None} if no such value is to be
+        presented.
+
+        @rtype: L{Parameter}
+        """
+        return self.__class__(
+            self.name,
+            self.type,
+            self.coercer,
+            self.label,
+            self.description,
+            default,
+            self.viewFactory)
+
+
 
 class FormParameter(record('name form label description default viewFactory',
                            label=None, description=None, default=None,
@@ -331,26 +352,21 @@ class ListChangeParameter(record('name parameters defaults modelObjects '
 
     def _cloneDefaultedParameter(self, original, default):
         """
-        Make a copy of the L{Parameter} C{original}, supplying C{default} as
-        the default value.
+        Make a copy of the parameter C{original}, supplying C{default} as the
+        default value.
 
-        @type original: L{Parameter}
+        @type original: L{Parameter} or L{ChoiceParameter}
         @param original: A liveform parameter.
 
-        @type default: same as L{Parameter.default}
         @param default: An alternate default value for the parameter.
 
-        @rtype: L{Parameter}
+        @rtype: L{Parameter} or L{ChoiceParameter}
         @return: A new parameter.
         """
-        return Parameter(
-            original.name,
-            original.type,
-            original.coercer,
-            original.label,
-            original.description,
-            default,
-            original.viewFactory)
+        if isinstance(original, ChoiceParameter):
+            default = [Option(o.description, o.value, o.value in default)
+                        for o in original.choices]
+        return original.clone(default)
 
 
     _counter = 0
@@ -691,6 +707,24 @@ class ChoiceParameter(record('name choices label description multiple '
         """
         Don't do anything.
         """
+
+
+    def clone(self, choices):
+        """
+        Make a copy of this parameter, supply different choices.
+
+        @param choices: A sequence of L{Option} instances.
+        @type choices: C{list}
+
+        @rtype: L{ChoiceParameter}
+        """
+        return self.__class__(
+            self.name,
+            choices,
+            self.label,
+            self.description,
+            self.multiple,
+            self.viewFactory)
 
 
 

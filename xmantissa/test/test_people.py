@@ -39,7 +39,8 @@ from xmantissa.people import (
     Organizer, Person, EmailAddress, AddPersonFragment, Mugshot,
     addContactInfoType, contactInfoItemTypeFromClassName,
     _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
-    PhoneNumber, setIconURLForContactInfoType, iconURLForContactInfoType,
+    PhoneNumber, PhoneNumberContactType, ReadOnlyPhoneNumberView,
+    setIconURLForContactInfoType, iconURLForContactInfoType,
     _CONTACT_INFO_ICON_URLS, PersonScrollingFragment, OrganizerFragment,
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
     PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
@@ -50,7 +51,7 @@ from xmantissa.people import (
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
     TEXT_INPUT, InputError, Parameter, LiveForm, ListChangeParameter,
-    ListChanges, CreateObject, EditObject, FormParameter)
+    ListChanges, CreateObject, EditObject, FormParameter, ChoiceParameter)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment)
 from xmantissa.signup import UserInfo
@@ -688,6 +689,19 @@ class ContactTestsMixin(object):
         # self.assertTrue(verifyObject(IContactType, self.contactType))
 
 
+    def test_organizerIncludesIt(self):
+        """
+        L{Organizer.getContactTypes} should include an instance of our contact
+        type in its return value.
+        """
+        organizer = Organizer(store=self.store)
+        self.assertTrue([
+                contactType
+                for contactType
+                in organizer.getContactTypes()
+                if isinstance(contactType, self.contactType.__class__)])
+
+
 
 class EmailContactTests(unittest.TestCase, ContactTestsMixin):
     """
@@ -711,19 +725,6 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
         L{EmailContactType.allowMultipleContactItems} should be C{True}.
         """
         self.assertTrue(self.contactType.allowMultipleContactItems)
-
-
-    def test_organizerIncludesIt(self):
-        """
-        L{Organizer.getContactTypes} should include an instance of
-        L{EmailContactType} in its return value.
-        """
-        organizer = Organizer(store=self.store)
-        self.assertTrue([
-                contactType
-                for contactType
-                in organizer.getContactTypes()
-                if isinstance(contactType, EmailContactType)])
 
 
     def test_createContactItem(self):
@@ -869,7 +870,7 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
 
 
 
-class VIPPersonContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
+class VIPPersonContactTypeTestCase(unittest.TestCase):
     """
     Tests for L{VIPPersonContactType}.
     """
@@ -879,6 +880,13 @@ class VIPPersonContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
         """
         self.person = Person(vip=False)
         self.contactType = VIPPersonContactType()
+
+
+    def test_providesContactType(self):
+        """
+        L{VIPPersonContactType} should provide L{IContactType}.
+        """
+        self.assertTrue(IContactType.providedBy(self.contactType))
 
 
     def test_createContactItem(self):
@@ -983,19 +991,6 @@ class PostalContactTests(unittest.TestCase, ContactTestsMixin):
         self.assertTrue(self.contactType.allowMultipleContactItems)
 
 
-    def test_organizerIncludesIt(self):
-        """
-        L{Organizer.getContactTypes} should include an instance of
-        L{PostalContactType} in its return value.
-        """
-        organizer = Organizer(store=self.store)
-        self.assertTrue([
-                contactType
-                for contactType
-                in organizer.getContactTypes()
-                if isinstance(contactType, PostalContactType)])
-
-
     def test_createContactItem(self):
         """
         L{PostalContactType.createContactItem} should create a L{PostalAddress}
@@ -1095,6 +1090,187 @@ class PostalContactTests(unittest.TestCase, ContactTestsMixin):
         view = self.contactType.getReadOnlyView(contact)
         self.assertTrue(isinstance(view, ReadOnlyPostalAddressView))
         self.assertIdentical(view._address, contact)
+
+
+
+class PhoneNumberContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
+    """
+    Tests for L{PhoneNumberContactType}.
+    """
+    def setUp(self):
+        """
+        Create a store, L{PhoneNumberContactType} and L{Person}.
+        """
+        self.store = Store()
+        self.person = Person(store=self.store)
+        self.contactType = PhoneNumberContactType()
+
+
+    def test_descriptiveIdentifier(self):
+        """
+        L{PhoneNumberContactType.descriptiveIdentifier} should be "Phone
+        Number".
+        """
+        self.assertEqual(
+            self.contactType.descriptiveIdentifier(), u'Phone Number')
+
+
+    def test_allowsMultipleContactItems(self):
+        """
+        L{PhoneNumberContactType.allowMultipleContactItems} should be C{True}.
+        """
+        self.assertTrue(self.contactType.allowMultipleContactItems)
+
+
+    def test_createContactItem(self):
+        """
+        L{PhoneNumberContactType.createContactItem} should create a
+        L{PhoneNumber} item with the supplied value.
+        """
+        contactItem = self.contactType.createContactItem(
+            self.person,
+            label=PhoneNumber.LABELS.HOME,
+            number=u'123456')
+        numbers = list(self.store.query(PhoneNumber))
+        self.assertEqual(numbers, [contactItem])
+        self.assertEqual(
+            contactItem.label, PhoneNumber.LABELS.HOME)
+        self.assertEqual(contactItem.number, u'123456')
+        self.assertIdentical(contactItem.person, self.person)
+
+
+    def test_createContactItemWithEmptyString(self):
+        """
+        L{PhoneNumberContactType.createContactItem} shouldn't create an item
+        if it's passed an empty number.
+        """
+        self.assertIdentical(
+            self.contactType.createContactItem(
+                self.person,
+                label=PhoneNumber.LABELS.HOME,
+                number=u''),
+            None)
+        self.assertEqual(self.store.query(PhoneNumber).count(), 0)
+
+
+    def test_editContactItem(self):
+        """
+        L{PhoneNumberContactType.editContactItem} should update the I{number}
+        and I{label} attribute sof the given item.
+        """
+        contactItem = PhoneNumber(
+            store=self.store,
+            person=self.person,
+            label=PhoneNumber.LABELS.HOME,
+            number=u'123456')
+        self.contactType.editContactItem(
+            contactItem,
+            label=PhoneNumber.LABELS.WORK,
+            number=u'654321')
+        self.assertEqual(
+            contactItem.label, PhoneNumber.LABELS.WORK)
+        self.assertEqual(contactItem.number, u'654321')
+
+
+    def test_getParameters(self):
+        """
+        L{PhoneNumberContactType.getParameters} should return a list
+        containing two parameters.
+        """
+        parameters = self.contactType.getParameters(None)
+        self.assertEqual(len(parameters), 2)
+        (labelParam, numberParam) = parameters
+        self.assertTrue(isinstance(labelParam, ChoiceParameter))
+        self.assertEqual(labelParam.name, 'label')
+        self.assertEqual(
+            [c.value for c in labelParam.choices],
+            PhoneNumber.LABELS.ALL_LABELS)
+        self.assertTrue(isinstance(numberParam, Parameter))
+        self.assertEqual(numberParam.name, 'number')
+        self.assertEqual(numberParam.default, '')
+        self.assertEqual(numberParam.type, TEXT_INPUT)
+
+
+    def test_getParametersWithDefault(self):
+        """
+        L{PhoneNumberContactType.getParameters} should correctly default the
+        returned parameter if its passed a contact item.
+        """
+        contactItem = PhoneNumber(
+            store=self.store,
+            person=self.person,
+            label=PhoneNumber.LABELS.HOME,
+            number=u'123456')
+        parameters = self.contactType.getParameters(contactItem)
+        self.assertEqual(len(parameters), 2)
+        (labelParam, numberParam) = parameters
+        selectedOptions = []
+        for choice in labelParam.choices:
+            if choice.selected:
+                selectedOptions.append(choice.value)
+        self.assertEqual(selectedOptions, [contactItem.label])
+        self.assertEqual(numberParam.default, contactItem.number)
+
+
+    def test_getContactItems(self):
+        """
+        L{PhoneNumberContactType.getContactItems} should return only
+        L{PhoneNumber} items associated with the given person.
+        """
+        otherPerson = Person(store=self.store)
+        PhoneNumber(
+            store=self.store, person=otherPerson, number=u'123455')
+        expectedNumbers = [
+            PhoneNumber(
+                store=self.store, person=self.person, number=u'123456'),
+            PhoneNumber(
+                store=self.store, person=self.person, number=u'123457')]
+        self.assertEqual(
+            list(self.contactType.getContactItems(self.person)),
+            expectedNumbers)
+
+
+    def test_getReadOnlyView(self):
+        """
+        L{PhoneNumberContactType.getReadOnlyView} should return a
+        correctly-initialized L{ReadOnlyPhoneNumberView}.
+        """
+        contactItem = PhoneNumber(
+            store=self.store, person=self.person, number=u'123456')
+        view = self.contactType.getReadOnlyView(contactItem)
+        self.assertTrue(isinstance(view, ReadOnlyPhoneNumberView))
+        self.assertIdentical(view.phoneNumber, contactItem)
+
+
+
+class ReadOnlyPhoneNumberViewTestCase(unittest.TestCase, TagTestingMixin):
+    """
+    Tests for L{ReadOnlyPhoneNumberView}.
+    """
+    def test_number(self):
+        """
+        The I{number} renderer of L{ReadOnlyPhoneNumberView} should return the
+        value of the wrapped L{PhoneNumber}'s C{number} attribute.
+        """
+        contactItem = PhoneNumber(
+            person=Person(), number=u'123456')
+        view = ReadOnlyPhoneNumberView(contactItem)
+        value = renderer.get(view, 'number')(None, div)
+        self.assertTag(value, 'div', {}, [contactItem.number])
+
+
+    def test_label(self):
+        """
+        The I{label} renderer of L{ReadOnlyPhoneNumberView} should return the
+        value of the wrapped L{PhoneNumber}'s C{label} attribute.
+        """
+        contactItem = PhoneNumber(
+            person=Person(),
+            label=PhoneNumber.LABELS.WORK,
+            number=u'123456')
+        view = ReadOnlyPhoneNumberView(contactItem)
+        value = renderer.get(view, 'label')(None, div)
+        self.assertTag(value, 'div', {}, [contactItem.label])
 
 
 
@@ -1536,9 +1712,9 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(
             secondContactPowerup, IOrganizerPlugin, priority=0)
 
-        # Skip the first three (builtin) contact types
+        # Skip the first four (builtin) contact types
         self.assertEqual(
-            list(self.organizer.getContactTypes())[3:],
+            list(self.organizer.getContactTypes())[4:],
             firstContactTypes + secondContactTypes)
 
 
@@ -1561,7 +1737,7 @@ class PeopleModelTestCase(unittest.TestCase):
         finally:
             Organizer.getOrganizerPlugins = getOrganizerPlugins
 
-        self.assertEqual(contactTypes[3:], [])
+        self.assertEqual(contactTypes[4:], [])
 
 
     def test_getContactCreationParameters(self):
@@ -1579,11 +1755,11 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        self.assertEqual(len(parameters), 4)
-        self.assertTrue(isinstance(parameters[3], ListChangeParameter))
+        self.assertEqual(len(parameters), 5)
+        self.assertTrue(isinstance(parameters[4], ListChangeParameter))
         self.assertEqual(
-            parameters[3].modelObjectDescription, u'Very Descriptive')
-        self.assertEqual(parameters[3].name, qual(StubContactType))
+            parameters[4].modelObjectDescription, u'Very Descriptive')
+        self.assertEqual(parameters[4].name, qual(StubContactType))
 
 
     def test_getContactCreationParametersUnrepeatable(self):
@@ -1601,7 +1777,7 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        liveFormParameter = parameters[3]
+        liveFormParameter = parameters[4]
         self.assertTrue(isinstance(liveFormParameter, FormParameter))
         self.assertEqual(liveFormParameter.name, qual(StubContactType))
         liveForm = liveFormParameter.form
@@ -1625,11 +1801,11 @@ class PeopleModelTestCase(unittest.TestCase):
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
 
-        self.assertIdentical(parameters[3][0], contactTypes[0])
+        self.assertIdentical(parameters[4][0], contactTypes[0])
         self.failUnless(
-            isinstance(parameters[3][1], ListChangeParameter))
+            isinstance(parameters[4][1], ListChangeParameter))
         self.assertEqual(
-            parameters[3][1].modelObjectDescription, u'So Descriptive')
+            parameters[4][1].modelObjectDescription, u'So Descriptive')
 
 
     def test_getContactEditorialParametersUnrepeatable(self):
@@ -1651,7 +1827,7 @@ class PeopleModelTestCase(unittest.TestCase):
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
 
-        (contactType, liveFormParameter) = parameters[3]
+        (contactType, liveFormParameter) = parameters[4]
         self.assertIdentical(contactType, contactTypes[0])
         self.assertTrue(isinstance(liveFormParameter, FormParameter))
         self.assertEqual(liveFormParameter.name, qual(StubContactType))
@@ -1916,10 +2092,10 @@ class PeopleTests(unittest.TestCase):
         addPersonFrag._baseParameters = [
             Parameter('foo', TEXT_INPUT, unicode, 'Foo')]
 
-        # With no plugins, only the EmailContactType and PostalContactType
-        # parameters should be returned.
+        # With no plugins, only the parameters for the builtin contact types
+        # should be returned
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 4)
+        self.assertEqual(len(addPersonForm.parameters), 5)
 
         contactTypes = [StubContactType((), None, None)]
         observer = StubOrganizerPlugin(
@@ -1927,7 +2103,7 @@ class PeopleTests(unittest.TestCase):
         self.store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(len(addPersonForm.parameters), 5)
+        self.assertEqual(len(addPersonForm.parameters), 6)
 
 
     def test_addPersonWithContactItems(self):

@@ -714,6 +714,7 @@ class Organizer(item.Item):
         yield VIPPersonContactType()
         yield EmailContactType(self.store)
         yield PostalContactType()
+        yield PhoneNumberContactType()
         for plugin in self.getOrganizerPlugins():
             getContactTypes = getattr(plugin, 'getContactTypes', None)
             if getContactTypes is not None:
@@ -750,6 +751,30 @@ class Organizer(item.Item):
                         contactType.getParameters(None)))
 
 
+    def _parametersToDefaults(self, parameters):
+        """
+        Extract the defaults from C{parameters}, constructing a dictionary
+        mapping parameter names to default values, suitable for passing to
+        L{ListChangeParameter}.
+
+        @type parameters: C{list} of L{liveform.Parameter} or
+        L{liveform.ChoiceParameter}.
+
+        @rtype: C{dict}
+        """
+        defaults = {}
+        for p in parameters:
+            if isinstance(p, liveform.ChoiceParameter):
+                selected = []
+                for choice in p.choices:
+                    if choice.selected:
+                        selected.append(choice.value)
+                defaults[p.name] = selected
+            else:
+                defaults[p.name] = p.default
+        return defaults
+
+
     def getContactEditorialParameters(self, person):
         """
         Yield L{LiveForm} parameters to edit each contact item of each contact
@@ -766,8 +791,8 @@ class Organizer(item.Item):
                 defaults = []
                 for contactItem in contactItems:
                     defaultedParameters = contactType.getParameters(contactItem)
-                    defaults.append(dict((p.name, p.default)
-                        for p in defaultedParameters))
+                    defaults.append(self._parametersToDefaults(
+                        defaultedParameters))
                 descriptiveIdentifier = _descriptiveIdentifier(contactType)
                 param = liveform.ListChangeParameter(
                     contactType.uniqueIdentifier(),
@@ -1387,11 +1412,51 @@ class PhoneNumber(item.Item):
     person = attributes.reference(allowNone=False)
     label = attributes.text(
         """
-        This is a label for the role of the phone number, usually something like
-        "home", "office", "mobile".
+        This is a label for the role of the phone number.
         """,
         allowNone=False,
         default=u'',)
+
+
+    class LABELS:
+        """
+        Constants to use for the value of the L{label} attribute, describing
+        the type of the telephone number.
+
+        @ivar HOME: This is a home phone number.
+        @type HOME: C{unicode}
+
+        @ivar WORK: This is a work phone number.
+        @type WORK: C{unicode}
+
+        @ivar MOBILE: This is a mobile phone number.
+        @type MOBILE: C{unicode}
+
+        @ivar HOME_FAX: This is the 80's and someone has a fax machine in
+        their house.
+        @type HOME_FAX: C{unicode}
+
+        @ivar WORK_FAX: This is the 80's and someone has a fax machine in
+        their office.
+        @type WORK_FAX: C{unicode}
+
+        @ivar PAGER: This is the 80's and L{person} is a drug dealer.
+        @type PAGER: C{unicode}
+
+        @ivar ALL_LABELS: A sequence of all of the label constants.
+        @type ALL_LABELS: C{list}
+        """
+        HOME = u'Home'
+        WORK = u'Work'
+        MOBILE = u'Mobile'
+        HOME_FAX = u'Home Fax'
+        WORK_FAX = u'Work Fax'
+        PAGER = u'Pager'
+
+
+        ALL_LABELS = [HOME, WORK, MOBILE, HOME_FAX, WORK_FAX, PAGER]
+
+
 
 setIconURLForContactInfoType(PhoneNumber, '/Mantissa/images/PhoneNumber-icon.png')
 
@@ -1410,6 +1475,140 @@ registerUpgrader(phoneNumber1to2,
                  1, 2)
 
 registerAttributeCopyingUpgrader(PhoneNumber, 2, 3)
+
+
+
+class PhoneNumberContactType(BaseContactType):
+    """
+    Contact type plugin which allows telephone numbers to be associated with
+    people.
+    """
+    implements(IContactType)
+
+    def getParameters(self, phoneNumber):
+        """
+        Return a C{list} of two liveform parameters, one for editing
+        C{phoneNumber}'s I{number} attribute, and one for editing its I{label}
+        attribute.
+
+        @type phoneNumber: L{PhoneNumber} or C{NoneType}
+        @param phoneNumber: If not C{None}, an existing contact item from
+        which to get the parameter's default values.
+
+        @rtype: C{list}
+        """
+        defaultNumber = u''
+        defaultLabel = PhoneNumber.LABELS.HOME
+        if phoneNumber is not None:
+            defaultNumber = phoneNumber.number
+            defaultLabel = phoneNumber.label
+        labelChoiceParameter = liveform.ChoiceParameter(
+            'label',
+            [liveform.Option(label, label, label == defaultLabel)
+                for label in PhoneNumber.LABELS.ALL_LABELS],
+            'Number Type')
+        return [
+            labelChoiceParameter,
+            liveform.Parameter(
+                'number',
+                liveform.TEXT_INPUT,
+                unicode,
+                'Phone Number',
+                default=defaultNumber)]
+
+
+    def descriptiveIdentifier(self):
+        """
+        Return 'Phone Number'
+        """
+        return u'Phone Number'
+
+
+    def createContactItem(self, person, label, number):
+        """
+        Create a L{PhoneNumber} item for C{number}, associated with C{person}.
+
+        @type person: L{Person}
+
+        @param label: The value to use for the I{label} attribute of the new
+        L{PhoneNumber} item.
+        @type label: C{unicode}
+
+        @param number: The value to use for the I{number} attribute of the new
+        L{PhoneNumber} item.  If C{''}, no item will be created.
+        @type number: C{unicode}
+
+        @rtype: L{PhoneNumber} or C{NoneType}
+        """
+        if number:
+            return PhoneNumber(
+                store=person.store, person=person, label=label, number=number)
+
+
+    def editContactItem(self, contact, label, number):
+        """
+        Change the I{number} attribute of C{contact} to C{number}, and the
+        I{label} attribute to C{label}.
+
+        @type contact: L{PhoneNumber}
+
+        @type label: C{unicode}
+
+        @type number: C{unicode}
+
+        @return: C{None}
+        """
+        contact.label = label
+        contact.number = number
+
+
+    def getContactItems(self, person):
+        """
+        Return an iterable of L{PhoneNumber} items that are associated with
+        C{person}.
+
+        @type person: L{Person}
+        """
+        return person.store.query(
+            PhoneNumber, PhoneNumber.person == person)
+
+
+    def getReadOnlyView(self, contact):
+        """
+        Return a L{ReadOnlyPhoneNumberView} for the given L{PhoneNumber}.
+        """
+        return ReadOnlyPhoneNumberView(contact)
+
+
+
+class ReadOnlyPhoneNumberView(Element):
+    """
+    Read-only view for L{PhoneNumber}.
+
+    @type phoneNumber: L{PhoneNumber}
+    """
+    docFactory = ThemedDocumentFactory(
+        'person-contact-read-only-phone-number-view', 'store')
+
+    def __init__(self, phoneNumber):
+        self.phoneNumber = phoneNumber
+        self.store = phoneNumber.store
+
+
+    def number(self, request, tag):
+        """
+        Add the value of L{phoneNumber}'s I{number} attribute to C{tag}.
+        """
+        return tag[self.phoneNumber.number]
+    renderer(number)
+
+
+    def label(self, request, tag):
+        """
+        Add the value of L{phoneNumber}'s I{label} attribute to C{tag}.
+        """
+        return tag[self.phoneNumber.label]
+    renderer(label)
 
 
 
@@ -1439,7 +1638,7 @@ class PostalContactType(BaseContactType):
 
         @type postalAddress: L{PostalAddress} or C{NoneType}
 
-        @param emailAddress: If not C{None}, an existing contact item from
+        @param postalAddress: If not C{None}, an existing contact item from
             which to get the postal address default value.
 
         @rtype: C{list}
@@ -1472,9 +1671,9 @@ class PostalContactType(BaseContactType):
         @type address: C{unicode}
         @param address: The value to use for the I{address} attribute of the
             newly created L{PostalAddress}.  If C{''}, no L{PostalAddress} will
-            be created.  create.
+            be created.
 
-        @return: C{None}
+        @rtype: L{PostalAddress} or C{NoneType}
         """
         if address:
             return PostalAddress(

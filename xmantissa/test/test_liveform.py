@@ -138,6 +138,21 @@ class ParameterTestsMixin:
         return self._defaultRenderTest('liveform-compact')
 
 
+    def test_clone(self):
+        """
+        The parameter should be cloneable.
+        """
+        newDefault = object()
+        param = self.param.clone(newDefault)
+        self.assertTrue(isinstance(param, self.param.__class__))
+        self.assertIdentical(param.name, self.param.name)
+        self.assertIdentical(param.label, self.param.label)
+        self.assertIdentical(param.description, self.param.description)
+        self.assertIdentical(param.coercer, self.param.coercer)
+        self.assertIdentical(param.default, newDefault)
+        self.assertIdentical(param.viewFactory, self.param.viewFactory)
+
+
 
 class TextLikeParameterViewTestsMixin:
     """
@@ -342,6 +357,22 @@ class ChoiceParameterTests(TestCase, ParameterTestsMixin, TagTestingMixin):
         self.param.description = None
         renderedOptions = renderer.get(self.view, 'description')(None, tag)
         self.assertTag(renderedOptions, 'div', {}, [])
+
+
+    def test_clone(self):
+        """
+        L{ChoiceParameter} instances should be cloneable.
+        """
+        newChoices = [object()]
+        param = self.param.clone(newChoices)
+        self.assertTrue(isinstance(param, self.param.__class__))
+        self.assertIdentical(param.name, self.param.name)
+        self.assertIdentical(param.label, self.param.label)
+        self.assertIdentical(param.type, self.param.type)
+        self.assertIdentical(param.description, self.param.description)
+        self.assertIdentical(param.multiple, self.param.multiple)
+        self.assertIdentical(param.choices, newChoices)
+        self.assertIdentical(param.viewFactory, self.param.viewFactory)
 
 
 
@@ -1445,13 +1476,53 @@ class ListChangeParameterTestCase(TestCase):
         """
         liveFormWrapper = self.parameter._makeDefaultLiveForm(
             (self.parameter.defaults[0], 1234))
-        self.failUnless(isinstance(liveFormWrapper, self.parameter.repeatedLiveFormWrapper))
+        self.failUnless(isinstance(
+            liveFormWrapper, self.parameter.repeatedLiveFormWrapper))
         liveForm = liveFormWrapper.liveForm
         self.failUnless(isinstance(liveForm, LiveForm))
         self.assertEqual(
             len(liveForm.parameters), len(self.innerParameters))
         for parameter in liveForm.parameters:
             self.assertEqual(parameter.default, self.defaultValues[parameter.name])
+
+
+    def test_makeADefaultLiveFormChoiceParameter(self):
+        """
+        Verify that the parameter-defaulting done by
+        L{ListChangeParameter._makeDefaultLiveForm} works for
+        L{ChoiceParameter} instances.
+        """
+        param = ListChangeParameter(
+            u'',
+            [ChoiceParameter(
+                u'choice',
+                [Option(u'opt 1', u'1', True),
+                 Option(u'opt 2', u'2', False)],
+                u'label!',
+                u'description!',
+                multiple=True)])
+        liveFormWrapper = param._makeDefaultLiveForm(
+            ({u'choice': [u'1', u'2']}, 1234))
+        liveForm = liveFormWrapper.liveForm
+        clonedParams = liveForm.parameters
+        self.assertEqual(len(clonedParams), 1)
+        clonedChoiceParam = clonedParams[0]
+        self.assertTrue(
+            isinstance(clonedChoiceParam, ChoiceParameter))
+        self.assertEqual(clonedChoiceParam.name, u'choice')
+        self.assertEqual(clonedChoiceParam.label, u'label!')
+        self.assertEqual(
+            clonedChoiceParam.description, u'description!')
+        self.assertTrue(clonedChoiceParam.multiple)
+
+        self.assertEqual(len(clonedChoiceParam.choices), 2)
+        (c1, c2) = clonedChoiceParam.choices
+        self.assertEqual(c1.description, u'opt 1')
+        self.assertEqual(c1.value, u'1')
+        self.assertEqual(c1.selected, True)
+        self.assertEqual(c2.description, u'opt 2')
+        self.assertEqual(c2.value, u'2')
+        self.assertEqual(c2.selected, True)
 
 
     def test_asLiveFormIdentifier(self):
