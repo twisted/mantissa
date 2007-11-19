@@ -12,7 +12,7 @@ from zope.interface import implements
 from twisted.python import components
 from twisted.python.reflect import qual
 
-from nevow import rend, athena, inevow, static, tags
+from nevow import rend, athena, inevow, static, tags, url
 from nevow.athena import expose, LiveElement
 from nevow.loaders import stan
 from nevow.page import Element, renderer
@@ -23,8 +23,9 @@ from epsilon import extime
 from axiom import item, attributes
 from axiom.dependency import dependsOn, installOn
 from axiom.attributes import boolean
-from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader, registerDeletionUpgrader
-
+from axiom.upgrade import (
+    registerUpgrader, registerAttributeCopyingUpgrader,
+    registerDeletionUpgrader)
 
 from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
@@ -35,6 +36,7 @@ from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingElement, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.webtheme import ThemedDocumentFactory, ThemedFragment
+
 
 def makeThumbnail(inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
     """
@@ -995,6 +997,27 @@ class Organizer(item.Item):
                 '/' + self._webTranslator.toWebID(person))
 
 
+    def urlForViewState(self, person, viewState):
+        """
+        Return a url for L{OrganizerFragment} which will display C{person} in
+        state C{viewState}.
+
+        @type person: L{Person}
+        @type viewState: L{ORGANIZER_VIEW_STATES} constant.
+
+        @rtype: L{url.URL}
+        """
+        # ideally there would be a more general mechanism for encoding state
+        # like this in a url, rather than ad-hoc query arguments for each
+        # fragment which needs to do it.
+        organizerURL = self._webTranslator.linkTo(self.storeID)
+        return url.URL(
+            netloc='', scheme='',
+            pathsegs=organizerURL.split('/')[1:],
+            querysegs=(('initial-person', person.name),
+                       ('initial-state', viewState)))
+
+
     # INavigableElement
     def getTabs(self):
         """
@@ -1153,10 +1176,38 @@ class ReadOnlyContactInfoView(Element):
 
 
 
-class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
+class ORGANIZER_VIEW_STATES:
     """
+    Some constants describing possible initial states of L{OrganizerFragment}.
+
+    @ivar EDIT: The state which involves editing a person.
+
+    @ivar ALL_STATES: A sequence of all valid initial states.
+    """
+    EDIT = u'edit'
+
+    ALL_STATES = (EDIT,)
+
+
+
+class OrganizerFragment(athena.LiveFragment):
+    """
+    Address book view.  The initial state of this fragment can be extracted
+    from the query parameters in its url, if present.  The two parameters it
+    looks for are: I{initial-person} (the name of the L{Person} to select
+    initially in the scrolltable) and I{initial-state} (a
+    L{ORGANIZER_VIEW_STATES} constant describing what to do with the person).
+    Both query arguments must be present if either is.
+
     @type organizer: L{Organizer}
     @ivar organizer: The organizer for which this is a view.
+
+    @ivar initialPerson: The person to load initially.  Defaults to C{None}.
+    @type initialPerson: L{Person} or C{NoneType}
+
+    @ivar initialState: The initial state of the organizer view.  Defaults to
+    C{None}.
+    @type initialState: L{ORGANIZER_VIEW_STATES} or C{NoneType}
     """
     docFactory = ThemedDocumentFactory('people-organizer', 'store')
     fragmentName = None
@@ -1164,18 +1215,48 @@ class OrganizerFragment(athena.LiveFragment, rend.ChildLookupMixin):
     title = 'People'
     jsClass = u'Mantissa.People.Organizer'
 
-    def __init__(self, organizer):
+    def __init__(self, organizer, initialPerson=None, initialState=None):
+        athena.LiveFragment.__init__(self)
         self.organizer = organizer
+        self.initialPerson = initialPerson
+        self.initialState = initialState
+
         self.store = organizer.store
         self.wt = organizer._webTranslator
-        athena.LiveFragment.__init__(self)
+
+
+    def beforeRender(self, ctx):
+        """
+        Implement this hook to initialize the L{initialPerson} and
+        L{initialState} slots with information from the request url's query
+        args.
+        """
+        # see the comment in Organizer.urlForViewState which suggests an
+        # alternate implementation of this kind of functionality.
+        request = inevow.IRequest(ctx)
+        if 'initial-person' not in request.args:
+            return
+        initialPersonName = request.args['initial-person'][0]
+        initialPerson = self.store.findFirst(
+            Person, Person.name == initialPersonName.decode('ascii'))
+        if initialPerson is None:
+            return
+        initialState = request.args['initial-state'][0]
+        if initialState not in ORGANIZER_VIEW_STATES.ALL_STATES:
+            return
+        self.initialPerson = initialPerson
+        self.initialState = initialState.decode('ascii')
 
 
     def getInitialArguments(self):
         """
-        Include L{organizer}'s C{storeOwnerPerson}'s name.
+        Include L{organizer}'s C{storeOwnerPerson}'s name, and the name of
+        L{initialPerson} and the value of L{initialState}, if they are set.
         """
-        return (self.organizer.storeOwnerPerson.name,)
+        initialArguments = (self.organizer.storeOwnerPerson.name,)
+        if self.initialPerson is not None:
+            initialArguments += (self.initialPerson.name, self.initialState)
+        return initialArguments
 
 
     def head(self):

@@ -31,6 +31,8 @@ from axiom.dependency import installOn, installedOn
 from axiom.item import Item
 from axiom.attributes import inmemory, text
 from axiom.errors import DeletionDisallowed
+from axiom.plugins.userbasecmd import Create
+from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
 from xmantissa.scrolltable import UnsortableColumn
@@ -46,7 +48,8 @@ from xmantissa.people import (
     PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
     ReadOnlyEmailView, ReadOnlyPostalAddressView, getPersonURL,
     _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
-    ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm)
+    ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
+    ORGANIZER_VIEW_STATES)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -2254,6 +2257,20 @@ class PeopleTests(unittest.TestCase):
                           + privapp.toWebID(p)))
 
 
+    def test_urlForViewState(self):
+        """
+        L{Organizer.urlForViewState} should generate a valid, correctly quoted
+        url.
+        """
+        organizerURL = IWebTranslator(self.store).linkTo(
+            self.organizer.storeID)
+        person = self.organizer.createPerson(u'A Person')
+        self.assertEqual(
+            str(self.organizer.urlForViewState(
+                person, ORGANIZER_VIEW_STATES.EDIT)),
+            organizerURL + '?initial-person=A%20Person&initial-state=edit')
+
+
 
 class StubPerson(object):
     """
@@ -2646,6 +2663,125 @@ class OrganizerFragmentTests(unittest.TestCase):
             self.fragment, 'getContactInfoWidget')(name)
         self.assertTrue(isinstance(widget, ReadOnlyContactInfoView))
         self.assertIdentical(widget.person, person)
+
+
+    def test_initialArgumentsNoInitialPerson(self):
+        """
+        When L{Organizer.initialPerson} is C{None},
+        L{Organizer.getInitialArguments} should be a one-element tuple
+        containing the name of the store owner person.
+        """
+        storeOwnerPersonName = u'Alice'
+        self.organizer.storeOwnerPerson = Person(
+            name=storeOwnerPersonName)
+        self.assertEqual(
+            self.fragment.getInitialArguments(),
+            (storeOwnerPersonName,))
+
+
+    def test_initialArgumentsInitialPerson(self):
+        """
+        When L{Organizer.initialPerson} is not C{None},
+        L{Organizer.getInitialArguments} should be a three-element tuple
+        containing the name of the store owner person, the name of the initial
+        person, and the initial view state.
+        """
+        storeOwnerPersonName = u'Alice'
+        initialPersonName = u'Bob'
+        initialState = ORGANIZER_VIEW_STATES.EDIT
+
+        self.organizer.storeOwnerPerson = Person(
+            name=storeOwnerPersonName)
+        initialPerson = Person(name=initialPersonName)
+
+        fragment = OrganizerFragment(
+            self.organizer, initialPerson, initialState)
+        self.assertEqual(
+            fragment.getInitialArguments(),
+            (storeOwnerPersonName, initialPersonName, initialState))
+
+
+
+class OrganizerFragmentBeforeRenderTestCase(unittest.TestCase):
+    """
+    Tests for L{OrganizerFragment.beforeRender}.  These tests require more
+    expensive setup than is provided by L{OrganizerFragmentTests}.
+    """
+    def setUp(self):
+        """
+        Make a substore with a L{PrivateApplication} and an L{Organizer}.
+        """
+        self.siteStore = Store(filesdir=self.mktemp())
+        def siteStoreTxn():
+            Mantissa().installSite(self.siteStore, '/')
+            userAccount = Create().addAccount(
+                self.siteStore,
+                u'testuser',
+                u'example.com',
+                u'password')
+            self.userStore = userAccount.avatars.open()
+        self.siteStore.transact(siteStoreTxn)
+
+        def userStoreTxn():
+            self.organizer = Organizer(store=self.userStore)
+            installOn(self.organizer, self.userStore)
+            self.fragment = OrganizerFragment(self.organizer)
+        self.userStore.transact(userStoreTxn)
+
+
+    def _makeContextWithRequestArgs(self, args):
+        """
+        Make a context which contains a request with args C{args}.
+        """
+        request = FakeRequest()
+        request.args = args
+        return context.PageContext(
+            tag=None, parent=context.RequestContext(
+                tag=request))
+
+
+    def test_validPersonAndValidState(self):
+        """
+        L{OrganizerFragment.beforeRender} should correctly intialize the
+        L{OrganizerFragment} if a valid person name and valid initial view
+        state are present in the query args.
+        """
+        person = self.organizer.createPerson(u'Alice')
+        self.fragment.beforeRender(
+            self._makeContextWithRequestArgs(
+                {'initial-person': [person.name],
+                 'initial-state': [ORGANIZER_VIEW_STATES.EDIT]}))
+        self.assertIdentical(self.fragment.initialPerson, person)
+        self.assertEqual(
+            self.fragment.initialState, ORGANIZER_VIEW_STATES.EDIT)
+
+
+    def test_invalidPersonAndValidState(self):
+        """
+        L{OrganizerFragment.beforeRender} shouldn't modify the
+        L{OrganizerFragment} if an invalid person name and valid view state
+        are present in the query args.
+        """
+        self.fragment.beforeRender(
+            self._makeContextWithRequestArgs(
+                {'initial-person': ['Alice'],
+                 'initial-state': [ORGANIZER_VIEW_STATES.EDIT]}))
+        self.assertIdentical(self.fragment.initialPerson, None)
+        self.assertIdentical(self.fragment.initialState, None)
+
+
+    def test_validPersonAndInvalidState(self):
+        """
+        Similar to L{test_invalidPersonAndValidState}, but for a valid person
+        name and invalid initial view state.
+        """
+        person = self.organizer.createPerson(u'Alice')
+        self.fragment.beforeRender(
+            self._makeContextWithRequestArgs(
+                {'initial-person': ['Alice'],
+                 'initial-state': ['invalid view state']}))
+        self.assertIdentical(self.fragment.initialPerson, None)
+        self.assertIdentical(self.fragment.initialState, None)
 
 
 

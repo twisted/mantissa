@@ -1,6 +1,7 @@
 from zope.interface import implements
 
 from twisted.trial.unittest import TestCase
+from twisted.internet import defer
 
 from axiom.store import Store
 from axiom.userbase import LoginSystem
@@ -110,15 +111,21 @@ class GenericNavigationAthenaPageTests(TestCase,
         Set up a site store, user store, and page instance to test with.
         """
         self.siteStore = Store()
-        installOn(website.WebSite(store=self.siteStore), self.siteStore)
+        def siteStoreTxn():
+            installOn(
+                website.WebSite(store=self.siteStore),
+                self.siteStore)
 
-        self.userStore = SubStore.createNew(
-            self.siteStore, ['child', 'lookup']).open()
+            self.userStore = SubStore.createNew(
+                self.siteStore, ['child', 'lookup']).open()
+        self.siteStore.transact(siteStoreTxn)
 
-        self.privateApp = webapp.PrivateApplication(store=self.userStore)
-        installOn(self.privateApp, self.userStore)
+        def userStoreTxn():
+            self.privateApp = webapp.PrivateApplication(store=self.userStore)
+            installOn(self.privateApp, self.userStore)
 
-        self.navpage = self.createPage(None)
+            self.navpage = self.createPage(None)
+        self.userStore.transact(userStoreTxn)
 
 
     def createPage(self, username):
@@ -130,6 +137,7 @@ class GenericNavigationAthenaPageTests(TestCase,
             TestFragment(),
             self.privateApp.getPageComponents(),
             username)
+
 
     def test_childLookup(self):
         """
@@ -149,9 +157,10 @@ class GenericNavigationAthenaPageTests(TestCase,
 
     def test_jsModuleLocation(self):
         """
-        L{GenericNavigationAthenaPage} should share its Athena JavaScript module
-        location with all other pages that use L{xmantissa.cachejs}, and
-        provide links to /__jsmodule__/.
+        L{GenericNavigationAthenaPage.beforeRender} should should call
+        L{xmantissa.website.MantissaLivePage.beforeRender}, which shares its
+        Athena JavaScript module location with all other pages that use
+        L{xmantissa.cachejs}, and provide links to /__jsmodule__/.
         """
         ctx = WovenContext()
         req = FakeRequest()
@@ -159,6 +168,25 @@ class GenericNavigationAthenaPageTests(TestCase,
         self.navpage.beforeRender(ctx)
         urlObj = self.navpage.getJSModuleURL('Mantissa')
         self.assertEqual(urlObj.pathList()[0], '__jsmodule__')
+
+
+    def test_beforeRenderDelegation(self):
+        """
+        L{GenericNavigationAthenaPage.beforeRender} should call
+        C{beforeRender} on the wrapped fragment, if it's defined, and return
+        its result.
+        """
+        contexts = []
+        result = defer.succeed(None)
+        def beforeRender(ctx):
+            contexts.append(ctx)
+            return result
+        self.navpage.fragment.beforeRender = beforeRender
+        ctx = WovenContext()
+        ctx.remember(FakeRequest(), IRequest)
+        self.assertIdentical(
+            self.navpage.beforeRender(ctx), result)
+        self.assertEqual(contexts, [ctx])
 
 
 

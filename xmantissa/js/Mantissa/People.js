@@ -91,6 +91,16 @@ Mantissa.People.OrganizerView.methods(
  * person can't be deleted).
  * @type storeOwnerPersonName: C{String}
  *
+ * @ivar initialPersonName: The name of the person to load at
+ * initialization time.  Defaults to C{undefined}.
+ * @type initialPersonName: C{String} or C{undefined}
+ *
+ * @ivar initialState: The name for the state the person-detail area of the
+ * view should be in after initialization.  Acceptable values are:
+ * C{undefined} (blank view) or C{"edit"} (load the edit form for
+ * L{initialPersonName}).  Defaults to C{undefined}.
+ * @type initialState: C{String} or C{undefined}
+ *
  * @ivar currentlyViewingName: The name of the person currently being viewed.
  * @type currentlyViewingName: C{String} or C{null}
  *
@@ -99,18 +109,35 @@ Mantissa.People.OrganizerView.methods(
 Mantissa.People.Organizer = Nevow.Athena.Widget.subclass(
     'Mantissa.People.Organizer');
 Mantissa.People.Organizer.methods(
-    /**
-     * Initialize C{existingDetailWidget} to C{null}.
-     */
-    function __init__(self, node, storeOwnerPersonName) {
+    function __init__(self, node, storeOwnerPersonName, initialPersonName, initialState) {
         Mantissa.People.Organizer.upcall(self, '__init__', node);
         self.existingDetailWidget = null;
         self.storeOwnerPersonName = storeOwnerPersonName;
-        self.currentlyViewingName = null;
         self.view = Mantissa.People.OrganizerView(
             function nodeById(id) {
                 return self.nodeById(id);
             });
+        self.initialPersonName = initialPersonName;
+        if(initialPersonName === undefined) {
+            self.currentlyViewingName = null;
+        } else {
+            self.currentlyViewingName = initialPersonName;
+        }
+        if(initialState === 'edit') {
+            self.displayEditPerson();
+        }
+    },
+
+    /**
+     * Called by our child L{Mantissa.People.PersonScroller} when it has
+     * finished initializing.  We take this opportunity to call
+     * L{selectInPersonList} with L{initialPersonName}, if it's not
+     * C{undefined}.
+     */
+    function personScrollerInitialized(self) {
+        if(self.initialPersonName !== undefined) {
+            self.selectInPersonList(self.initialPersonName);
+        }
     },
 
     /**
@@ -305,6 +332,20 @@ Mantissa.People.PersonScroller.methods(
         Mantissa.People.PersonScroller.upcall(
             self, '__init__', node, currentSortColumn, columnList, defaultSortAscending);
         self._nameToRow = {};
+    },
+
+    /**
+     * Extend the base implementation with parent-widget load notification.
+     */
+    function loaded(self) {
+        var initDeferred = Mantissa.People.PersonScroller.upcall(
+            self, 'loaded');
+        initDeferred.addCallback(
+            function(passThrough) {
+                self.widgetParent.personScrollerInitialized();
+                return passThrough;
+            });
+        return initDeferred;
     },
 
     /**

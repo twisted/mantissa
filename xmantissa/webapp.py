@@ -289,6 +289,15 @@ class GenericNavigationAthenaPage(MantissaLivePage,
                                          .getDocFactory("athena-unsupported"))
 
 
+    def beforeRender(self, ctx):
+        """
+        Call the C{beforeRender} implementations on L{MantissaLivePage} and
+        L{FragmentWrapperMixin}.
+        """
+        MantissaLivePage.beforeRender(self, ctx)
+        return FragmentWrapperMixin.beforeRender(self, ctx)
+
+
     def render_head(self, ctx, data):
         ctx.tag[t.invisible(render=t.directive("liveglue"))]
         return FragmentWrapperMixin.render_head(self, ctx, data)

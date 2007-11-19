@@ -3190,6 +3190,7 @@ Mantissa.ScrollTable.ScrollTable.methods(
             feedback.stop();
             return result;
         });
+        return d;
     },
 
     /**

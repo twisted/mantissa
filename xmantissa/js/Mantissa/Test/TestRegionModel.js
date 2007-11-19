@@ -2405,6 +2405,30 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
     },
 
     /**
+     * L{Mantissa.ScrollTable.ScrollTable.loaded} should return a deferred,
+     * which is called back upon completion of the remote calls initiated by
+     * the model's initialization.
+     */
+    function test_loadedDeferred(self) {
+        var unloaded = self.makeFakeTable(true, false);
+        var deferred = Divmod.Defer.Deferred();
+        unloaded.callRemote = function() {
+            return deferred;
+        }
+        var resultDeferred = unloaded.loaded();
+        if(!(resultDeferred instanceof Divmod.Defer.Deferred)) {
+            self.fail('expected deferred from loaded');
+        }
+        var calledBack = false;
+        resultDeferred.addCallback(
+            function() {
+                calledBack = true;
+            });
+        deferred.callback([]);
+        self.assertIdentical(calledBack, true);
+    },
+
+    /**
      * Create a fake ScrollTable instance.
      */
     function makeFakeTable(self, /* optional */ sortAscending, doLoad) {

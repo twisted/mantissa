@@ -320,6 +320,50 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
+     * L{Mantissa.People.Organizer.personScrollerInitialized} should call
+     * L{Mantissa.People.Organizer.selectInPersonList} with the name of the
+     * initial person, if one is set.
+     */
+    function test_personScrollerInitialized(self) {
+        var initialPersonName = 'Alice';
+        self.organizer.initialPersonName = initialPersonName;
+        var selectedInPersonList = [];
+        self.organizer.selectInPersonList = function(personName) {
+            selectedInPersonList.push(personName);
+        }
+        self.organizer.personScrollerInitialized();
+        self.assertIdentical(selectedInPersonList.length, 1);
+        self.assertIdentical(
+            selectedInPersonList[0], initialPersonName);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer}'s constructor should call
+     * L{Mantissa.People.Organizer.displayEditPerson} if the C{initialState}
+     * is I{edit}.
+     */
+    function test_initialStateObserved(self) {
+        var displayEditPersonCalls = 0;
+        /* subclass because the method we want to mock is called by the
+         * constructor */
+        var TestableOrganizer = Mantissa.People.Organizer.subclass(
+            'TestableOrganizer');
+        TestableOrganizer.methods(
+            function displayEditPerson(self) {
+                displayEditPersonCalls++;
+            });
+        var initialPersonName = 'Initial Person';
+        organizer = TestableOrganizer(
+            Nevow.Test.WidgetUtil.makeWidgetNode(),
+            '', initialPersonName, 'edit');
+        self.assertIdentical(displayEditPersonCalls, 1);
+        self.assertIdentical(
+            organizer.initialPersonName, initialPersonName);
+        self.assertIdentical(
+            organizer.currentlyViewingName, initialPersonName);
+    },
+
+    /**
      * L{Mantissa.People.Organizer.setDetailWidget} should remove the children
      * of the detail node and add the node for the L{Nevow.Athena.Widget} it is
      * passed as a child of it.
@@ -713,6 +757,28 @@ Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
     function setUp(self) {
         self.scroller = Mantissa.People.PersonScroller(
             Nevow.Test.WidgetUtil.makeWidgetNode(), null, []);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.loaded} should call
+     * C{personScrollerInitialized} on the widget parent after the deferred
+     * returned from the base implementation fires.
+     */
+    function test_loaded(self) {
+        var initialized = false;
+        self.scroller.widgetParent = {
+            personScrollerInitialized: function() {
+                initialized = true;
+            }
+        };
+        var deferred = Divmod.Defer.Deferred();
+        self.scroller.callRemote = function() {
+            return deferred;
+        }
+        self.scroller.loaded();
+        self.assertIdentical(initialized, false);
+        deferred.callback([]);
+        self.assertIdentical(initialized, true);
     },
 
     /**
