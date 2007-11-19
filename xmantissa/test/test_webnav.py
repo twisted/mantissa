@@ -9,13 +9,11 @@ from twisted.trial import unittest
 
 from epsilon.structlike import record
 
-from axiom.item import Item
-from axiom.attributes import inmemory, integer
 from axiom.store import Store
 from axiom.dependency import installOn
 
 from nevow.url import URL
-from nevow import loaders, tags, context
+from nevow import tags, context
 from nevow.testutil import FakeRequest
 
 from xmantissa import webnav
@@ -220,21 +218,30 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(tag.children, ['/link/123'])
 
 
+    def _renderAppNav(self, tabs, template=None):
+        """
+        Render application navigation and return the resulting tag.
+
+        @param template: a Tag containing a template for navigation.
+        """
+        if template is None:
+            template = tags.span[
+                tags.div(pattern='app-tab'),
+                tags.div(pattern='tab-contents')]
+        ctx = context.WebContext(tag=template)
+        request = FakeRequest()
+        ctx.remember(request)
+        return webnav.applicationNavigation(ctx, FakeTranslator(), tabs)
+
+
     def test_applicationNavigation(self):
         """
         Test that the L{applicationNavigation} renderer creates a tag for each
         tab, fillings I{name} and I{tab-contents} slots.
         """
-        tabs = [
+        tag = self._renderAppNav([
             webnav.Tab('alpha', 123, 0),
-            webnav.Tab('beta', 234, 0)]
-        node = tags.span[tags.div(pattern='app-tab'),
-                         tags.div(pattern='tab-contents')]
-        ctx = context.WebContext(tag=node)
-        request = FakeRequest()
-        ctx.remember(request)
-
-        tag = webnav.applicationNavigation(ctx, FakeTranslator(), tabs)
+            webnav.Tab('beta', 234, 0)])
         self.assertEqual(tag.tagName, 'span')
         navTags = list(tag.slotData['tabs'])
         self.assertEqual(len(navTags), 2)
@@ -245,3 +252,53 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(beta.slotData['name'], 'beta')
         betaContents = beta.slotData['tab-contents']
         self.assertEqual(betaContents.slotData['href'], '/link/234')
+
+
+    def test_applicationNavigationChildren(self):
+        """
+        The L{applicationNavigation} renderer should fill the 'subtabs' slot
+        with copies of the 'subtab' pattern for each tab, if that pattern is
+        present.  (This is only tested to one level of depth because we
+        currently only support one level of depth.)
+        """
+        tag = self._renderAppNav(
+            [webnav.Tab('alpha', 123, 0),
+             webnav.Tab('beta', 234, 0, children=[
+                        webnav.Tab('gamma', 345, 0),
+                        webnav.Tab('delta', 456, 0)])],
+            tags.span[tags.div(pattern='app-tab'),
+                      tags.div(pattern='tab-contents'),
+                      tags.div(pattern='subtab'),
+                      tags.div(pattern='subtab-contents',
+                               class_='subtab-contents-class')])
+        navTags = list(tag.slotData['tabs'])
+        self.assertEqual(len(navTags), 2)
+        alpha, beta = navTags
+        self.assertEqual(alpha.slotData['subtabs'], [])
+        self.assertEqual(len(beta.slotData['subtabs']), 2)
+        subtab1 = beta.slotData['subtabs'][0]
+        self.assertEqual(subtab1.slotData['name'],
+                         'gamma')
+        self.assertEqual(subtab1.slotData['href'], '/link/345')
+        self.assertEqual(subtab1.slotData['tab-contents'].attributes['class'],
+                         'subtab-contents-class')
+        subtab2 = beta.slotData['subtabs'][1]
+        self.assertEqual(subtab2.slotData['name'],
+                         'delta')
+        self.assertEqual(subtab2.slotData['href'], '/link/456')
+        self.assertEqual(subtab2.slotData['tab-contents'].attributes['class'],
+                         'subtab-contents-class')
+
+
+    def test_applicationNavigationMissingSubtabsPattern(self):
+        """
+        The L{applicationNavigation} renderer should fill the 'subtabs' slot
+        with the empty list if the 'subtabs' pattern is not found.  This is to
+        ensure that it remains compatible with older customized 'shell'
+        templates.
+        """
+        tag = self._renderAppNav([
+                webnav.Tab("alpha", 123, 0,
+                           children=[webnav.Tab("beta", 234, 0)])])
+        navTags = list(tag.slotData['tabs'])
+        self.assertEqual(navTags[0].slotData['subtabs'], [])

@@ -6,8 +6,8 @@ from zope.interface import implements
 
 from nevow.inevow import IQ
 from nevow import url
-from nevow.rend import Fragment
-from nevow.loaders import stan
+
+from nevow.stan import NodeNotFound
 
 from xmantissa.ixmantissa import ITab
 from xmantissa.fragmentutils import dictFillSlots
@@ -51,7 +51,8 @@ class Tab(object):
     _item = None
     implements(ITab)
 
-    def __init__(self, name, storeID, priority, children=(), authoritative=True, linkURL=None):
+    def __init__(self, name, storeID, priority, children=(),
+                 authoritative=True, linkURL=None):
         self.name = name
         self.storeID = storeID
         self.priority = priority
@@ -286,12 +287,24 @@ def applicationNavigation(ctx, translator, navigation):
             p = 'app-tab'
             contentp = 'tab-contents'
 
-        tabs.append(
-            dictFillSlots(
+        childTabs = []
+        for subtab in tab.children:
+            try:
+                subtabp = getp("subtab")
+            except NodeNotFound:
+                continue
+            childTabs.append(
+                dictFillSlots(subtabp, {
+                        'name': subtab.name,
+                        'href': subtab.linkURL,
+                        'tab-contents': getp("subtab-contents")
+                        }))
+        tabs.append(dictFillSlots(
                 getp(p),
                 {'name': tab.name,
                  'tab-contents': getp(contentp).fillSlots(
-                        'href', tab.linkURL)}))
+                        'href', tab.linkURL),
+                 'subtabs': childTabs}))
 
     ctx.tag.fillSlots('tabs', tabs)
     return ctx.tag

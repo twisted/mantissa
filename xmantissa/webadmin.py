@@ -108,9 +108,11 @@ class AdminStatsApplication(Item, ParentCounterMixin):
         return super(AdminStatsApplication, self).deletedFromStore(*a, **kw)
 
     def getTabs(self):
-        return [webnav.Tab('Admin', self.storeID, 0.0,
-                           [webnav.Tab('Stats', self.storeID, 0.1)],
-                           authoritative=False)]
+        return []
+        # See ticket #2332.  restore this navigation element when that's fixed.
+        # return [webnav.Tab('Admin', self.storeID, 0.0,
+        #                    [webnav.Tab('Stats', self.storeID, 0.1)],
+        #                    authoritative=False)]
 
 declareLegacyItem(AdminStatsApplication, 1,
                   dict(updateInterval=integer(default=5)))

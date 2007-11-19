@@ -600,13 +600,31 @@ iframe.mugshot-upload {
     margin: 0px 4px 0px 4px;
 }
 
+/* The following classes are now visible only by the admin, and potentially by
+ legacy code.  They are not particularly pretty, but they aren't really
+ intended to be. */
+
 #divmod-menu, .subtabs {
     position: absolute;
-    background-color: #666666;
+    border: 1px solid black;
+    background-color: #eeeeee;
     border-left: solid 8px #525252;
     margin: 0px;
     list-style: none;
     padding: 0px;
+}
+
+.subtabs a, .subtabs a:link, .subtabs a:visited {
+    font-size: 130%;
+    display: block;
+    padding: 4px;
+    width: 150px;
+    color: black;
+}
+
+.subtabs a:hover {
+    background-color: blue;
+    color: white;
 }
 
 #divmod-menu {
@@ -695,6 +713,10 @@ iframe.mugshot-upload {
     float: left;
     display: block;
     margin-left: 8px;
+}
+
+.tab-contents, .selected-tab-contents {
+    position: relative;
 }
 
 .tab-button {
@@ -1252,6 +1274,8 @@ a.childsellink {
 
 .mantissa-global-menubar {
     background-image: url(/Mantissa/images/menubar-bg.png);
+    height: 2em;
+    padding-right: 1em;
 }
 
 .mantissa-application-menubar {

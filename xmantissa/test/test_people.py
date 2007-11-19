@@ -1318,6 +1318,7 @@ class PeopleModelTestCase(unittest.TestCase):
         """
         self.store = Store()
         self.organizer = Organizer(store=self.store)
+        installOn(self.organizer, self.store)
 
         letters = lowercase.decode('ascii')
         for firstPrefix, lastPrefix in zip(letters, reversed(letters)):
@@ -1851,6 +1852,21 @@ class PeopleModelTestCase(unittest.TestCase):
             editParameter.defaults, [{u'address': u'1'}, {u'address': u'2'}])
         self.assertEqual(
             editParameter.modelObjects, contactItems)
+
+
+    def test_navigation(self):
+        """
+        L{Organizer.getTabs} should return a single tab, 'People', that points
+        to itself.
+        """
+        tabs = self.organizer.getTabs()
+        self.assertEqual(len(tabs), 1)
+        tab = tabs[0]
+        self.assertEqual(tab.name, "People")
+        self.assertEqual(tab.storeID, self.organizer.storeID)
+        self.assertEqual(tab.children, ())
+        self.assertEqual(tab.authoritative, True)
+        self.assertEqual(tab.linkURL, None)
 
 
 

@@ -1,7 +1,5 @@
 # -*- test-case-name: xmantissa.test.test_people -*-
 
-from itertools import islice
-from string import uppercase
 from warnings import warn
 
 try:
@@ -14,7 +12,7 @@ from zope.interface import implements
 from twisted.python import components
 from twisted.python.reflect import qual
 
-from nevow import rend, athena, inevow, static, url, tags
+from nevow import rend, athena, inevow, static, tags
 from nevow.athena import expose, LiveElement
 from nevow.loaders import stan
 from nevow.page import Element, renderer
@@ -997,21 +995,16 @@ class Organizer(item.Item):
                 '/' + self._webTranslator.toWebID(person))
 
 
+    # INavigableElement
     def getTabs(self):
+        """
+        Implement L{INavigableElement.getTabs} to return a single tab,
+        'People', that points to this item.
+        """
         ourURL = self._webTranslator.linkTo(self.storeID)
-        children = [webnav.Tab('All', self.storeID, 0.1)]
+        return [webnav.Tab('People', self.storeID, 0.5, authoritative=True)]
 
-        letters = iter(uppercase)
-        while True:
-            chars = ''.join(islice(letters, 3))
-            if 0 == len(chars):
-                break
 
-            linkURL = ourURL + '?show-group=' + chars
-            children.append(webnav.Tab(chars, None, 0.0, linkURL=linkURL))
-
-        return [webnav.Tab('People', self.storeID, 0.5,
-                           authoritative=True, children=children)]
 
 def organizer1to2(old):
     o = old.upgradeVersion(old.typeName, 1, 2)

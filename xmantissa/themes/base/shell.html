@@ -11,42 +11,7 @@
       <thead />
       <tbody>
         <tr valign="center">
-          <!-- This is always empty.  Eliminate it and the corresponding Python code. -->
-          <td class="header" nevow:render="header" />
-
-          <td class="divmod-menu-container" onclick="MantissaShell.menuClick(this);" nevow:render="startmenu">
-            <div class="divmod-menu-icon" onmouseover="MantissaShell.menuButtonHover()" />
-            <ul id="divmod-menu" style="display: none">
-              <nevow:slot name="tabs" />
-              <li nevow:pattern="tab">
-                <a class="tab-link"
-                   onmouseover="MantissaShell.tabHover(this)"
-                   onmouseout="MantissaShell.tabUnhover(this)">
-                  <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
-                  <nevow:slot name="name" />
-                </a>
-                <nevow:slot name="kids" />
-              </li>
-              <ul nevow:pattern="subtabs" class="subtabs" style="display: none"
-                  onmouseover="MantissaShell.subtabHover(this)">
-                <nevow:slot name="kids" />
-              </ul>
-              <li><div class="menu-separator" /></li>
-              <li class="tab">
-                <a class="tab-link">
-                  <nevow:attr name="href" nevow:render="settingsLink" />
-                  Settings
-                </a>
-              </li>
-              <li><div class="menu-separator" /></li>
-              <li class="tab">
-                <a class="tab-link" href="/__logout__">Logout</a>
-              </li>
-            </ul>
-          </td>
-
           <td class="mantissa-global-navigation-spacer" />
-
           <td class="search-container" align="right">
             <table cellpadding="0" cellspacing="0" style="height: 100%">
               <thead />
@@ -116,14 +81,37 @@
         <tr>
           <td style="height: 2em;" />
           <td class="app-nav-container" nevow:render="applicationNavigation">
+            <nevow:invisible nevow:pattern="subtab">
+              <nevow:slot name="tab-contents" />
+            </nevow:invisible>
+            <a nevow:pattern="subtab-contents">
+              <nevow:attr name="href"><nevow:slot name="href"/></nevow:attr>
+              <nevow:slot name="name" />
+            </a>
             <nevow:slot name="tabs" />
             <div nevow:pattern="app-tab" class="tab-button">
               <nevow:slot name="tab-contents" />
+              <div class="subtabs" style="z-index: 1000;
+                                          display: none;
+                                          position: absolute"
+                   onmouseover="MantissaShell.subtabHover(this);"
+                   onmouseout="MantissaShell.tabUnhover(this);"
+                   ><nevow:slot name="subtabs" /></div>
             </div>
             <div nevow:pattern="selected-app-tab" class="selected-tab-button">
               <nevow:slot name="tab-contents" />
+              <div class="subtabs" style="z-index: 1000;
+                                          display: none;
+                                          position: absolute;
+                                          "
+                   onmouseover="MantissaShell.subtabHover(this);"
+                   onmouseout="MantissaShell.tabUnhover(this);"
+                   ><nevow:slot name="subtabs" /></div>
             </div>
-            <table nevow:pattern="selected-tab-contents" cellpadding="0" cellspacing="0">
+            <table nevow:pattern="selected-tab-contents"
+                   onmouseover="MantissaShell.tabHover(this, false)"
+                   onmouseout="MantissaShell.tabUnhover(this)"
+                   cellpadding="0" cellspacing="0">
               <tr class="tab-button-row">
                 <td class="tab-tl-corner" />
                 <td class="tab-top-edge" />
@@ -133,8 +121,7 @@
                 <td class="tab-left-edge" />
                 <td class="tab-text-cell">
                   <div>
-                    <a onmouseover="MantissaShell.tabHover(this)"
-                       onmouseout="MantissaShell.tabUnhover(this)">
+                    <a>
                       <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
                       <nevow:slot name="name" />
                     </a>
@@ -143,7 +130,10 @@
                 <td class="tab-right-edge" />
               </tr>
             </table>
-            <table nevow:pattern="tab-contents" cellpadding="0" cellspacing="0">
+            <table nevow:pattern="tab-contents"
+                   onmouseover="MantissaShell.tabHover(this, false)"
+                   onmouseout="MantissaShell.tabUnhover(this)"
+                   cellpadding="0" cellspacing="0">
               <tr class="tab-button-row">
                 <td class="tab-tl-corner" />
                 <td class="tab-top-edge" />
@@ -152,7 +142,7 @@
               <tr class="tab-text-row">
                 <td class="tab-left-edge" />
                 <td class="tab-text-cell">
-                  <a onmouseover="MantissaShell.tabHover(this)"
+                  <a onmouseover="MantissaShell.tabHover(this, false)"
                      onmouseout="MantissaShell.tabUnhover(this)">
                     <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
                     <nevow:slot name="name" />

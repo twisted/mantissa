@@ -1,4 +1,18 @@
+
+/**
+ * This javascript is rendered on all Mantissa pages as a consequence of the
+ * fact that Mantissa provides both athena and non-athena pages with a
+ * JavaScript-driven navigation system.
+ *
+ * There are therefore unfortunately no tests for it, as it exists outside the
+ * Athena module system.  This script should be replaced by a proper module as
+ * soon as we have removed all non-Athena pages from Mantissa.
+ */
+
 var MantissaShell = {};
+
+MantissaShell.activeSubtabs = null;
+MantissaShell.timeoutID = null;
 
 /**
  * Return the first immediate child of C{node} which has the class name "subtabs"
@@ -9,7 +23,7 @@ MantissaShell.getSubtabs = function(node) {
             return node.childNodes[i];
         }
     }
-}
+};
 
 /**
  * Called when a subtab is hovered over.
@@ -18,11 +32,11 @@ MantissaShell.getSubtabs = function(node) {
  * leaves the top level menu
  */
 MantissaShell.subtabHover = function(node) {
-    if(MantissaShell._TIMEOUT) {
-        clearTimeout(MantissaShell._TIMEOUT);
-        MantissaShell._TIMEOUT = null;
+    if (MantissaShell.timeoutID) {
+        clearTimeout(MantissaShell.timeoutID);
+        MantissaShell.timeoutID = null;
     }
-}
+};
 
 /**
  * Called when the divmod "start menu" button is hovered over.
@@ -40,7 +54,7 @@ MantissaShell.menuButtonHover = function() {
             }
         }
     }
-}
+};
 
 /**
  * Pair of functions that toggle the menu container's class to work around IE's
@@ -60,30 +74,43 @@ MantissaShell.menuClick = function(node) {
             node.onclick = nodeClickHandler;
         }, 1);
         return false;
-    }
+    };
 };
 
 /**
  * Called when a top level tab is hovered over.
  * This makes the tab's submenu visible, if there is one.
  *
- * We use JS for this because we want the submenu to appear directly to
- * the right of the parent item when hovered over, but we don't want to
- * have to fix the width of the parent menu
+ * If positionLeft is true (the default), then the submenu should appear
+ * directly to the right of the parent item when hovered over.
  */
-MantissaShell.tabHover = function(node) {
+MantissaShell.tabHover = function(node, positionLeft) {
     var subtabs = MantissaShell.getSubtabs(node.parentNode);
+    if (positionLeft === undefined) {
+        positionLeft = true;
+    }
 
     if(!subtabs) {
         return;
     }
 
-    if(!subtabs.style.left) {
+    if (MantissaShell.timeoutID) {
+        clearTimeout(MantissaShell.timeoutID);
+        MantissaShell.timeoutID = null;
+        if (MantissaShell.activeSubtabs !== subtabs) {
+            MantissaShell.activeSubtabs.style.display = 'none';
+        }
+    }
+
+    if(positionLeft && !subtabs.style.left) {
         subtabs.style.left = node.parentNode.parentNode.clientWidth + "px";
         subtabs.style.marginTop = -node.clientHeight + "px";
     }
-    subtabs.style.display = "";
-}
+    if (subtabs.childNodes.length > 1) {
+        subtabs.style.display = "";
+    }
+    MantissaShell.activeSubtabs = subtabs;
+};
 
 /**
  * Called when the mouse leaves a top level tab.
@@ -94,12 +121,12 @@ MantissaShell.tabHover = function(node) {
 MantissaShell.tabUnhover = function(node) {
     var subtabs = MantissaShell.getSubtabs(node.parentNode);
     if(subtabs) {
-        MantissaShell._TIMEOUT = setTimeout(function() {
+        MantissaShell.timeoutID = setTimeout(function() {
             subtabs.style.display = "none";
-            MantissaShell._TIMEOUT = null;
+            MantissaShell.timeoutID = null;
         }, 100);
     }
-}
+};
 
 
 /**
@@ -128,4 +155,4 @@ MantissaShell.searchButtonClicked = function(node) {
 
     node.firstChild.src = "/Mantissa/images/search-button-" + imgstate + ".png";
     node.parentNode.style.backgroundColor = color;
-}
+};
