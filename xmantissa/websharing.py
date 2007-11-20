@@ -319,7 +319,7 @@ class SharingIndex(object):
 
         @return: a L{PublicAthenaLivePage} wrapping a customized fragment.
         """
-        shareID = segments[0].decode('ascii')
+        shareID = segments[0].decode('utf-8')
 
         role = sharing.getPrimaryRole(self.userStore, self.avatarName)
 

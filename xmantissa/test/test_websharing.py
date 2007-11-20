@@ -313,7 +313,7 @@ registerAdapter(ShareableView, IShareable,
 
 class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
     """
-    Tests for L[xmantissa.websharing.UserIndexPage}
+    Tests for L{xmantissa.websharing.UserIndexPage}
     """
     def setUp(self):
         """
@@ -322,9 +322,8 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         """
         _UserIdentificationMixin.setUp(self)
         self.magicValue = 123412341234
-        newUser = self.signup.createUser(
-            u'', u'username', u'localhost', u'',
-            u'username@internet')
+        self.signup.createUser(
+            u'', u'username', u'localhost', u'', u'username@internet')
         self.userStore = websharing._storeFromUsername(
             self.siteStore, u'username')
         self.shareable = Shareable(store=self.userStore,
@@ -336,15 +335,27 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
 
     def test_locateChild(self):
         """
-        Test that L{xmantissa.websharing.UserIndexPage.locateChild} returns a
-        renderable resource and the remaining segments if the first segment
-        matches a username
+        L{websharing.UserIndexPage.locateChild} should return the named user's
+        L{websharing.SharingIndex} (and any remaining segments), or
+        L{rend.NotFound}.
         """
+        # Test against at least one other valid user.
+        self.signup.createUser(
+            u'Andr\xe9', u'andr\xe9', u'localhost', u'', u'andr\xe9@internet')
+        userStore2 = websharing._storeFromUsername(self.siteStore, u'andr\xe9')
         index = websharing.UserIndexPage(self.loginSystem)
-        (renderable, segments) = index.locateChild(
-            None, ('username', 'x', 'y', 'z'))
-        self.assertNotIdentical(inevow.IResource(renderable, None), None)
-        self.assertEquals(segments, ('x', 'y', 'z'))
+
+        for _username, _store in [(u'username', self.userStore),
+                                  (u'andr\xe9', userStore2)]:
+            (found, remaining) = index.locateChild(
+                None, [_username.encode('utf-8'), 'x', 'y', 'z'])
+
+            self.assertTrue(isinstance(found, websharing.SharingIndex))
+            self.assertIdentical(found.userStore, _store)
+            self.assertEquals(remaining, ['x', 'y', 'z'])
+
+        self.assertIdentical(index.locateChild(None, ['bogus', 'username']),
+                             rend.NotFound)
 
 
     def test_userURL(self):
@@ -426,14 +437,16 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
 
         otherShareable = Shareable(store=self.userStore,
                                    magicValue=self.magicValue + 3)
-        otherShare = sharing.shareItem(otherShareable, shareID=u'foo')
 
-        sharingIndex = websharing.SharingIndex(self.userStore)
-        SEGMENTS = ('foo', 'bar')
-        (res, segments) = sharingIndex.locateChild(None, SEGMENTS)
-        self.assertEqual(
-            res.fragment.showMagicValue(), self.magicValue + 3)
-        self.assertEqual(segments, SEGMENTS[1:])
+        for _shareID in [u'foo', u'f\xf6\xf6']:
+            otherShare = sharing.shareItem(otherShareable, shareID=_shareID)
+
+            sharingIndex = websharing.SharingIndex(self.userStore)
+            SEGMENTS = (_shareID.encode('utf-8'), 'bar')
+            (res, segments) = sharingIndex.locateChild(None, SEGMENTS)
+            self.assertEqual(
+                res.fragment.showMagicValue(), self.magicValue + 3)
+            self.assertEqual(segments, SEGMENTS[1:])
 
 
     def test_shareFragmentType(self):
