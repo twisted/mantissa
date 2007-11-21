@@ -232,10 +232,26 @@ Mantissa.People.Organizer.methods(
                 self.setDetailWidget(widget);
                 widget.observeSubmission(
                     function(name) {
+                        if(self.currentlyViewingName === self.storeOwnerPersonName) {
+                            self.storeOwnerPersonNameChanged(name);
+                        }
                         self._cbPersonModified(name);
                     });
             });
         return result;
+    },
+
+    /**
+     * Update L{storeOwnerPersonName}, and notify our person scroller of the
+     * change.
+     *
+     * @param name: The new name of the store-owner person.
+     * @type name: C{String}
+     */
+    function storeOwnerPersonNameChanged(self, name) {
+        self.storeOwnerPersonName = name;
+        var personScroller = self.getPersonScroller();
+        personScroller.storeOwnerPersonNameChanged(name);
     },
 
     /**
@@ -325,13 +341,29 @@ Mantissa.People.PersonScroller = Mantissa.ScrollTable.ScrollTable.subclass(
  * A flexible-height scrolling widget which allows contact information for
  * people to be edited.
  *
+ * @ivar storeOwnerPersonName: The name of the "store owner" person.
+ * @type storeOwnerPersonName: C{String}
+ *
  * @ivar _nameToRow: A mapping of person names to DOM row nodes.
  */
 Mantissa.People.PersonScroller.methods(
-    function __init__(self, node, currentSortColumn, columnList, defaultSortAscending) {
+    function __init__(self, node, currentSortColumn, columnList,
+        defaultSortAscending, storeOwnerPersonName) {
         Mantissa.People.PersonScroller.upcall(
-            self, '__init__', node, currentSortColumn, columnList, defaultSortAscending);
+            self, '__init__', node, currentSortColumn, columnList,
+            defaultSortAscending);
+        self.storeOwnerPersonName = storeOwnerPersonName;
         self._nameToRow = {};
+    },
+
+    /**
+     * Update L[storeOwnerPersonName}.
+     *
+     * @param name: The new name of the store-owner person.
+     * @type name: C{String}
+     */
+    function storeOwnerPersonNameChanged(self, name) {
+        self.storeOwnerPersonName = name;
     },
 
     /**
@@ -438,6 +470,13 @@ Mantissa.People.PersonScroller.methods(
             className = 'people-table-vip-person-name';
         } else {
             className = 'people-table-person-name';
+        }
+        if(rowData.name == self.storeOwnerPersonName) {
+            columnNode = [
+                columnNode,
+                MochiKit.DOM.IMG(
+                    {'class': 'mantissa-star-icon',
+                     'src': '/Mantissa/images/star-icon.png'})];
         }
         return MochiKit.DOM.SPAN({'class': className}, columnNode);
     });

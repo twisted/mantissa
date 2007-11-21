@@ -609,6 +609,50 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
+     * The person-edit observer set by
+     * L{Mantissa.People.Organizer.displayEditPerson} should call
+     * L{Mantissa.People.Organizer.storeOwnerPersonNameChanged} if the store
+     * owner person was edited.
+     */
+    function test_personEditObservationStoreOwner(self) {
+        var name = 'Store Owner!';
+        self.organizer.currentlyViewingName = name;
+        self.organizer.storeOwnerPersonName = name;
+        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            return widgetInfo;
+        }
+        self.organizer.displayEditPerson();
+        var stubPerformForm = Mantissa.Test.TestPeople.StubPersonForm();
+        self.calls[0].result.callback(stubPerformForm);
+        var nameChanges = [];
+        self.organizer.storeOwnerPersonNameChanged = function(name) {
+            nameChanges.push(name);
+        }
+        self.organizer._cbPersonModified = function() {
+        }
+        var newName = 'Store Owner 2!';
+        stubPerformForm.submissionObservers[0](newName);
+        self.assertIdentical(nameChanges.length, 1);
+        self.assertIdentical(nameChanges[0], newName);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.storeOwnerPersonNameChanged} should call
+     * the method with the same name on the child person scroller.
+     */
+    function test_storeOwnerPersonNameChanged(self) {
+        var nameChanges = [];
+        self.organizer.childWidgets = [
+            {storeOwnerPersonNameChanged: function(newName) {
+                nameChanges.push(newName);
+            }}];
+        var newName = 'Store Owner!';
+        self.organizer.storeOwnerPersonNameChanged(newName);
+        self.assertIdentical(nameChanges.length, 1);
+        self.assertIdentical(nameChanges[0], newName);
+    },
+
+    /**
      * L{Mantissa.People.Organizer.displayPersonInfo} should call
      * I{getContactInfoWidget} with the nickname it is passed put the
      * resulting markup in the detail area.
@@ -885,6 +929,32 @@ Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
         cellElement = self.scroller.makeCellElement(
             'vip', {vip: false});
         self.assertIdentical(cellElement, undefined);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} should include an
+     * image in the store owner person's name cell.
+     */
+    function test_makeCellElementStoreOwner(self) {
+        var storeOwnerPersonName = 'Store Owner!';
+        self.scroller.storeOwnerPersonName = storeOwnerPersonName;
+        self.scroller.columns = {name: {
+            extractValue: function(rowData) {
+                return rowData.name;
+            },
+            valueToDOM: function(value) {
+                return value;
+            }}};
+        var cellElement = self.scroller.makeCellElement(
+            'name', {name: storeOwnerPersonName, vip: false});
+        self.assertIdentical(cellElement.childNodes.length, 2);
+        self.assertIdentical(
+            cellElement.childNodes[0].nodeValue, storeOwnerPersonName);
+        self.assertIdentical(
+            cellElement.childNodes[1].tagName, 'IMG');
+        self.assertIdentical(
+            cellElement.childNodes[1].getAttribute('src'),
+            '/Mantissa/images/star-icon.png');
     },
 
     /**

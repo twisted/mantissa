@@ -11,6 +11,7 @@ from zope.interface import implements
 from string import lowercase
 
 from twisted.python.reflect import qual
+from twisted.python.filepath import FilePath
 from twisted.python.components import registerAdapter
 from twisted.trial import unittest
 
@@ -35,7 +36,7 @@ from axiom.plugins.userbasecmd import Create
 from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
-from xmantissa.scrolltable import UnsortableColumn
+from xmantissa.scrolltable import UnsortableColumn, ScrollingElement
 from xmantissa import people
 from xmantissa.people import (
     Organizer, Person, EmailAddress, AddPersonFragment, Mugshot,
@@ -49,7 +50,7 @@ from xmantissa.people import (
     ReadOnlyEmailView, ReadOnlyPostalAddressView, getPersonURL,
     _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
-    ORGANIZER_VIEW_STATES)
+    ORGANIZER_VIEW_STATES, MugshotResource)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -2436,21 +2437,54 @@ class PersonDetailFragmentTests(unittest.TestCase):
         self.assertEqual(getPersonURL(person), "/person/Alice")
 
 
-    def test_displayMugshot(self):
+    def test_mugshotChild(self):
         """
-        Test that L{PersonDetailFragment} has a child page that displays a mugshot image.
+        L{PersonDetailFragment}'s I{mugshot} child should return a
+        L{MugshotResource} wrapping the person's L{Mugshot} item.
         """
         store = Store(filesdir=self.mktemp())
-        person = Person(store=store)
-        person.organizer = Organizer(store=store)
-        fragment = PersonDetailFragment(person)
-        image = Mugshot(
-            store=store, type=u"image/png",
+        organizer = Organizer(store=store)
+        installOn(organizer, store)
+        person = organizer.createPerson(u'Alice')
+        mugshot = Mugshot(
+            store=store,
+            person=person,
+            type=u'image/png',
             body=store.filesdir.child('a'),
-            smallerBody=store.filesdir.child('b'),
-            person=person)
-        rsrc, segs = fragment.locateChild(None, ('mugshot',))
-        self.assertIdentical(rsrc.mugshot, image)
+            smallerBody=store.filesdir.child('b'))
+        fragment = PersonDetailFragment(person)
+        (res, segments) = fragment.locateChild(None, ('mugshot',))
+        self.assertTrue(isinstance(res, MugshotResource))
+        self.assertIdentical(res.mugshot, mugshot)
+        self.assertEqual(segments, ())
+
+
+    def test_mugshotChildNoMugshot(self):
+        """
+        Similar to L{test_displayMugshot}, but for the case where the person
+        has no mugshot.  The returned L{MugshotResource} should wrap a
+        L{Mugshot} item with attributes pointing at the mugshot placeholder
+        images.
+        """
+        store = Store(self.mktemp())
+        organizer = Organizer(store=store)
+        installOn(organizer, store)
+        person = organizer.createPerson(u'Alice')
+        fragment = PersonDetailFragment(person)
+        (res, segments) = fragment.locateChild(None, ('mugshot',))
+        self.assertTrue(isinstance(res, MugshotResource))
+        mugshot = res.mugshot
+        self.assertTrue(isinstance(mugshot, Mugshot))
+        self.assertIdentical(mugshot.store, None)
+        self.assertIdentical(mugshot.person, person)
+        self.assertEqual(mugshot.type, u'image/png')
+        imageDir = FilePath(people.__file__).parent().child(
+            'static').child('images')
+        self.assertEqual(
+            mugshot.body, imageDir.child('mugshot-placeholder.png'))
+        self.assertEqual(
+            mugshot.smallerBody,
+            imageDir.child('smaller-mugshot-placeholder.png'))
 
 
 
@@ -2469,15 +2503,23 @@ class PersonScrollingFragmentTests(unittest.TestCase):
     """
     Tests for L{PersonScrollingFragment}.
     """
+    def setUp(self):
+        """
+        Make an L{Organizer}.
+        """
+        self.store = Store()
+        self.organizer = Organizer(store=self.store)
+        installOn(self.organizer, self.store)
+
+
     def test_scrollingAttributes(self):
         """
         L{PersonScrollingFragment} should have the attributes its base class
         wants to use.
         """
         baseConstraint = object()
-
         fragment = PersonScrollingFragment(
-            None, baseConstraint, Person.name,
+            self.organizer, baseConstraint, Person.name,
             StubTranslator(None, None))
         self.assertIdentical(fragment.baseConstraint, baseConstraint)
         self.assertIdentical(
@@ -2487,6 +2529,21 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         self.assertEqual(fragment.columns['name'], Person.name)
         self.assertTrue(isinstance(fragment.columns['vip'], UnsortableColumn))
         self.assertEqual(fragment.columns['vip'].attribute, Person.vip)
+
+
+    def test_initialArguments(self):
+        """
+        L{PersonScrollingFragment.getInitialArguments} should include the
+        store owner person's name in its result.
+        """
+        storeOwnerPersonName = u'Store Owner'
+        self.organizer.storeOwnerPerson.name = storeOwnerPersonName
+        fragment = PersonScrollingFragment(
+            self.organizer, object(), Person.name, StubTranslator(None, None))
+        self.assertEqual(
+            fragment.getInitialArguments(),
+            (ScrollingElement.getInitialArguments(fragment)
+                + [storeOwnerPersonName]))
 
 
 
@@ -2933,16 +2990,20 @@ class PersonSummaryViewTestCase(unittest.TestCase):
 
     def test_mugshotURLNoMugshot(self):
         """
-        The I{mugshotURL} renderer should return the URL of a placeholder
-        image if the person has no mugshot.
+        The I{mugshotURL} renderer should return the correct URL if the person
+        has no mugshot.
         """
+        store = Store()
+        organizer = Organizer(store=store)
+        installOn(organizer, store)
+        person = Person(store=store, organizer=organizer)
         mugshotURL = renderer.get(
-            PersonSummaryView(Person(store=Store())),
+            PersonSummaryView(person),
             'mugshotURL',
             None)
         self.assertEqual(
             mugshotURL(None, None),
-            '/Mantissa/images/smaller-mugshot-placeholder.png')
+            organizer.linkToPerson(person) + '/mugshot/smaller')
 
 
     def test_personName(self):

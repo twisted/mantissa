@@ -10,6 +10,7 @@ except ImportError:
 from zope.interface import implements
 
 from twisted.python import components
+from twisted.python.filepath import FilePath
 from twisted.python.reflect import qual
 
 from nevow import rend, athena, inevow, static, tags, url
@@ -1058,24 +1059,30 @@ class PersonScrollingFragment(ScrollingElement):
     Scrolling element which displays L{Person} objects and allows actions to
     be taken on them.
 
-    @ivar _performAction: A function of two arguments which will be invoked
-        with an action name and a L{Person} to handle actions from the client.
-        Its return value will be sent back as the result of the action.
+    @type organizer: L{Organizer}
     """
     jsClass = u'Mantissa.People.PersonScroller'
 
-    def __init__(self, store, baseConstraint, defaultSortColumn,
+    def __init__(self, organizer, baseConstraint, defaultSortColumn,
             webTranslator):
         ScrollingElement.__init__(
             self,
-            store,
+            organizer.store,
             Person,
             baseConstraint,
             [VIPColumn(Person.vip, 'vip'),
              Person.name],
             defaultSortColumn=defaultSortColumn,
             webTranslator=webTranslator)
+        self.organizer = organizer
 
+
+    def getInitialArguments(self):
+        """
+        Include L{organizer}'s C{storeOwnerPerson}'s name.
+        """
+        return (ScrollingElement.getInitialArguments(self)
+                    + [self.organizer.storeOwnerPerson.name])
 
 
 
@@ -1100,9 +1107,6 @@ class PersonSummaryView(Element):
         Render the URL of L{person}'s mugshot, or the URL of a placeholder
         mugshot if they don't have one set.
         """
-        self.mugshot = self.person.getMugshot()
-        if self.mugshot is None:
-            return '/Mantissa/images/smaller-mugshot-placeholder.png'
         return self.organizer.linkToPerson(self.person) + '/mugshot/smaller'
     renderer(mugshotURL)
 
@@ -1309,7 +1313,7 @@ class OrganizerFragment(athena.LiveFragment):
         items in the wrapped organizer.
         """
         f = PersonScrollingFragment(
-                self.organizer.store,
+                self.organizer,
                 None,
                 Person.name,
                 self.wt)
@@ -2164,8 +2168,8 @@ registerUpgrader(mugshot2to3, Mugshot.typeName, 2, 3)
 
 class MugshotResource(rend.Page):
     """
-    Web accessible resource that serves Mugshot images. Serves
-    a smaller mugshot if the final path segment is "smaller"
+    Web accessible resource that serves Mugshot images. Serves a smaller
+    mugshot if the final path segment is "smaller"
     """
     smaller = False
 
@@ -2416,9 +2420,20 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def child_mugshot(self, ctx):
         """
-        Return the resource displaying this Person's mugshot picture.
+        Return the resource displaying this Person's mugshot picture, or a
+        placeholder mugshot.
         """
-        return MugshotResource(self.person.getMugshot())
+        mugshot = self.person.getMugshot()
+        if mugshot is None:
+            imageDir = FilePath(__file__).parent().child(
+                'static').child('images')
+            mugshot = Mugshot(
+                type=u'image/png',
+                body=imageDir.child('mugshot-placeholder.png'),
+                smallerBody=imageDir.child(
+                    'smaller-mugshot-placeholder.png'),
+                person=self.person)
+        return MugshotResource(mugshot)
 
 
 
