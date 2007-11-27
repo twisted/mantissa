@@ -1,3 +1,13 @@
+0.6.13 (2007-11-27):
+  - An IContactType implementation has been added for the PhoneNumber
+    and Notes items.
+  - The 'start menu' has been removed from the global nav, along with
+    many unnecessary tabs.
+  - The addressbook's initial state can now be specified in its URL.
+  - Sharing now supports Unicode URIs.
+  - The "me" person is now rendered uniquely in the addressbook.
+  - The addressbook widget is now bigger.
+
 0.6.12 (2007-11-13):
   - The mugshot upload form is now rendered in an iframe,
     and renders the current mugshot alongside it.
