@@ -716,7 +716,6 @@ class Organizer(item.Item):
         yield EmailContactType(self.store)
         yield PostalContactType()
         yield PhoneNumberContactType()
-        yield NotesContactType()
         for plugin in self.getOrganizerPlugins():
             getContactTypes = getattr(plugin, 'getContactTypes', None)
             if getContactTypes is not None:
@@ -1826,123 +1825,6 @@ class Notes(item.Item):
     person = attributes.reference(allowNone=False)
 
 setIconURLForContactInfoType(Notes, '/Mantissa/images/Notes-icon.png')
-
-
-
-class NotesContactType(BaseContactType):
-    """
-    Contact type plugin which allows a person to be annotated with a free-form
-    textual note.
-    """
-    implements(IContactType)
-    allowMultipleContactItems = False
-
-    def getParameters(self, notes):
-        """
-        Return a C{list} of one L{LiveForm} parameter for editing a
-        L{Notes}.
-
-        @type notes: L{Notes} or C{NoneType}
-        @param notes: If not C{None}, an existing contact item from
-            which to get the parameter's default value.
-
-        @rtype: C{list}
-        """
-        defaultNotes = u''
-        if notes is not None:
-            defaultNotes = notes.notes
-        return [
-            liveform.Parameter('notes', liveform.TEXTAREA_INPUT,
-                               unicode, 'Notes', default=defaultNotes)]
-
-
-    def descriptiveIdentifier(self):
-        """
-        Return 'Notes'
-        """
-        return u'Notes'
-
-
-    def createContactItem(self, person, notes):
-        """
-        Create a new L{Notes} associated with the given person based on the
-        given string.
-
-        @type person: L{Person}
-        @param person: The person with whom to associate the new L{Notes}.
-
-        @type notes: C{unicode}
-        @param notes: The value to use for the I{notes} attribute of the newly
-        created L{Notes}.  If C{''}, no L{Notes} will be created.
-
-        @rtype: L{Notes} or C{NoneType}
-        """
-        if notes:
-            return Notes(
-                store=person.store, person=person, notes=notes)
-
-
-    def editContactItem(self, contact, notes):
-        """
-        Set the I{notes} attribute of C{contact} to the value of the C{notes}
-        parameter.
-
-        @type contact: L{Notes}
-        @param contact: The existing contact item to modify.
-
-        @type notes: C{unicode}
-        @param notes: The new value to use for the I{notes} attribute of
-            the L{Notes}.
-
-        @return: C{None}
-        """
-        contact.notes = notes
-
-
-    def getContactItems(self, person):
-        """
-        Return a C{list} of the L{Notes} items associated with the given
-        person.  If none exist, create one, wrap it in a list and return it.
-
-        @type person: L{Person}
-        """
-        notes = list(person.store.query(Notes, Notes.person == person))
-        if not notes:
-            return [Notes(store=person.store,
-                          person=person,
-                          notes=u'')]
-        return notes
-
-
-    def getReadOnlyView(self, contact):
-        """
-        Return a L{ReadOnlyNotesView} for the given L{Notes}.
-        """
-        return ReadOnlyNotesView(contact)
-
-
-
-class ReadOnlyNotesView(Element):
-    """
-    Display notes for a person.
-
-    @type _notes: L{Notes}
-    """
-    docFactory = ThemedDocumentFactory(
-        'person-contact-read-only-notes-view', 'store')
-
-    def __init__(self, notes):
-        self._notes = notes
-        self.store = notes.store
-
-
-    def notes(self, request, tag):
-        """
-        Add the value of the I{notes} attribute of the wrapped L{Notes} as a
-        child to the given tag.
-        """
-        return tag[self._notes.notes]
-    renderer(notes)
 
 
 

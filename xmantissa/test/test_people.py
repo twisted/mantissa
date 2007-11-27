@@ -50,22 +50,15 @@ from xmantissa.people import (
     ReadOnlyEmailView, ReadOnlyPostalAddressView, getPersonURL,
     _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
-    ORGANIZER_VIEW_STATES, MugshotResource, Notes, NotesContactType,
-    ReadOnlyNotesView)
+    ORGANIZER_VIEW_STATES, MugshotResource)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
     TEXT_INPUT, InputError, Parameter, LiveForm, ListChangeParameter,
-    ListChanges, CreateObject, EditObject, FormParameter, ChoiceParameter,
-    TEXTAREA_INPUT)
+    ListChanges, CreateObject, EditObject, FormParameter, ChoiceParameter)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment)
 from xmantissa.signup import UserInfo
-
-
-# the number of non-plugin IContactType implementations provided by Mantissa.
-builtinContactTypeCount = 5
-
 
 
 class PeopleUtilitiesTestCase(unittest.TestCase):
@@ -1254,165 +1247,6 @@ class PhoneNumberContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
 
 
 
-class NotesContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
-    """
-    Tests for L{NotesContactType}.
-    """
-    def setUp(self):
-        """
-        Create a store, L{NotesContactType} and L{Person}.
-        """
-        self.store = Store()
-        self.person = Person(store=self.store)
-        self.contactType = NotesContactType()
-
-
-    def test_descriptiveIdentifier(self):
-        """
-        L{NotesContactType.descriptiveIdentifier} should be "Notes".
-        """
-        self.assertEqual(
-            self.contactType.descriptiveIdentifier(), u'Notes')
-
-
-    def test_allowsMultipleContactItems(self):
-        """
-        L{NotesContactType.allowMultipleContactItems} should be C{False}.
-        """
-        self.assertFalse(self.contactType.allowMultipleContactItems)
-
-
-    def test_createContactItem(self):
-        """
-        L{NotesContactType.createContactItem} should create a
-        L{Notes} item with the supplied value.
-        """
-        contactItem = self.contactType.createContactItem(
-            self.person, notes=u'some notes')
-        notes = list(self.store.query(Notes))
-        self.assertEqual(notes, [contactItem])
-        self.assertEqual(contactItem.notes, u'some notes')
-        self.assertIdentical(contactItem.person, self.person)
-
-
-    def test_createContactItemWithEmptyString(self):
-        """
-        L{NotesContactType.createContactItem} shouldn't create an item
-        if it's passed an empty string.
-        """
-        self.assertIdentical(
-            self.contactType.createContactItem(
-                self.person, notes=u''),
-            None)
-        self.assertEqual(self.store.query(Notes).count(), 0)
-
-
-    def test_editContactItem(self):
-        """
-        L{NotesContactType.editContactItem} should update the I{notes}
-        attribute of the given item.
-        """
-        contactItem = Notes(
-            store=self.store,
-            person=self.person,
-            notes=u'some notes')
-        self.contactType.editContactItem(
-            contactItem,
-            notes=u'revised notes')
-        self.assertEqual(contactItem.notes, u'revised notes')
-
-
-    def test_getParameters(self):
-        """
-        L{NotesContactType.getParameters} should return a list
-        containing a single parameter.
-        """
-        parameters = self.contactType.getParameters(None)
-        self.assertEqual(len(parameters), 1)
-        param = parameters[0]
-        self.assertTrue(isinstance(param, Parameter))
-        self.assertEqual(param.name, 'notes')
-        self.assertEqual(param.default, '')
-        self.assertEqual(param.type, TEXTAREA_INPUT)
-        self.assertEqual(param.label, u'Notes')
-
-
-    def test_getParametersWithDefault(self):
-        """
-        L{NotesContactType.getParameters} should correctly default the
-        returned parameter if it's passed a contact item.
-        """
-        contactItem = Notes(
-            store=self.store,
-            person=self.person,
-            notes=u'some notes')
-        parameters = self.contactType.getParameters(contactItem)
-        self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].default, contactItem.notes)
-
-
-    def test_getContactItems(self):
-        """
-        L{NotesContactType.getContactItems} should return only
-        the L{Notes} item associated with the given person.
-        """
-        Notes(store=self.store,
-              person=Person(store=self.store),
-              notes=u'notes')
-        expectedNotes = [
-            Notes(store=self.store,
-                  person=self.person,
-                  notes=u'some notes')]
-        self.assertEqual(
-            list(self.contactType.getContactItems(self.person)),
-            expectedNotes)
-
-
-    def test_getContactItemsCreates(self):
-        """
-        L{NotesContactType.getContactItems} should create a L{Notes} item for
-        the given person, if one does not exist.
-        """
-        # sanity check
-        self.assertEqual(self.store.query(Notes).count(), 0)
-
-        contactItems = self.contactType.getContactItems(self.person)
-        self.assertEqual(len(contactItems), 1)
-        self.assertEqual(contactItems, list(self.store.query(Notes)))
-        self.assertEqual(contactItems[0].notes, u'')
-        self.assertIdentical(contactItems[0].person, self.person)
-
-
-    def test_getReadOnlyView(self):
-        """
-        L{NotesContactType.getReadOnlyView} should return a
-        correctly-initialized L{ReadOnlyNotesView}.
-        """
-        contactItem = Notes(
-            store=self.store, person=self.person, notes=u'notes')
-        view = self.contactType.getReadOnlyView(contactItem)
-        self.assertTrue(isinstance(view, ReadOnlyNotesView))
-        self.assertIdentical(view._notes, contactItem)
-
-
-
-class ReadOnlyNotesViewTests(unittest.TestCase, TagTestingMixin):
-    """
-    Tests for L{ReadOnlyNotesView}.
-    """
-    def test_notes(self):
-        """
-        The I{notes} renderer of L{ReadOnlyNotesView} should return
-        the C{notes} attribute of the wrapped L{Notes}.
-        """
-        person = Person()
-        notes = Notes(person=person, notes=u'good notes')
-        view = ReadOnlyNotesView(notes)
-        value = renderer.get(view, 'notes')(None, div)
-        self.assertTag(value, 'div', {}, [notes.notes])
-
-
-
 class ReadOnlyPhoneNumberViewTestCase(unittest.TestCase, TagTestingMixin):
     """
     Tests for L{ReadOnlyPhoneNumberView}.
@@ -1883,8 +1717,9 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(
             secondContactPowerup, IOrganizerPlugin, priority=0)
 
+        # Skip the first four (builtin) contact types
         self.assertEqual(
-            list(self.organizer.getContactTypes())[builtinContactTypeCount:],
+            list(self.organizer.getContactTypes())[4:],
             firstContactTypes + secondContactTypes)
 
 
@@ -1907,7 +1742,7 @@ class PeopleModelTestCase(unittest.TestCase):
         finally:
             Organizer.getOrganizerPlugins = getOrganizerPlugins
 
-        self.assertEqual(contactTypes[builtinContactTypeCount:], [])
+        self.assertEqual(contactTypes[4:], [])
 
 
     def test_getContactCreationParameters(self):
@@ -1925,15 +1760,11 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        self.assertEqual(len(parameters), builtinContactTypeCount + 1)
-        self.assertTrue(
-            isinstance(parameters[builtinContactTypeCount], ListChangeParameter))
+        self.assertEqual(len(parameters), 5)
+        self.assertTrue(isinstance(parameters[4], ListChangeParameter))
         self.assertEqual(
-            parameters[builtinContactTypeCount].modelObjectDescription,
-            u'Very Descriptive')
-        self.assertEqual(
-            parameters[builtinContactTypeCount].name,
-            qual(StubContactType))
+            parameters[4].modelObjectDescription, u'Very Descriptive')
+        self.assertEqual(parameters[4].name, qual(StubContactType))
 
 
     def test_getContactCreationParametersUnrepeatable(self):
@@ -1951,7 +1782,7 @@ class PeopleModelTestCase(unittest.TestCase):
         self.store.powerUp(contactPowerup, IOrganizerPlugin)
 
         parameters = list(self.organizer.getContactCreationParameters())
-        liveFormParameter = parameters[builtinContactTypeCount]
+        liveFormParameter = parameters[4]
         self.assertTrue(isinstance(liveFormParameter, FormParameter))
         self.assertEqual(liveFormParameter.name, qual(StubContactType))
         liveForm = liveFormParameter.form
@@ -1975,15 +1806,11 @@ class PeopleModelTestCase(unittest.TestCase):
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
 
-        self.assertIdentical(
-            parameters[builtinContactTypeCount][0], contactTypes[0])
+        self.assertIdentical(parameters[4][0], contactTypes[0])
         self.failUnless(
-            isinstance(
-                parameters[builtinContactTypeCount][1],
-                ListChangeParameter))
+            isinstance(parameters[4][1], ListChangeParameter))
         self.assertEqual(
-            parameters[builtinContactTypeCount][1].modelObjectDescription,
-            u'So Descriptive')
+            parameters[4][1].modelObjectDescription, u'So Descriptive')
 
 
     def test_getContactEditorialParametersUnrepeatable(self):
@@ -2005,7 +1832,7 @@ class PeopleModelTestCase(unittest.TestCase):
 
         parameters = list(self.organizer.getContactEditorialParameters(person))
 
-        (contactType, liveFormParameter) = parameters[builtinContactTypeCount]
+        (contactType, liveFormParameter) = parameters[4]
         self.assertIdentical(contactType, contactTypes[0])
         self.assertTrue(isinstance(liveFormParameter, FormParameter))
         self.assertEqual(liveFormParameter.name, qual(StubContactType))
@@ -2288,8 +2115,7 @@ class PeopleTests(unittest.TestCase):
         # With no plugins, only the parameters for the builtin contact types
         # should be returned
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(
-            len(addPersonForm.parameters), builtinContactTypeCount + 1)
+        self.assertEqual(len(addPersonForm.parameters), 5)
 
         contactTypes = [StubContactType((), None, None)]
         observer = StubOrganizerPlugin(
@@ -2297,8 +2123,7 @@ class PeopleTests(unittest.TestCase):
         self.store.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(
-            len(addPersonForm.parameters), builtinContactTypeCount + 2)
+        self.assertEqual(len(addPersonForm.parameters), 6)
 
 
     def test_addPersonWithContactItems(self):
@@ -3404,4 +3229,3 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         UserInfo(store=store, realName=name)
         organizer = Organizer(store=store)
         self.assertEqual(organizer.storeOwnerPerson.name, name)
-
