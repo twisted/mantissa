@@ -114,6 +114,10 @@ Mantissa.Test.TestPeople.StubOrganizerView = Divmod.UnitTest.TestCase.subclass(
  * @ivar cancelFormLinkVisible: Whether the "cancel form" link is currently
  * visible.  Defaults to C{false}.
  * @type cancelFormLinkVisible: C{Boolean}
+ *
+ * @ivar organizerPositionSet: Whether the I{organizer} node has been
+ * positioned.  Defaults to C{false}.
+ * @type organizerPositionSet: C{Boolean}
  */
 Mantissa.Test.TestPeople.StubOrganizerView.methods(
     function __init__(self) {
@@ -121,6 +125,14 @@ Mantissa.Test.TestPeople.StubOrganizerView.methods(
         self.editLinkVisible = false;
         self.deleteLinkVisible = false;
         self.cancelFormLinkVisible = false;
+        self.organizerPositionSet = false;
+    },
+
+    /**
+     * Set L{organizerPositionSet} to C{true}.
+     */
+    function setOrganizerPosition(self) {
+        self.organizerPositionSet = true;
     },
 
     /**
@@ -194,11 +206,38 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
             'detail': document.createElement('span'),
             'edit-link': document.createElement('a'),
             'delete-link': document.createElement('a'),
-            'cancel-form-link': document.createElement('a')};
+            'cancel-form-link': document.createElement('a')}
         self.view = Mantissa.People.OrganizerView(
             function nodeById(id) {
                 return self.nodes[id];
             });
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.setOrganizerPosition} should set the
+     * I{top} style property of the I{organizer} node to the Y-position of its
+     * parent node.
+     */
+    function test_setOrganizerPosition(self) {
+        var containerNode = document.createElement('div');
+        var organizerNode = document.createElement('div');
+        containerNode.appendChild(organizerNode);
+        self.nodes['organizer'] = organizerNode;
+        var yPosition = 203;
+        var queriedNodes = [];
+        var originalFindPosY = Divmod.Runtime.theRuntime.findPosY;
+        try {
+            Divmod.Runtime.theRuntime.findPosY = function findPosY(node) {
+                queriedNodes.push(node);
+                return yPosition;
+            }
+            self.view.setOrganizerPosition();
+        } finally {
+            Divmod.Runtime.theRuntime.findPosY = originalFindPosY;
+        }
+        self.assertIdentical(queriedNodes.length, 1);
+        self.assertIdentical(queriedNodes[0], containerNode);
+        self.assertIdentical(organizerNode.style.top, yPosition + 'px');
     },
 
     /**
@@ -293,6 +332,22 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
     });
 
 
+Mantissa.Test.TestPeople.TestableOrganizer = Mantissa.People.Organizer.subclass(
+    'Mantissa.Test.TestPeople.TestableOrganizer');
+/**
+ * Trivial L{Mantissa.People.Organizer} subclass which uses
+ * L{Mantissa.Test.TestPeople.StubOrganizerView}.
+ */
+Mantissa.Test.TestPeople.TestableOrganizer.methods(
+    /**
+     * Override the base implementation to return a
+     * L{Mantissa.Test.TestPeople.StubOrganizerView}.
+     */
+    function _makeView(self) {
+        return Mantissa.Test.TestPeople.StubOrganizerView();
+    });
+
+
 Mantissa.Test.TestPeople.OrganizerTests = Divmod.UnitTest.TestCase.subclass(
     'Mantissa.Test.TestPeople.OrganizerTests');
 /**
@@ -304,8 +359,8 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
      */
     function setUp(self) {
         self.node = Nevow.Test.WidgetUtil.makeWidgetNode();
-        self.organizer = Mantissa.People.Organizer(self.node);
-        self.organizer.view = self.view = Mantissa.Test.TestPeople.StubOrganizerView();
+        self.organizer = Mantissa.Test.TestPeople.TestableOrganizer(self.node);
+        self.view = self.organizer.view;
 
         self.calls = [];
         self.organizer.callRemote = function(name) {
@@ -339,6 +394,14 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
 
     /**
      * L{Mantissa.People.Organizer}'s constructor should call
+     * C{setOrganizerPosition} on its view.
+     */
+    function test_constructorSetsPosition(self) {
+        self.assertIdentical(self.view.organizerPositionSet, true);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer}'s constructor should call
      * L{Mantissa.People.Organizer.displayEditPerson} if the C{initialState}
      * is I{edit}.
      */
@@ -346,14 +409,14 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var displayEditPersonCalls = 0;
         /* subclass because the method we want to mock is called by the
          * constructor */
-        var TestableOrganizer = Mantissa.People.Organizer.subclass(
-            'TestableOrganizer');
-        TestableOrganizer.methods(
+        var MockEditPersonOrganizer = Mantissa.Test.TestPeople.TestableOrganizer.subclass(
+            'MockEditPersonOrganizer');
+        MockEditPersonOrganizer.methods(
             function displayEditPerson(self) {
                 displayEditPersonCalls++;
             });
         var initialPersonName = 'Initial Person';
-        organizer = TestableOrganizer(
+        organizer = MockEditPersonOrganizer(
             Nevow.Test.WidgetUtil.makeWidgetNode(),
             '', initialPersonName, 'edit');
         self.assertIdentical(displayEditPersonCalls, 1);

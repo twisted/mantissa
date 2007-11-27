@@ -15,6 +15,17 @@ Mantissa.People.OrganizerView.methods(
     },
 
     /**
+     * Set the "top" style property of the I{organizer} node, positioning it
+     * within its parent.
+     */
+    function setOrganizerPosition(self) {
+        var organizerNode = self.nodeById('organizer');
+        var organizerTop = Divmod.Runtime.theRuntime.findPosY(
+            organizerNode.parentNode);
+        organizerNode.style.top = organizerTop + 'px';
+    },
+
+    /**
      * Remove the existing detail node and insert the specified one in its
      * place.
      *
@@ -113,10 +124,8 @@ Mantissa.People.Organizer.methods(
         Mantissa.People.Organizer.upcall(self, '__init__', node);
         self.existingDetailWidget = null;
         self.storeOwnerPersonName = storeOwnerPersonName;
-        self.view = Mantissa.People.OrganizerView(
-            function nodeById(id) {
-                return self.nodeById(id);
-            });
+        self.view = self._makeView();
+        self.view.setOrganizerPosition();
         self.initialPersonName = initialPersonName;
         if(initialPersonName === undefined) {
             self.currentlyViewingName = null;
@@ -126,6 +135,18 @@ Mantissa.People.Organizer.methods(
         if(initialState === 'edit') {
             self.displayEditPerson();
         }
+    },
+
+    /**
+     * Construct a L{Mantissa.People.OrganizerView}.
+     *
+     * @rtype: L{Mantissa.People.OrganizerView}
+     */
+    function _makeView(self) {
+        return Mantissa.People.OrganizerView(
+            function nodeById(id) {
+                return self.nodeById(id);
+            });
     },
 
     /**
