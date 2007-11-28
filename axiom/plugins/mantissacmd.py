@@ -36,7 +36,7 @@ def genSerial():
     """
     Generate a (hopefully) unique integer usable as an SSL certificate serial.
     """
-    return abs(struct.unpack('l', os.urandom(4))[0])
+    return abs(struct.unpack('!l', os.urandom(4))[0])
 
 
 
