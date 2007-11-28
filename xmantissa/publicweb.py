@@ -19,25 +19,15 @@ from nevow.url import URL
 from axiom import item, attributes, upgrade, userbase
 
 from xmantissa import ixmantissa, website, offering
-from xmantissa.webtheme import getLoader, getInstalledThemes
+from xmantissa.webtheme import getInstalledThemes, SiteTemplateResolver
 from xmantissa.ixmantissa import IStaticShellContent
 from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
 
-
-def _getLoader(store, fragmentName, getInstalledThemes=getInstalledThemes):
-    """
-    This is a temporary function to be used instead of
-    xmantissa.webtheme.getLoader, as that is sometimes broken and will be
-    deprecated soonish. _getLoader is a quick-fix until we have full support
-    for ITemplateNameResolver. See tickets #2343, #2344, and #2345.
-    """
-    loader = None
-    for theme in getInstalledThemes(store):
-        loader = theme.getDocFactory(fragmentName)
-        if loader is not None:
-            return loader
-    if loader is None:
-        raise RuntimeError("No loader for %r anywhere" % (fragmentName,))
+# Certain people are importing getLoader from here.  That is bad.  Please do
+# not do that.  Thank you.
+from xmantissa.webtheme import getLoader
+# Also, let's suppress the pyflakes warning; we're doing this on purpose.
+getLoader
 
 
 def renderShortUsername(ctx, username):
@@ -534,11 +524,15 @@ class PublicPage(PublicPageMixin, rend.Page):
     theme support and authentication trimmings.
     """
 
-    def __init__(self, original, store, fragment, staticContent, forUser):
+    def __init__(self, original, store, fragment, staticContent, forUser,
+                 templateResolver=None):
         """
         Create a public page.
 
         @param original: any object
+
+        @param store: a site store containing a L{WebSite}.
+        @type store: L{axiom.store.Store}.
 
         @param fragment: a L{rend.Fragment} to display in the content area of
         the page.
@@ -546,11 +540,18 @@ class PublicPage(PublicPageMixin, rend.Page):
         @param staticContent: some stan, to include in the header of the page.
 
         @param forUser: a string, the external ID of a user to customize for.
+
+        @templateResolver: a teamplate resolver instance that will return the
+        appropriate doc factory.
         """
-        super(PublicPage, self).__init__(original, docFactory=getLoader("shell"))
+        if templateResolver is None:
+            templateResolver = SiteTemplateResolver(store)
+        super(PublicPage, self).__init__(
+            original, docFactory=templateResolver.getDocFactory('shell'))
         self.store = store
         self.fragment = fragment
         self.staticContent = staticContent
+        self.templateResolver = templateResolver
         if forUser is not None:
             assert isinstance(forUser, unicode), forUser
         self.username = forUser
@@ -568,8 +569,9 @@ class _OfferingsFragment(rend.Fragment):
 
         @param original: a L{FrontPage} item.
         """
+        templateResolver = SiteTemplateResolver(original.store)
         super(_OfferingsFragment, self).__init__(
-            original, docFactory=_getLoader(original.store, 'front-page'))
+            original, docFactory=templateResolver.getDocFactory('front-page'))
 
 
     def data_offerings(self, ctx, data):
@@ -704,11 +706,13 @@ class LoginPage(PublicPage):
     logic.
     """
 
-    def __init__(self, store, segments=(), arguments=None):
+    def __init__(self, store, segments=(), arguments=None,
+                 templateResolver=None):
         """
         Create a login page.
 
-        @param store: a site store which contains a WebSite item.
+        @param store: a site store containing a L{WebSite}.
+        @type store: L{axiom.store.Store}.
 
         @param segments: a list of strings.  For example, if you hit
         /login/private/stuff, you want to log in to /private/stuff, and the
@@ -716,10 +720,16 @@ class LoginPage(PublicPage):
 
         @param arguments: A dictionary mapping query argument names to lists of
         values for those arguments (see IRequest.args).
+
+        @templateResolver: a teamplate resolver instance that will return the
+        appropriate doc factory.
         """
-        PublicPage.__init__(self, None, store, _getLoader(store, 'login'),
+        if templateResolver is None:
+            templateResolver = SiteTemplateResolver(store)
+        PublicPage.__init__(self, None, store,
+                            templateResolver.getDocFactory('login'),
                             IStaticShellContent(store, None),
-                            None)
+                            None, templateResolver)
         self.segments = segments
         if arguments is None:
             arguments = {}
@@ -841,6 +851,7 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
     """
     fragment = None
     def __init__(self, store, fragment, staticContent=None, forUser=None,
+                 templateResolver=None,
                  *a, **k):
         """
         Create a PublicAthenaLivePage.
@@ -851,13 +862,21 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         @param fragment: The L{INavigableFragment} provider which will be
         displayed on this page.
 
+        @templateResolver: a teamplate resolver instance that will return the
+        appropriate doc factory.
+
         This page draws its HTML from the 'shell' template in the active theme.
         If loaded in a browser that does not support Athena, the page provided
         by the 'athena-unsupported' template will be displayed instead.
         """
         self.store = store
+        if templateResolver is None:
+            templateResolver = ixmantissa.ITemplateNameResolver(self.store, None)
+            if templateResolver is None:
+                templateResolver = SiteTemplateResolver(self.store)
         super(PublicAthenaLivePage, self).__init__(
-            IResource(store), docFactory=getLoader('shell'), *a, **k)
+            IResource(self.store), docFactory=templateResolver.getDocFactory('shell'),
+            *a, **k)
         if fragment is not None:
             self.fragment = fragment
             # everybody who calls this has a different idea of what 'fragment'
@@ -867,15 +886,9 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
             else:
                 fragment.page = self
         self.staticContent = staticContent
-        if forUser is not None:
-            assert isinstance(forUser, unicode), forUser
         self.username = forUser
-        resolver = ixmantissa.ITemplateNameResolver(self.store, None)
-        if resolver is not None:
-            self.unsupportedBrowserLoader = (resolver
-                                         .getDocFactory("athena-unsupported"))
-        else:
-            self.unsupportedBrowserLoader = getLoader("athena-unsupported")
+        self.unsupportedBrowserLoader = templateResolver.getDocFactory(
+            "athena-unsupported")
 
 
     def render_head(self, ctx, data):
