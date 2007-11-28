@@ -1348,3 +1348,8 @@ li.installing {
     background-repeat: no-repeat;
     width: 153px;
 }
+
+.mantissa-me-icon {
+    position: relative;
+    bottom: -4px;
+}

@@ -496,8 +496,8 @@ Mantissa.People.PersonScroller.methods(
             columnNode = [
                 columnNode,
                 MochiKit.DOM.IMG(
-                    {'class': 'mantissa-star-icon',
-                     'src': '/Mantissa/images/star-icon.png'})];
+                    {'class': 'mantissa-me-icon',
+                     'src': '/Mantissa/images/me-icon.png'})];
         }
         return MochiKit.DOM.SPAN({'class': className}, columnNode);
     });

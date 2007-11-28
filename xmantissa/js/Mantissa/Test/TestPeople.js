@@ -1017,7 +1017,7 @@ Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
             cellElement.childNodes[1].tagName, 'IMG');
         self.assertIdentical(
             cellElement.childNodes[1].getAttribute('src'),
-            '/Mantissa/images/star-icon.png');
+            '/Mantissa/images/me-icon.png');
     },
 
     /**
