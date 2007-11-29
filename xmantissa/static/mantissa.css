@@ -141,6 +141,8 @@ iframe.mugshot-upload {
 .person-list-person-row img, .person-list-selected-person-row img {
     border-width: 0px;
     padding-left: 4px;
+    position: relative;
+    bottom: -4px;
 }
 
 .cancel-form-link img {
@@ -209,7 +211,7 @@ iframe.mugshot-upload {
 }
 
 .people-table-person-name {
-    padding-left: 20px;
+    padding-left: 28px;
 }
 
 .people-table-vip-person-name {
@@ -1347,9 +1349,4 @@ li.installing {
     background-image: url(/Mantissa/images/password-reset-table-header-left-block.png);
     background-repeat: no-repeat;
     width: 153px;
-}
-
-.mantissa-me-icon {
-    position: relative;
-    bottom: -4px;
 }
