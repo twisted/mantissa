@@ -541,7 +541,7 @@ class PublicPage(PublicPageMixin, rend.Page):
 
         @param forUser: a string, the external ID of a user to customize for.
 
-        @param templateResolver: a teamplate resolver instance that will return
+        @param templateResolver: a template resolver instance that will return
         the appropriate doc factory.
         """
         if templateResolver is None:
@@ -721,7 +721,7 @@ class LoginPage(PublicPage):
         @param arguments: A dictionary mapping query argument names to lists of
         values for those arguments (see IRequest.args).
 
-        @param templateResolver: a teamplate resolver instance that will return
+        @param templateResolver: a template resolver instance that will return
         the appropriate doc factory.
         """
         if templateResolver is None:
@@ -862,7 +862,7 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         @param fragment: The L{INavigableFragment} provider which will be
         displayed on this page.
 
-        @param templateResolver: a teamplate resolver instance that will return
+        @param templateResolver: a template resolver instance that will return
         the appropriate doc factory.
 
         This page draws its HTML from the 'shell' template in the active theme.
