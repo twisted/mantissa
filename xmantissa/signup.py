@@ -68,8 +68,8 @@ class PasswordResetResource(PublicPage):
     @param store: a site store containing a L{WebSite}.
     @type store: L{axiom.store.Store}.
 
-    @templateResolver: a teamplate resolver instance that will return the
-    appropriate doc factory.
+    @param templateResolver: a teamplate resolver instance that will return
+    the appropriate doc factory.
     """
 
     attempt = None
