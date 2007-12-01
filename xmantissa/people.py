@@ -27,6 +27,7 @@ from axiom.attributes import boolean
 from axiom.upgrade import (
     registerUpgrader, registerAttributeCopyingUpgrader,
     registerDeletionUpgrader)
+from axiom.userbase import LoginAccount, LoginMethod
 
 from xmantissa.ixmantissa import IPersonFragment
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
@@ -426,6 +427,20 @@ class PeopleBenefactor(item.Item):
 
 
 class Person(item.Item):
+    """
+    Person Per"son (p[~e]r"s'n; 277), n.
+
+        1. A character or part, as in a play; a specific kind or manifestation
+        of individual character, whether in real life, or in literary or
+        dramatic representation; an assumed character. [Archaic] [1913 Webster]
+
+    This is Mantissa's simulation of a person, which has attached contact
+    information.  It is highly pluggable, mostly via the L{Organizer} object.
+
+    Do not create this item directly, as functionality of L{IOrganizerPlugin}
+    powerups will be broken if you do.  Instead, use L{Organizer.createPerson}.
+    """
+
     typeName = 'mantissa_person'
     schemaVersion = 3
 
@@ -445,10 +460,6 @@ class Person(item.Item):
         doc="""
         Flag indicating this L{Person} is very important.
         """, default=False, allowNone=False)
-
-
-    def __init__(self, **kw):
-        super(Person, self).__init__(**kw)
 
 
     def getDisplayName(self):
@@ -697,7 +708,19 @@ class Organizer(item.Item):
         name = u''
         if userInfo is not None:
             name = userInfo.realName
-        return Person(store=self.store, organizer=self, name=name)
+        account = self.store.findUnique(LoginAccount,
+                                        LoginAccount.avatars == self.store, None)
+        ownerPerson = self.createPerson(name)
+        if account is not None:
+            for method in (self.store.query(
+                    LoginMethod,
+                    attributes.AND(LoginMethod.account == account,
+                                   LoginMethod.internal == False))):
+                self.createContactItem(
+                    EmailContactType(self.store),
+                    ownerPerson, dict(
+                        email=method.localpart + u'@' + method.domain))
+        return ownerPerson
 
 
     def getOrganizerPlugins(self):
@@ -827,7 +850,10 @@ class Organizer(item.Item):
 
         @rtype: L{Person}
         """
-        for person in self.store.query(Person, Person.name == nickname):
+        for person in (self.store.query(
+                Person, attributes.AND(
+                    Person.name == nickname,
+                    Person.organizer == self))):
             raise ValueError("Person with name %r exists already." % (nickname,))
         person = Person(
             store=self.store,
@@ -1426,6 +1452,9 @@ class EditPersonView(LiveElement):
 
 
 class RealName(item.Item):
+    """
+    This is a legacy item left over from a previous schema.  Do not create it.
+    """
     typeName = 'mantissa_organizer_addressbook_realname'
     schemaVersion = 2
 
@@ -1448,6 +1477,13 @@ registerDeletionUpgrader(RealName, 1, 2)
 
 
 class EmailAddress(item.Item):
+    """
+    An email address contact info item associated with a L{Person}.
+
+    Do not create this item directly, as functionality of L{IOrganizerPlugin}
+    powerups will be broken if you do.  Instead, use
+    L{Organizer.createContactItem} with L{EmailContactType}.
+    """
     typeName = 'mantissa_organizer_addressbook_emailaddress'
     schemaVersion = 3
 
@@ -1484,6 +1520,13 @@ registerAttributeCopyingUpgrader(EmailAddress, 2, 3)
 
 
 class PhoneNumber(item.Item):
+    """
+    A contact information item representing a L{Person}'s phone number.
+
+    Do not create this item directly, as functionality of L{IOrganizerPlugin}
+    powerups will be broken if you do.  Instead, use
+    L{Organizer.createContactItem} with L{PhoneNumberContactType}.
+    """
     typeName = 'mantissa_organizer_addressbook_phonenumber'
     schemaVersion = 3
 
