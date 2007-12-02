@@ -32,9 +32,6 @@ from axiom.dependency import installOn, installedOn
 from axiom.item import Item
 from axiom.attributes import inmemory, text
 from axiom.errors import DeletionDisallowed
-
-from axiom.userbase import LoginSystem
-
 from axiom.plugins.userbasecmd import Create
 from axiom.plugins.mantissacmd import Mantissa
 
@@ -1866,8 +1863,7 @@ class PeopleModelTestCase(unittest.TestCase):
         finally:
             Organizer.getOrganizerPlugins = getOrganizerPlugins
 
-        self.assertEqual(plugins[1].createdPeople,
-                         [organizer.storeOwnerPerson, person])
+        self.assertEqual(plugins[1].createdPeople, [person])
 
 
     def test_getContactTypes(self):
@@ -3408,47 +3404,4 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         UserInfo(store=store, realName=name)
         organizer = Organizer(store=store)
         self.assertEqual(organizer.storeOwnerPerson.name, name)
-
-
-    def test_personEmailFromUserInfo(self):
-        """
-        The L{Person} created to be the store owner by L{Organizer} should have
-        an L{EmailAddress} item created with an address computed from the
-        available 'email' login methods.
-
-        (In the course of doing so, make sure that it creates them correctly
-        and notifies the organizer plugins of the L{EmailAddress} item's
-        existence.)
-        """
-        siteStore = Store()
-        ls = LoginSystem(store=siteStore)
-
-        # It should NOT consider the login method created implicitly as a
-        # result of the signup process.  Too bad that actually defaults to the
-        # 'email' protocol!
-        acct = ls.addAccount(u'jim.bean',
-                             u'service.example.com',
-                             u'nevermind',
-                             internal=True)
-        userStore = acct.avatars.open()
-        acct.addLoginMethod(localpart=u'jim',
-                            domain=u'bean.example.com',
-                            protocol=u'email',
-                            verified=False,
-                            internal=False)
-        stub = StubOrganizerPlugin(store=userStore)
-        # This is _slightly_ unrealistic for real-world usage, because
-        # generally L{IOrganizerPlugin} providers will also just happen to
-        # depend on the organizer (and therefore won't get notified of this
-        # first item).  However, nothing says they *need* to depend on it, and
-        # if they don't, the contact items should be created the proper,
-        # suggested way.
-        userStore.powerUp(stub, IOrganizerPlugin)
-        organizer = Organizer(store=userStore)
-        person = organizer.storeOwnerPerson
-        self.assertEqual(list(person.getEmailAddresses()),
-                         [u'jim@bean.example.com'])
-        self.assertEqual(stub.createdPeople, [organizer.storeOwnerPerson])
-        self.assertEqual(stub.createdContactItems,
-                         [userStore.findUnique(EmailAddress)])
 
