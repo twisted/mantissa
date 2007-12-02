@@ -18,15 +18,14 @@ from nevow.flat import flatten
 from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
 
-from xmantissa.ixmantissa import INavigableElement
 from xmantissa import signup
+from xmantissa.ixmantissa import INavigableElement
 from xmantissa.website import WebSite
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
-from xmantissa.offering import InstalledOffering
 from xmantissa.publicweb import (
-    PublicAthenaLivePage, PublicNavAthenaLivePage, _OfferingsFragment)
+    _getLoader, PublicAthenaLivePage, PublicNavAthenaLivePage, _OfferingsFragment)
 from xmantissa import publicweb
 from xmantissa.signup import PasswordResetResource
 
@@ -78,70 +77,78 @@ class FakeStore(object):
     A trivial store with attributes needed for mocking stores used by various
     tests.
     """
-    def __init__(self, test):
-        """
-        Create a FakeStore with a test to report errors to.
-        """
-        self.test = test        # test
-        self.themes = [self]    # offering
-        self.name = 'faketest'  # offering
-        self.priority = 100000000 # offering
+    def findUnique(self, *args, **kwds):
+        pass
 
 
-    def getDocFactory(self, fragmentName, default=None):
+
+class TestPrivateGetLoader(TestCase):
+    """
+    Test case for the private _getLoader function.
+    """
+    def setUp(self):
         """
-        Retrieve a fake doc factory.
+        Setup a store and theme for the test case.
         """
-        if fragmentName == 'shell':
-            # ignore shell template requests, they're not the code we're testing.
-            return
-        self.test.getLoaderStore = self
-        self.test.getLoaderName = fragmentName
-        return self.test.template
+        self.store = Store()
+        self.fragmentName = 'private-get-loader'
+        self.docFactory = object()
+        self.theme = FakeTheme({self.fragmentName: self.docFactory})
 
 
-    def findUnique(self, *a, **k):
+    def test_loadersInstalledOfferings(self):
         """
-        Stubbed to confuse L{PasswordResetResource}
+        L{_getLoader} should return the document factory for the given template
+        from the list of installed themes.
         """
-
-
-    def query(self, installedOffering):
-        """
-        Extremely limited query that only does what we expect: return a list of
-        'self' (I can double as a fake Installedoffering too)! as an installed
-        offering, with the base theme.
-        """
-        self.test.assertEqual(installedOffering, InstalledOffering)
-        return [self]
-
-
-    def getOffering(self):
-        """
-        Return me, since the only thing these tests expect of an offering is
-        the 'themes' attribute...
-        """
-        return self
+        getInstalledThemes = {self.store: [self.theme]}.get
+        docFactory = _getLoader(
+            self.store, self.fragmentName, getInstalledThemes)
+        self.assertIdentical(docFactory, self.docFactory)
+        self.assertRaises(
+            RuntimeError,
+            _getLoader, self.store, 'unknown-template', getInstalledThemes)
 
 
 
 class TestHonorInstalledThemes(TestCase):
     """
-    Various classes should be using template resolvers to determine which theme
-    to use based on a site store.
+    Various classes should be using _getLoader to determine which theme to use
+    based on a site store.
     """
 
     def setUp(self):
         """
-        Set some attributes required for the tests.
+        Replace _getLoader with a temporary method of this test case.
         """
+        publicweb._getLoader = self.fakeGetLoader
+        signup._getLoader = self.fakeGetLoader
         self.template = object()
-        self.store = FakeStore(self)
+        self.store = FakeStore()
+
+
+    def tearDown(self):
+        """
+        Replace the original _getLoader.
+        """
+        publicweb._getLoader = _getLoader
+        signup._getLoader = _getLoader
+
+
+    def fakeGetLoader(self, store, fragmentName):
+        """
+        Pretend to be the private _getLoader function for the duration of the
+        test.
+        """
+        self.getLoaderStore = store
+        self.getLoaderName = fragmentName
+        return self.template
 
 
     def test_offeringsFragmentLoader(self):
         """
-        L{_OfferingsFragment} should honor the installed themes list.
+        L{_OfferingsFragment} should honor the installed themes list by using
+        _getLoader.
         """
         original = record('store')(self.store)
         offeringsFragment = _OfferingsFragment(original)
@@ -152,7 +159,8 @@ class TestHonorInstalledThemes(TestCase):
 
     def test_loginPageLoader(self):
         """
-        L{LoginPage} should honor the installed themes list.
+        L{LoginPage} should honor the installed themes list by using
+        _getLoader.
         """
         loginPage = publicweb.LoginPage(self.store)
         self.assertIdentical(self.getLoaderStore, self.store)
@@ -162,7 +170,8 @@ class TestHonorInstalledThemes(TestCase):
 
     def test_passwordResetLoader(self):
         """
-        L{LoginPage} should honor the installed themes list.
+        L{LoginPage} should honor the installed themes list by using
+        _getLoader.
         """
         resetPage = PasswordResetResource(self.store)
         self.assertIdentical(self.getLoaderStore, self.store)

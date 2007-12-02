@@ -87,40 +87,6 @@ theThemeCache = ThemeCache()
 getAllThemes = theThemeCache.getAllThemes
 getInstalledThemes = theThemeCache.getInstalledThemes
 
-
-class SiteTemplateResolver(object):
-    """
-    L{SiteTemplateResolver} implements L{ITemplateNameResolver} according to
-    that site's policy for loading themes.  Use this class if you are
-    displaying a public page at the top level of a site.
-
-    Currently the only available policy is to load all installed themes in
-    priority order.  However, in the future, this class may provide more
-    sophisticated ways of loading the preferred theme, including interacting
-    with adminstrative tools for interactively ordering theme preference.
-
-    @ivar siteStore: a site store (preferably one with some offerings
-    installed, if you want to actually get a template back)
-    """
-    implements(ITemplateNameResolver)
-    def __init__(self, siteStore):
-        self.siteStore = siteStore
-
-
-    def getDocFactory(self, name, default=None):
-        """
-        Locate a L{nevow.inevow.IDocFactory} object with the given name from
-        the themes installed on the site store and return it.
-        """
-        loader = None
-        for theme in getInstalledThemes(self.siteStore):
-            loader = theme.getDocFactory(name)
-            if loader is not None:
-                return loader
-        return default
-
-
-
 _marker = object()
 
 def _realGetLoader(n, default=_marker):
@@ -222,7 +188,7 @@ class XHTMLDirectoryTheme(object):
         """
 
 
-    # ITemplateNameResolver
+    # IThemePreferrer
     def getDocFactory(self, fragmentName, default=None):
         if fragmentName in self.cachedLoaders:
             return self.cachedLoaders[fragmentName]

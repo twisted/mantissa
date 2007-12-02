@@ -12,11 +12,10 @@ from xmantissa import ixmantissa
 from xmantissa import signup
 from xmantissa.website import WebSite
 from xmantissa.port import SSLPort
+from xmantissa.publicweb import _getLoader
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webapp import PrivateApplication
 from xmantissa.signup import PasswordResetResource, _PasswordResetAttempt
-from xmantissa.offering import installOffering
-from xmantissa.plugins.baseoff import baseOffering
 
 
 class PasswordResetTestCase(TestCase):
@@ -25,8 +24,7 @@ class PasswordResetTestCase(TestCase):
         Set up a fake objects and methods for the password reset tests.
         """
         store = Store()
-        installOffering(store, baseOffering, {})
-        self.loginSystem = store.findUnique(userbase.LoginSystem)
+        self.loginSystem = userbase.LoginSystem(store=store)
         la = self.loginSystem.addAccount(
             u'joe', u'divmod.com', u'secret', internal=True)
 
@@ -65,7 +63,15 @@ class PasswordResetTestCase(TestCase):
         self.substore = substore
         self.loginAccount = la
         self.nonExternalAccount = account
+        signup._getLoader = lambda store, fragmentName: loaders.xmlstr('<html />')
         self.reset = PasswordResetResource(self.store)
+
+
+    def tearDown(self):
+        """
+        Put things back the way they were.
+        """
+        signup._getLoader = _getLoader
 
 
     def test_reset(self):
