@@ -5,6 +5,7 @@ from twisted.web import microdom
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 from twisted.python.util import sibpath
+from twisted.python.filepath import FilePath
 
 from nevow.athena import LivePage
 from nevow.loaders import stan, xmlstr
@@ -26,14 +27,13 @@ from axiom.dependency import installOn
 from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.port import TCPPort
 from xmantissa import webtheme
-from xmantissa.ixmantissa import ITemplateNameResolver
 from xmantissa.webtheme import (
-    getAllThemes, getInstalledThemes, MantissaTheme, ThemedFragment,
-    ThemedElement, _ThemedMixin, ThemedDocumentFactory)
+    getInstalledThemes, MantissaTheme, ThemedFragment,
+    ThemedElement, _ThemedMixin, ThemedDocumentFactory,
+    SiteTemplateResolver)
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
-from zope.interface import implements
 
 from xmantissa.publicweb import PublicAthenaLivePage
 from xmantissa.webapp import (GenericNavigationAthenaPage, _PageComponents,
@@ -498,6 +498,35 @@ class Loader(TestCase):
         self.assertIdentical(webtheme.getLoader('template'),
                              webtheme.getLoader('template'))
         self.assertEqual(self.gATcalled, 1)
+
+
+
+class TestSiteTemplateResolver(TestCase):
+    """
+    Tests for L{SiteTemplateResolver}
+    """
+
+    def test_getDocFactory(self):
+        """
+        L{SiteTemplateResolver.getDocFactory} should return only installed
+        themes for its store.
+        """
+        s = Store()
+        siteResolver = SiteTemplateResolver(s)
+        self.assertEqual(siteResolver.getDocFactory('shell'), None)
+        installOffering(s, baseOffering, {})
+        resolvedTemplate = siteResolver.getDocFactory('shell')
+        # Note: nevow doesn't *really* have a stable white-box API for
+        # determining the template's path, but this is close enough, since we
+        # should only construct these one way (without using the lame-o
+        # templateDir feature).
+        # but let's sanity check just to be sure.
+        self.assertIdentical(resolvedTemplate.templateDir, None)
+        foundPath = FilePath(resolvedTemplate.template)
+        expectedPath = FilePath(
+            baseOffering.themes[0].directoryName).child(
+            'shell.html')
+        self.assertEqual(foundPath, expectedPath)
 
 
 

@@ -32,9 +32,9 @@ from xmantissa.ixmantissa import (
     INavigableFragment, ISignupMechanism)
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.websession import usernameFromRequest
-from xmantissa.publicweb import _getLoader
-from xmantissa.publicresource import PublicAthenaLivePage, PublicPage, getLoader
+from xmantissa.publicweb import PublicAthenaLivePage, PublicPage
 from xmantissa.webnav import Tab
+from xmantissa.webtheme import SiteTemplateResolver, getLoader
 from xmantissa.webapp import PrivateApplication
 from xmantissa import plugins, liveform
 from xmantissa.websession import PersistentSession
@@ -64,13 +64,22 @@ class PasswordResetResource(PublicPage):
     - What happens when the provided username doesn't exist.
     - What happens when the provided passwords mismatch.
     - What happens when the user doesn't have an external account registered.
+
+    @param store: a site store containing a L{WebSite}.
+    @type store: L{axiom.store.Store}.
+
+    @param templateResolver: a template resolver instance that will return
+    the appropriate doc factory.
     """
 
     attempt = None
 
-    def __init__(self, store):
-        PublicPage.__init__(self, None, store, _getLoader(store, 'reset'),
-                            None, None)
+    def __init__(self, store, templateResolver=None):
+        if templateResolver is None:
+            templateResolver = SiteTemplateResolver(store)
+        PublicPage.__init__(self, None, store,
+                            templateResolver.getDocFactory('reset'),
+                            None, None, templateResolver)
         self.store = store
         self.loginSystem = store.findUnique(userbase.LoginSystem, default=None)
 
@@ -89,7 +98,8 @@ class PasswordResetResource(PublicPage):
             if req.args.get('username', ('',))[0]:
                 user = unicode(usernameFromRequest(req), 'ascii')
                 self.handleRequestForUser(user, URL.fromContext(ctx))
-                self.fragment = _getLoader(self.store, 'reset-check-email')
+                self.fragment = self.templateResolver.getDocFactory(
+                    'reset-check-email')
             elif req.args.get('email', ('',))[0]:
                 email = req.args['email'][0].decode('ascii')
                 acct = self.accountByAddress(email)
@@ -97,13 +107,13 @@ class PasswordResetResource(PublicPage):
                     username = '@'.join(
                         userbase.getAccountNames(acct.avatars.open()).next())
                     self.handleRequestForUser(username, URL.fromContext(ctx))
-                self.fragment = _getLoader(self.store, 'reset-check-email')
+                self.fragment = self.templateResolver.getDocFactory('reset-check-email')
             else:
                 (password,) = req.args['password1']
                 self.resetPassword(self.attempt, unicode(password))
-                self.fragment = _getLoader(self.store, 'reset-done')
+                self.fragment = self.templateResolver.getDocFactory('reset-done')
         elif self.attempt:
-            self.fragment = _getLoader(self.store, 'reset-step-two')
+            self.fragment = self.templateResolver.getDocFactory('reset-step-two')
 
         return PublicPage.renderHTTP(self, ctx)
 

@@ -62,6 +62,19 @@ class InstalledOffering(item.Item):
     A reference to the Application SubStore for this offering.
     """)
 
+    def getOffering(self):
+        """
+        @return: the L{Offering} plugin object that corresponds to this object,
+        or L{None}.
+        """
+        # XXX maybe we need to optimize this; it's called SUPER often, and this
+        # is ghetto as hell, on the other hand, isn't that the plugin system's
+        # fault?  dang, I don't know.
+        for o in getOfferings():
+            if o.name == self.offeringName:
+                return o
+
+
 
 def getOfferings():
     """
@@ -88,10 +101,11 @@ def getInstalledOfferings(s):
     @param s: Site Store on which offering installations are tracked.
     """
     d = {}
-    installed = getInstalledOfferingNames(s)
-    for p in getOfferings():
-        if p.name in installed:
-            d[p.name] = p
+    installed = s.query(InstalledOffering)
+    for installation in installed:
+        offering = installation.getOffering()
+        if offering is not None:
+            d[offering.name] = offering
     return d
 
 
