@@ -6,6 +6,7 @@ from zope.interface import implements
 
 from twisted.python import reflect
 from twisted.python.util import sibpath
+from twisted.python.filepath import FilePath
 
 from epsilon.structlike import record
 
@@ -199,11 +200,12 @@ class XHTMLDirectoryTheme(object):
         self.priority = priority
         self.cachedLoaders = {}
         if directoryName is None:
-            directoryName = os.path.join(
+            self.directory = FilePath(
                 sibpath(sys.modules[self.__class__.__module__].__file__,
-                        'themes'),
-                self.themeName)
-        self.directoryName = directoryName
+                        'themes') + '/' + self.themeName)
+        else:
+            self.directory = FilePath(directoryName)
+        self.directoryName = self.directory.path
 
 
     def head(self, request, website):
@@ -224,11 +226,27 @@ class XHTMLDirectoryTheme(object):
 
     # ITemplateNameResolver
     def getDocFactory(self, fragmentName, default=None):
+        """
+        For a given fragment, return a loaded Nevow template.
+
+        @param fragmentName: the name of the template (can include relative
+        paths).
+
+        @param default: a default loader; only used if provided and the
+        given fragment name cannot be resolved.
+
+        @return: A loaded Nevow template.
+        @type return: L{nevow.loaders.xmlfile}
+        """
         if fragmentName in self.cachedLoaders:
             return self.cachedLoaders[fragmentName]
-        p = os.path.join(self.directoryName, fragmentName + '.html')
-        if os.path.exists(p):
-            loader = xmlfile(p)
+        segments = fragmentName.split('/')
+        segments[-1] += '.html'
+        file = self.directory
+        for segment in segments:
+            file = file.child(segment)
+        if file.exists():
+            loader = xmlfile(file.path)
             self.cachedLoaders[fragmentName] = loader
             return loader
         return default

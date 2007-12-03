@@ -5,7 +5,7 @@ from twisted.web import microdom
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 from twisted.python.util import sibpath
-from twisted.python.filepath import FilePath
+from twisted.python.filepath import FilePath, InsecurePath
 
 from nevow.athena import LivePage
 from nevow.loaders import stan, xmlstr
@@ -30,7 +30,7 @@ from xmantissa import webtheme
 from xmantissa.webtheme import (
     getInstalledThemes, MantissaTheme, ThemedFragment,
     ThemedElement, _ThemedMixin, ThemedDocumentFactory,
-    SiteTemplateResolver)
+    SiteTemplateResolver, XHTMLDirectoryTheme)
 from xmantissa.website import WebSite
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
@@ -506,16 +506,22 @@ class TestSiteTemplateResolver(TestCase):
     Tests for L{SiteTemplateResolver}
     """
 
+    def setUp(self):
+        """
+        Setup the store and a template resolver for the tests.
+        """
+        self.store = Store()
+        installOffering(self.store, baseOffering, {})
+        self.siteResolver = SiteTemplateResolver(self.store)
+
+
     def test_getDocFactory(self):
         """
         L{SiteTemplateResolver.getDocFactory} should return only installed
         themes for its store.
         """
-        s = Store()
-        siteResolver = SiteTemplateResolver(s)
-        self.assertEqual(siteResolver.getDocFactory('shell'), None)
-        installOffering(s, baseOffering, {})
-        resolvedTemplate = siteResolver.getDocFactory('shell')
+        self.assertEqual(self.siteResolver.getDocFactory('bogus'), None)
+        resolvedTemplate = self.siteResolver.getDocFactory('shell')
         # Note: nevow doesn't *really* have a stable white-box API for
         # determining the template's path, but this is close enough, since we
         # should only construct these one way (without using the lame-o
@@ -528,6 +534,49 @@ class TestSiteTemplateResolver(TestCase):
             'shell.html')
         self.assertEqual(foundPath, expectedPath)
 
+
+
+class TestXHTMLDirectoryTheme(TestCase):
+    """
+    Tests for L{TestXHTMLDirectoryTheme}.
+    """
+    def setUp(self):
+        """
+        Set up the store, a temporary test dir and a theme for the tests.
+        """
+        self.store = Store()
+        self.testDir = FilePath(self.mktemp())
+        self.testDir.makedirs()
+        self.theme = XHTMLDirectoryTheme(
+            'testtheme',
+            directoryName=self.testDir.path)
+
+
+    def test_directoryAttribute(self):
+        """
+        L{TestXHTMLDirectoryTheme} should have a directory attribute of type
+        L{twisted.python.filepath.FilePath}.
+        """
+        self.assertEqual(self.theme.directory, self.testDir)
+        self.assertEqual(self.theme.directory.path, self.theme.directoryName)
+
+
+    def test_childFragmentsInGetDocFactory(self):
+        """
+        L{TestXHTMLDirectoryTheme.getDocFactory} should handle subdirectories
+        sanely, without exposing parent directories.
+        """
+        fragmentName = 'dir/file'
+        child = self.testDir.child('dir')
+        child.makedirs()
+        child.child('file.html').touch()
+        resolvedTemplate = self.theme.getDocFactory(fragmentName)
+        foundPath = FilePath(resolvedTemplate.template)
+        expectedPath = FilePath(
+            "%s/%s.html" % (self.theme.directoryName, fragmentName))
+        self.assertEqual(foundPath, expectedPath)
+        self.assertRaises(InsecurePath, self.theme.getDocFactory,
+                          '../insecure/')
 
 
 class TestThemeCache(TestCase):
