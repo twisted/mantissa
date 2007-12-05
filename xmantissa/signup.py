@@ -43,6 +43,28 @@ from xmantissa.error import ArgumentError
 from xmantissa.product import Product
 
 
+_theMX = None
+def getMX():
+    """
+    Retrieve the single MXCalculator instance, creating it first if
+    necessary.
+    """
+    global _theMX
+    if _theMX is None:
+        _theMX = relaymanager.MXCalculator()
+    return _theMX
+
+
+
+def _sendEmail(_from, to, msg):
+
+    def gotMX(mx):
+        return smtp.sendmail(str(mx.name), _from, [to], msg)
+
+    return getMX().getMX(to.split('@', 1)[1]).addCallback(gotMX)
+
+
+
 class PasswordResetResource(PublicPage):
     """
     I handle the user-facing parts of password reset - the web form junk and
@@ -65,11 +87,11 @@ class PasswordResetResource(PublicPage):
     - What happens when the provided passwords mismatch.
     - What happens when the user doesn't have an external account registered.
 
-    @param store: a site store containing a L{WebSite}.
-    @type store: L{axiom.store.Store}.
+    @ivar store: a site store containing a L{WebSite}.
+    @type store: L{axiom.store.Store}
 
-    @param templateResolver: a template resolver instance that will return
-    the appropriate doc factory.
+    @ivar templateResolver: a template resolver instance that will return
+        the appropriate doc factory.
     """
 
     attempt = None
@@ -83,7 +105,15 @@ class PasswordResetResource(PublicPage):
         self.store = store
         self.loginSystem = store.findUnique(userbase.LoginSystem, default=None)
 
+
     def locateChild(self, ctx, segments):
+        """
+        Initialize self with the given key's L{_PasswordResetAttempt}, if any.
+
+        @param segments: a L{_PasswordResetAttempt} key (hopefully)
+        @return: C{(self, ())} with C{self.attempt} initialized, or L{NotFound}
+        @see: L{attemptByKey}
+        """
         if len(segments) == 1:
             attempt = self.attemptByKey(unicode(segments[0]))
             if attempt is not None:
@@ -91,16 +121,32 @@ class PasswordResetResource(PublicPage):
                 return (self, ())
         return NotFound
 
+
     def renderHTTP(self, ctx):
+        """
+        Handle the password reset form.
+
+        The following exchange describes the process:
+
+            S: Render C{reset}
+            C: POST C{username} or C{email}
+            S: L{handleRequestForUser}, render C{reset-check-email}
+
+            (User follows the emailed reset link)
+
+            S: Render C{reset-step-two}
+            C: POST C{password1}
+            S: L{resetPassword}, render C{reset-done}
+        """
         req = inevow.IRequest(ctx)
 
         if req.method == 'POST':
-            if req.args.get('username', ('',))[0]:
+            if req.args.get('username', [''])[0]:
                 user = unicode(usernameFromRequest(req), 'ascii')
                 self.handleRequestForUser(user, URL.fromContext(ctx))
                 self.fragment = self.templateResolver.getDocFactory(
                     'reset-check-email')
-            elif req.args.get('email', ('',))[0]:
+            elif req.args.get('email', [''])[0]:
                 email = req.args['email'][0].decode('ascii')
                 acct = self.accountByAddress(email)
                 if acct is not None:
@@ -108,14 +154,18 @@ class PasswordResetResource(PublicPage):
                         userbase.getAccountNames(acct.avatars.open()).next())
                     self.handleRequestForUser(username, URL.fromContext(ctx))
                 self.fragment = self.templateResolver.getDocFactory('reset-check-email')
-            else:
+            elif 'password1' in req.args:
                 (password,) = req.args['password1']
                 self.resetPassword(self.attempt, unicode(password))
                 self.fragment = self.templateResolver.getDocFactory('reset-done')
+            else:
+                # Empty submit;  redirect back to self
+                return URL.fromContext(ctx)
         elif self.attempt:
             self.fragment = self.templateResolver.getDocFactory('reset-step-two')
 
         return PublicPage.renderHTTP(self, ctx)
+
 
     def handleRequestForUser(self, username, url):
         """
@@ -129,12 +179,12 @@ class PasswordResetResource(PublicPage):
             return
         email = self.getExternalEmail(account)
         if email is not None:
-            self._sendEmail(url, attempt, email)
+            self.sendEmail(url, attempt, email)
 
 
-    def _sendEmail(self, url, attempt, email):
+    def sendEmail(self, url, attempt, email, _sendEmail=_sendEmail):
         """
-        Send an email to the user who made C{attempt} at
+        Send an email for the given L{_PasswordResetAttempt}.
 
         @type url: L{URL}
         @param url: The URL of the password reset page.
@@ -147,21 +197,17 @@ class PasswordResetResource(PublicPage):
         @param email: The email will be sent to this address.
         """
 
-        netloc = url.netloc.split(':')
-        host = netloc.pop(0)
-        if netloc:
-            (port,) = netloc
-        else:
-            port = 80
+        host = url.netloc.split(':', 1)[0]
+        from_ = 'reset@' + host
 
         body = file(sibpath(__file__, 'reset.rfc2822')).read()
-        body %= {'from': 'reset@' + host,
+        body %= {'from': from_,
                  'to': email,
                  'date': rfc822.formatdate(),
                  'message-id': smtp.messageid(),
-                 'link': 'http://%s:%s/resetPassword/%s' % (host, port, attempt.key)}
+                 'link': url.child(attempt.key)}
 
-        _sendEmail('reset@' + host, email, body)
+        _sendEmail(from_, email, body)
 
 
     def attemptByKey(self, key):
@@ -173,12 +219,14 @@ class PasswordResetResource(PublicPage):
                                      _PasswordResetAttempt.key == key,
                                      default=None)
 
+
     def _makeKey(self, usern):
         """
         Make a new, probably unique key. This key will be sent in an email to
         the user and is used to access the password change form.
         """
         return unicode(md5.new(str((usern, time.time(), random.random()))).hexdigest())
+
 
     def newAttemptForUser(self, user):
         """
@@ -286,19 +334,6 @@ class NoSuchFactory(Exception):
     An attempt was made to create a signup page using the name of a benefactor
     factory which did not correspond to anything in the database.
     """
-
-
-
-_theMX = None
-def getMX():
-    """
-    Retrieve the single MXCalculator instance, creating it first if
-    necessary.
-    """
-    global _theMX
-    if _theMX is None:
-        _theMX = relaymanager.MXCalculator()
-    return _theMX
 
 
 
@@ -414,15 +449,6 @@ class TicketBooth(Item, PrefixURLMixin):
         msg = templateData % signupInfo
 
         return ticket, _sendEmail(signupInfo['from'], email, msg)
-
-
-
-def _sendEmail(_from, to, msg):
-
-    def gotMX(mx):
-        return smtp.sendmail(str(mx.name), _from, [to], msg)
-
-    return getMX().getMX(to.split('@', 1)[1]).addCallback(gotMX)
 
 
 

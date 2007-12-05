@@ -1,5 +1,9 @@
 from twisted.trial.unittest import TestCase
 
+import email
+
+from nevow.url import URL
+from nevow.flat import flatten
 from nevow.inevow import IResource
 from nevow import loaders
 from nevow.testutil import AccumulatingFakeRequest, renderPage
@@ -112,7 +116,7 @@ class PasswordResetTestCase(TestCase):
             myFunc.email = email
         url = 'http://oh.no/reset.html'
         myFunc.emailsSent = 0
-        self.reset._sendEmail=myFunc
+        self.reset.sendEmail=myFunc
 
         # positive case. User exists. Email should be sent
         self.reset.handleRequestForUser(u'joe@divmod.com', url)
@@ -129,6 +133,44 @@ class PasswordResetTestCase(TestCase):
         # be sent.
         self.reset.handleRequestForUser(u'jill@divmod.com', url)
         self.assertEquals(myFunc.emailsSent, 1)
+
+
+    def test_sendEmail(self):
+        """
+        L{PasswordResetResource.sendEmail} should format a meaningful password
+        reset email.
+        """
+        resetAddress = 'reset@example.org'
+        resetURI = URL.fromString('http://example.org/resetPassword')
+        userAddress = 'joe@divmod.com'
+
+        resetAttempt = self.reset.newAttemptForUser(userAddress.decode('ascii'))
+        _sentEmail = []
+        self.reset.sendEmail(resetURI, resetAttempt, userAddress,
+                             _sendEmail=lambda *args: _sentEmail.append(args))
+
+        self.assertEquals(len(_sentEmail), 1)
+        [(sentFrom, sentTo, sentText)] = _sentEmail
+        self.assertEquals(sentFrom, resetAddress)
+        self.assertEquals(sentTo, userAddress)
+
+        msg = email.message_from_string(sentText)
+        [headerFrom] = msg.get_all('from')
+        [headerTo] = msg.get_all('to')
+        [headerDate] = msg.get_all('date')
+        # Python < 2.5 compatibility
+        try:
+            from email import utils
+        except ImportError:
+            from email import Utils as utils
+        self.assertEquals(utils.parseaddr(headerFrom)[1], resetAddress)
+        self.assertEquals(utils.parseaddr(headerTo)[1], userAddress)
+        self.assertTrue(utils.parsedate_tz(headerDate) is not None,
+                        '%r is not a RFC 2822 date' % headerDate)
+
+        self.assertTrue(not msg.is_multipart())
+        self.assertIn(flatten(resetURI.child(resetAttempt.key)),
+                      msg.get_payload())
 
 
     def test_redirectToSettingsWhenLoggedIn(self):
@@ -168,6 +210,27 @@ class PasswordResetTestCase(TestCase):
         """
         email = self.reset.getExternalEmail(self.nonExternalAccount)
         self.assertEquals(email, None)
+
+
+    def test_nothingSpecified(self):
+        """
+        Submitting an empty form should redirect the user back to the form.
+        """
+        self.reset.handleRequestForUser = lambda *args: self.fail(args)
+
+        _request = AccumulatingFakeRequest(
+            headers={'host': 'example.org'},
+            uri='/resetPassword',
+            currentSegments=['resetPassword'],
+            args={'username': [''], 'email': ['']})
+        _request.method = 'POST'
+
+        d = renderPage(self.reset, reqFactory=lambda: _request)
+        def rendered(_):
+            self.assertEquals(_request.redirected_to,
+                              'http://example.org/resetPassword')
+        d.addCallback(rendered)
+        return d
 
 
     def test_onlyUsernameSpecified(self):

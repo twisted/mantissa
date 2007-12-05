@@ -1,7 +1,7 @@
 From: %(from)s
 To: %(to)s
 Subject: Password reset request
-Date: %%(date)s
+Date: %(date)s
 Message-ID: %(message-id)s
 Content-Type: text/html
 Reply-To: %(from)s
