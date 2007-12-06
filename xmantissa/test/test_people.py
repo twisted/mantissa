@@ -1990,6 +1990,44 @@ class PeopleModelTestCase(unittest.TestCase):
             u'So Descriptive')
 
 
+    def test_getContactEditorialParametersNone(self):
+        """
+        The L{ListChangeParameter} returned by
+        L{Organizer.getContactEditorialParameters} for a particular
+        L{IContactType} should not have a model object or defaults dict if the
+        L{IContactType} indicates that the contact item is immutable (by
+        returning C{None} from its  C{getParameters} implementation).
+        """
+        class PickyContactType(StubContactType):
+            def getParameters(self, contactItem):
+                return self.parameters[contactItem]
+
+        mutableContactItem = object()
+        immutableContactItem = object()
+
+        makeParam = lambda default=None: Parameter(
+            'foo', TEXT_INPUT, lambda x: None, default=default)
+
+        contactType = PickyContactType(
+            {mutableContactItem: [makeParam('the default')],
+             None: [makeParam(None)],
+             immutableContactItem: None},
+            None,
+            [mutableContactItem, immutableContactItem])
+
+        contactTypes = [contactType]
+        contactPowerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=contactTypes)
+        self.store.powerUp(contactPowerup, IOrganizerPlugin)
+        person = self.organizer.createPerson(u'nickname')
+        parameters = list(
+            self.organizer.getContactEditorialParameters(person))
+
+        (gotContactType, parameter) = parameters[builtinContactTypeCount]
+        self.assertEqual(parameter.modelObjects, [mutableContactItem])
+        self.assertEqual(parameter.defaults, [{'foo': 'the default'}])
+
+
     def test_getContactEditorialParametersUnrepeatable(self):
         """
         L{Organizer.getContactEditorialParameters} should return a list

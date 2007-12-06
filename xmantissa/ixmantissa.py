@@ -589,14 +589,17 @@ class IContactType(Interface):
         Return some liveform parameters, one for each piece of information that is
         needed to construct a contact info item of this type.
 
+        If C{contactInfoItem} is supplied, implementations may return C{None}
+        to indicate that the given contact item is not editable.
+
         @param contactInfoItem: An existing contact info item of this type, or
         C{None}.  If not C{None}, then the current values of the contact info
         type will be used to provide suitable defaults for the parameters that
         are returned.
         @type contactInfoItem: L{axiom.item.Item} subclass.
 
-        @return: some liveform parameters.
-        @rtype: C{list} of L{xmantissa.liveform.Parameter}.
+        @return: Some liveform parameters or C{None}.
+        @rtype: C{NoneType} or C{list} of L{xmantissa.liveform.Parameter}.
         """
 
 

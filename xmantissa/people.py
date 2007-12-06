@@ -814,16 +814,20 @@ class Organizer(item.Item):
             contactItems = list(contactType.getContactItems(person))
             if contactType.allowMultipleContactItems:
                 defaults = []
+                modelObjects = []
                 for contactItem in contactItems:
                     defaultedParameters = contactType.getParameters(contactItem)
+                    if defaultedParameters is None:
+                        continue
                     defaults.append(self._parametersToDefaults(
                         defaultedParameters))
+                    modelObjects.append(contactItem)
                 descriptiveIdentifier = _descriptiveIdentifier(contactType)
                 param = liveform.ListChangeParameter(
                     contactType.uniqueIdentifier(),
                     contactType.getParameters(None),
                     defaults=defaults,
-                    modelObjects=contactItems,
+                    modelObjects=modelObjects,
                     modelObjectDescription=descriptiveIdentifier)
             else:
                 (contactItem,) = contactItems
