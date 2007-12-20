@@ -78,14 +78,14 @@ Mantissa.People.OrganizerView.methods(
      * Show the "cancel form" link.
      */
     function showCancelFormLink(self) {
-        self.nodeById('cancel-form-link').style.display = '';
+        self.nodeById('cancel-form-link').style.visibility = 'visible';
     },
 
     /**
      * Hide the "cancel form" link.
      */
     function hideCancelFormLink(self) {
-        self.nodeById('cancel-form-link').style.display = 'none';
+        self.nodeById('cancel-form-link').style.visibility = 'hidden';
     });
 
 
@@ -174,6 +174,17 @@ Mantissa.People.Organizer.methods(
     },
 
     /**
+     * Detach the current detail widget, if any.
+     */
+    function clearDetailWidget(self) {
+        self.view.clearDetailNodes();
+        if (self.existingDetailWidget !== null) {
+            self.existingDetailWidget.detach();
+            self.existingDetailWidget = null;
+        }
+    },
+
+    /**
      * Get an add person widget from the server and put it in the detail area.
      */
     function displayAddPerson(self) {
@@ -198,8 +209,29 @@ Mantissa.People.Organizer.methods(
     },
 
     /**
-     * Called when a person has been added, with their name.  Updates the
-     * person list, and selects the newly-created person.
+     * Get an import widget from the server and put it in the detail area.
+     */
+    function displayImportPeople(self) {
+        self.view.hideEditLink();
+        self.view.hideDeleteLink();
+        self.view.hideCancelFormLink();
+        var result = self.callRemote('getImportPeople');
+        result.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.view.showCancelFormLink();
+                widget.organizer = self;
+                self.setDetailWidget(widget);
+            });
+        return false;
+    },
+
+    /**
+     * Called when a person has been added or modified, with their name.
+     * Updates the person list, and selects the person involved.
      */
     function _cbPersonModified(self, name) {
         self.displayPersonInfo(name);
@@ -236,7 +268,7 @@ Mantissa.People.Organizer.methods(
     },
 
     /**
-     * Shows a form for editing the person with L{nickname}.
+     * Shows a form for editing the person with L{currentlyViewingName}.
      */
     function displayEditPerson(self) {
         var result = self.callRemote(
@@ -378,7 +410,7 @@ Mantissa.People.PersonScroller.methods(
     },
 
     /**
-     * Update L[storeOwnerPersonName}.
+     * Update L{storeOwnerPersonName}.
      *
      * @param name: The new name of the store-owner person.
      * @type name: C{String}
@@ -703,7 +735,7 @@ Mantissa.People._SubmitNotificationForm.methods(
     },
 
     /**
-     * Handle creation success by invoking any registered observers.
+     * Handle successful submission by invoking any registered observers.
      */
     function submitSuccess(self, result) {
         var nickname = self.gatherInputAccessors().nickname[0].get();
@@ -767,3 +799,67 @@ Mantissa.People.AddPerson = Mantissa.People._SubmitNotificationFormWrapper.subcl
  */
 Mantissa.People.EditPerson = Mantissa.People._SubmitNotificationFormWrapper.subclass(
     'Mantissa.People.EditPerson');
+
+
+/**
+ * Client half of L{xmantissa.people.ImportPeopleWidget}.
+ *
+ * @ivar organizer: the L{Organizer} to refresh after importing, or C{null}
+ */
+Mantissa.People.ImportPeopleWidget = Nevow.Athena.Widget.subclass(
+    'Mantissa.People.ImportPeopleWidget');
+Mantissa.People.ImportPeopleWidget.methods(
+    /**
+     * Called on completion of an import.
+     *
+     * Displays how many people were imported, and refreshes the organizer if
+     * needed.
+     *
+     * @param names: list of names of people imported
+     */
+    function imported(self, names) {
+        if (0 < names.length) {
+            self.resultMessage([
+                names.length,
+                (names.length == 1 ? 'person' : 'people'),
+                'imported:',
+                names.join(', ')
+            ].join(' '));
+            if (self.organizer) {
+                return self.organizer.refreshPersonList();
+            }
+        } else {
+            self.resultMessage('No people imported.');
+        }
+        return Divmod.Defer.succeed();
+    },
+
+    /**
+     * Display the given message in this widget's C{import-result} node.
+     */
+    function resultMessage(self, message) {
+        var node = self.nodeByAttribute('class', 'import-result');
+        // XXX: there should be a helper for this
+        while (0 < node.childNodes.length) {
+            node.removeChild(node.childNodes[0]);
+        }
+        node.appendChild(document.createTextNode(message));
+
+    });
+
+
+/**
+ * L{ImportPeopleWidget}'s form.
+ */
+Mantissa.People.ImportPeopleForm = Mantissa.LiveForm.FormWidget.subclass(
+    'Mantissa.People.ImportPeopleForm');
+Mantissa.People.ImportPeopleForm.methods(
+    /**
+     * Extend L{FormWidget} to notify our parent L{ImportPeopleWidget}.
+     *
+     * @see: L{ImportPeopleWidget.imported}
+     */
+    function submitSuccess(self, result) {
+        Mantissa.People.ImportPeopleForm.upcall(self, 'submitSuccess', result);
+        self.widgetParent.imported(result);
+    });

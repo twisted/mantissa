@@ -42,8 +42,8 @@ from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
 from xmantissa.scrolltable import UnsortableColumn, ScrollingElement
 from xmantissa import people
 from xmantissa.people import (
-    Organizer, Person, EmailAddress, AddPersonFragment, Mugshot,
-    addContactInfoType, contactInfoItemTypeFromClassName,
+    Organizer, Person, EmailAddress, AddPersonFragment, ImportPeopleWidget,
+    Mugshot, addContactInfoType, contactInfoItemTypeFromClassName,
     _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
     PhoneNumber, PhoneNumberContactType, ReadOnlyPhoneNumberView,
     setIconURLForContactInfoType, iconURLForContactInfoType,
@@ -2895,6 +2895,17 @@ class OrganizerFragmentTests(unittest.TestCase):
         self.assertIdentical(addPersonFragment.fragmentParent, self.fragment)
 
 
+    def test_getImportPeople(self):
+        """
+        L{OrganizerFragment.getImportPeople} should return an
+        L{ImportPeopleWidget}.
+        """
+        widget = expose.get(self.fragment, 'getImportPeople')()
+        self.assertTrue(isinstance(widget, ImportPeopleWidget))
+        self.assertIdentical(widget.organizer, self.organizer)
+        self.assertIdentical(widget.fragmentParent, self.fragment)
+
+
     def test_getEditPerson(self):
         """
         L{OrganizerFragment.getEditPerson} should return an
@@ -3094,6 +3105,66 @@ class AddPersonFragmentTests(unittest.TestCase):
         form = fragment.render_addPersonForm(None, None)
         self.assertTrue(isinstance(form, LiveForm))
         self.assertEqual(form.jsClass, u'Mantissa.People.AddPersonForm')
+
+
+
+class ImportPeopleWidgetTests(unittest.TestCase):
+    """
+    Tests for L{ImportPeopleWidget}.
+    """
+
+    def test_parseAddresses(self):
+        """
+        L{_parseAddresses} should extract valid-looking names and addresses.
+        """
+        def _assert(input, expected):
+            self.assertEqual(ImportPeopleWidget._parseAddresses(input),
+                             expected)
+
+        # Empty
+        for s in [u'', u'  ', u'<>', u',', u'<>, <>']:
+            _assert(s, [])
+        # Name defaulting to local-part
+        _assert(u'alice@example.com', [(u'alice', u'alice@example.com')])
+        _assert(u' alice@example.com, ', [(u'alice', u'alice@example.com')])
+        # Separators and display names
+        for sep in u', ', u'\n', u', foo <>, ':
+            _assert(sep.join([u'alice@example.com', u'bob@example.com']),
+                    [(u'alice', u'alice@example.com'),
+                     (u'bob', u'bob@example.com')])
+            _assert(sep.join([u'<Alice.Allison@example.com>',
+                              u'Alice Allison <alice@example.com>',
+                              u'"Bob Boberton" <bob@example.com>']),
+                    [(u'Alice.Allison', u'Alice.Allison@example.com'),
+                     (u'Alice Allison', u'alice@example.com'),
+                     (u'Bob Boberton', u'bob@example.com')])
+
+
+    def test_importAddresses(self):
+        """
+        L{ImportPeopleWidget.importAddresses} should create entries for the
+        given addresses (ignoring names/addresses that exist already).
+        """
+        store = Store()
+        organizer = Organizer(store=store)
+        owner = organizer.storeOwnerPerson
+        importFragment = ImportPeopleWidget(organizer)
+
+        self.assertEqual(list(store.query(Person)), [owner])
+        importFragment.importAddresses([])
+        self.assertEqual(list(store.query(Person)), [owner])
+
+        addresses = [(u'Alice', u'alice@example.com'),
+                     (u'Bob', u'bob@example.com')]
+        # Import twice to check idempotency, and make sure both the name and
+        # address are checked.
+        for input in [addresses, addresses, [(u'Alice', u'chaff'),
+                                             (u'chaff', u'bob@example.com')]]:
+            importFragment.importAddresses(input)
+            self.assertEqual(set((p.name, p.getEmailAddress())
+                                 for p in store.query(Person)
+                                 if p is not owner),
+                             set(addresses))
 
 
 

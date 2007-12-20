@@ -317,7 +317,7 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
     function test_hideCancelFormLink(self) {
         self.view.hideCancelFormLink();
         self.assertIdentical(
-            self.nodes['cancel-form-link'].style.display, 'none');
+            self.nodes['cancel-form-link'].style.visibility, 'hidden');
     },
 
     /**
@@ -328,7 +328,7 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
         self.view.hideCancelFormLink();
         self.view.showCancelFormLink();
         self.assertIdentical(
-            self.nodes['cancel-form-link'].style.display, '');
+            self.nodes['cancel-form-link'].style.visibility, 'visible');
     });
 
 
@@ -372,6 +372,13 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
             self.calls.push({name: name, args: args, result: result});
             return result;
         };
+    },
+
+    function _assertCalled(self, name, args) {
+        self.assertIdentical(self.calls.length, 1);
+        var call = self.calls[0];
+        self.assertIdentical(call.name, name);
+        self.assertArraysEqual(call.args, args);
     },
 
     /**
@@ -452,6 +459,23 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
+     * L{Mantissa.People.Organizer.clearDetailWidget} should remove the detail
+     * widget and its view.
+     */
+    function test_clearDetailWidget(self) {
+        var widget = Mantissa.Test.TestPeople.StubWidget();
+        self.organizer.existingDetailWidget = widget;
+        self.view.detailNode = widget.node;
+
+        self.organizer.clearDetailWidget();
+        self.assertIdentical(self.view.detailNode, null);
+        self.assertIdentical(self.organizer.existingDetailWidget, null);
+        self.assertIdentical(widget.wasDetached, true);
+        // It should be idempotent.
+        self.organizer.clearDetailWidget();
+    },
+
+    /**
      * L{Mantissa.People.Organizer.deletePerson} should call the remote
      * I{deletePerson} method.
      */
@@ -459,10 +483,7 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var personName = 'A Person Name';
         self.organizer.currentlyViewingName = personName;
         self.organizer.deletePerson().callback(null);
-        self.assertIdentical(self.calls.length, 1);
-        self.assertIdentical(self.calls[0].name, 'deletePerson');
-        self.assertIdentical(self.calls[0].args.length, 1);
-        self.assertIdentical(self.calls[0].args[0], personName);
+        self._assertCalled('deletePerson', [personName]);
 
         self.assertIdentical(self.view.detailNode, null);
         self.assertIdentical(self.view.editLinkVisible, false);
@@ -515,15 +536,12 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
-     * L{Mantissa.People.Organizer.displayAddPerson} should call
-     * I{getAddPerson} on the server and set the resulting widget as the detail
-     * widget.
+     * The given deferred should set the widget it is called with as the
+     * display widget, and show the "cancel form" button.
+     *
+     * @return: the set widget
      */
-    function test_getAddPerson(self) {
-        var result = self.organizer.displayAddPerson();
-        self.assertIdentical(self.calls.length, 1);
-        self.assertIdentical(self.calls[0].name, 'getAddPerson');
-        self.assertIdentical(self.calls[0].args.length, 0);
+    function _assertSetsDetailWidget(self, deferred) {
         self.assertIdentical(self.view.editLinkVisible, false);
         self.assertIdentical(self.view.deleteLinkVisible, false);
         self.assertIdentical(self.view.cancelFormLinkVisible, false);
@@ -536,11 +554,34 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
             detailWidget = widget;
         };
         var resultingWidget = Mantissa.Test.TestPeople.StubPersonForm();
-        self.calls[0].result.callback(resultingWidget);
+        deferred.callback(resultingWidget);
         self.assertIdentical(resultingWidget, detailWidget);
         self.assertIdentical(self.view.editLinkVisible, false);
         self.assertIdentical(self.view.deleteLinkVisible, false);
         self.assertIdentical(self.view.cancelFormLinkVisible, true);
+        return detailWidget;
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.displayAddPerson} should call
+     * I{getAddPerson} on the server and set the resulting widget as the detail
+     * widget.
+     */
+    function test_getAddPerson(self) {
+        var result = self.organizer.displayAddPerson();
+        self._assertCalled('getAddPerson', []);
+        self._assertSetsDetailWidget(self.calls[0].result);
+    },
+
+    /**
+     * Similar to L{test_getAddPerson}, but for
+     * L{Mantissa.People.Organizer.displayImportPeople}.
+     */
+    function test_getImportPeople(self) {
+        var result = self.organizer.displayImportPeople();
+        self._assertCalled('getImportPeople', []);
+        var widget = self._assertSetsDetailWidget(self.calls[0].result);
+        self.assertIdentical(widget.organizer, self.organizer)
     },
 
     /**
@@ -551,24 +592,8 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var name = "A Person's name";
         self.organizer.currentlyViewingName = name;
         var result = self.organizer.displayEditPerson();
-        self.assertIdentical(self.calls.length, 1);
-        self.assertIdentical(self.calls[0].name, 'getEditPerson');
-        self.assertIdentical(self.calls[0].args.length, 1);
-        self.assertIdentical(self.calls[0].args[0], name);
-
-        var detailWidget = null;
-        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
-            return widgetInfo;
-        };
-        self.organizer.setDetailWidget = function(widget) {
-            detailWidget = widget;
-        };
-        var resultingWidget = Mantissa.Test.TestPeople.StubPersonForm();
-        self.calls[0].result.callback(resultingWidget);
-        self.assertIdentical(resultingWidget, detailWidget);
-        self.assertIdentical(self.view.editLinkVisible, false);
-        self.assertIdentical(self.view.deleteLinkVisible, false);
-        self.assertIdentical(self.view.cancelFormLinkVisible, true);
+        self._assertCalled('getEditPerson', [name]);
+        self._assertSetsDetailWidget(self.calls[0].result);
     },
 
     /**
@@ -724,10 +749,7 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var nickname = 'testuser';
         var result = self.organizer.displayPersonInfo(nickname);
 
-        self.assertIdentical(self.calls.length, 1);
-        self.assertIdentical(self.calls[0].name, 'getContactInfoWidget');
-        self.assertIdentical(self.calls[0].args.length, 1);
-        self.assertIdentical(self.calls[0].args[0], nickname);
+        self._assertCalled('getContactInfoWidget', [nickname]);
 
         var resultingFragment = {};
 
@@ -849,6 +871,95 @@ Mantissa.Test.TestPeople.EditPersonTests.methods(
         editPerson.observeSubmission(observer);
         self.assertIdentical(editPersonForm.submissionObservers.length, 1);
         self.assertIdentical(editPersonForm.submissionObservers[0], observer);
+    });
+
+
+Mantissa.Test.TestPeople.ImportPeopleWidgetTests = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.ImportPeopleWidgetTests');
+/**
+ * Tests for L{Mantissa.People.ImportPeopleWidget} and
+ * L{Mantissa.People.ImportPeopleForm}.
+ */
+Mantissa.Test.TestPeople.ImportPeopleWidgetTests.methods(
+
+    /**
+     * Set up an import widget and associated organizer.
+     */
+    function setUp(self) {
+        var _node = Nevow.Test.WidgetUtil.makeWidgetNode;
+        self.organizer = Mantissa.Test.TestPeople.TestableOrganizer(_node());
+        self.importWidget = Mantissa.People.ImportPeopleWidget(_node());
+        self.resultNode = document.createElement('div');
+        self.resultNode.setAttribute('class', 'import-result');
+        self.importWidget.node.appendChild(self.resultNode);
+        self.importForm = Mantissa.People.ImportPeopleForm(_node());
+        self.importWidget.addChildWidget(self.importForm);
+        self.importWidget.organizer = self.organizer;
+    },
+
+    /**
+     * L{Mantissa.People.ImportPeopleForm.submitSuccess} should call
+     * L{Mantissa.People.ImportPeopleWidget.imported} with the submission
+     * result.
+     */
+    function test_submitSuccess(self) {
+        var names;
+        self.importWidget.imported = function (_names) {
+            names = _names;
+        };
+        self.importForm.submitSuccess([]);
+        self.assertArraysEqual(names, []);
+        self.importForm.submitSuccess(['alice']);
+        self.assertArraysEqual(names, ['alice']);
+    },
+
+    /**
+     * L{Mantissa.People.ImportPeopleWidget.imported} should display an
+     * appropriate result message, and refresh the organizer if any people have
+     * been added.
+     */
+    function test_imported(self) {
+        var refreshed = 0;
+        self.organizer.refreshPersonList = function () {
+            refreshed += 1;
+            return Divmod.Defer.succeed();
+        };
+        var resultMessage;
+        self.importWidget.resultMessage = function (message) {
+            resultMessage = message;
+        }
+
+        self.importWidget.imported([]);
+        self.assertIdentical(refreshed, 0)
+        self.assertIdentical(resultMessage, 'No people imported.')
+
+        self.importWidget.imported(['alice']);
+        self.assertIdentical(refreshed, 1)
+        self.assertIdentical(resultMessage, '1 person imported: alice')
+
+        self.importWidget.imported(['alice', 'bob']);
+        self.assertIdentical(refreshed, 2)
+        self.assertIdentical(resultMessage, '2 people imported: alice, bob')
+
+        // The widget should also work without an organizer.
+        delete self.importWidget.organizer;
+        self.importWidget.imported(['carol']);
+        self.assertIdentical(refreshed, 2)
+        self.assertIdentical(resultMessage, '1 person imported: carol')
+    },
+
+    /**
+     * L{Mantissa.People.ImportPeopleWidget.resultMessage} should display the
+     * given message.
+     */
+    function test_resultMessage(self) {
+        function test(text) {
+            self.importWidget.resultMessage(text);
+            self.assertIdentical(self.resultNode.childNodes.length, 1);
+            self.assertIdentical(self.resultNode.childNodes[0].nodeValue, text);
+        }
+        test('foo');
+        test('bar');
     });
 
 

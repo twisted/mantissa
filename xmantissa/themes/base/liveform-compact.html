@@ -9,8 +9,11 @@
     <table>
       <nevow:slot name="inputs" />
       <tr>
-        <td colspan="2" align="right">
-          <nevow:invisible nevow:render="submitbutton" />
+        <td colspan="2">
+          <div style="float: right">
+            <img class="progress-message" style="display: none; float: left; margin: 0 1em" src="/Mantissa/images/spinner.gif" />
+            <nevow:invisible nevow:render="submitbutton" />
+          </div>
         </td>
       </tr>
     </table>

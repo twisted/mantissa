@@ -9,10 +9,9 @@
           <tr>
             <td class="people-table-list-col-header">
               People
-              <a href="#">
-                <athena:handler event="onclick" handler="displayAddPerson" />
-                Add
-              </a>
+              <a href="#"><athena:handler event="onclick" handler="displayAddPerson" />Add</a>
+              /
+              <a href="#"><athena:handler event="onclick" handler="displayImportPeople" />Import</a>
             </td>
             <td>
               Person
@@ -35,7 +34,7 @@
             <table style="width: 100%">
               <tr>
                 <td align="right">
-                  <a id="cancel-form-link" class="cancel-form-link" style="display: none" href="#">
+                  <a id="cancel-form-link" class="cancel-form-link" style="visibility: hidden" href="#">
                     <athena:handler event="onclick" handler="dom_cancelForm" />
                     <img src="/Mantissa/images/delete.png" />
                   </a>

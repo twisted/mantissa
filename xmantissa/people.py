@@ -7,6 +7,12 @@ try:
 except ImportError:
     Image = None
 
+# Python < 2.5 compatibility
+try:
+    from email.utils import getaddresses
+except ImportError:
+    from email.Utils import getaddresses
+
 from zope.interface import implements
 
 from twisted.python import components
@@ -1312,6 +1318,17 @@ class OrganizerFragment(athena.LiveFragment):
     expose(getAddPerson)
 
 
+    def getImportPeople(self):
+        """
+        Return an L{ImportPeopleWidget} which is a child of this fragment and
+        which will add people to C{self.organizer}.
+        """
+        fragment = ImportPeopleWidget(self.organizer)
+        fragment.setFragmentParent(self)
+        return fragment
+    expose(getImportPeople)
+
+
     def getEditPerson(self, name):
         """
         Get an L{EditPersonView} for editing the person named C{name}.
@@ -2122,6 +2139,92 @@ class AddPersonFragment(athena.LiveFragment):
         except ValueError, e:
             raise liveform.InputError(unicode(e))
     expose(addPerson)
+
+
+
+class ImportPeopleWidget(athena.LiveElement):
+    """
+    Widget that implements importing people to an L{Organizer}.
+
+    @ivar organizer: the L{Organizer} to use
+    """
+
+    docFactory = ThemedDocumentFactory('import-people', 'store')
+
+    jsClass = u'Mantissa.People.ImportPeopleWidget'
+
+    def __init__(self, organizer):
+        athena.LiveElement.__init__(self)
+        self.organizer = organizer
+        self.store = organizer.store
+
+
+    def _parseAddresses(addresses):
+        """
+        Extract name/address pairs from an RFC 2822 style address list.
+
+        For addresses without a display name, the name defaults to the
+        local-part for the purpose of importing.
+
+        @type addresses: unicode
+        @return: a list of C{(name, email)} tuples
+        """
+        def coerce((name, email)):
+            if len(email):
+                if not len(name):
+                    name = email.split(u'@', 1)[0]  # lame
+                return (name, email)
+        coerced = map(coerce, getaddresses([addresses]))
+        return [r for r in coerced if r is not None]
+    _parseAddresses = staticmethod(_parseAddresses)
+
+
+    def importPeopleForm(self, request, tag):
+        """
+        Create and return a L{liveform.LiveForm} for adding new L{Person}s.
+        """
+        form = liveform.LiveForm(
+            self.importAddresses,
+            [liveform.Parameter('addresses', liveform.TEXTAREA_INPUT,
+                                self._parseAddresses, 'Email Addresses')],
+            description='Import People')
+        form.jsClass = u'Mantissa.People.ImportPeopleForm'
+        form.compact()
+        form.setFragmentParent(self)
+        return form
+    importPeopleForm = renderer(importPeopleForm)
+
+
+    def importAddresses(self, addresses):
+        """
+        Create new L{Person}s for the given names and email addresses.
+        Names and emails that already exist are ignored.
+
+        @param addresses: a sequence of C{(name, email)} tuples
+                          (as returned from L{_parseAddresses})
+        @return: the names of people actually imported
+        """
+        results = []
+        for (name, address) in addresses:
+            def txn():
+                # Skip names and addresses that already exist.
+                if self.organizer.personByEmailAddress(address) is not None:
+                    return
+                # XXX: Needs a better existence check.
+                if self.store.query(Person, Person.name == name).count():
+                    return
+
+                try:
+                    person = self.organizer.createPerson(name)
+                    self.organizer.createContactItem(
+                        EmailContactType(self.store), person,
+                        dict(email=address))
+                except ValueError, e:
+                    # XXX: Granularity required;  see #711 and #2435
+                    raise liveform.ConfigurationError(u'%r' % (e,))
+                return person
+            results.append(self.store.transact(txn))
+        return [p.name for p in results if p is not None]
 
 
 

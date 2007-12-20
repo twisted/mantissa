@@ -14,7 +14,7 @@ iframe.mugshot-upload {
     height: 300px;
 }
 
-.add-person .liveform-input-label {
+.add-person .liveform-input-label, .import-people .liveform-input-label {
     width: 10em;
     padding-right: 1em;
     text-align: right;
@@ -43,6 +43,15 @@ iframe.mugshot-upload {
 
 .add-person table {
     border-collapse: collapse;
+}
+
+.import-people .import-result {
+    text-align: center;
+    margin-bottom: 0.5em;
+}
+
+.import-people textarea {
+    width: 40em;
 }
 
 /**
