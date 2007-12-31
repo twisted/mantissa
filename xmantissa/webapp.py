@@ -21,12 +21,13 @@ from axiom.userbase import getAccountNames
 
 from nevow.rend import Page, NotFound
 from nevow import livepage, athena
-from nevow.inevow import IQ, IRequest, IResource
+from nevow.inevow import IRequest, IResource
 from nevow import tags as t
 from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage, renderShortUsername
-from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite
+                                 
+from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite, APIKey
 from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes, getAllThemes
 from xmantissa.webnav import getTabs, startMenu, settingsLink, applicationNavigation
@@ -132,6 +133,17 @@ class _ShellRenderingMixin(object):
         """
         return applicationNavigation(
             ctx, self.translator, self.pageComponents.navigation)
+
+
+    def render_urchin(self, ctx, data):
+        """
+        Render the code for recording Google Analytics statistics, if so
+        configured.
+        """
+        key = APIKey.getKeyForAPI(self.webapp.store.parent, APIKey.URCHIN)
+        if key is None:
+            return ''
+        return ctx.tag.fillSlots('urchin-key', key.apiKey)
 
 
     def render_search(self, ctx, data):

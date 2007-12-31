@@ -20,7 +20,7 @@ from nevow.testutil import FakeRequest
 
 from xmantissa.ixmantissa import INavigableElement
 from xmantissa import signup
-from xmantissa.website import WebSite
+from xmantissa.website import WebSite, APIKey
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
@@ -325,6 +325,29 @@ class AuthenticatedNavigationTestMixin:
         page = self.createPage(None)
         result = page.render_username(None, None)
         self.assertEqual(result, "")
+
+
+    def test_noUrchin(self):
+        """
+        When there's no Urchin API key installed, the I{urchin} renderer should
+        remove its node from the output.
+        """
+        page = self.createPage(None)
+        result = page.render_urchin(None, None)
+        self.assertEqual(result, "")
+
+
+    def test_urchin(self):
+        """
+        When an Urchin API key is present, the code for enabling Google
+        Analytics tracking should be inserted into the shell template.
+        """
+        keyString = u"UA-99018-11"
+        APIKey.setKeyForAPI(self.siteStore, APIKey.URCHIN, keyString)
+        page = self.createPage(None)
+        t = div()
+        result = page.render_urchin(context.WebContext(tag=t), None)
+        self.assertEqual(result.slotData['urchin-key'], keyString)
 
 
     def usernameRenderingTest(self, username, hostHeader, expectedUsername):

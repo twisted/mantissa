@@ -10,7 +10,7 @@ from axiom import item, attributes
 from axiom.dependency import installOn, onlyInstallPowerups
 from axiom.scripts import axiomatic
 
-from xmantissa.website import WebSite, StaticSite, WebConfigurationError
+from xmantissa.website import WebSite, StaticSite, WebConfigurationError, APIKey
 from xmantissa import ixmantissa, webapp, webadmin
 from xmantissa.port import TCPPort, SSLPort
 
@@ -40,7 +40,8 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
          'Filename to which to log HTTP requests (empty string to disable)'),
         ('hostname', 'H', None,
          'Canonical hostname for this server (used in URL generation).'),
-        ]
+        ('urchin-key', '', None,
+         'Google Analytics API key for this site')]
 
     def __init__(self, *a, **k):
         super(WebConfiguration, self).__init__(*a, **k)
@@ -105,6 +106,15 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
                     change['hostname'] = self.decodeCommandLine(self['hostname'])
                 else:
                     change['hostname'] = None
+
+            if self['urchin-key'] is not None:
+                # Install the API key for Google Analytics, to enable tracking
+                # for this site.
+                APIKey.setKeyForAPI(s,
+                                    APIKey.URCHIN,
+                                    self['urchin-key'].decode('ascii'))
+            self.didSomething = 1
+
 
             # If HTTP or HTTPS is being configured, make sure there's
             # a WebSite with the right attribute values.

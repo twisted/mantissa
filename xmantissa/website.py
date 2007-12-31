@@ -732,6 +732,69 @@ class WebSite(Item, SiteRootMixin):
 
 
 
+class APIKey(Item):
+    """
+    Persistent record of a key used for accessing an external API.
+
+    @cvar URCHIN: Constant name for the "Google Analytics" API
+    (http://code.google.com/apis/maps/)
+    @type URCHIN: C{unicode}
+    """
+    URCHIN = u'Google Analytics'
+
+    apiName = text(
+        doc="""
+        L{APIKey} constant naming the API this key is for.
+        """, allowNone=False)
+
+
+    apiKey = text(
+        doc="""
+        The key.
+        """, allowNone=False)
+
+
+    def getKeyForAPI(cls, siteStore, apiName):
+        """
+        Get the API key for the named API, if one exists.
+
+        @param siteStore: The site store.
+        @type siteStore: L{axiom.store.Store}
+
+        @param apiName: The name of the API.
+        @type apiName: C{unicode} (L{APIKey} constant)
+
+        @rtype: L{APIKey} or C{NoneType}
+        """
+        return siteStore.findUnique(
+            cls, cls.apiName == apiName, default=None)
+    getKeyForAPI = classmethod(getKeyForAPI)
+
+
+    def setKeyForAPI(cls, siteStore, apiName, apiKey):
+        """
+        Set the API key for the named API, overwriting any existing key.
+
+        @param siteStore: The site store to install the key in.
+        @type siteStore: L{axiom.store.Store}
+
+        @param apiName: The name of the API.
+        @type apiName: C{unicode} (L{APIKey} constant)
+
+        @param apiKey: The key for accessing the API.
+        @type apiKey: C{unicode}
+
+        @rtype: L{APIKey}
+        """
+        existingKey = cls.getKeyForAPI(siteStore, apiName)
+        if existingKey is None:
+            return cls(store=siteStore, apiName=apiName, apiKey=apiKey)
+        existingKey.apiKey = apiKey
+        return existingKey
+    setKeyForAPI = classmethod(setKeyForAPI)
+
+
+
 def upgradeWebSite1To2(oldSite):
     newSite = oldSite.upgradeVersion(
         'mantissa_web_powerup', 1, 2,

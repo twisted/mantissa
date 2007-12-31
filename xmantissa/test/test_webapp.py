@@ -4,7 +4,6 @@ from twisted.trial.unittest import TestCase
 from twisted.internet import defer
 
 from axiom.store import Store
-from axiom.userbase import LoginSystem
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.substore import SubStore

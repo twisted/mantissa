@@ -162,5 +162,14 @@
     </table>
     <div class="private-fragment-content" nevow:render="content" />
     <div id="mantissa-footer" nevow:render="footer" />
+    <nevow:invisible nevow:render="urchin">
+      <script src="http://www.google-analytics.com/urchin.js"
+              type="text/javascript">
+      </script>
+      <script type="text/javascript">
+        _uacct = "<nevow:slot name='urchin-key' />";
+        urchinTracker();
+      </script>
+    </nevow:invisible>
   </body>
 </html>

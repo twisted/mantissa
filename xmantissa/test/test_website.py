@@ -34,7 +34,7 @@ from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
 
 from xmantissa.website import SiteRootMixin, WebSite
-from xmantissa.website import MantissaLivePage
+from xmantissa.website import MantissaLivePage, APIKey
 
 from xmantissa.cachejs import HashedJSModuleProvider
 
@@ -813,3 +813,72 @@ class AthenaResourcesTestCase(unittest.TestCase):
         expect = sha.new(moduleContents).hexdigest()
         self.assertEqual(page.getJSModuleURL(module),
                          url.child(expect).child(module))
+
+
+
+
+class APIKeyTestCase(unittest.TestCase):
+    """
+    Tests for L{APIKey}.
+    """
+    def setUp(self):
+        """
+        Make a store.
+        """
+        self.store = Store()
+
+
+    def test_getKeyForAPINone(self):
+        """
+        If there is no existing key for the named API, L{APIKey.getKeyForAPI}
+        should return C{None}.
+        """
+        self.assertIdentical(
+            APIKey.getKeyForAPI(self.store, u'this is an API name.'),
+            None)
+
+
+    def test_getKeyForAPIExisting(self):
+        """
+        If there is an existing key for the named API, L{APIKey.getKeyForAPI}
+        should return it.
+        """
+        theAPIName = u'this is an API name.'
+        existingAPIKey = APIKey(
+            store=self.store,
+            apiName=theAPIName,
+            apiKey=u'this is an API key.')
+        self.assertIdentical(
+            existingAPIKey,
+            APIKey.getKeyForAPI(self.store, theAPIName))
+
+
+    def test_setKeyForAPINew(self):
+        """
+        If there is no existing key for the named API, L{APIKey.setKeyForAPI}
+        should create a new L{APIKey} item.
+        """
+        theAPIKey = u'this is an API key.'
+        theAPIName = u'this is an API name.'
+        apiKey = APIKey.setKeyForAPI(
+            self.store, theAPIName, theAPIKey)
+        self.assertIdentical(apiKey, self.store.findUnique(APIKey))
+        self.assertEqual(theAPIKey, apiKey.apiKey)
+        self.assertEqual(theAPIName, apiKey.apiName)
+
+
+    def test_setKeyForAPIExisting(self):
+        """
+        If there is an existing for the named API, L{APIKey.setKeyForAPI}
+        should update its I{apiKey} attribute.
+        """
+        theAPIKey = u'this is an API key.'
+        theAPIName = u'this is an API name.'
+        existingAPIKey = APIKey(
+            store=self.store, apiName=theAPIName, apiKey=theAPIKey)
+        newAPIKey = u'this is a new API key'
+        returnedAPIKey = APIKey.setKeyForAPI(
+            self.store, theAPIName, newAPIKey)
+        self.assertIdentical(existingAPIKey, returnedAPIKey)
+        self.assertEqual(existingAPIKey.apiName, theAPIName)
+        self.assertEqual(existingAPIKey.apiKey, newAPIKey)

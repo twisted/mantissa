@@ -56,7 +56,6 @@ def renderShortUsername(ctx, username):
 
 
 
-
 class PublicWeb(item.Item, website.PrefixURLMixin):
     """
     Fixture for site-wide public-facing content.
@@ -480,6 +479,17 @@ class PublicPageMixin(object):
             return ctx.tag[header]
         else:
             return ctx.tag
+
+
+    def render_urchin(self, ctx, data):
+        """
+        Render the code for recording Google Analytics statistics, if so
+        configured.
+        """
+        key = website.APIKey.getKeyForAPI(self.store, website.APIKey.URCHIN)
+        if key is None:
+            return ''
+        return ctx.tag.fillSlots('urchin-key', key.apiKey)
 
 
     def render_content(self, ctx, data):

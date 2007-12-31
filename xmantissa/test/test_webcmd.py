@@ -11,8 +11,7 @@ from axiom.dependency import installOn
 from axiom.store import Store
 from axiom.test.util import CommandStubMixin
 
-from xmantissa.website import WebSite
-
+from xmantissa.website import WebSite, APIKey
 
 def _captureStandardOutput(f, *a, **k):
     """
@@ -92,12 +91,13 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         opt.parseOptions([
                 '--port', '8080', '--secure-port', '8443',
                 '--pem-file', certFile, '--http-log', 'http.log',
-                '--hostname', 'example.com'])
+                '--hostname', 'example.com', '--urchin-key', 'A123'])
         self.assertEquals(opt['port'], '8080')
         self.assertEquals(opt['secure-port'], '8443')
         self.assertEquals(opt['pem-file'], certFile)
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
+        self.assertEquals(opt['urchin-key'], 'A123')
 
 
     def test_staticParsing(self):
@@ -146,3 +146,17 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         opt.postOptions()
 
         self.assertEquals(ws.hostname, None)
+
+
+    def test_urchinKey(self):
+        """
+        Specifying a Google Analytics key inserts an item into the database
+        recording it.
+        """
+        opt = webcmd.WebConfiguration()
+        opt.parent = self
+        opt['urchin-key'] = 'A123'
+        opt.postOptions()
+
+        self.assertEquals(APIKey.getKeyForAPI(self.store, APIKey.URCHIN).apiKey,
+                          u'A123')
