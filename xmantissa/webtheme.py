@@ -98,7 +98,7 @@ class SiteTemplateResolver(object):
     Currently the only available policy is to load all installed themes in
     priority order.  However, in the future, this class may provide more
     sophisticated ways of loading the preferred theme, including interacting
-    with adminstrative tools for interactively ordering theme preference.
+    with administrative tools for interactively ordering theme preference.
 
     @ivar siteStore: a site store (preferably one with some offerings
     installed, if you want to actually get a template back)

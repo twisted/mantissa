@@ -156,7 +156,7 @@ class TabularDataModel:
             # prev buttons to do the appropriate things.  Realistically
             # speaking, it is a UI bug if this case ever occurs, since the UI
             # should disable the 'next' and 'previous' buttons using the
-            # hasNextPage and hasPrevPage methosd.  We gracefully handle it
+            # hasNextPage and hasPrevPage methods.  We gracefully handle it
             # anyway simply because we expect multiple frontends for this
             # model, and multiple frontends means lots of places for bugs.
             self.totalItems = self.totalPages = self.pageNumber = 0

@@ -129,7 +129,7 @@ class _ShellRenderingMixin(object):
         """
         Add primary application navigation to the given tag.
 
-        @see L{xmantissa.webnap.applicationNavigation}
+        @see L{xmantissa.webnav.applicationNavigation}
         """
         return applicationNavigation(
             ctx, self.translator, self.pageComponents.navigation)

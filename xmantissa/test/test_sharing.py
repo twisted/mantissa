@@ -346,7 +346,7 @@ class SimpleSharing(unittest.TestCase):
     def test_shareAndAdapt(self):
         """
         Verify that when an item is shared to a particular user with a particular
-        interface, retrieiving it for that user results in methods on the given
+        interface, retrieving it for that user results in methods on the given
         interface being callable and other methods being restricted.
         """
         t = PrivateThing(store=self.store, publicData=789)

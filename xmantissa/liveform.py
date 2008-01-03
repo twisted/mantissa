@@ -889,7 +889,12 @@ class _LiveFormMixin(record('callable parameters description',
         """
         Render the inputs for a form.
 
-        @param tag: A tag with
+        @param tag: A tag with:
+            - I{form} and I{description} slots
+            - I{liveform} and I{subform} patterns, to fill the I{form} slot
+                - An I{inputs} slot, to fill with parameter views
+            - L{IParameterView.patternName}I{-input-container} patterns for
+              each parameter type in C{self.parameters}
         """
         patterns = PatternDictionary(self.docFactory)
         inputs = []

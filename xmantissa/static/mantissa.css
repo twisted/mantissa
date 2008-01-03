@@ -1339,7 +1339,7 @@ li.installing {
 
 .password-reset h1 {
     font-size: 125%;
-    font-color: #666;
+    color: #666;
     padding: 2em;
     padding-bottom: 0.5em;
 }

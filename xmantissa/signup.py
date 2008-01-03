@@ -664,7 +664,7 @@ class ValidatingSignupForm(liveform.LiveForm):
 
     def getInitialArguments(self):
         """
-        Retreive a domain name from the user info signup item and return it so
+        Retrieve a domain name from the user info signup item and return it so
         the client will know what domain it can sign up in.
         """
         return (self.userInfoSignup.getAvailableDomains()[0],)
@@ -795,7 +795,7 @@ class UserInfoSignup(Item, PrefixURLMixin):
 
         @param emailAddress: the user's external email address.  they will be
             able to login with this also.
-        @type emailAdress: C{unicode}
+        @type emailAddress: C{unicode}
 
         @rtype: C{NoneType}
         """
@@ -804,7 +804,7 @@ class UserInfoSignup(Item, PrefixURLMixin):
         def _():
             loginsystem = self.store.findUnique(userbase.LoginSystem)
 
-            # Create the an account with the credentials they specified,
+            # Create an account with the credentials they specified,
             # making it internal since it belongs to us.
             acct = loginsystem.addAccount(username, domain, password,
                                           verified=True, internal=True)

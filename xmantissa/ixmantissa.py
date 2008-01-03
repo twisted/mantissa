@@ -329,7 +329,7 @@ class IWebTranslator(Interface):
 
     def linkFrom(webID):
         """
-        The inverse of L{linkTO}
+        The inverse of L{linkTo}
         """
 
 class INavigableElement(Interface):
@@ -553,7 +553,7 @@ class ITemporalEvent(Interface):
     """)
 
     endTime = Attribute("""
-    An extime.Time.  The end-point fo this event.
+    An extime.Time.  The end-point of this event.
     """)
 
 

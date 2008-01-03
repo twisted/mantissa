@@ -12,7 +12,7 @@ from xmantissa.cachejs import HashedJSModuleProvider, CachedJSModule
 
 class JSCachingTestCase(TestCase):
     """
-    Tests for L{xmantisa.cachejs}.
+    Tests for L{xmantissa.cachejs}.
     """
     hostname = 'test-mantissa-js-caching.example.com'
     def setUp(self):

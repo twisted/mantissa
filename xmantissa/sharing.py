@@ -50,7 +50,7 @@ class RoleRelationship(Item):
 
     group = reference(
         doc="""
-        This is a reference to a L{Role} which respresents a group that my 'member'
+        This is a reference to a L{Role} which represents a group that my 'member'
         attribute is a member of.
         """)
 

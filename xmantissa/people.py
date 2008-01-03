@@ -2243,7 +2243,7 @@ class ExtractWrapperColumnView(ColumnViewBase):
 
 class MugshotUploadForm(rend.Page):
     """
-    Resource which presents some UI for assocating a new mugshot with
+    Resource which presents some UI for associating a new mugshot with
     L{person}.
 
     @ivar person: The person whose mugshot is going to be changed.

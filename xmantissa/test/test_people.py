@@ -617,7 +617,7 @@ class BaseContactTests(unittest.TestCase):
     def test_uniqueIdentifier(self):
         """
         L{BaseContactType.uniqueIdentifier} should return a unicode string
-        giving the fully-qualifed Python name of the class of the instance it
+        giving the fully-qualified Python name of the class of the instance it
         is called on.
         """
         class Dummy(BaseContactType):
@@ -1170,7 +1170,7 @@ class PhoneNumberContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
     def test_editContactItem(self):
         """
         L{PhoneNumberContactType.editContactItem} should update the I{number}
-        and I{label} attribute sof the given item.
+        and I{label} attributes of the given item.
         """
         contactItem = PhoneNumber(
             store=self.store,
@@ -3027,7 +3027,7 @@ class OrganizerFragmentBeforeRenderTestCase(unittest.TestCase):
 
     def test_validPersonAndValidState(self):
         """
-        L{OrganizerFragment.beforeRender} should correctly intialize the
+        L{OrganizerFragment.beforeRender} should correctly initialize the
         L{OrganizerFragment} if a valid person name and valid initial view
         state are present in the query args.
         """

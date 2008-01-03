@@ -129,7 +129,7 @@ class ChoiceMultiple(testcase.TestCase):
                 [('One', 1, True),
                  ('Two', 2, False),
                  ('Three', 3, True)],
-                "Choosing mulitples from a list.",
+                "Choosing multiples from a list.",
                 multiple=True)])
         f.setFragmentParent(self)
         return f

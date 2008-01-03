@@ -278,7 +278,7 @@ JUST_SLASH = ('',)
 
 class PrefixURLMixin(object):
     """
-    Mixin for use by I[Sessionlesss]SiteRootPlugin implementors; provides a
+    Mixin for use by I[Sessionless]SiteRootPlugin implementors; provides a
     resourceFactory method which looks for an C{prefixURL} string on self,
     and calls and returns self.createResource().
 

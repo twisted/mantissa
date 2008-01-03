@@ -216,7 +216,7 @@ class _ScrollableBase(object):
     This logic is shared by two quite different implementations of
     client-server communication about rows: L{InequalityModel}, which uses
     techniques specific to the performance characteristics of Axiom queries,
-    and L{IndexingModel}, which uses simple indexin logic suitable for
+    and L{IndexingModel}, which uses simple indexing logic suitable for
     sequences.
     """
     currentSortColumn = None
@@ -265,7 +265,7 @@ class _ScrollableBase(object):
         about this, and an exception is raised.  In the old index-based
         scrolltable, certain implicit sorts will appear to work, so those
         continue to work for those tables.  However, Users are advised to avoid
-        the index-based scrolltable in general, and this subtly broken implciit
+        the index-based scrolltable in general, and this subtly broken implicit
         behavior specifically.
 
         @param defaultSortColumn: something adaptable to L{IColumn}, or None,

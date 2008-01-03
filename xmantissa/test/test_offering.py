@@ -101,7 +101,11 @@ class OfferingTest(unittest.TestCase):
         offering.getOfferings = self._originalGetOfferings
 
 
-    def testInstallation(self):
+    def test_installOffering(self):
+        """
+        L{OfferingConfiguration.installOffering} should install the given
+        offering on the Mantissa server.
+        """
         conf = self.adminAccount.avatars.open().findUnique(
             offering.OfferingConfiguration)
         conf.installOffering(self.offering, None)
@@ -119,12 +123,19 @@ class OfferingTest(unittest.TestCase):
         tap = ss.findUnique(TestAppPowerup)
         self.failUnless(installedOn(tap), ss)
 
+        self.assertRaises(offering.OfferingAlreadyInstalled,
+                          conf.installOffering, self.offering, None)
 
-    def testGetInstalledOfferingNames(self):
+
+    def test_getInstalledOfferingNames(self):
+        """
+        L{getInstalledOfferingNames} should list the names of offerings
+        installed on the given site store.
+        """
         self.assertEquals(offering.getInstalledOfferingNames(self.store),
                           ['mantissa-base'])
 
-        self.testInstallation()
+        self.test_installOffering()
 
         self.assertEquals(
             offering.getInstalledOfferingNames(self.store),
@@ -138,7 +149,7 @@ class OfferingTest(unittest.TestCase):
         """
         self.assertEquals(offering.getInstalledOfferings(self.store),
                           {baseOffering.name: baseOffering})
-        self.testInstallation()
+        self.test_installOffering()
         self.assertEquals(offering.getInstalledOfferings(self.store),
                           {baseOffering.name: baseOffering,
                            self.offering.name: self.offering})

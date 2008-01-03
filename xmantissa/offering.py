@@ -117,7 +117,7 @@ def installOffering(s, offering, configuration):
     """
     for off in s.query(InstalledOffering,
                        InstalledOffering.offeringName == offering.name):
-        raise Exception("That Offering is already installed.")
+        raise OfferingAlreadyInstalled(off)
 
     def siteSetup():
         for (requiredInterface, requiredPowerup) in offering.siteRequirements:

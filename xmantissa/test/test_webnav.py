@@ -128,7 +128,7 @@ class NavConfigTests(unittest.TestCase):
 
     def test_getSelectedTabPrefixMatch(self):
         """
-        Check that L[webnav.getSelectedTab} returns the tab whose C{linkURL}
+        Check that L{webnav.getSelectedTab} returns the tab whose C{linkURL}
         attribute contains the longest prefix of path segments that appears
         at the beginning of the L{nevow.url.URL} it is passed (if there is not
         an exact match)

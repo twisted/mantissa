@@ -134,7 +134,7 @@ class ProductConfiguration(Item):
         @type powerups: C{list} of powerup item types
 
         @rtype: L{Product}
-        @reteurn: The new product instance.
+        @return: The new product instance.
         """
         types = [qual(powerup).decode('ascii')
                        for powerup in powerups]

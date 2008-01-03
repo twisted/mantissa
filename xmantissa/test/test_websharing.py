@@ -248,7 +248,7 @@ class IShareable(Interface):
 
     fragmentName = Attribute(
         """
-        The value that the corresponing L{ShareableView} should use for its
+        The value that the corresponding L{ShareableView} should use for its
         C{fragmentName} attribute.
         """)
 
