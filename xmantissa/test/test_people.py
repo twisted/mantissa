@@ -54,7 +54,7 @@ from xmantissa.people import (
     _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
     ORGANIZER_VIEW_STATES, MugshotResource, Notes, NotesContactType,
-    ReadOnlyNotesView)
+    ReadOnlyNotesView, ContactGroup)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -523,13 +523,14 @@ class StubContactType(object):
         will return an object pretending to be a new contact item (C{True}) or
         C{None} to indicate no contact item was created (C{False}).
     @ivar theDescriptiveIdentifier: The object to return from
-    L{descriptiveIdentifier}.
+        L{descriptiveIdentifier}.
+    @ivar contactGroup: The object to return from L{getContactGroup}.
     """
     implements(IContactType)
 
     def __init__(self, parameters, editorialForm, contactItems,
             createContactItems=True, allowMultipleContactItems=True,
-            theDescriptiveIdentifier=u''):
+            theDescriptiveIdentifier=u'', contactGroup=None):
         self.parameters = parameters
         self.createdContacts = []
         self.editorialForm = editorialForm
@@ -540,6 +541,7 @@ class StubContactType(object):
         self.createContactItems = createContactItems
         self.allowMultipleContactItems = allowMultipleContactItems
         self.theDescriptiveIdentifier = theDescriptiveIdentifier
+        self.contactGroup = contactGroup
 
 
     def getParameters(self, ignore):
@@ -600,6 +602,13 @@ class StubContactType(object):
         self.editedContacts.append((contact, changes))
 
 
+    def getContactGroup(self, contactItem):
+        """
+        Return L{contactGroup}.
+        """
+        return self.contactGroup
+
+
     def getReadOnlyView(self, contact):
         """
         Return a stub view object for the given contact.
@@ -646,6 +655,15 @@ class BaseContactTests(unittest.TestCase):
 
         params = dict(a='b', c='d')
         self.assertEqual(form.callable(**params), params)
+
+
+    def test_getContactGroup(self):
+        """
+        L{BaseContactType.getContactGroup} should return C{None}.
+        """
+        self.assertIdentical(
+            BaseContactType().getContactGroup(object()), None)
+
 
 
 class EmailAddressTests(unittest.TestCase):
@@ -1892,6 +1910,44 @@ class PeopleModelTestCase(unittest.TestCase):
             firstContactTypes + secondContactTypes)
 
 
+    def test_groupReadOnlyViews(self):
+        """
+        L{Organizer.groupReadOnlyViews} should correctly group the read-only
+        views of all available contact items.
+        """
+        groupOneContactItems = [object(), object(), object()]
+        groupOneContactTypes = [
+            StubContactType([], None, groupOneContactItems[:1],
+                contactGroup=ContactGroup('One')),
+            StubContactType([], None, groupOneContactItems[1:],
+                contactGroup=ContactGroup('One'))]
+        groupTwoContactItems = [object()]
+        groupTwoContactTypes = [
+            StubContactType([], None, groupTwoContactItems,
+                contactGroup=ContactGroup('Two'))]
+        plugin = StubOrganizerPlugin(
+            store=self.store,
+            contactTypes=groupTwoContactTypes + groupOneContactTypes)
+        self.store.powerUp(plugin, IOrganizerPlugin)
+
+        person = Person(store=self.store)
+        grouped = self.organizer.groupReadOnlyViews(person)
+        for contactType in groupOneContactTypes + groupTwoContactTypes:
+            self.assertEqual(contactType.queriedPeople, [person])
+        self.assertEqual(sorted(grouped.keys()), [None, 'One', 'Two'])
+        self.assertEqual(
+            [view.item for view in grouped['One']], groupOneContactItems)
+        self.assertEqual(
+            [view.item for view in grouped['Two']], groupTwoContactItems)
+        # builtin (groupless) contact type stuff.
+        builtinContactTypes = list(self.organizer.getContactTypes())[
+            :builtinContactTypeCount]
+        self.assertEqual(
+            len(grouped[None]),
+            sum(len(list(contactType.getContactItems(person)))
+                    for contactType in builtinContactTypes))
+
+
     def test_organizerPluginWithoutContactTypes(self):
         """
         L{IOrganizerPlugin} powerups which don't have the C{getContactTypes}
@@ -2776,6 +2832,9 @@ class StubOrganizer(object):
 
     @ivar contactTypes: a C{list} of L{IContactType}s.
 
+    @ivar groupedReadOnlyViews: The C{dict} to be returned from
+    L{groupReadOnlyViews}
+
     @ivar editedPeople: A list of the arguments which have been passed to the
     C{editPerson} method.
 
@@ -2785,12 +2844,15 @@ class StubOrganizer(object):
     @ivar contactEditorialParameters: A mapping of people to lists.  When
     passed a person, L{getContactEditorialParameters} will return the
     corresponding list.
+
+    @ivar groupedReadOnlyViewPeople: A list of the arguments passed to
+    L{groupReadOnlyViews}.
     """
     _webTranslator = StubTranslator(None, None)
 
     def __init__(self, store=None, peoplePlugins=None, contactTypes=None,
             deletedPeople=None, editedPeople=None,
-            contactEditorialParameters=None):
+            contactEditorialParameters=None, groupedReadOnlyViews=None):
         self.store = store
         self.people = {}
         if peoplePlugins is None:
@@ -2803,11 +2865,15 @@ class StubOrganizer(object):
             editedPeople = []
         if contactEditorialParameters is None:
             contactEditorialParameters = []
+        if groupedReadOnlyViews is None:
+            groupedReadOnlyViews = {}
         self.peoplePluginList = peoplePlugins
         self.contactTypes = contactTypes
         self.deletedPeople = deletedPeople
         self.editedPeople = editedPeople
         self.contactEditorialParameters = contactEditorialParameters
+        self.groupedReadOnlyViews = groupedReadOnlyViews
+        self.groupedReadOnlyViewPeople = []
 
 
     def peoplePlugins(self, person):
@@ -2836,6 +2902,14 @@ class StubOrganizer(object):
 
     def getContactTypes(self):
         return self.contactTypes
+
+
+    def groupReadOnlyViews(self, person):
+        """
+        Return L{groupedReadOnlyViews}.
+        """
+        self.groupedReadOnlyViewPeople.append(person)
+        return self.groupedReadOnlyViews
 
 
     def linkToPerson(self, person):
@@ -3189,30 +3263,36 @@ class ReadOnlyContactInfoViewTestCase(unittest.TestCase):
 
     def test_contactInfo(self):
         """
-        The I{contactInfo} renderer should return the result of calling
-        L{IContactType.getReadOnlyView} on each contact type for each contact
-        item of the wrapped person.
+        The I{contactInfo} renderer should return the suitiably-transformed
+        result of calling L{Organizer.groupReadOnlyViews}.
         """
         person = StubPerson([])
         contactItems = [object(), object(), object()]
+        readOnlyViews = [div(), div(), div()]
         person.organizer = StubOrganizer(
-            contactTypes=[
-                StubContactType(None, None, [contactItems[0]]),
-                StubContactType(None, None, contactItems[1:])])
+            groupedReadOnlyViews={
+                'One': readOnlyViews[:1],
+                None: readOnlyViews[1:]})
         contactInfo = renderer.get(
             ReadOnlyContactInfoView(person),
             'contactInfo',
             None)
-        fragments = list(contactInfo(None, None))
-        self.assertEqual(len(fragments), 3)
+        tag = div[
+            div(pattern='contact-group')[
+                slot('name'), slot('views')]]
+        result = list(contactInfo(None, tag))
+        self.assertEqual(
+            person.organizer.groupedReadOnlyViewPeople, [person])
+        self.assertEqual(len(result), 2)
 
-        self.assertTrue(isinstance(fragments[0], StubReadOnlyView))
-        self.assertIdentical(fragments[0].item, contactItems[0])
-
-        self.assertTrue(isinstance(fragments[1], StubReadOnlyView))
-        self.assertIdentical(fragments[1].item, contactItems[1])
-        self.assertTrue(isinstance(fragments[2], StubReadOnlyView))
-        self.assertIdentical(fragments[2].item, contactItems[2])
+        grouplessReadOnlyViews = result[0]
+        self.assertEqual(len(grouplessReadOnlyViews), 2)
+        self.assertEqual(grouplessReadOnlyViews, readOnlyViews[1:])
+        contactGroupPattern = result[1]
+        self.assertEqual(
+            contactGroupPattern.slotData['name'], 'One')
+        self.assertEqual(
+            contactGroupPattern.slotData['views'], readOnlyViews[:1])
 
 
     def test_peoplePlugins(self):

@@ -26,6 +26,7 @@ from nevow.page import Element, renderer
 from formless import nameToLabel
 
 from epsilon import extime
+from epsilon.structlike import record
 
 from axiom import item, attributes
 from axiom.dependency import dependsOn, installOn
@@ -147,6 +148,18 @@ def _descriptiveIdentifier(contactType):
 
 
 
+class ContactGroup(record('groupName')):
+    """
+    An object describing a group of L{IContactItem} implementors.
+
+    @see IContactType.getContactGroup
+
+    @ivar groupName: The name of the group.
+    @type groupNode: C{unicode}
+    """
+
+
+
 class BaseContactType(object):
     """
     Base class for L{IContactType} implementations which provides useful
@@ -195,6 +208,13 @@ class BaseContactType(object):
         contact item using the parameters returned by L{getParameters}.
         """
         return liveform.LiveForm(self.coerce, self.getParameters(contact))
+
+
+    def getContactGroup(self, contactItem):
+        """
+        Return C{None}.
+        """
+        return None
 
 
 
@@ -758,6 +778,41 @@ class Organizer(item.Item):
                     category=PendingDeprecationWarning)
 
 
+    def groupReadOnlyViews(self, person):
+        """
+        Collect all contact items from the available contact types for the
+        given person, organize them by contact group, and turn them into
+        read-only views.
+
+        @type person: L{Person}
+        @param person: The person whose contact items we're interested in.
+
+        @return: A mapping of of L{ContactGroup} names to the read-only views
+        of their member contact items, with C{None} being the key for
+        groupless contact items.
+        @rtype: C{dict} of C{str}
+        """
+        # this is a slightly awkward, specific API, but at the time of
+        # writing, read-only views are the thing that the only caller cares
+        # about.  we need the contact type to get a read-only view for a
+        # contact item.  there is no way to get from a contact item to a
+        # contact type, so this method can't be "groupContactItems" (which
+        # seems to make more sense), unless it returned some weird data
+        # structure which managed to associate contact items and contact
+        # types.
+        grouped = {}
+        for contactType in self.getContactTypes():
+            for contactItem in contactType.getContactItems(person):
+                contactGroup = contactType.getContactGroup(contactItem)
+                if contactGroup is not None:
+                    contactGroup = contactGroup.groupName
+                if contactGroup not in grouped:
+                    grouped[contactGroup] = []
+                grouped[contactGroup].append(
+                    contactType.getReadOnlyView(contactItem))
+        return grouped
+
+
     def getContactCreationParameters(self):
         """
         Yield a L{Parameter} for each L{IContactType} known.
@@ -1198,11 +1253,24 @@ class ReadOnlyContactInfoView(Element):
         """
         Render the result of calling L{IContactType.getReadOnlyView} on the
         corresponding L{IContactType} for each piece of contact info
-        associated with L{person}.
+        associated with L{person}.  Arrange the result by group, using
+        C{tag}'s I{contact-group} pattern. Groupless contact items will have
+        their views yielded directly.
+
+        The I{contact-group} pattern appears once for each distinct
+        L{ContactGroup}, with the following slots filled:
+          I{name} - The group's C{groupName}.
+          I{views} - A sequence of read-only views belonging to the group.
         """
-        for contactType in self.organizer.getContactTypes():
-            for contactItem in contactType.getContactItems(self.person):
-                yield contactType.getReadOnlyView(contactItem)
+        groupPattern = inevow.IQ(tag).patternGenerator('contact-group')
+        groupedViews = self.organizer.groupReadOnlyViews(self.person)
+        for (groupName, views) in groupedViews.iteritems():
+            if groupName is None:
+                yield views
+            else:
+                yield groupPattern().fillSlots(
+                    'name', groupName).fillSlots(
+                    'views', views)
     renderer(contactInfo)
 
 

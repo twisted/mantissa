@@ -74,6 +74,15 @@ iframe.mugshot-upload {
     color: #757575;
 }
 
+.person-read-only-contact-info fieldset {
+    margin-bottom: 4px;
+}
+
+.person-read-only-contact-info fieldset legend {
+    font-style: italic;
+    font-size: 110%;
+}
+
 .read-only-contact-item-label {
     padding-right: 1em;
     font-weight: bold;

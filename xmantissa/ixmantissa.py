@@ -644,7 +644,6 @@ class IContactType(Interface):
         """
 
 
-
     def getEditorialForm(contact):
         """
         Return a L{LiveForm} which will allow the given contact item to be
@@ -662,7 +661,19 @@ class IContactType(Interface):
         Update the given contact item to reflect the new parameters.
 
         @param **parameters: The form input key/value pairs, as produced by the
-            L{LiveForm} returned by L{ L{getEditorialForm}.
+            L{LiveForm} returned by L{getEditorialForm}.
+        """
+
+
+    def getContactGroup(contactItem):
+        """
+        Return a L{xmantissa.people.ContactGroup} describing the group
+        affinity of a contact item of the type created by this contact type,
+        or C{None} if the item doesn't have an explicit group.
+
+        @param contactItem: A contact item.
+
+        @rtype: L{xmantissa.people.ContactGroup} or C{NoneType}
         """
 
 
