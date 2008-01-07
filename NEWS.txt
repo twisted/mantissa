@@ -1,3 +1,8 @@
+0.6.16 (2008-01-02):
+  - A basic person import widget has been added.
+  - Support for inserting Google Analytics tracking code into Mantissa
+    pages has been added.
+
 0.6.15 (2006-12-06):
   - IContactTypes can now declare that particular contact items cannot
     be edited by the user.
