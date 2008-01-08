@@ -137,28 +137,3 @@ class NickNameAndEmailAddress(AddPersonTestBase, TestCase):
              'vip': False,
              'xmantissa.people.PostalContactType': [{'address': u''}],
              'xmantissa.people.EmailContactType': [{'email': u'a@b.c'}]})
-
-
-
-class ContactInfoTestCase(TestCase):
-    jsClass = u'Mantissa.Test.ContactInfo'
-
-    def getWidgetDocument(self):
-        s = Store()
-
-        installOn(PrivateApplication(store=s), s)
-
-        o = people.Organizer(store=s)
-        installOn(o, s)
-
-        p = people.Person(store=s,
-                          name=u'The Foo Person',
-                          organizer=o)
-
-        people.EmailAddress(store=s, person=p, address=u'foo@skynet')
-        people.PhoneNumber(store=s, person=p, number=u'434-5030')
-
-        f = ixmantissa.INavigableFragment(p)
-        f.docFactory = getLoader(f.fragmentName)
-        f.setFragmentParent(self)
-        return f

@@ -4,8 +4,6 @@ Tests for L{xmantissa.people}.
 """
 import warnings
 
-from xml.dom.minidom import parseString
-
 from zope.interface import implements
 
 from string import lowercase
@@ -15,7 +13,6 @@ from twisted.python.filepath import FilePath
 from twisted.python.components import registerAdapter
 from twisted.trial import unittest
 
-from nevow.loaders import stan
 from nevow.tags import div, slot
 from nevow.flat import flatten
 from nevow.athena import expose
@@ -43,11 +40,8 @@ from xmantissa.scrolltable import UnsortableColumn, ScrollingElement
 from xmantissa import people
 from xmantissa.people import (
     Organizer, Person, EmailAddress, AddPersonFragment, ImportPeopleWidget,
-    Mugshot, addContactInfoType, contactInfoItemTypeFromClassName,
-    _CONTACT_INFO_ITEM_TYPES, ContactInfoFragment, PersonDetailFragment,
-    PhoneNumber, PhoneNumberContactType, ReadOnlyPhoneNumberView,
-    setIconURLForContactInfoType, iconURLForContactInfoType,
-    _CONTACT_INFO_ICON_URLS, PersonScrollingFragment, OrganizerFragment,
+    Mugshot, PersonDetailFragment, PhoneNumber, PhoneNumberContactType,
+    ReadOnlyPhoneNumberView, PersonScrollingFragment, OrganizerFragment,
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
     PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
     ReadOnlyEmailView, ReadOnlyPostalAddressView, getPersonURL,
@@ -2221,128 +2215,6 @@ class PeopleTests(unittest.TestCase):
                           set([u'a@b.c', u'c@d.e']))
 
 
-    def test_createContactInfoItem(self):
-        """
-        Verify a new contact info item can be created using
-        L{Person.createContactInfoItem} and that newly created contact
-        info items are installed on their person item.
-        """
-        email = u'username@hostname'
-        person = Person(store=self.store)
-        person.createContactInfoItem(EmailAddress, 'address', email)
-        contacts = list(self.store.query(EmailAddress))
-        self.assertEqual(len(contacts), 1)
-        self.assertEqual(contacts[0].person, person)
-        self.assertEqual(contacts[0].address, email)
-        self.assertEqual(installedOn(contacts[0]), person)
-
-
-    def test_findContactInfoItem(self):
-        """
-        Verify an existing contact info item can be found with
-        L{Person.findContactInfoItem}.
-        """
-        email = u'username@hostname'
-        alice = Person(store=self.store)
-        bob = Person(store=self.store)
-        emailObj = EmailAddress(store=self.store, person=alice, address=email)
-        self.assertEqual(alice.findContactInfoItem(EmailAddress, 'address', email), emailObj)
-        self.assertEqual(bob.findContactInfoItem(EmailAddress, 'address', email), None)
-
-
-    def test_editContactInfoItem(self):
-        """
-        Verify that L{Person.editContactInfoItem} changes the value of
-        the contact info item's attribute in the database.
-        """
-        oldEmail = u'username@hostname'
-        newEmail = u'notusername@hostname'
-
-        alice = Person(store=self.store)
-        bob = Person(store=self.store)
-
-        aliceEmail = EmailAddress(
-            store=self.store, person=alice, address=oldEmail)
-        bobEmail = EmailAddress(store=self.store, person=bob, address=oldEmail)
-
-        alice.editContactInfoItem(
-            EmailAddress, 'address', oldEmail, newEmail)
-        self.assertEqual(aliceEmail.address, newEmail)
-        self.assertEqual(bobEmail.address, oldEmail)
-
-
-    def test_deleteContactInfoItem(self):
-        """
-        Verify that L{Person.deleteContactInfoItem} removes the
-        matching contact info item from the database.
-        """
-        email = u'username@hostname'
-
-        alice = Person(store=self.store)
-        bob = Person(store=self.store)
-        aliceEmail = EmailAddress(
-            store=self.store, person=alice, address=email)
-        bobEmail = EmailAddress(store=self.store, person=bob, address=email)
-
-        alice.deleteContactInfoItem(
-            EmailAddress, 'address', email)
-
-        emails = list(self.store.query(EmailAddress))
-        self.assertEqual(len(emails), 1)
-        self.assertIdentical(emails[0], bobEmail)
-
-
-    def test_getContactInfoItems(self):
-        """
-        Verify that L{Person.getContactInfoItems} returns the values
-        of all contact info items that belong to it.
-        """
-        alice = Person(store=self.store)
-        bob = Person(store=self.store)
-        aliceEmail1 = EmailAddress(
-            store=self.store, person=alice, address=u'alice1@host')
-        aliceEmail2 = EmailAddress(
-            store=self.store, person=alice, address=u'alice2@host')
-        bobEmail = EmailAddress(
-            store=self.store, person=bob, address=u'bob@host')
-
-        self.assertEqual(
-            list(sorted(alice.getContactInfoItems(EmailAddress, 'address'))),
-            ['alice1@host', 'alice2@host'])
-        self.assertEqual(
-            list(bob.getContactInfoItems(EmailAddress, 'address')),
-            ['bob@host'])
-
-
-    def test_contactInfoItemTypeFromClassName(self):
-        """
-        Test that we can register a new contact info item type and
-        then find it by class name with
-        L{contactInfoItemTypeFromClassName}
-        """
-        addContactInfoType(POBox, 'number')
-        try:
-            (itemClass, attr) = contactInfoItemTypeFromClassName(POBox.__name__)
-            self.assertIdentical(itemClass, POBox)
-            self.assertEqual(attr, 'number')
-        finally:
-            _CONTACT_INFO_ITEM_TYPES.remove((POBox, 'number'))
-
-
-    def test_setIconURLForContactInfoType(self):
-        """
-        Test that we can register an URL for an icon for a contact
-        info item type and then find it by type with
-        L{iconURLForContactInfoType}.
-        """
-        url = '/foo/bar/pobox.png'
-        setIconURLForContactInfoType(POBox, url)
-        try:
-            self.assertEqual(iconURLForContactInfoType(POBox), url)
-        finally:
-            del _CONTACT_INFO_ICON_URLS[POBox]
-
-
     def test_getEmailAddress(self):
         """
         Verify that getEmailAddress yields the only associated email address
@@ -2351,6 +2223,7 @@ class PeopleTests(unittest.TestCase):
         p = Person(store=self.store)
         EmailAddress(store=self.store, person=p, address=u'a@b.c')
         self.assertEquals(p.getEmailAddress(), u'a@b.c')
+
 
     def testPersonRetrieval(self):
         name = u'testuser'
@@ -2593,93 +2466,6 @@ class StubPerson(object):
         Return an email address.
         """
         return u"alice@example.com"
-
-
-
-class ContactInfoViewTests(unittest.TestCase):
-    """
-    Tests for L{ContactInfoFragment}.
-    """
-    def test_createContactInfoItem(self):
-        """
-        Verify that L{ContactInfoFragment.createContactInfoItem} calls
-        C{createContactInfoItem} with the correct arguments on the object it
-        wraps.
-        """
-        contactItems = []
-        person = StubPerson(contactItems)
-        fragment = ContactInfoFragment(
-            person,
-            stan(div(pattern='contact-info-item')[slot('value')]))
-        fragment.createContactInfoItem(u'PhoneNumber', u'123-456-7890')
-        self.assertEqual(
-            contactItems, [(PhoneNumber, 'number', u'123-456-7890')])
-
-
-    def test_createContactInfoItemReturnsFragment(self):
-        """
-        Verify that L{ContactInfoFragment.createContactInfoItem} returns a
-        L{ContactInfoFragment} with the proper parent and docFactory.
-        """
-        person = StubPerson([])
-        fragment = ContactInfoFragment(
-            person,
-            stan(div(pattern='contact-info-item')[slot('value')]))
-        result = fragment.createContactInfoItem(
-            u'PhoneNumber', u'123-456-7890')
-        self.failUnless(isinstance(result, ContactInfoFragment))
-        self.assertEqual(
-            flatten(result.docFactory.load()),
-            '<div>123-456-7890</div>')
-        self.assertIdentical(result.fragmentParent, fragment)
-
-
-    def test_contactInfoSummarySection(self):
-        """
-        Test that the renderer for a single section of the contact
-        info summary points to the correct icon URL for that section's
-        item type.
-        """
-        sectionPattern = div(pattern='contact-info-section')[
-            div[slot(name='type')],
-            div[slot(name='icon-path')],
-            slot(name='items')]
-        itemPattern = div(pattern='contact-info-item')[
-            slot(name='value')]
-
-        person = StubPerson([])
-        fragment = ContactInfoFragment(
-            person,
-            stan(div[sectionPattern, itemPattern]))
-
-        url = '/foo/bar/pobox.png'
-        number = u'1234'
-        setIconURLForContactInfoType(POBox, url)
-        result = fragment._renderSection(POBox, [number])
-        markup = flatten(result)
-        document = parseString(markup)
-        ele = document.documentElement
-        self.assertEqual(ele.tagName, 'div')
-        self.assertEqual(ele.childNodes[0].tagName, 'div')
-        self.assertEqual(ele.childNodes[0].childNodes[0].nodeValue, 'POBox')
-        self.assertEqual(ele.childNodes[1].tagName, 'div')
-        self.assertEqual(ele.childNodes[1].childNodes[0].nodeValue, url)
-        self.assertEqual(ele.childNodes[2].tagName, 'div')
-        self.assertEqual(ele.childNodes[2].childNodes[0].nodeValue, number)
-
-
-    def test_flattenableWithoutExplicitDocFactory(self):
-        """
-        L{flatten} should not raise an exception when passed a
-        L{ContactInfoFragment} instance which has not had its C{docFactory} set
-        explicitly.
-        """
-        store = Store()
-        organizer = Organizer(store=store)
-        installOn(organizer, store)
-        person = organizer.createPerson(u'testuser')
-        fragment = ContactInfoFragment(person)
-        renderLiveFragment(fragment)
 
 
 

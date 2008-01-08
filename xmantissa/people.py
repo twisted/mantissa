@@ -29,7 +29,7 @@ from epsilon import extime
 from epsilon.structlike import record
 
 from axiom import item, attributes
-from axiom.dependency import dependsOn, installOn
+from axiom.dependency import dependsOn
 from axiom.attributes import boolean
 from axiom.upgrade import (
     registerUpgrader, registerAttributeCopyingUpgrader,
@@ -44,7 +44,7 @@ from xmantissa.tdbview import TabularDataView, ColumnViewBase
 from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingElement, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
-from xmantissa.webtheme import ThemedDocumentFactory, ThemedFragment
+from xmantissa.webtheme import ThemedDocumentFactory
 
 
 def makeThumbnail(inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
@@ -73,31 +73,6 @@ def makeThumbnail(inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
     image = Image.open(inputFile)
     image.thumbnail((thumbnailSize, thumbnailSize), Image.ANTIALIAS)
     image.save(outputFile, outputFormat)
-
-
-
-_CONTACT_INFO_ICON_URLS = {}
-def setIconURLForContactInfoType(itemType, iconPath):
-    """
-    Set the URL to the icon for a particular contact info type.
-
-    @param itemType: an item type
-    @type itemType: L{MetaItem}
-
-    @param iconPath: The location of an image to be used as an icon
-    when displaying contact information of the given type.
-    """
-    _CONTACT_INFO_ICON_URLS[itemType] = iconPath
-
-
-def iconURLForContactInfoType(itemType):
-    """
-    Look up the URL to the icon for a particular contact info type.
-
-    @param itemType: an item type
-    @type itemType: L{MetaItem}
-    """
-    return _CONTACT_INFO_ICON_URLS[itemType]
 
 
 
@@ -537,124 +512,13 @@ class Person(item.Item):
                               timestamp=timestamp,
                               person=self)
 
+
     def getExtractWrappers(self, n):
         return self.store.query(ExtractWrapper,
                                 ExtractWrapper.person == self,
                                 sort=ExtractWrapper.timestamp.desc,
                                 limit=n)
 
-    def getContactInfoItems(self, itemType, valueColumn):
-        """
-        Find the values of all contact info items of the given type.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @return: C{valueColumn} for each contact info item.
-        @rtype: the type of C{valueColumn}
-        """
-        return self.store.query(
-            itemType, itemType.person == self).getColumn(valueColumn)
-
-    def deleteContactInfoItem(self, itemType, valueColumn, value):
-        """
-        Delete the contact info item with the given value.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @param value: The value of C{valueColumn} to search for.  It
-        should be of the appropriate type for that attribute.
-
-        @return: C{None}
-        """
-        self.findContactInfoItem(
-            itemType, valueColumn, value).deleteFromStore()
-
-    def editContactInfoItem(self, itemType, valueColumn, oldValue, newValue):
-        """
-        Change the value of the contact info item with the given value
-        to a new value.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @param oldValue: The value of C{valueColumn} to search for.  It
-        should be of the appropriate type for that attribute.
-
-        @param newValue: The value of C{valueColumn} to set on the
-        found item.  It should be of the appropriate type for that
-        attribute
-
-        @return: C{None}
-        """
-        setattr(
-            self.findContactInfoItem(itemType, valueColumn, oldValue),
-            valueColumn,
-            newValue)
-
-    def findContactInfoItem(self, itemType, valueColumn, value):
-        """
-        Find a contact info item of the given type with the given value.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @param value: The value of C{valueColumn} to search for.  It
-        should be of the appropriate type for that attribute.
-
-        @return: An instance of C{itemType} with a matching
-        C{valueColumn} which belongs to this person, or C{None} if
-        there is not one.
-        """
-        return self.store.findFirst(
-            itemType,
-            attributes.AND(
-                itemType.person == self,
-                getattr(itemType, valueColumn) == value))
-
-    def createContactInfoItem(self, itemType, valueColumn, value):
-        """
-        Create a new contact information item of the given type.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The L{Item} subclass defining the contact
-        info type to create.
-
-        @type valueColumn: C{str}
-        @param valueColumn: The name of the primary key attribute of
-        the contact info type.
-
-        @param value: A value to use for the C{valueColumn} attribute
-        of the created item.  It should be of the appropriate type for
-        that attribute.
-
-        @return: C{None}
-        """
-        installOn(
-            itemType(store=self.store,
-                    person=self,
-                    **{valueColumn: value}), self)
 
 item.declareLegacyItem(
     Person.typeName,
@@ -1589,8 +1453,6 @@ class EmailAddress(item.Item):
         allowNone=False,
         default=u'')
 
-setIconURLForContactInfoType(EmailAddress, '/Mantissa/images/EmailAddress-icon.png')
-
 def emailAddress1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_emailaddress',
                               1, 2,
@@ -1666,10 +1528,6 @@ class PhoneNumber(item.Item):
 
 
         ALL_LABELS = [HOME, WORK, MOBILE, HOME_FAX, WORK_FAX, PAGER]
-
-
-
-setIconURLForContactInfoType(PhoneNumber, '/Mantissa/images/PhoneNumber-icon.png')
 
 def phoneNumber1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_phonenumber',
@@ -1832,8 +1690,6 @@ class PostalAddress(item.Item):
         whenDeleted=attributes.reference.CASCADE,
         reftype=Person)
 
-setIconURLForContactInfoType(PostalAddress, '/Mantissa/images/PostalAddress-icon.png')
-
 
 
 class PostalContactType(BaseContactType):
@@ -1956,8 +1812,6 @@ class Notes(item.Item):
 
     notes = attributes.text(allowNone=False)
     person = attributes.reference(allowNone=False)
-
-setIconURLForContactInfoType(Notes, '/Mantissa/images/Notes-icon.png')
 
 
 
@@ -2532,40 +2386,6 @@ class MugshotResource(rend.Page):
 
         return static.File(path.path, str(self.mugshot.type))
 
-_CONTACT_INFO_ITEM_TYPES = [(PhoneNumber, 'number'),
-                            (EmailAddress, 'address'),
-                            (PostalAddress, 'address'),
-                            (Notes, 'notes')]
-
-
-
-def addContactInfoType(itemType, settableAttribute):
-    """
-    Register a new contact info item type C{itemType}, with value
-    attribute C{settableAttribute}
-
-    @param itemType: an item type
-    @type itemType: L{MetaItem}
-
-    @param settableAttribute: the name of a settable attribute on
-    C{itemType}
-    @type settableAttribute: C{str}
-    """
-    _CONTACT_INFO_ITEM_TYPES.append((itemType, settableAttribute))
-
-
-def contactInfoItemTypeFromClassName(className):
-    """
-    Find the registered contact info item type with the class name of
-    C{className}
-
-    @return: the class and the value attribute name
-    @rtype: 2-C{tuple} of C{MetaItem} and C{str}
-    """
-    # maybe this should use quals or something
-    for (cls, attr) in _CONTACT_INFO_ITEM_TYPES:
-        if cls.__name__ == className:
-            return (cls, attr)
 
 
 def getPersonURL(person):
@@ -2573,108 +2393,6 @@ def getPersonURL(person):
     Return the address the view for this Person is available at.
     """
     return person.organizer.linkToPerson(person)
-
-
-class ContactInfoFragment(ThemedFragment):
-    """
-    Renderer for contact information about a L{Person}.
-    """
-    fragmentName = 'contact-info'
-    jsClass = u'Mantissa.People.ContactInfo'
-
-    def __init__(self, person, docFactory=None):
-        """
-        Initialize this instance.
-
-        @type person: L{Person}
-        @param person: The person object about whom contact information will
-        be rendered.
-
-        @param docFactory: A optional nevow document loader which will be
-        used if specified.
-        """
-        athena.LiveFragment.__init__(self, docFactory=docFactory)
-        self.person = person
-
-    def render_mugshotLink(self, ctx, data):
-        self.mugshot = self.person.getMugshot()
-        if self.mugshot is None:
-            return '/Mantissa/images/mugshot-placeholder.png'
-        return getPersonURL(self.person) + '/mugshot'
-
-    def render_mugshotFormAction(self, ctx, data):
-        return getPersonURL(self.person) + '/uploadMugshot'
-
-
-    def editContactInfoItem(self, typeName, oldValue, newValue):
-        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
-        self.person.editContactInfoItem(
-            cls, attr, oldValue, newValue)
-    expose(editContactInfoItem)
-
-    def createContactInfoItem(self, typeName, value):
-        """
-        Create a new contact information item for the wrapped person.
-
-        @type typeName: C{unicode}
-        @param typeName: The class name of the contact information to
-        create.
-
-        @param value: The value to use for the value column for the type
-        specified.
-
-        @see Person.createContactInfoItem
-
-        @return: A fragment which will display the newly added contact info
-        item.
-        """
-        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
-        self.person.createContactInfoItem(cls, attr, value)
-        p = inevow.IQ(self.docFactory).onePattern('contact-info-item')
-        fragment = self.__class__(self.person, docFactory=stan(p.fillSlots('value', value)))
-        fragment.setFragmentParent(self)
-        return fragment
-    expose(createContactInfoItem)
-
-    def deleteContactInfoItem(self, typeName, value):
-        (cls, attr) = contactInfoItemTypeFromClassName(typeName)
-        self.person.deleteContactInfoItem(cls, attr, value)
-    expose(deleteContactInfoItem)
-
-
-    def _renderSection(self, itemType, items):
-        """
-        Render the given contact info items.
-
-        @type itemType: L{MetaItem}
-        @param itemType: The type of contact info items to be rendered.
-
-        @type values: C{list} of C{unicode}
-        @param values: The contact info items to be rendered.
-
-        @return: A flattenable object representing the given contact
-        information.
-        """
-        iq = inevow.IQ(self.docFactory)
-        sectionPattern = iq.onePattern('contact-info-section')
-        itemPattern = iq.patternGenerator('contact-info-item')
-
-        iconPath = iconURLForContactInfoType(itemType)
-
-        return dictFillSlots(sectionPattern,
-                        {'type': itemType.__name__,
-                        'icon-path': iconPath,
-                        'items': (itemPattern.fillSlots('value', item)
-                                    for item in items)})
-
-    def render_contactInfoSummary(self, ctx, data):
-        """
-        Render each of the kinds of contact information for C{self.person}.
-        """
-        for (itemType, valueColumn) in _CONTACT_INFO_ITEM_TYPES:
-            yield self._renderSection(
-                itemType, self.person.getContactInfoItems(
-                    itemType, valueColumn))
 
 
 
@@ -2697,23 +2415,13 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
         self.personFragments = list(ixmantissa.IPersonFragment(p)
                                         for p in self.organizer.peoplePlugins(person))
 
+
     def head(self):
         return None
 
+
     def render_personName(self, ctx, data):
         return ctx.tag[self.person.getDisplayName()]
-
-
-    def render_contactInfo(self, ctx, data):
-        """
-        Render contact information for C{self.person}.
-
-        @rtype: L{ContactInfoFragment}
-        """
-        f = ContactInfoFragment(self.person)
-        f.setFragmentParent(self)
-        f.docFactory = webtheme.getLoader(f.fragmentName)
-        return f
 
 
     def render_extracts(self, ctx, data):
