@@ -105,11 +105,30 @@ iframe.mugshot-upload {
     margin-bottom: 6px;
 }
 
-.people-table-list-cell {
+.people-table-filter-cell {
     position: absolute;
     top: 35px;
     bottom: 0px;
     width: 200px;
+}
+
+.people-table-filter-cell a.people-table-filter:link,
+.people-table-filter-cell a.people-table-filter:visited {
+    color: #0071BB;
+}
+
+.people-table-filter-cell a.people-table-selected-filter:link,
+.people-table-filter-cell a.people-table-selected-filter:visited {
+    color: #FFFFFF;
+}
+
+.people-table-list-cell {
+    position: absolute;
+    top: 35px;
+    bottom: 0px;
+    left: 200px;
+    width: 200px;
+    border-left: solid 1px #C4CFDB;
 }
 
 .people-table-list-cell .mantissa-row-region-node {
@@ -127,7 +146,7 @@ iframe.mugshot-upload {
     top: 35px;
     right: 0px;
     bottom: 0px;
-    left: 200px;
+    left: 400px;
     border-left: solid 1px #C4CFDB;
     overflow: auto;
     padding: 6px;
@@ -140,7 +159,12 @@ iframe.mugshot-upload {
     width: 100%;
 }
 
-.person-list-selected-person-row {
+.people-table-filter, .people-table-selected-filter {
+    padding: 4px;
+    display: block;
+}
+
+.person-list-selected-person-row, .people-table-selected-filter {
     color: #FFFFFF;
     background-color: #0071BB;
     background-image: url(/Mantissa/images/people-table-arrow.png);
@@ -197,6 +221,15 @@ iframe.mugshot-upload {
 .people-table-container {
     position: relative;
     height: 100%;
+}
+
+.people-table-filter-col-header {
+    width: 200px;
+}
+
+.people-table-filter-col-header img {
+    float: right;
+    margin-right: 7px;
 }
 
 .people-table-list-col-header {

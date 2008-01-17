@@ -23,12 +23,16 @@ from nevow import context
 from epsilon import extime
 from epsilon.extime import Time
 from epsilon.structlike import record
+from epsilon.hotfix import require
+
+require('twisted', 'trial_assertwarns')
 
 from axiom.store import Store, AtomicFile
-from axiom.dependency import installOn, installedOn
+from axiom.dependency import installOn
 from axiom.item import Item
-from axiom.attributes import inmemory, text
+from axiom.attributes import inmemory, text, AND
 from axiom.errors import DeletionDisallowed
+from axiom import tags
 
 from axiom.userbase import LoginSystem
 
@@ -48,7 +52,8 @@ from xmantissa.people import (
     _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
     ORGANIZER_VIEW_STATES, MugshotResource, Notes, NotesContactType,
-    ReadOnlyNotesView, ContactGroup)
+    ReadOnlyNotesView, ContactGroup, AllPeopleFilter, VIPPeopleFilter,
+    TaggedPeopleFilter)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -56,12 +61,93 @@ from xmantissa.liveform import (
     ListChanges, CreateObject, EditObject, FormParameter, ChoiceParameter,
     TEXTAREA_INPUT)
 from xmantissa.ixmantissa import (
-    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment)
+    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment,
+    IPeopleFilter)
 from xmantissa.signup import UserInfo
+from xmantissa.test.peopleutil import PeopleFilterTestMixin
 
 
 # the number of non-plugin IContactType implementations provided by Mantissa.
 builtinContactTypeCount = 5
+# the number of non-plugin IPeopleFilter implementations provided by Mantissa
+builtinPeopleFilterCount = 2
+
+
+
+class AllPeopleFilterTests(PeopleFilterTestMixin, unittest.TestCase):
+    """
+    Tests for L{AllPeopleFilter}.
+    """
+    peopleFilterClass = AllPeopleFilter
+    peopleFilterName = 'All'
+
+
+    def test_queryComparison(self):
+        """
+        L{AllPeopleFilter}'s query comparison should include all people.
+        """
+        self.assertIdentical(
+            self.peopleFilterClass().getPeopleQueryComparison(Store()),
+            None)
+
+
+
+class VIPPeopleFilterTests(PeopleFilterTestMixin, unittest.TestCase):
+    """
+    Tests for L{VIPPeopleFilter}.
+    """
+    peopleFilterClass = VIPPeopleFilter
+    peopleFilterName = 'VIP'
+
+
+    def test_queryComparison(self):
+        """
+        L{VIPPeopleFilter}'s query comparison should include only VIP people.
+        """
+        self.assertComparisonEquals(Person.vip == True)
+
+
+
+class TaggedPeopleFilterTests(unittest.TestCase):
+    """
+    Tests for L{TaggedPeopleFilter}.
+    """
+    # this TestCase doesn't inherit from PeopleFilterTestMixin because of the
+    # constructor argument and more complicated query.
+
+    def test_implementsInterface(self):
+        """
+        L{TaggedPeopleFilter} should provide L{IPeopleFilter}.
+        """
+        self.assertTrue(
+            IPeopleFilter.providedBy(TaggedPeopleFilter(u'tag')))
+
+
+    def test_filterName(self):
+        """
+        Our L{TaggedPeopleFilter}'s I{filterName} should be the tag passed to
+        its constructor.
+        """
+        self.assertEqual(
+            TaggedPeopleFilter(u'test_filterName').filterName,
+            u'test_filterName')
+
+
+    def test_queryComparison(self):
+        """
+        L{TaggedPeopleFilter}'s query comparison should include only people
+        who have had a certain tag applied to them.
+        """
+        actualComparison = TaggedPeopleFilter(
+            u'test_queryOrdering').getPeopleQueryComparison(Store())
+        expectedComparison = AND(
+            tags.Tag.object == Person.storeID,
+            tags.Tag.name == u'test_queryOrdering')
+        # none of the Axiom query objects have meaningful equality
+        # comparisons, but their string representations are just as good to
+        # compare.
+        self.assertEqual(
+            str(actualComparison), str(expectedComparison))
 
 
 
@@ -392,7 +478,14 @@ class StubOrganizerPlugin(Item):
 
     contactTypes = inmemory(
         doc="""
-        A list of L{IContact} implementors to return from L{getContactTypes}.
+        A list of L{IContactType} implementors to return from
+        L{getContactTypes}.
+        """)
+
+    peopleFilters = inmemory(
+        doc="""
+        A list of L{IPeopleFilter} imlpementors to return from
+        L{getPeopleFilters}.
         """)
 
     renamedPeople = inmemory(
@@ -470,6 +563,13 @@ class StubOrganizerPlugin(Item):
         Return the contact types list this item was constructed with.
         """
         return self.contactTypes
+
+
+    def getPeopleFilters(self):
+        """
+        Return L{peopleFilters}.
+        """
+        return self.peopleFilters
 
 
     def personalize(self, person):
@@ -1515,6 +1615,46 @@ class PeopleModelTestCase(unittest.TestCase):
                 name=name)
 
 
+    def test_getPeopleFilters(self):
+        """
+        L{Organizer.getPeopleFilters} should return an iterable of all of the
+        L{IPeopleFilter} plugins available in the store.
+        """
+        firstPeopleFilters = [object(), object()]
+        firstContactPowerup = StubOrganizerPlugin(
+            store=self.store, peopleFilters=firstPeopleFilters)
+        self.store.powerUp(
+            firstContactPowerup, IOrganizerPlugin, priority=1)
+
+        secondPeopleFilters = [object()]
+        secondContactPowerup = StubOrganizerPlugin(
+            store=self.store, peopleFilters=secondPeopleFilters)
+        self.store.powerUp(
+            secondContactPowerup, IOrganizerPlugin, priority=0)
+
+        self.assertEqual(
+            list(self.organizer.getPeopleFilters())[
+                builtinPeopleFilterCount:],
+            firstPeopleFilters + secondPeopleFilters)
+
+
+    def test_getPeopleFiltersTags(self):
+        """
+        L{Organizer.getPeopleFilters} should include one L{TaggedPeopleFilter}
+        for each tag which has been applied to a person.
+        """
+        personTags = list(u'xac')
+        catalog = tags.Catalog(store=self.store)
+        for personTag in personTags:
+            catalog.tag(Person(store=self.store), personTag)
+        peopleFilters = list(self.organizer.getPeopleFilters())[
+            builtinPeopleFilterCount:]
+        self.assertEqual(len(peopleFilters), len(personTags))
+        for (peopleFilter, personTag) in zip(peopleFilters, sorted(personTags)):
+            self.assertTrue(isinstance(peopleFilter, TaggedPeopleFilter))
+            self.assertEqual(peopleFilter.filterName, personTag)
+
+
     def test_createPerson(self):
         """
         L{Organizer.createPerson} should instantiate and return a L{Person} item
@@ -2138,6 +2278,25 @@ class PeopleModelTestCase(unittest.TestCase):
         self.assertEqual(tab.linkURL, None)
 
 
+    def test_getPeopleTags(self):
+        """
+        L{Organizer.getPeopleTags} should return a set containing each tag
+        which has been applied to a L{Person}.
+        """
+        alice = self.organizer.createPerson(u'Alice')
+        frank = self.organizer.createPerson(u'Frank')
+        catalog = tags.Catalog(store=self.store)
+        catalog.tag(alice, u'person')
+        catalog.tag(frank, u'person')
+        catalog.tag(alice, u'girl')
+        catalog.tag(frank, u'boy')
+        # tag the organizer for laughs
+        catalog.tag(self.organizer, u'organizer')
+        self.assertEqual(
+            self.organizer.getPeopleTags(),
+            set(('person', 'girl', 'boy')))
+
+
 
 class POBox(Item):
     number = text()
@@ -2605,6 +2764,29 @@ class PersonScrollingFragmentTests(unittest.TestCase):
                 + [storeOwnerPersonName]))
 
 
+    def test_filterByFilter(self):
+        """
+        L{PersonScrollingFragment.filterByFilter} should change the scrolltable's
+        base constraint to the query comparison of the named filter.
+        """
+        queryComparison = object()
+        class MockPeopleFilter:
+            def getPeopleQueryComparison(_self, store):
+                self.assertIdentical(store, self.store)
+                return queryComparison
+        fragment = PersonScrollingFragment(
+            self.organizer,
+            object(),
+            Person.name,
+            StubTranslator(None, None))
+        fragment.filters = {
+            u'test_filterByFilter': MockPeopleFilter()}
+        filterByFilter = expose.get(fragment, 'filterByFilter')
+        filterByFilter(u'test_filterByFilter')
+        self.assertIdentical(
+            fragment.baseConstraint, queryComparison)
+
+
 
 class StubOrganizer(object):
     """
@@ -2633,12 +2815,19 @@ class StubOrganizer(object):
 
     @ivar groupedReadOnlyViewPeople: A list of the arguments passed to
     L{groupReadOnlyViews}.
+
+    @ivar peopleTags: The value to return from L{getPeopleTags}.
+    @type peopleTags: C{list}
+
+    @ivar peopleFilters: The sequence to return from L{getPeopleFilters}.
+    @type peopleFilters: C{list}
     """
     _webTranslator = StubTranslator(None, None)
 
     def __init__(self, store=None, peoplePlugins=None, contactTypes=None,
             deletedPeople=None, editedPeople=None,
-            contactEditorialParameters=None, groupedReadOnlyViews=None):
+            contactEditorialParameters=None, groupedReadOnlyViews=None,
+            peopleTags=None, peopleFilters=None):
         self.store = store
         self.people = {}
         if peoplePlugins is None:
@@ -2653,6 +2842,10 @@ class StubOrganizer(object):
             contactEditorialParameters = []
         if groupedReadOnlyViews is None:
             groupedReadOnlyViews = {}
+        if peopleTags is None:
+            peopleTags = []
+        if peopleFilters is None:
+            peopleFilters = []
         self.peoplePluginList = peoplePlugins
         self.contactTypes = contactTypes
         self.deletedPeople = deletedPeople
@@ -2660,6 +2853,8 @@ class StubOrganizer(object):
         self.contactEditorialParameters = contactEditorialParameters
         self.groupedReadOnlyViews = groupedReadOnlyViews
         self.groupedReadOnlyViewPeople = []
+        self.peopleTags = peopleTags
+        self.peopleFilters = peopleFilters
 
 
     def peoplePlugins(self, person):
@@ -2690,6 +2885,13 @@ class StubOrganizer(object):
         return self.contactTypes
 
 
+    def getPeopleFilters(self):
+        """
+        Return L{peopleFilters}.
+        """
+        return self.peopleFilters
+
+
     def groupReadOnlyViews(self, person):
         """
         Return L{groupedReadOnlyViews}.
@@ -2700,6 +2902,13 @@ class StubOrganizer(object):
 
     def linkToPerson(self, person):
         return "/person/" + person.getDisplayName()
+
+
+    def getPeopleTags(self):
+        """
+        Return L{peopleTags}.
+        """
+        return self.peopleTags
 
 
 
@@ -2736,12 +2945,41 @@ class OrganizerFragmentTests(unittest.TestCase):
 
     def test_peopleTable(self):
         """
-        L{OrganizerFragment.render_peopleTable} should return a
+        L{OrganizerFragment}'s I{peopleTable} renderer should return a
         L{PersonScrollingFragment}.
         """
-        request = FakeRequest(args={})
-        scroller = self.fragment.render_peopleTable(request, None)
+        peopleTableRenderer = renderer.get(self.fragment, 'peopleTable')
+        scroller = peopleTableRenderer(None, None)
         self.assertTrue(isinstance(scroller, PersonScrollingFragment))
+
+
+    def test_peopleFilters(self):
+        """
+        L{OrganizerFragment}'s I{peopleFilters} renderer should return an
+        instance of its tag's I{filter} pattern for each filter, except the
+        first, which should use the I{selected-filter} pattern.
+        """
+        filterNames = list('acyx')
+        peopleFilters = [record('filterName')(name) for name in filterNames]
+        self.organizer.peopleFilters = peopleFilters
+        peopleFiltersRenderer = renderer.get(self.fragment, 'peopleFilters')
+        tag = div[
+            div(usedpattern='filter', pattern='filter')[slot('name')],
+            div(usedpattern='selected-filter',
+                pattern='selected-filter')[slot('name')]]
+        patterns = list(peopleFiltersRenderer(None, tag))
+        self.assertEqual(len(patterns), len(peopleFilters))
+
+        selectedPattern = patterns.pop(0)
+        selectedFilterName = filterNames.pop(0)
+        self.assertEqual(
+            selectedPattern.slotData, {'name': selectedFilterName})
+        self.assertEqual(
+            selectedPattern.attributes['usedpattern'], 'selected-filter')
+
+        for (pattern, filterName) in zip(patterns, filterNames):
+            self.assertEqual(pattern.slotData, {'name': filterName})
+            self.assertEqual(pattern.attributes['usedpattern'], 'filter')
 
 
     def test_getAddPerson(self):

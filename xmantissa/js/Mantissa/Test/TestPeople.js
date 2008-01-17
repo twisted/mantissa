@@ -118,6 +118,14 @@ Mantissa.Test.TestPeople.StubOrganizerView = Divmod.UnitTest.TestCase.subclass(
  * @ivar organizerPositionSet: Whether the I{organizer} node has been
  * positioned.  Defaults to C{false}.
  * @type organizerPositionSet: C{Boolean}
+ *
+ * @ivar selectedFilterNode: The currently selected tag node.  Defaults to
+ * L{defaultTagNode}.
+ * @type selectedFilterNode: DOM node.
+ *
+ * @ivar filterThrobberVisible: Whether the filter throbber node isivisible.
+ * Defaults to C{false}.
+ * @type filterThrobberVisible: C{Boolean}
  */
 Mantissa.Test.TestPeople.StubOrganizerView.methods(
     function __init__(self) {
@@ -126,6 +134,11 @@ Mantissa.Test.TestPeople.StubOrganizerView.methods(
         self.deleteLinkVisible = false;
         self.cancelFormLinkVisible = false;
         self.organizerPositionSet = false;
+        self.defaultTagNode = document.createElement('a');
+        self.defaultTagNode.setAttribute(
+            'class', 'people-table-selected-tag');
+        self.selectedFilterNode = self.defaultTagNode;
+        self.filterThrobberVisible = false;
     },
 
     /**
@@ -133,6 +146,27 @@ Mantissa.Test.TestPeople.StubOrganizerView.methods(
      */
     function setOrganizerPosition(self) {
         self.organizerPositionSet = true;
+    },
+
+    /**
+     * Set L{filterThrobberVisible} to C{true}.
+     */
+    function showFilterThrobber(self) {
+        self.filterThrobberVisible = true;
+    },
+
+    /**
+     * Set L{filterThrobberVisible} to C{false}.
+     */
+    function hideFilterThrobber(self) {
+        self.filterThrobberVisible = false;
+    },
+
+    /**
+     * Set L{selectedFilterNode} to C{filterNode}.
+     */
+    function filterSelected(self, filterNode) {
+        self.selectedFilterNode = filterNode;
     },
 
     /**
@@ -202,11 +236,18 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
      * Construct a L{Mantissa.People.OrganizerView}.
      */
     function setUp(self) {
+        var defaultFilterNode = document.createElement('a');
+        defaultFilterNode.setAttribute(
+            'class', 'people-table-selected-filter');
+        var filterThrobberNode = document.createElement('img');
+        filterThrobberNode.style.display = 'none';
         self.nodes = {
             'detail': document.createElement('span'),
             'edit-link': document.createElement('a'),
             'delete-link': document.createElement('a'),
-            'cancel-form-link': document.createElement('a')}
+            'cancel-form-link': document.createElement('a'),
+            'default-filter': defaultFilterNode,
+            'filter-throbber': filterThrobberNode}
         self.view = Mantissa.People.OrganizerView(
             function nodeById(id) {
                 return self.nodes[id];
@@ -238,6 +279,41 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
         self.assertIdentical(queriedNodes.length, 1);
         self.assertIdentical(queriedNodes[0], containerNode);
         self.assertIdentical(organizerNode.style.top, yPosition + 'px');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.showFilterThrobber} should show the
+     * node with the id I{filter-throbber}.
+     */
+    function test_showFilterThrobber(self) {
+        self.view.showFilterThrobber();
+        self.assertIdentical(
+            self.nodes['filter-throbber'].style.display, '');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.hideFilterThrobber} should hide the
+     * node with the id I{filter-throbber}.
+     */
+    function test_hideFilterThrobber(self ){
+        self.view.showFilterThrobber();
+        self.view.hideFilterThrobber();
+        self.assertIdentical(
+            self.nodes['filter-throbber'].style.display, 'none');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.filterSelected} should apply the
+     * I{people-table-selected-filter} class to the given node.
+     */
+    function test_tagSelected(self) {
+        var node = document.createElement('a');
+        self.view.filterSelected(node);
+        self.assertIdentical(
+            node.getAttribute('class'), 'people-table-selected-filter');
+        self.assertIdentical(
+            self.nodes['default-filter'].getAttribute('class'),
+            'people-table-filter');
     },
 
     /**
@@ -379,6 +455,69 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         var call = self.calls[0];
         self.assertIdentical(call.name, name);
         self.assertArraysEqual(call.args, args);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.dom_filterByFilter} should call
+     * C{filterByFilter} with the right filter.
+     */
+    function test_dom_filterByFilter(self) {
+        var filter = 'this is a fantastic filter';
+        var filters = [];
+        self.organizer.filterByFilter = function(filter) {
+            filters.push(filter);
+        }
+        var eventNode = document.createElement('a');
+        eventNode.appendChild(document.createTextNode(filter));
+        self.assertIdentical(
+            self.organizer.dom_filterByFilter(eventNode),
+            false);
+        self.assertArraysEqual(filters, [filter]);
+        self.assertIdentical(
+            self.view.selectedFilterNode, eventNode);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.dom_filterByFilter} shouldn't do anything
+     * if it's passed the currently selected filter node.
+     */
+    function test_dom_filterByFilterTwice(self) {
+        var filtered = false;
+        self.organizer.filterByFilter = function filterByFilter() {
+            filtered = true;
+        }
+        var filterNode = document.createElement('a');
+        self.view.selectedFilterNode = filterNode;
+        self.assertIdentical(
+            self.organizer.dom_filterByFilter(filterNode), false);
+        self.assertIdentical(filtered, false);
+    },
+
+    /**
+     * L{Mantissa.People.Organizer.filterByFilter} should call
+     * C{filterByFilter} on the person scroller and reset the view state when
+     * the call completes.
+     */
+    function test_filterByFilter(self) {
+        var filter = 'this is a good filter';
+        var filters = [];
+        var deferred = Divmod.Defer.succeed(null);
+        var personScroller = {
+            filterByFilter: function filterByFilter(filter) {
+                filters.push(filter);
+                return deferred;
+            }
+        }
+        self.organizer.getPersonScroller = function() {
+            return personScroller;
+        }
+        self.assertIdentical(
+            self.organizer.filterByFilter(filter),
+            deferred);
+        self.assertArraysEqual(filters, [filter]);
+        self.assertIdentical(self.view.detailNode, null);
+        self.assertIdentical(self.view.editLinkVisible, false);
+        self.assertIdentical(self.view.deleteLinkVisible, false);
     },
 
     /**
@@ -997,6 +1136,28 @@ Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
         self.assertIdentical(initialized, false);
         deferred.callback([]);
         self.assertIdentical(initialized, true);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.filterByFilter} should call the remote
+     * I{filterByFilter} method and C{emptyAndRefill}.
+     */
+    function test_filterByFilter(self) {
+        var remoteCalls = [];
+        self.scroller.callRemote = function() {
+            remoteCalls.push(arguments);
+            return Divmod.Defer.succeed(null);
+        }
+        var refilled = 0;
+        self.scroller.emptyAndRefill = function() {
+            refilled++;
+        }
+        var filter = 'this is a filter';
+        self.scroller.filterByFilter(filter);
+        self.assertIdentical(remoteCalls.length, 1);
+        self.assertIdentical(remoteCalls[0][0], 'filterByFilter');
+        self.assertIdentical(remoteCalls[0][1], filter);
+        self.assertIdentical(refilled, 1);
     },
 
     /**

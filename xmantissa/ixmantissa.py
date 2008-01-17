@@ -684,6 +684,27 @@ class IContactType(Interface):
 
 
 
+class IPeopleFilter(Interface):
+    """
+    Object which collects L{Person} items into a logical group.
+    """
+    filterName = Attribute("""
+    The name of this filter; something which describes the type of people
+    included in its group.""")
+
+
+    def getPeopleQueryComparison(store):
+        """
+        Return a query comparison describing the subset of people in the given
+        store which are included in this group.
+
+        @type store: L{axiom.store.Store}
+
+        @rtype: L{axiom.iaxiom.IComparison}
+        """
+
+
+
 class IOrganizerPlugin(Interface):
     """
     Powerup which provides additional functionality to Mantissa
@@ -697,6 +718,13 @@ class IOrganizerPlugin(Interface):
     def getContactTypes():
         """
         Return an iterator of L{IContactType} providers supplied by this
+        plugin.
+        """
+
+
+    def getPeopleFilters():
+        """
+        Return an iterator of L{IPeopleFilter} providers supplied by this
         plugin.
         """
 

@@ -12,6 +12,7 @@ Mantissa.People.OrganizerView = Divmod.Class.subclass(
 Mantissa.People.OrganizerView.methods(
     function __init__(self, nodeById) {
         self.nodeById = nodeById;
+        self.selectedFilterNode = nodeById('default-filter');
     },
 
     /**
@@ -23,6 +24,34 @@ Mantissa.People.OrganizerView.methods(
         var organizerTop = Divmod.Runtime.theRuntime.findPosY(
             organizerNode.parentNode);
         organizerNode.style.top = organizerTop + 'px';
+    },
+
+    /**
+     * Display the node with the id I{filter-throbber}.
+     */
+    function showFilterThrobber(self) {
+        self.nodeById('filter-throbber').style.display = '';
+    },
+
+    /**
+     * Hide the node with the id I{filter-throbber}.
+     */
+    function hideFilterThrobber(self) {
+        self.nodeById('filter-throbber').style.display = 'none';
+    },
+
+    /**
+     * Apply the I{people-table-selected-filter} class to the given node, and
+     * remove it from the previously selected filter node, if any.
+     *
+     * @type filterNode: DOM node.
+     */
+    function filterSelected(self, filterNode) {
+        filterNode.setAttribute('class', 'people-table-selected-filter');
+        if(self.selectedFilterNode !== null) {
+            self.selectedFilterNode.setAttribute('class', 'people-table-filter');
+        }
+        self.selectedFilterNode = filterNode;
     },
 
     /**
@@ -316,6 +345,39 @@ Mantissa.People.Organizer.methods(
     },
 
     /**
+     * Tell our L{Mantissa.People.PersonScroller} to filter on the named
+     * filter, and adjust our view state accordingly.
+     *
+     * @type filterName: C{String}
+     *
+     * @rtype: L{Divmod.Defer.Deferred}
+     */
+    function filterByFilter(self, filterName) {
+        self.view.showFilterThrobber();
+        var result = self.getPersonScroller().filterByFilter(filterName);
+        result.addCallback(
+            function(passThrough) {
+                self.view.clearDetailNodes();
+                self.view.hideEditLink();
+                self.view.hideDeleteLink();
+                self.view.hideFilterThrobber();
+                return passThrough;
+            });
+        return result;
+    },
+
+    /**
+     * DOM event handler which calls L{filterByFilter}.
+     */
+    function dom_filterByFilter(self, node) {
+        if(self.view.selectedFilterNode !== node) {
+            self.filterByFilter(node.childNodes[0].nodeValue);
+            self.view.filterSelected(node);
+        }
+        return false;
+    },
+
+    /**
      * Delete the person currently being viewed by calling the remote
      * C{deletePerson} method.
      */
@@ -407,6 +469,22 @@ Mantissa.People.PersonScroller.methods(
             defaultSortAscending);
         self.storeOwnerPersonName = storeOwnerPersonName;
         self._nameToRow = {};
+    },
+
+    /**
+     * Call the remote I{filterByFilter} method with C{filterName}.
+     *
+     * @type filterName: C{String}
+     *
+     * @rtype: L{Divmod.Defer.Deferred}
+     */
+    function filterByFilter(self, filterName) {
+        var result = self.callRemote('filterByFilter', filterName);
+        result.addCallback(
+            function(ign) {
+                return self.emptyAndRefill();
+            });
+        return result;
     },
 
     /**

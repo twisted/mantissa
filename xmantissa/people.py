@@ -29,6 +29,7 @@ from epsilon import extime
 from epsilon.structlike import record
 
 from axiom import item, attributes
+from axiom.tags import Tag
 from axiom.dependency import dependsOn
 from axiom.attributes import boolean
 from axiom.upgrade import (
@@ -36,7 +37,7 @@ from axiom.upgrade import (
     registerDeletionUpgrader)
 from axiom.userbase import LoginAccount, LoginMethod
 
-from xmantissa.ixmantissa import IPersonFragment
+from xmantissa.ixmantissa import IPersonFragment, IPeopleFilter
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
@@ -560,6 +561,55 @@ def _stringifyKeys(d):
 
 
 
+class AllPeopleFilter(object):
+    """
+    L{IPeopleFilter} which includes all L{Person} items from the given store
+    in its query.
+    """
+    implements(IPeopleFilter)
+    filterName = 'All'
+
+    def getPeopleQueryComparison(self, store):
+        """
+        @see IPeopleFilter.getPeopleQueryComparison
+        """
+        return None
+
+
+
+class VIPPeopleFilter(object):
+    """
+    L{IPeopleFilter} which includes all VIP L{Person} items from the given
+    store in its query.
+    """
+    implements(IPeopleFilter)
+    filterName = 'VIP'
+
+    def getPeopleQueryComparison(self, store):
+        """
+        @see IPeopleFilter.getPeopleQueryComparison
+        """
+        return Person.vip == True
+
+
+
+class TaggedPeopleFilter(record('filterName')):
+    """
+    L{IPeopleFilter} which includes in its query all L{Person} items to which
+    a specific tag has been applied.
+    """
+    implements(IPeopleFilter)
+
+    def getPeopleQueryComparison(self, store):
+        """
+        @see IPeopleFilter.getPeopleQueryComparison
+        """
+        return attributes.AND(
+                Tag.object == Person.storeID,
+                Tag.name == self.filterName)
+
+
+
 class Organizer(item.Item):
     """
     Oversee the creation, location, destruction, and modification of
@@ -571,10 +621,12 @@ class Organizer(item.Item):
     schemaVersion = 3
 
     _webTranslator = dependsOn(PrivateApplication)
+
     storeOwnerPerson = attributes.reference(
         doc="A L{Person} representing the owner of the store this organizer lives in",
         reftype=Person,
         whenDeleted=attributes.reference.DISALLOW)
+
 
     powerupInterfaces = (ixmantissa.INavigableElement,)
 
@@ -620,6 +672,30 @@ class Organizer(item.Item):
         return self.store.powerupsFor(IOrganizerPlugin)
 
 
+    def _gatherPluginMethods(self, methodName):
+        """
+        Walk through each L{IOrganizerPlugin} powerup, yielding the bound
+        method if the powerup implements C{methodName}.  Upon encountering a
+        plugin which fails to implement it, issue a
+        L{PendingDeprecationWarning}.
+
+        @param methodName: The name of a L{IOrganizerPlugin} method.
+        @type methodName: C{str}
+
+        @return: Iterable of methods.
+        """
+        for plugin in self.getOrganizerPlugins():
+            implementation = getattr(plugin, methodName, None)
+            if implementation is not None:
+                yield implementation
+            else:
+                warn(
+                    ('IOrganizerPlugin now has the %r method, %s'
+                        ' did not implement it') % (
+                            methodName, plugin.__class__),
+                    category=PendingDeprecationWarning)
+
+
     def getContactTypes(self):
         """
         Return an iterator of L{IContactType} providers available to this
@@ -630,16 +706,34 @@ class Organizer(item.Item):
         yield PostalContactType()
         yield PhoneNumberContactType()
         yield NotesContactType()
-        for plugin in self.getOrganizerPlugins():
-            getContactTypes = getattr(plugin, 'getContactTypes', None)
-            if getContactTypes is not None:
-                for contactType in plugin.getContactTypes():
-                    yield contactType
-            else:
-                warn(
-                    "IOrganizerPlugin now has the getContactTypes method, %s "
-                    "did not implement it" % (plugin.__class__,),
-                    category=PendingDeprecationWarning)
+        for getContactTypes in self._gatherPluginMethods('getContactTypes'):
+            for contactType in getContactTypes():
+                yield contactType
+
+
+    def getPeopleFilters(self):
+        """
+        Return an iterator of L{IPeopleFilter} providers available to this
+        organizer's store.
+        """
+        yield AllPeopleFilter()
+        yield VIPPeopleFilter()
+        for getPeopleFilters in self._gatherPluginMethods('getPeopleFilters'):
+            for peopleFilter in getPeopleFilters():
+                yield peopleFilter
+        for tag in sorted(self.getPeopleTags()):
+            yield TaggedPeopleFilter(tag)
+
+
+    def getPeopleTags(self):
+        """
+        Return a sequence of tags which have been applied to L{Person} items.
+
+        @rtype: C{set}
+        """
+        query = self.store.query(
+            Tag, Tag.object == Person.storeID)
+        return set(query.getColumn('name').distinct())
 
 
     def groupReadOnlyViews(self, person):
@@ -1021,6 +1115,7 @@ class PersonScrollingFragment(ScrollingElement):
 
     def __init__(self, organizer, baseConstraint, defaultSortColumn,
             webTranslator):
+        self._originalBaseConstraint = baseConstraint
         ScrollingElement.__init__(
             self,
             organizer.store,
@@ -1031,6 +1126,8 @@ class PersonScrollingFragment(ScrollingElement):
             defaultSortColumn=defaultSortColumn,
             webTranslator=webTranslator)
         self.organizer = organizer
+        self.filters = dict((filter.filterName, filter)
+                for filter in organizer.getPeopleFilters())
 
 
     def getInitialArguments(self):
@@ -1039,6 +1136,18 @@ class PersonScrollingFragment(ScrollingElement):
         """
         return (ScrollingElement.getInitialArguments(self)
                     + [self.organizer.storeOwnerPerson.name])
+
+
+    def filterByFilter(self, filterName):
+        """
+        Swap L{baseConstraint} with the result of calling
+        L{IPeopleFilter.getPeopleQueryComparison} on the named filter.
+
+        @type filterName: C{unicode}
+        """
+        filter = self.filters[filterName]
+        self.baseConstraint = filter.getPeopleQueryComparison(self.store)
+    expose(filterByFilter)
 
 
 
@@ -1163,7 +1272,7 @@ class ORGANIZER_VIEW_STATES:
 
 
 
-class OrganizerFragment(athena.LiveFragment):
+class OrganizerFragment(LiveElement):
     """
     Address book view.  The initial state of this fragment can be extracted
     from the query parameters in its url, if present.  The two parameters it
@@ -1189,7 +1298,7 @@ class OrganizerFragment(athena.LiveFragment):
     jsClass = u'Mantissa.People.Organizer'
 
     def __init__(self, organizer, initialPerson=None, initialState=None):
-        athena.LiveFragment.__init__(self)
+        LiveElement.__init__(self)
         self.organizer = organizer
         self.initialPerson = initialPerson
         self.initialState = initialState
@@ -1287,19 +1396,37 @@ class OrganizerFragment(athena.LiveFragment):
     expose(deletePerson)
 
 
-    def render_peopleTable(self, ctx, data):
+    def peopleTable(self, request, tag):
         """
         Return a L{PersonScrollingFragment} which will display the L{Person}
         items in the wrapped organizer.
         """
         f = PersonScrollingFragment(
-                self.organizer,
-                None,
-                Person.name,
-                self.wt)
+            self.organizer, None, Person.name, self.wt)
         f.setFragmentParent(self)
         f.docFactory = webtheme.getLoader(f.fragmentName)
         return f
+    renderer(peopleTable)
+
+
+    def peopleFilters(self, request, tag):
+        """
+        Return an instance of C{tag}'s I{filter} pattern for each filter we
+        get from L{Organizer.getPeopleFilters}, filling the I{name} slot with
+        the filter's name.  The first filter will be rendered using the
+        I{selected-filter} pattern.
+        """
+        filters = iter(self.organizer.getPeopleFilters())
+        # at some point we might actually want to look at what filter is
+        # yielded first, and filter the person list accordingly.  we're just
+        # going to assume it's the "All" filter, and leave the person list
+        # untouched for now.
+        yield tag.onePattern('selected-filter').fillSlots(
+            'name', filters.next().filterName)
+        pattern = tag.patternGenerator('filter')
+        for filter in filters:
+            yield pattern.fillSlots('name', filter.filterName)
+    renderer(peopleFilters)
 
 
     def getContactInfoWidget(self, name):
