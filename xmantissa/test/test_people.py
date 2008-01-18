@@ -41,6 +41,7 @@ from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
 from xmantissa.scrolltable import UnsortableColumn, ScrollingElement
+from xmantissa.offering import installOffering
 from xmantissa import people
 from xmantissa.people import (
     Organizer, Person, EmailAddress, AddPersonFragment, ImportPeopleWidget,
@@ -65,6 +66,7 @@ from xmantissa.ixmantissa import (
     IPeopleFilter)
 from xmantissa.signup import UserInfo
 from xmantissa.test.peopleutil import PeopleFilterTestMixin
+from xmantissa.plugins.baseoff import baseOffering
 
 
 # the number of non-plugin IContactType implementations provided by Mantissa.
@@ -242,6 +244,18 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
 
 
 
+def emptyMantissaUserStore():
+    """
+    Create a site store with the base mantissa offering installed on it and
+    return an empty store which has that as its parent.
+    """
+    site = Store()
+    installOffering(site, baseOffering, None)
+    user = Store()
+    user.parent = site
+    return user
+
+
 class MugshotUploadFormTestCase(unittest.TestCase):
     """
     Tests for L{MugshotUploadForm}.
@@ -251,12 +265,12 @@ class MugshotUploadFormTestCase(unittest.TestCase):
         Construct a L{Person}, suitable for passing to L{MugshotUploadForm}'s
         constructor.
         """
+        user = emptyMantissaUserStore()
         # can't use mock objects because we need ITemplateNameResolver to
         # render MugshotUploadForm
-        store = Store()
-        self.organizer = Organizer(store=store)
-        installOn(self.organizer, store)
-        self.person = Person(store=store, organizer=self.organizer)
+        self.organizer = Organizer(store=user)
+        installOn(self.organizer, user)
+        self.person = Person(store=user, organizer=self.organizer)
 
 
     def test_callback(self):
@@ -2331,9 +2345,9 @@ class PeopleTests(unittest.TestCase):
         """
         Create an in-memory store and organizer.
         """
-        self.store = Store()
-        self.organizer = Organizer(store=self.store)
-        installOn(self.organizer, self.store)
+        self.user = emptyMantissaUserStore()
+        self.organizer = Organizer(store=self.user)
+        installOn(self.organizer, self.user)
 
 
     def testPersonCreation(self):
@@ -2348,7 +2362,7 @@ class PeopleTests(unittest.TestCase):
 
         # Make sure people from that organizer don't collide with
         # people from a different organizer
-        another = Organizer(store=self.store)
+        another = Organizer(store=self.user)
         q = another.personByName(u'testuser')
         self.failIfIdentical(p, q)
         self.assertEquals(q.name, u'testuser')
@@ -2366,9 +2380,9 @@ class PeopleTests(unittest.TestCase):
         Verify that getEmailAddresses yields the associated email address
         strings for a person.
         """
-        p = Person(store=self.store)
-        EmailAddress(store=self.store, person=p, address=u'a@b.c')
-        EmailAddress(store=self.store, person=p, address=u'c@d.e')
+        p = Person(store=self.user)
+        EmailAddress(store=self.user, person=p, address=u'a@b.c')
+        EmailAddress(store=self.user, person=p, address=u'c@d.e')
         # Ordering is undefined, so let's use a set.
         self.assertEquals(set(p.getEmailAddresses()),
                           set([u'a@b.c', u'c@d.e']))
@@ -2379,8 +2393,8 @@ class PeopleTests(unittest.TestCase):
         Verify that getEmailAddress yields the only associated email address
         for a person if it is the only one.
         """
-        p = Person(store=self.store)
-        EmailAddress(store=self.store, person=p, address=u'a@b.c')
+        p = Person(store=self.user)
+        EmailAddress(store=self.user, person=p, address=u'a@b.c')
         self.assertEquals(p.getEmailAddress(), u'a@b.c')
 
 
@@ -2423,8 +2437,8 @@ class PeopleTests(unittest.TestCase):
 
         contactTypes = [StubContactType((), None, None)]
         observer = StubOrganizerPlugin(
-            store=self.store, contactTypes=contactTypes)
-        self.store.powerUp(observer, IOrganizerPlugin)
+            store=self.user, contactTypes=contactTypes)
+        self.user.powerUp(observer, IOrganizerPlugin)
 
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
         self.assertEqual(
@@ -2438,8 +2452,8 @@ class PeopleTests(unittest.TestCase):
         """
         contactType = StubContactType((), None, None)
         observer = StubOrganizerPlugin(
-            store=self.store, contactTypes=[contactType])
-        self.store.powerUp(observer, IOrganizerPlugin)
+            store=self.user, contactTypes=[contactType])
+        self.user.powerUp(observer, IOrganizerPlugin)
 
         addPersonFragment = AddPersonFragment(self.organizer)
 
@@ -2449,7 +2463,7 @@ class PeopleTests(unittest.TestCase):
             **{_keyword(contactType): ListChanges(
                 [CreateObject(values, lambda x: None)], [], [])})
 
-        person = self.store.findUnique(
+        person = self.user.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEqual(contactType.createdContacts, [(person, values)])
 
@@ -2463,8 +2477,8 @@ class PeopleTests(unittest.TestCase):
             [Parameter('stub', TEXT_INPUT, lambda x: x)], None, None,
             allowMultipleContactItems=False)
         observer = StubOrganizerPlugin(
-            store=self.store, contactTypes=[contactType])
-        self.store.powerUp(observer, IOrganizerPlugin)
+            store=self.user, contactTypes=[contactType])
+        self.user.powerUp(observer, IOrganizerPlugin)
 
         addPersonFragment = AddPersonFragment(self.organizer)
 
@@ -2472,7 +2486,7 @@ class PeopleTests(unittest.TestCase):
         addPersonFragment.addPerson(
             u'nickname', **{_keyword(contactType): values})
 
-        person = self.store.findUnique(
+        person = self.user.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEqual(contactType.createdContacts, [(person, values)])
 
@@ -2484,17 +2498,17 @@ class PeopleTests(unittest.TestCase):
         """
         addPersonFrag = AddPersonFragment(self.organizer)
         addPersonFrag.addPerson(
-            u'Captain P.', **createAddPersonContactInfo(self.store))
+            u'Captain P.', **createAddPersonContactInfo(self.user))
 
-        person = self.store.findUnique(
+        person = self.user.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertEquals(person.name, 'Captain P.')
 
-        email = self.store.findUnique(
+        email = self.user.findUnique(
             EmailAddress, EmailAddress.person == person)
         self.assertEquals(email.address, CONTACT_EMAIL)
 
-        pa = self.store.findUnique(
+        pa = self.user.findUnique(
             PostalAddress, PostalAddress.person == person)
         self.assertEqual(pa.address, CONTACT_ADDRESS)
 
@@ -2511,12 +2525,12 @@ class PeopleTests(unittest.TestCase):
         addPersonFragment = AddPersonFragment(self.organizer)
         addPersonFragment.addPerson(
             u'Name',
-            **{_keyword(EmailContactType(self.store)): ListChanges(
+            **{_keyword(EmailContactType(self.user)): ListChanges(
                 [CreateObject({u'email': u'x@y.z'}, setter)], [], [])})
 
-        person = self.store.findUnique(
+        person = self.user.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        email = self.store.findUnique(EmailAddress, EmailAddress.person == person)
+        email = self.user.findUnique(EmailAddress, EmailAddress.person == person)
         self.assertEqual(setter.objects, [email])
 
 
@@ -2530,7 +2544,7 @@ class PeopleTests(unittest.TestCase):
         view = AddPersonFragment(self.organizer)
         view.addPerson(
             u'alice', **{_keyword(VIPPersonContactType()): {u'vip': True}})
-        alice = self.store.findUnique(
+        alice = self.user.findUnique(
             Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
         self.assertTrue(alice.vip)
 
@@ -2555,8 +2569,8 @@ class PeopleTests(unittest.TestCase):
         Verify that L{Organizer.linkToPerson} generates the correct URL, with
         the web ID of the person item appended to the organizer's url.
         """
-        privapp = self.store.findUnique(PrivateApplication)
-        p = Person(store=self.store)
+        privapp = self.user.findUnique(PrivateApplication)
+        p = Person(store=self.user)
         self.assertEqual(self.organizer.linkToPerson(p),
                          (privapp.linkTo(self.organizer.storeID)
                           + '/'
@@ -2568,7 +2582,7 @@ class PeopleTests(unittest.TestCase):
         L{Organizer.urlForViewState} should generate a valid, correctly quoted
         url.
         """
-        organizerURL = IWebTranslator(self.store).linkTo(
+        organizerURL = IWebTranslator(self.user).linkTo(
             self.organizer.storeID)
         person = self.organizer.createPerson(u'A Person')
         self.assertEqual(
@@ -3184,9 +3198,9 @@ class AddPersonFragmentTests(unittest.TestCase):
         """
         An L{AddPersonFragment} should be renderable.
         """
-        store = Store()
-        installOn(PrivateApplication(store=store), store)
-        organizer = Organizer(store=store)
+        user = emptyMantissaUserStore()
+        installOn(PrivateApplication(store=user), user)
+        organizer = Organizer(store=user)
         fragment = AddPersonFragment(organizer)
         result = renderLiveFragment(fragment)
         self.assertTrue(isinstance(result, str))
@@ -3535,10 +3549,10 @@ class EditPersonViewTests(unittest.TestCase):
         # an extant template; the LiveForm had no fragment parent (for which I
         # also updated test_editorialContactForms to do a direct
         # assertion). -exarkun
-        store = Store()
-        installOn(PrivateApplication(store=store), store)
-        organizer = Organizer(store=store)
-        installOn(organizer, store)
+        user = emptyMantissaUserStore()
+        installOn(PrivateApplication(store=user), user)
+        organizer = Organizer(store=user)
+        installOn(organizer, user)
         person = organizer.createPerson(u'Alice')
         markup = renderLiveFragment(EditPersonView(person))
         self.assertIn(self.view.jsClass, markup)

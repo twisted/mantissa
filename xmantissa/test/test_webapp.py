@@ -18,12 +18,18 @@ from nevow.testutil import FakeRequest
 from nevow.inevow import IRequest, IResource
 
 from xmantissa.ixmantissa import ITemplateNameResolver
+from xmantissa.offering import InstalledOffering, installOffering
+from xmantissa.webtheme import theThemeCache
 from xmantissa import website, webapp
 from xmantissa.test.test_publicweb import AuthenticatedNavigationTestMixin
+from xmantissa.plugins.baseoff import baseOffering
+
 
 class FakeResourceItem(Item):
     unused = integer()
     implements(IResource)
+
+
 
 class WebIDLocationTest(TestCase):
 
@@ -196,6 +202,7 @@ class PrivateApplicationTestCase(TestCase):
     def setUp(self):
         self.siteStore = Store(filesdir=self.mktemp())
         Mantissa().installSite(self.siteStore, "/", generateCert=False)
+        installOffering(self.siteStore, baseOffering, None)
 
         self.userAccount = Create().addAccount(
             self.siteStore, u'testuser', u'example.com', u'password')
@@ -212,3 +219,21 @@ class PrivateApplicationTestCase(TestCase):
         """
         rootPage = self.webapp.createResource()
         self.assertEqual(rootPage.username, u'testuser@example.com')
+
+
+    def test_getDocFactory(self):
+        """
+        L{webapp.PrivateApplication.getDocFactory} finds a document factory for
+        the specified template name from among the installed themes.
+        """
+        # Get something from the Mantissa theme
+        self.assertNotIdentical(self.webapp.getDocFactory('shell'), None)
+
+        # Get rid of the Mantissa offering and make sure the template is no
+        # longer found.
+        self.siteStore.query(InstalledOffering).deleteFromStore()
+
+        # And flush the cache. :/ -exarkun
+        theThemeCache.emptyCache()
+
+        self.assertIdentical(self.webapp.getDocFactory('shell'), None)

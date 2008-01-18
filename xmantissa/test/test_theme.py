@@ -36,8 +36,7 @@ from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
 
 from xmantissa.publicweb import PublicAthenaLivePage
-from xmantissa.webapp import (GenericNavigationAthenaPage, _PageComponents,
-                              PrivateApplication)
+from xmantissa.webapp import GenericNavigationAthenaPage, _PageComponents
 
 
 class ThemedDocumentFactoryTests(TestCase):
@@ -378,6 +377,8 @@ BASE_MSG =  file(sibpath(__file__,
                          "../themes/base/athena-unsupported.html")
                  ).read().strip()
 
+
+
 class StubThemeProvider(Item):
     """
     Trivial implementation of a theme provider, for testing that custom
@@ -413,19 +414,6 @@ class AthenaUnsupported(TestCase):
                          flatten(CUSTOM_MSG))
 
 
-    def test_publicPageUncustomized(self):
-        """
-        Test that L{publicpage.PublicAthenaLivePage} renders something when
-        Athena is unsupported, even if there's no customization installed.
-        """
-        store = Store()
-        privapp = PrivateApplication(store=store)
-        installOn(privapp, store)
-        p = PublicAthenaLivePage(store, None)
-        self.assertEqual(p.renderUnsupported(None).replace('\n ', ''),
-                         BASE_MSG)
-
-
     def test_navPage(self):
         """
         Test that L{webapp.GenericNavigationLivePage} supports themeing
@@ -445,27 +433,6 @@ class AthenaUnsupported(TestCase):
                                         None)
         self.assertEqual(p.renderUnsupported(None),
                          flatten(CUSTOM_MSG))
-
-
-    def test_navPageUncustomized(self):
-        """
-        Test that L{webapp.GenericNavigationLivePage} renders something when
-        Athena is unsupported, even if there's no customization installed.
-        """
-        s = Store()
-        installOn(WebSite(store=s), s)
-        s.parent = s
-        ss = SubStore.createNew(s, ['athena', 'unsupported'])
-        ss = ss.open()
-        privapp = PrivateApplication(store=ss)
-        installOn(privapp, ss)
-        p = GenericNavigationAthenaPage(privapp,
-                                        LiveFragment(),
-                                        _PageComponents([], None, None,
-                                                        None, None),
-                                        None)
-        self.assertEqual(p.renderUnsupported(None).replace('\n ', ''),
-                         BASE_MSG)
 
 
 

@@ -29,7 +29,7 @@ from xmantissa.publicweb import CustomizedPublicPage, renderShortUsername
 
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite, APIKey
 from xmantissa.website import MantissaLivePage
-from xmantissa.webtheme import getInstalledThemes, getAllThemes
+from xmantissa.webtheme import getInstalledThemes
 from xmantissa.webnav import getTabs, startMenu, settingsLink, applicationNavigation
 
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
@@ -549,7 +549,7 @@ class PrivateApplication(Item, PrefixURLMixin):
         @param default: value to be returned if the named template is not
         found.
         """
-        themes = getAllThemes()
+        themes = getInstalledThemes(self.store.parent)
         _reorderForPreference(themes, self.preferredTheme)
         for t in themes:
             fact = t.getDocFactory(fragmentName, None)
