@@ -1,3 +1,8 @@
+0.6.17 (2008-01-16):
+  - IContactType implementations are now allowed to arrange their
+    contact items into named groups.  The structure of these groups
+    affects the rendering of read-only views.
+
 0.6.16 (2008-01-02):
   - A basic person import widget has been added.
   - Support for inserting Google Analytics tracking code into Mantissa
