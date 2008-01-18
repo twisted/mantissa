@@ -92,7 +92,7 @@ class _ShareURL(url.URL):
         constructor was passed.
         """
         if self._shareID is not None:
-            self = url.URL.child(self, self._shareID.encode('ascii'))
+            self = url.URL.child(self, self._shareID)
             self._shareID = None
         return url.URL.child(self, path)
 

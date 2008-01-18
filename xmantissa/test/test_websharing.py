@@ -106,14 +106,16 @@ class WebSharingTestCase(TestCase):
         Test that L{xmantissa.websharing._ShareURL} injects the share ID the
         constructor is passed when C{child} is called.
         """
-        shareURL = websharing._ShareURL(u'a', netloc='', scheme='')
-        self.assertEqual(str(shareURL.child('c')), '/a/c')
-        # make sure subsequent child calls on the original have the same
-        # behaviour
-        self.assertEqual(str(shareURL.child('d')), '/a/d')
-        # and that child calls on the returned urls don't (i.e. not
-        # '/a/c/a/d'
-        self.assertEqual(str(shareURL.child('c').child('d')), '/a/c/d')
+        for (shareID, urlID) in [(u'a', 'a'), (u'\xe9', '%C3%A9')]:
+            shareURL = websharing._ShareURL(shareID, netloc='', scheme='')
+            self.assertEqual(str(shareURL.child('c')), '/%s/c' % urlID)
+            # make sure subsequent child calls on the original have the same
+            # behaviour
+            self.assertEqual(str(shareURL.child('d')), '/%s/d' % urlID)
+            # and that child calls on the returned urls don't (i.e. not
+            # '/a/c/a/d'
+            self.assertEqual(str(shareURL.child('c').child('d')),
+                             '/%s/c/d' % urlID)
 
 
     def test_shareURLNoStoreID(self):
