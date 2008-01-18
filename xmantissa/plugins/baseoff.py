@@ -1,7 +1,11 @@
+
+from twisted.python.filepath import FilePath
+
+from nevow.inevow import IResource
+
 from xmantissa.webtheme import MantissaTheme
 from xmantissa import offering
 import xmantissa
-from nevow.inevow import IResource
 
 baseOffering = offering.Offering(
     name=u'mantissa-base',
@@ -15,4 +19,5 @@ baseOffering = offering.Offering(
     # required.
 
     themes=(MantissaTheme('base', 1),),
+    staticContentPath=FilePath(xmantissa.__file__).sibling('static'),
     version=xmantissa.version)

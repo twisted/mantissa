@@ -8,6 +8,9 @@ from twisted.python.components import registerAdapter
 from nevow import inevow, loaders, rend, athena
 from nevow.athena import expose
 
+from epsilon.structlike import record
+
+from axiom.store import Store
 from axiom import item, userbase, attributes, substore
 from axiom.dependency import installOn
 
@@ -29,26 +32,17 @@ class Benefactor(object):
     functionality from a user's store.
     """
 
-class Offering(object):
+class Offering(record(
+        'name description siteRequirements appPowerups installablePowerups '
+        'loginInterfaces themes staticContentPath version',
+        staticContentPath=None, version=None)):
+    """
+    A set of functionality which can be added to a Mantissa server.
+
+    @see L{ixmantissa.IOffering}
+    """
     implements(plugin.IPlugin, ixmantissa.IOffering)
 
-    def __init__(self,
-                 name,
-                 description,
-                 siteRequirements,
-                 appPowerups,
-                 installablePowerups,
-                 loginInterfaces,
-                 themes,
-                 version=None):
-        self.name = name
-        self.description = description
-        self.siteRequirements = siteRequirements
-        self.appPowerups = appPowerups
-        self.installablePowerups = installablePowerups
-        self.loginInterfaces = loginInterfaces
-        self.themes = themes
-        self.version = version
 
 class InstalledOffering(item.Item):
     typeName = 'mantissa_installed_offering'
@@ -83,6 +77,107 @@ def getOfferings():
     return plugin.getPlugins(ixmantissa.IOffering, plugins)
 
 
+class OfferingAdapter(object):
+    """
+    Implementation of L{ixmantissa.IOfferingTechnician} for
+    L{axiom.store.Store}.
+
+    @ivar _siteStore: The L{axiom.store.Store} being adapted.
+    """
+    implements(ixmantissa.IOfferingTechnician)
+
+    def __init__(self, siteStore):
+        self._siteStore = siteStore
+
+
+    def getInstalledOfferingNames(self):
+        """
+        Get the I{offeringName} attribute of each L{InstalledOffering} in
+        C{self._siteStore}.
+        """
+        return list(
+            self._siteStore.query(InstalledOffering).getColumn("offeringName"))
+
+
+    def getInstalledOfferings(self):
+        """
+        Return a mapping from the name of each L{InstalledOffering} in
+        C{self._siteStore} to the corresponding L{IOffering} plugins.
+        """
+        d = {}
+        installed = self._siteStore.query(InstalledOffering)
+        for installation in installed:
+            offering = installation.getOffering()
+            if offering is not None:
+                d[offering.name] = offering
+        return d
+
+
+    def installOffering(self, offering):
+        """
+        Install the given offering::
+
+          - Create and install the powerups in its I{siteRequirements} list.
+          - Create an application L{Store} and a L{LoginAccount} referring to
+            it.  Install the I{appPowerups} on the application store.
+          - Create an L{InstalledOffering.
+
+        Perform all of these tasks in a transaction managed within the scope of
+        this call (that means you should not call this function inside a
+        transaction, or you should not handle any exceptions it raises inside
+        an externally managed transaction).
+
+        @type offering: L{IOffering}
+        @param offering: The offering to install.
+        """
+        for off in self._siteStore.query(
+            InstalledOffering,
+            InstalledOffering.offeringName == offering.name):
+            raise OfferingAlreadyInstalled(off)
+
+        def siteSetup():
+            for (requiredInterface, requiredPowerup) in offering.siteRequirements:
+                if requiredInterface is not None:
+                    nn = requiredInterface(self._siteStore, None)
+                    if nn is not None:
+                        continue
+                if requiredPowerup is None:
+                    raise NotImplementedError(
+                        'Interface %r required by %r but not provided by %r' %
+                        (requiredInterface, offering, self._siteStore))
+                self._siteStore.findOrCreate(
+                    requiredPowerup, lambda p: installOn(p, self._siteStore))
+
+            ls = self._siteStore.findOrCreate(userbase.LoginSystem)
+            substoreItem = substore.SubStore.createNew(
+                self._siteStore, ('app', offering.name + '.axiom'))
+            ls.addAccount(offering.name, None, None, internal=True,
+                          avatars=substoreItem)
+            ss = substoreItem.open()
+            def appSetup():
+                for pup in offering.appPowerups:
+                    installOn(pup(store=ss), ss)
+
+            ss.transact(appSetup)
+            # Woops, we need atomic cross-store transactions.
+            io = InstalledOffering(
+                store=self._siteStore, offeringName=offering.name,
+                application=substoreItem)
+
+            #Some new themes may be available now. Clear the theme cache
+            #so they can show up.
+            #XXX This is pretty terrible -- there
+            #really should be a scheme by which ThemeCache instances can
+            #be non-global. Fix this at the earliest opportunity.
+            from xmantissa import webtheme
+            webtheme.theThemeCache.emptyCache()
+            return io
+        return self._siteStore.transact(siteSetup)
+
+registerAdapter(OfferingAdapter, Store, ixmantissa.IOfferingTechnician)
+
+
+
 def getInstalledOfferingNames(s):
     """
     Return a list of the names of the Offerings which are installed on the
@@ -90,7 +185,7 @@ def getInstalledOfferingNames(s):
 
     @param s: Site Store on which offering installations are tracked.
     """
-    return list(s.query(InstalledOffering).getColumn("offeringName"))
+    return ixmantissa.IOfferingTechnician(s).getInstalledOfferingNames()
 
 
 def getInstalledOfferings(s):
@@ -100,13 +195,7 @@ def getInstalledOfferings(s):
 
     @param s: Site Store on which offering installations are tracked.
     """
-    d = {}
-    installed = s.query(InstalledOffering)
-    for installation in installed:
-        offering = installation.getOffering()
-        if offering is not None:
-            d[offering.name] = offering
-    return d
+    return ixmantissa.IOfferingTechnician(s).getInstalledOfferings()
 
 
 def installOffering(s, offering, configuration):
@@ -115,43 +204,7 @@ def installOffering(s, offering, configuration):
     it, after checking that the site store has the requisite powerups installed
     on it. Also create an InstalledOffering item referring to the app store.
     """
-    for off in s.query(InstalledOffering,
-                       InstalledOffering.offeringName == offering.name):
-        raise OfferingAlreadyInstalled(off)
-
-    def siteSetup():
-        for (requiredInterface, requiredPowerup) in offering.siteRequirements:
-            if requiredInterface is not None:
-                nn = requiredInterface(s, None)
-                if nn is not None:
-                    continue
-            if requiredPowerup is None:
-                raise NotImplementedError(
-                    'Interface %r required by %r but not provided by %r' %
-                    (requiredInterface, offering, s))
-            s.findOrCreate(requiredPowerup, lambda p: installOn(p, s))
-
-        ls = s.findOrCreate(userbase.LoginSystem)
-        substoreItem = substore.SubStore.createNew(s, ('app', offering.name + '.axiom'))
-        ls.addAccount(offering.name, None, None, internal=True,
-                      avatars=substoreItem)
-        ss = substoreItem.open()
-        def appSetup():
-            for pup in offering.appPowerups:
-                installOn(pup(store=ss), ss)
-
-        ss.transact(appSetup)
-        # Woops, we need atomic cross-store transactions.
-        io = InstalledOffering(store=s, offeringName=offering.name, application=substoreItem)
-
-        #Some new themes may be available now. Clear the theme cache
-        #so they can show up.
-        #XXX This is pretty terrible -- there
-        #really should be a scheme by which ThemeCache instances can
-        #be non-global. Fix this at the earliest opportunity.
-        from xmantissa import webtheme
-        webtheme.theThemeCache.emptyCache()
-    s.transact(siteSetup)
+    ixmantissa.IOfferingTechnician(s).installOffering(offering)
 
 
 class OfferingConfiguration(item.Item):

@@ -5,3 +5,4 @@ Axiom 0.5.7
 Vertex 0.2.0
 PyTZ 2005m-1
 PIL 1.1.6
+cssutils 0.9.4a4

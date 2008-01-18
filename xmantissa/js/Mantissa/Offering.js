@@ -4,10 +4,6 @@
 
 Mantissa.Offering.UninstalledOffering = Nevow.Athena.Widget.subclass('Mantissa.Offering.UninstalledOffering');
 Mantissa.Offering.UninstalledOffering.methods(
-    function installOffering(self, offeringName) {
-        return self.callRemote('installOffering', offeringName);
-    },
-
     function notify(self, message, className, duration) {
         var node = document.createElement('div');
         node.className = className;

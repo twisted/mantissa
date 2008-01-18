@@ -16,11 +16,19 @@ import warnings
 
 from zope.interface import implements
 
+try:
+    from cssutils import CSSParser
+except ImportError:
+    CSSParser = None
+
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
 from twisted.protocols import policies
 from twisted.internet import defer
 from twisted.application.service import IService
+from twisted.python.filepath import FilePath
+
+from epsilon.structlike import record
 
 from nevow.inevow import IRequest, IResource
 from nevow.rend import NotFound, Page, Fragment
@@ -39,7 +47,7 @@ from axiom.dependency import installOn
 
 from xmantissa.ixmantissa import (
     ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory,
-    IWebTranslator, IPreferenceAggregator)
+    IWebTranslator, IPreferenceAggregator, IOfferingTechnician)
 from xmantissa import websession
 from xmantissa.port import TCPPort, SSLPort
 
@@ -122,6 +130,41 @@ class MantissaLivePage(athena.LivePage):
 
 
 
+class StaticContent(record('staticPaths processors')):
+    """
+    Parent resource for all static content provided by all installed offerings.
+
+    This resource has a child by the name of each offering which declares a
+    static content path which serves that path.
+
+    @ivar staticPaths: A C{dict} mapping offering names to L{FilePath}
+        instances for each offering which should be able to publish static
+        content.
+
+    @ivar processors: A C{dict} mapping extensions (with leading ".") to
+        two-argument callables.  These processors will be attached to the
+        L{nevow.static.File} returned by C{locateChild}.
+    """
+    implements(inevow.IResource)
+
+    def locateChild(self, context, segments):
+        """
+        Find the offering with the name matching the first segment and return a
+        L{File} for its I{staticContentPath}.
+        """
+        name = segments[0]
+        try:
+            staticContent = self.staticPaths[name]
+        except KeyError:
+            return NotFound
+        else:
+            resource = File(staticContent.path)
+            resource.processors = self.processors
+            return resource, segments[1:]
+        return NotFound
+
+
+
 class SiteRootMixin(object):
     """
     Mixin class providing useful methods for the very top of the Mantissa site
@@ -185,6 +228,24 @@ class SiteRootMixin(object):
     child_live.countHits = False
 
 
+    def child_Mantissa(self, ctx):
+        """
+        Serve files from C{xmantissa/static/} at the URL C{/Mantissa}.
+        """
+        # Cheating!  It *looks* like there's an app store, but there isn't
+        # really, because this is the One Store To Bind Them All.
+
+        # We shouldn't really cheat here.  It would be better to have one real
+        # Mantissa offering that has its static content served up the same way
+        # every other offering's content is served.  There's already a
+        # /static/mantissa-static/.  This child definition is only still here
+        # because some things still reference this URL.  For example,
+        # JavaScript files and any CSS file which uses Mantissa content but is
+        # from an Offering which does not provide a staticContentPath.
+        # See #2469.  -exarkun
+        return File(FilePath(__file__).sibling("static").path)
+
+
     def locateChild(self, ctx, segments):
         """
         Locate a page on a Mantissa site.
@@ -237,6 +298,32 @@ class UnguardedWrapper(SiteRootMixin):
     def __init__(self, store, guardedRoot):
         self.store = store
         self.guardedRoot = guardedRoot
+
+
+    def child_static(self, context):
+        """
+        Serve a container page for static content for Mantissa and other
+        offerings.
+        """
+        offeringTech = IOfferingTechnician(self.store)
+        installedOfferings = offeringTech.getInstalledOfferings()
+        offeringsWithContent = dict([
+                (offering.name, offering.staticContentPath)
+                for offering
+                in installedOfferings.itervalues()
+                if offering.staticContentPath])
+
+        # If you wanted to do CSS rewriting for all CSS files served beneath
+        # /static/, you could do it by passing a processor for ".css" here.
+        # eg:
+        #
+        # website = inevow.IResource(self.store)
+        # factory = StylesheetFactory(
+        #     offeringsWithContent.keys(), website.rootURL)
+        # StaticContent(offeringsWithContent, {
+        #               ".css": factory.makeStylesheetResource})
+        return StaticContent(offeringsWithContent, {})
+
 
     def locateChild(self, ctx, segments):
         request = inevow.IRequest(ctx)
@@ -492,6 +579,127 @@ class AxiomFragment(Fragment):
 
 
 
+class StylesheetFactory(record('installedOfferingNames rootURL')):
+    """
+    Factory which creates resources for stylesheets which will rewrite URLs in
+    them to be rooted at a particular location.
+
+    @ivar installedOfferingNames: A C{list} of C{unicode} giving the names of
+        the offerings which are installed and have a static content path.
+        These are the offerings for which C{StaticContent} will find children,
+        so these are the only offerings URLs pointed at which should be
+        rewritten.
+
+    @ivar rootURL: A one-argument callable which takes a request and returns an
+        L{URL} which is to be used as the root of all URLs served by resources
+        this factory creates.
+    """
+    def makeStylesheetResource(self, path, registry):
+        """
+        Return a resource for the css at the given path with its urls rewritten
+        based on self.rootURL.
+        """
+        return StylesheetRewritingResourceWrapper(
+            File(path), self.installedOfferingNames, self.rootURL)
+
+
+
+class StylesheetRewritingResourceWrapper(
+    record('resource installedOfferingNames rootURL')):
+    """
+    Resource which renders another resource using a request which rewrites CSS
+    URLs.
+
+    @ivar resource: Another L{IResource} which will be used to generate the
+        response.
+
+    @ivar installedOfferingNames: See L{StylesheetFactory.installedOfferingNames}
+
+    @ivar rootURL: See L{StylesheetFactory.rootURL}
+    """
+    implements(IResource)
+
+    def renderHTTP(self, context):
+        """
+        Render C{self.resource} through a L{StylesheetRewritingRequestWrapper}.
+        """
+        request = IRequest(context)
+        request = StylesheetRewritingRequestWrapper(
+            request, self.installedOfferingNames, self.rootURL)
+        context.remember(request, IRequest)
+        return self.resource.renderHTTP(context)
+
+
+
+class StylesheetRewritingRequestWrapper(object):
+    """
+    Request which intercepts the response body, parses it as CSS, rewrites its
+    URLs, and sends the serialized result.
+
+    @ivar request: Another L{IRequest} object, methods of which will be used to
+        implement this request.
+
+    @ivar _buffer: A list of C{str} which have been passed to the write method.
+
+    @ivar installedOfferingNames: See L{StylesheetFactory.installedOfferingNames}
+
+    @ivar rootURL: See L{StylesheetFactory.rootURL}.
+    """
+    def __init__(self, request, installedOfferingNames, rootURL):
+        self.request = request
+        self._buffer = []
+        self.installedOfferingNames = installedOfferingNames
+        self.rootURL = rootURL
+
+
+    def __getattr__(self, name):
+        """
+        Pass attribute lookups on to the wrapped request object.
+        """
+        return getattr(self.request, name)
+
+
+    def write(self, bytes):
+        """
+        Buffer the given bytes for later processing.
+        """
+        self._buffer.append(bytes)
+
+
+    def _replace(self, url):
+        """
+        Change URLs with absolute paths so they are rooted at the correct
+        location.
+        """
+        segments = url.split('/')
+        if segments[0] == '':
+            root = self.rootURL(self.request)
+            if segments[1] == 'Mantissa':
+                root = root.child('static').child('mantissa-base')
+                segments = segments[2:]
+            elif segments[1] in self.installedOfferingNames:
+                root = root.child('static').child(segments[1])
+                segments = segments[2:]
+            for seg in segments:
+                root = root.child(seg)
+            return str(root)
+        return url
+
+
+    def finish(self):
+        """
+        Parse the buffered response body, rewrite its URLs, write the result to
+        the wrapped request, and finish the wrapped request.
+        """
+        stylesheet = ''.join(self._buffer)
+        parser = CSSParser()
+        css = parser.parseString(stylesheet)
+        css.replaceUrls(self._replace)
+        self.request.write(css.cssText)
+        return self.request.finish()
+
+
+
 class WebSite(Item, SiteRootMixin):
     """
     Govern an HTTP server which binds a port on startup and tears it down at
@@ -638,13 +846,21 @@ class WebSite(Item, SiteRootMixin):
         @return: The location at which the root of the resource hierarchy for
             this website is available.
         """
-        # In the future, this might return universal URLs - basing the
-        # scheme and hostname on parameters of the request.  Or it might
-        # respect state on this WebSite instance, for example a static
-        # hostname, port number, and path prefix appropriate when a server
-        # is positioned in front of and proxying requests to this one.  For
-        # now though, the root is /, no matter what.  See #417 and #2309.
-        return URL(scheme='', netloc='', pathsegs=[''])
+        if self.hostname:
+            siteHostname = self.hostname
+        else:
+            siteHostname = socket.getfqdn()
+        host = request.getHeader('host') or siteHostname
+        if ':' in host:
+            host = host.split(':', 1)[0]
+        if (host == siteHostname or
+            host.startswith('www.') and host[len('www.'):] == siteHostname):
+            return URL(scheme='', netloc='', pathsegs=[''])
+        else:
+            if request.isSecure():
+                return self.encryptedRoot(self.hostname)
+            else:
+                return self.cleartextRoot(self.hostname)
 
 
     def child_users(self, ctx):

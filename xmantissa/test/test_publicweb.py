@@ -4,11 +4,9 @@ from zope.interface import implements
 from twisted.trial.unittest import TestCase
 from twisted.trial.util import suppress as SUPPRESS
 
-from epsilon.structlike import record
-
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, inmemory
+from axiom.attributes import boolean, integer, inmemory
 from axiom.plugins.userbasecmd import Create
 from axiom.plugins.mantissacmd import Mantissa
 from axiom.dependency import installOn
@@ -18,15 +16,17 @@ from nevow.flat import flatten
 from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
 
-from xmantissa.ixmantissa import INavigableElement
+from xmantissa.ixmantissa import (
+    IPublicPage, ITemplateNameResolver, INavigableElement)
 from xmantissa import signup
 from xmantissa.website import WebSite, APIKey
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
-from xmantissa.offering import InstalledOffering
+from xmantissa.offering import Offering, InstalledOffering
 from xmantissa.publicweb import (
-    PublicAthenaLivePage, PublicNavAthenaLivePage, _OfferingsFragment)
+    FrontPage, PublicAthenaLivePage, PublicNavAthenaLivePage,
+    _OfferingsFragment)
 from xmantissa import publicweb
 from xmantissa.signup import PasswordResetResource
 
@@ -73,55 +73,30 @@ class FakeNavigableElement(Item):
 
 
 
-class FakeStore(object):
+class FakeTemplateNameResolver(object):
     """
-    A trivial store with attributes needed for mocking stores used by various
-    tests.
+    Template name resolver which knows about one template.
+
+    @ivar correctName: The name of the template this resolver knows about.
+
+    @ivar correctFactory: The template which will be returned for
+        C{correctName}.
     """
-    def __init__(self, test):
-        """
-        Create a FakeStore with a test to report errors to.
-        """
-        self.test = test        # test
-        self.themes = [self]    # offering
-        self.name = 'faketest'  # offering
-        self.priority = 100000000 # offering
+    implements(ITemplateNameResolver)
+
+    def __init__(self, correctName, correctFactory):
+        self.correctName = correctName
+        self.correctFactory = correctFactory
 
 
-    def getDocFactory(self, fragmentName, default=None):
+    def getDocFactory(self, name, default=None):
         """
-        Retrieve a fake doc factory.
+        Return the default for all names other than C{self.correctName}.
+        Return C{self.correctFactory} for that.
         """
-        if fragmentName == 'shell':
-            # ignore shell template requests, they're not the code we're testing.
-            return
-        self.test.getLoaderStore = self
-        self.test.getLoaderName = fragmentName
-        return self.test.template
-
-
-    def findUnique(self, *a, **k):
-        """
-        Stubbed to confuse L{PasswordResetResource}
-        """
-
-
-    def query(self, installedOffering):
-        """
-        Extremely limited query that only does what we expect: return a list of
-        'self' (I can double as a fake Installedoffering too)! as an installed
-        offering, with the base theme.
-        """
-        self.test.assertEqual(installedOffering, InstalledOffering)
-        return [self]
-
-
-    def getOffering(self):
-        """
-        Return me, since the only thing these tests expect of an offering is
-        the 'themes' attribute...
-        """
-        return self
+        if name == self.correctName:
+            return self.correctFactory
+        return default
 
 
 
@@ -130,44 +105,99 @@ class TestHonorInstalledThemes(TestCase):
     Various classes should be using template resolvers to determine which theme
     to use based on a site store.
     """
-
     def setUp(self):
-        """
-        Set some attributes required for the tests.
-        """
-        self.template = object()
-        self.store = FakeStore(self)
+        self.correctDocumentFactory = object()
+        self.store = Store()
+        self.fakeResolver = FakeTemplateNameResolver(
+            None, self.correctDocumentFactory)
+
+        def fakeConform(interface):
+            if interface is ITemplateNameResolver:
+                return self.fakeResolver
+            return None
+        self.store.__conform__ = fakeConform
 
 
     def test_offeringsFragmentLoader(self):
         """
-        L{_OfferingsFragment} should honor the installed themes list.
+        L{_OfferingsFragment.docFactory} is the I{front-page} template loaded
+        from the store's ITemplateNameResolver.
         """
-        original = record('store')(self.store)
-        offeringsFragment = _OfferingsFragment(original)
-        self.assertIdentical(self.getLoaderStore, self.store)
-        self.assertEqual(self.getLoaderName, 'front-page')
-        self.assertIdentical(offeringsFragment.docFactory, self.template)
+        self.fakeResolver.correctName = 'front-page'
+        frontPage = FrontPage(store=self.store)
+        offeringsFragment = _OfferingsFragment(frontPage)
+        self.assertIdentical(
+            offeringsFragment.docFactory, self.correctDocumentFactory)
 
 
     def test_loginPageLoader(self):
         """
-        L{LoginPage} should honor the installed themes list.
+        L{LoginPage.fragment} is the I{login} template loaded from the store's
+        ITemplateNameResolver.
         """
-        loginPage = publicweb.LoginPage(self.store)
-        self.assertIdentical(self.getLoaderStore, self.store)
-        self.assertEqual(self.getLoaderName, 'login')
-        self.assertIdentical(loginPage.fragment, self.template)
+        self.fakeResolver.correctName = 'login'
+        page = publicweb.LoginPage(self.store)
+        self.assertIdentical(
+            page.fragment, self.correctDocumentFactory)
 
 
     def test_passwordResetLoader(self):
         """
-        L{LoginPage} should honor the installed themes list.
+        L{PasswordResetResource.fragment} is the I{login} template loaded from
+        the store's ITemplateNameResolver.
         """
+        self.fakeResolver.correctName = 'reset'
         resetPage = PasswordResetResource(self.store)
-        self.assertIdentical(self.getLoaderStore, self.store)
-        self.assertEqual(self.getLoaderName, 'reset')
-        self.assertIdentical(resetPage.fragment, self.template)
+        self.assertIdentical(
+            resetPage.fragment, self.correctDocumentFactory)
+
+
+
+class FakeApplication(Item):
+    """
+    Fake implementation of an application installed by an offering.
+    """
+    implements(IPublicPage)
+
+    index = boolean(doc="""
+    Flag indicating whether this application wants to be included on the front
+    page.
+    """)
+
+
+
+class _OfferingsFragmentTestCase(TestCase):
+    """
+    Tests for L{_OFferingsFragment}.
+    """
+    def test_offerings(self):
+        """
+        L{_OfferingsFragment.data_offerings} returns a generator of C{dict}
+        mapping C{'name'} to the name of an installed offering with an
+        L{IPublicPage} powerup which requests a place on the public page.
+        """
+        store = Store()
+
+        firstOffering = Offering(u'first offering', None, None, None, None,
+                                 None, None)
+        firstInstalledOffering = InstalledOffering(
+            store=store, application=FakeApplication(store=store, index=True),
+            offeringName=firstOffering.name)
+        object.__setattr__(
+            firstInstalledOffering, 'getOffering', lambda: firstOffering)
+
+        secondOffering = Offering(u'second offering', None, None, None, None,
+                                  None, None)
+        secondInstalledOffering = InstalledOffering(
+            store=store, application=FakeApplication(store=store, index=False),
+            offeringName=secondOffering.name)
+        object.__setattr__(
+            secondInstalledOffering, 'getOffering', lambda: secondOffering)
+
+        fragment = _OfferingsFragment(FrontPage(store=store))
+        self.assertEqual(
+            list(fragment.data_offerings(None, None)),
+            [{'name': firstOffering.name}])
 
 
 

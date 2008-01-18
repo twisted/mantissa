@@ -19,7 +19,7 @@ from nevow.url import URL
 from axiom import item, attributes, upgrade, userbase
 
 from xmantissa import ixmantissa, website, offering
-from xmantissa.webtheme import getInstalledThemes, SiteTemplateResolver
+from xmantissa.webtheme import ThemedDocumentFactory, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
 from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
 
@@ -533,6 +533,7 @@ class PublicPage(PublicPageMixin, rend.Page):
     PublicPage is a utility superclass for implementing static pages which have
     theme support and authentication trimmings.
     """
+    docFactory = ThemedDocumentFactory('shell', 'templateResolver')
 
     def __init__(self, original, store, fragment, staticContent, forUser,
                  templateResolver=None):
@@ -555,9 +556,8 @@ class PublicPage(PublicPageMixin, rend.Page):
         the appropriate doc factory.
         """
         if templateResolver is None:
-            templateResolver = SiteTemplateResolver(store)
-        super(PublicPage, self).__init__(
-            original, docFactory=templateResolver.getDocFactory('shell'))
+            templateResolver = ixmantissa.ITemplateNameResolver(store)
+        super(PublicPage, self).__init__(original)
         self.store = store
         self.fragment = fragment
         self.staticContent = staticContent
@@ -572,16 +572,28 @@ class _OfferingsFragment(rend.Fragment):
     """
     This fragment provides the list of installed offerings as a data generator.
     This is used to display the list of app stores on the default front page.
+
+    @ivar templateResolver: An L{ITemplateNameResolver} which will be used
+        to load the document factory.
     """
-    def __init__(self, original):
+    docFactory = ThemedDocumentFactory('front-page', 'templateResolver')
+
+    def __init__(self, original, templateResolver=None):
         """
         Create an _OfferingsFragment with an item from a site store.
 
         @param original: a L{FrontPage} item.
+
+        @param templateResolver: An L{ITemplateNameResolver} from which to
+            load the document factory.  If not specified, the Store of
+            C{original} will be adapted to L{ITemplateNameResolver} and used
+            for this purpose.  It is recommended that you pass a value for
+            this parameter.
         """
-        templateResolver = SiteTemplateResolver(original.store)
-        super(_OfferingsFragment, self).__init__(
-            original, docFactory=templateResolver.getDocFactory('front-page'))
+        if templateResolver is None:
+            templateResolver = ixmantissa.ITemplateNameResolver(original.store)
+        self.templateResolver = templateResolver
+        super(_OfferingsFragment, self).__init__(original)
 
 
     def data_offerings(self, ctx, data):
@@ -675,15 +687,6 @@ class PublicFrontPage(PublicPage):
         return self
 
 
-    def child_Mantissa(self, ctx):
-        """
-        Serve files from C{xmantissa/static/} at the URL C{/Mantissa}.
-        """
-        # Cheating!  It *looks* like there's an app store, but there isn't
-        # really, because this is the One Store To Bind Them All.
-        return static.File(util.sibpath(__file__, "static"))
-
-
     def customizeFor(self, forUser):
         """
         Return a customized version of this page for a particular user.
@@ -735,7 +738,7 @@ class LoginPage(PublicPage):
         the appropriate doc factory.
         """
         if templateResolver is None:
-            templateResolver = SiteTemplateResolver(store)
+            templateResolver = ixmantissa.ITemplateNameResolver(store)
         PublicPage.__init__(self, None, store,
                             templateResolver.getDocFactory('login'),
                             IStaticShellContent(store, None),
@@ -859,10 +862,15 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
     PublicAthenaLivePage is a publicly viewable Athena-enabled page which slots
     a single fragment into the center of the page.
     """
+    docFactory = ThemedDocumentFactory('shell', 'templateResolver')
+    unsupportedBrowserLoader = ThemedDocumentFactory(
+        'athena-unsupported', 'templateResolver')
+
     fragment = None
+
     def __init__(self, store, fragment, staticContent=None, forUser=None,
                  templateResolver=None,
-                 *a, **k):
+                 *a, **kw):
         """
         Create a PublicAthenaLivePage.
 
@@ -881,12 +889,9 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         """
         self.store = store
         if templateResolver is None:
-            templateResolver = ixmantissa.ITemplateNameResolver(self.store, None)
-            if templateResolver is None:
-                templateResolver = SiteTemplateResolver(self.store)
-        super(PublicAthenaLivePage, self).__init__(
-            IResource(self.store), docFactory=templateResolver.getDocFactory('shell'),
-            *a, **k)
+            templateResolver = ixmantissa.ITemplateNameResolver(self.store)
+        self.templateResolver = templateResolver
+        super(PublicAthenaLivePage, self).__init__(IResource(self.store), *a, **kw)
         if fragment is not None:
             self.fragment = fragment
             # everybody who calls this has a different idea of what 'fragment'
@@ -897,8 +902,6 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
                 fragment.page = self
         self.staticContent = staticContent
         self.username = forUser
-        self.unsupportedBrowserLoader = templateResolver.getDocFactory(
-            "athena-unsupported")
 
 
     def render_head(self, ctx, data):

@@ -4,10 +4,12 @@ Tests for xmantissa.offering.
 """
 
 from zope.interface import Interface
+from zope.interface.verify import verifyClass
 
 from twisted.trial import unittest
 
-from axiom import store, item, attributes, userbase
+from axiom.store import Store
+from axiom import item, attributes, userbase
 
 from axiom.plugins.mantissacmd import Mantissa
 
@@ -39,11 +41,14 @@ class TestPublicPagePowerup(item.Item):
 
     attr = attributes.integer()
 
+
+
 class ITestInterface(Interface):
     """
     An interface to which no object can be adapted.  Used to ensure failed
     adaption causes a powerup to be installed.
     """
+
 
 
 class OfferingPluginTest(unittest.TestCase):
@@ -66,7 +71,7 @@ class OfferingPluginTest(unittest.TestCase):
 
 class OfferingTest(unittest.TestCase):
     def setUp(self):
-        self.store = store.Store(filesdir=self.mktemp())
+        self.store = Store(filesdir=self.mktemp())
         Mantissa().installSite(self.store, "/", generateCert=False)
         Mantissa().installAdmin(self.store, u'admin@localhost', u'asdf')
         self.userbase = self.store.findUnique(userbase.LoginSystem)
@@ -153,3 +158,92 @@ class OfferingTest(unittest.TestCase):
         self.assertEquals(offering.getInstalledOfferings(self.store),
                           {baseOffering.name: baseOffering,
                            self.offering.name: self.offering})
+
+
+
+class OfferingAdapterTests(unittest.TestCase):
+    """
+    Tests for L{offering.OfferingAdapter}.
+    """
+    def test_interface(self):
+        """
+        L{offering.OfferingAdapter} provides L{ixmantissa.IOfferingTechnician}
+        and implements all of its methods.
+        """
+        self.assertTrue(
+            ixmantissa.IOfferingTechnician.implementedBy(
+                offering.OfferingAdapter))
+        self.assertTrue(
+            verifyClass(ixmantissa.IOfferingTechnician,
+                        offering.OfferingAdapter))
+
+
+    def test_getInstalledOfferingNames(self):
+        """
+        L{offering.OfferingAdapter.getInstalledOfferingNames} returns a C{list} of
+        C{unicode} strings, each element giving the name of an offering
+        installed on the wrapped L{Store}.
+        """
+        firstOffering = u'an offering'
+        secondOffering = u'another offering'
+
+        store = Store()
+        offer = offering.OfferingAdapter(store)
+        self.assertEqual(offer.getInstalledOfferingNames(), [])
+
+        offer.installOffering(offering.Offering(
+                firstOffering, None, [], [], None, None, None))
+        self.assertEqual(offer.getInstalledOfferingNames(), [firstOffering])
+
+        offer.installOffering(offering.Offering(
+                secondOffering, None, [], [], None, None, None))
+        self.assertEqual(offer.getInstalledOfferingNames(),
+                         [firstOffering, secondOffering])
+
+
+    def test_getInstalledOfferings(self):
+        """
+        L{offering.OfferingAdapter.getInstalledOfferings} returns a C{dict}
+        mapping C{unicode} offering names to the corresponding L{IOffering}
+        providers.
+        """
+        firstOfferingName = u'an offering'
+        firstOffering = offering.Offering(
+            firstOfferingName, None, [], [], None, None, None)
+
+        secondOfferingName = u'another offering'
+        secondOffering = offering.Offering(
+            secondOfferingName, None, [], [], None, None, None)
+
+        store = Store()
+        offer = offering.OfferingAdapter(store)
+        self.assertEqual(offer.getInstalledOfferings(), {})
+
+        firstInstalledOffering = offer.installOffering(firstOffering)
+        object.__setattr__(
+            firstInstalledOffering, 'getOffering', lambda: firstOffering)
+        self.assertEqual(
+            offer.getInstalledOfferings(), {firstOfferingName: firstOffering})
+
+        secondInstalledOffering = offer.installOffering(secondOffering)
+        object.__setattr__(
+            secondInstalledOffering, 'getOffering', lambda: secondOffering)
+        self.assertEqual(
+            offer.getInstalledOfferings(),
+            {firstOfferingName: firstOffering,
+             secondOfferingName: secondOffering})
+
+
+
+class BaseOfferingTests(unittest.TestCase):
+    """
+    Tests for the base Mantissa offering,
+    L{xmantissa.plugins.baseoff.baseOffering}.
+    """
+    def test_staticContentPath(self):
+        """
+        C{baseOffering.staticContentPath} gives the location of a directory
+        which has I{mantissa.css} in it.
+        """
+        self.assertTrue(
+            baseOffering.staticContentPath.child('mantissa.css').exists())

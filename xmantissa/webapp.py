@@ -26,7 +26,7 @@ from nevow import tags as t
 from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage, renderShortUsername
-                                 
+
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite, APIKey
 from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes, getAllThemes

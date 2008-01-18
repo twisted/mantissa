@@ -831,11 +831,51 @@ class IOffering(Interface):
     constituting themes that belong to this offering
     """)
 
+    staticContentPath = Attribute("""
+    A L{FilePath<twisted.python.filepath.FilePath>} referring to the root of
+    the static content hierarchy for this offering.  This directory will be
+    served automatically by Mantissa at C{/static/<offering name>/}.
+
+    May be C{None} if there is no static content.
+    """)
+
     version = Attribute("""
     L{twisted.python.versions.Version} instance indicating the version of
     this offering.  If included, the Version's value will be displayed to
     users once the offering is installed.  Defaults to None.
     """)
+
+
+
+class IOfferingTechnician(Interface):
+    """
+    Support installation, uninstallation, and inspection of offerings.
+    """
+    def getInstalledOfferingNames():
+        """
+        Return a C{list} of C{unicode} strings giving the names of all
+        installed L{IOffering}s.
+        """
+
+
+    def getInstalledOfferings():
+        """
+        Return a mapping from the names of installed L{IOffering} plugins to
+        the plugins themselves.
+        """
+
+
+    def installOffering(offering):
+        """
+        Install the given offering plugin using the given configuration.
+
+        @type offering: L{IOffering}
+        @param offering: The offering to install.
+
+        @raise L{xmantissa.offering.OfferingAlreadyInstalled}: If an offering
+            with the same name as C{offering} is already installed.
+        """
+
 
 
 class ISignupMechanism(Interface):

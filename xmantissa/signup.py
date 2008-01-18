@@ -29,12 +29,12 @@ from nevow.athena import expose
 
 from xmantissa.ixmantissa import (
     ISiteRootPlugin, IStaticShellContent, INavigableElement,
-    INavigableFragment, ISignupMechanism)
+    INavigableFragment, ISignupMechanism, ITemplateNameResolver)
 from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.websession import usernameFromRequest
 from xmantissa.publicweb import PublicAthenaLivePage, PublicPage
 from xmantissa.webnav import Tab
-from xmantissa.webtheme import SiteTemplateResolver, getLoader
+from xmantissa.webtheme import getLoader
 from xmantissa.webapp import PrivateApplication
 from xmantissa import plugins, liveform
 from xmantissa.websession import PersistentSession
@@ -98,7 +98,7 @@ class PasswordResetResource(PublicPage):
 
     def __init__(self, store, templateResolver=None):
         if templateResolver is None:
-            templateResolver = SiteTemplateResolver(store)
+            templateResolver = ITemplateNameResolver(store)
         PublicPage.__init__(self, None, store,
                             templateResolver.getDocFactory('reset'),
                             None, None, templateResolver)

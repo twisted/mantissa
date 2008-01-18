@@ -4,6 +4,11 @@ import socket
 
 from zope.interface import implements
 
+try:
+    from cssutils import CSSParser
+except ImportError:
+    CSSParser = None
+
 from twisted.internet.address import IPv4Address
 from twisted.trial import unittest, util
 from twisted.application import service
@@ -11,14 +16,14 @@ from twisted.web import http
 from twisted.python.filepath import FilePath
 
 from nevow.flat import flatten
-from nevow.context import WebContext
+from nevow.context import RequestContext, WebContext
 from nevow.testutil import AccumulatingFakeRequest, renderPage
 from nevow.testutil import renderLivePage, FakeRequest
 from nevow.url import URL
-from nevow.guard import LOGIN_AVATAR
-from nevow.inevow import IResource, IRequest
+from nevow.inevow import IResource, IRequest, ICurrentSegments, IRemainingSegments
 from nevow.rend import WovenContext
 from nevow.athena import LivePage
+from nevow.guard import LOGIN_AVATAR, SESSION_KEY, GuardSession
 
 from epsilon.scripts import certcreate
 
@@ -26,15 +31,17 @@ from axiom import userbase
 from axiom.store import Store
 from axiom.dependency import installOn
 
+from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa import website, signup, publicweb
 from xmantissa.publicweb import LoginPage
 from xmantissa.product import Product
-from xmantissa.offering import installOffering
+from xmantissa.offering import Offering, installOffering
 from xmantissa.plugins.baseoff import baseOffering
 
 from xmantissa.website import SiteRootMixin, WebSite
 from xmantissa.website import MantissaLivePage, APIKey
+from xmantissa.website import StaticContent
 
 from xmantissa.cachejs import HashedJSModuleProvider
 
@@ -69,7 +76,6 @@ class WebSiteTestCase(unittest.TestCase):
     """
     Tests for L{xmantissa.website.WebSite}.
     """
-
     def setUp(self):
         """
         Setup a store with a valid offering to run tests against.
@@ -307,16 +313,133 @@ class WebSiteTestCase(unittest.TestCase):
 
     def test_rootURL(self):
         """
-        L{WebSite.rootURL} should return C{/} until we come up with a reason
-        to return something else.
+        L{WebSite.rootURL} returns C{/} for a request made onto the hostname
+        the L{WebSite} is configured with.
         """
+        request = FakeRequest()
+        request.setHeader('host', 'example.com')
+        ws = website.WebSite(hostname=u'example.com')
+        self.assertEqual(str(ws.rootURL(request)), '/')
+
+
+    def test_rootURLWithoutHost(self):
+        """
+        L{WebSite.rootURL} returns C{/} for a request made without a I{Host}
+        header.
+        """
+        request = FakeRequest()
+        ws = website.WebSite(hostname=u'example.com')
+        self.assertEqual(str(ws.rootURL(request)), '/')
+
+
+    def test_rootURLWWWSubdomain(self):
+        """
+        L{WebSite.rootURL} returns C{/} for a request made onto the I{www}
+        subdomain of the hostname the L{WebSite} is configured with.
+        """
+        request = FakeRequest()
+        request.setHeader('host', 'www.example.com')
+        ws = website.WebSite(hostname=u'example.com')
+        self.assertEqual(str(ws.rootURL(request)), '/')
+
+
+    def test_rootURLUnconfiguredHostname(self):
+        """
+        L{WebSite.rootURL} returns C{/} for a request made onto the hostname
+        returned by L{socket.getfqdn} if L{WebSite.hostname} is C{None}.
+        """
+        request = FakeRequest()
+        request.setHeader('host', socket.getfqdn())
         ws = website.WebSite()
-        self.assertEqual(str(ws.rootURL(None)), '/')
+        self.assertEqual(str(ws.rootURL(request)), '/')
 
 
-    def testOnlyHTTPLogin(self):
+    def test_rootURLWWWSubdomainUnconfiguredHostname(self):
         """
-        If there's no secure port, work over HTTP anyway.
+        L{WebSite.rootURL} returns C{/} for a request made onto the I{www}
+        subdomain of the hostname returned by L{socket.getfqdn} if
+        L{WebSite.hostname} is C{None}.
+        """
+        request = FakeRequest()
+        request.setHeader('host', 'www.' + socket.getfqdn())
+        ws = website.WebSite()
+        self.assertEqual(str(ws.rootURL(request)), '/')
+
+
+    def test_rootURLDifferentHostname(self):
+        """
+        L{WebSite.rootURL} returns an absolute URL with L{WebSite}'s hostname
+        as its netloc and with a path of C{/} for a request made onto a
+        hostname different from the one L{WebSite} is configured with.
+        """
+        request = FakeRequest()
+        request.setHeader('host', 'alice.example.com')
+        store = Store()
+        ws = website.WebSite(store=store, hostname=u'example.com')
+        TCPPort(store=store, factory=ws, portNumber=80)
+        self.assertEqual(str(ws.rootURL(request)), 'http://example.com/')
+
+
+    def test_rootURLDifferentHostnameNonstandardPort(self):
+        """
+        L{WebSite.rootURL} returns an absolute URL an explicit port number in
+        the netloc for a request made onto a hostname different from the one
+        L{WebSite} is configured with if the L{WebSite} has an HTTP server on a
+        non-standard port.
+        """
+        request = FakeRequest()
+        request.setHeader('host', 'alice.example.com')
+        store = Store()
+        ws = website.WebSite(store=store, hostname=u'example.com')
+        TCPPort(store=store, factory=ws, portNumber=12345)
+        self.assertEqual(str(ws.rootURL(request)), 'http://example.com:12345/')
+
+
+    def test_rootURLNonstandardRequestPort(self):
+        """
+        L{WebSite.rootURL} returns C{/} for a request made onto a non-standard
+        port which is one on which the L{WebSite} is configured to listen.
+        """
+        request = FakeRequest()
+        request.setHeader('host', 'example.com:54321')
+        store = Store()
+        ws = website.WebSite(store=store, hostname=u'example.com')
+        TCPPort(store=store, factory=ws, portNumber=54321)
+        self.assertEqual(str(ws.rootURL(request)), '/')
+
+
+    def test_rootURLDifferentHostnameSecure(self):
+        """
+        L{WebSite.rootURL} returns an absolute URL with an I{https} scheme for
+        a request made onto a hostname different from the one L{WebSite} is
+        configured with.
+        """
+        request = FakeRequest(isSecure=True)
+        request.setHeader('host', 'alice.example.com')
+        store = Store()
+        ws = website.WebSite(store=store, hostname=u'example.com')
+        SSLPort(store=store, factory=ws, portNumber=443)
+        self.assertEqual(str(ws.rootURL(request)), 'https://example.com/')
+
+
+    def test_rootURLDifferentHostnameSecureNonstandardPort(self):
+        """
+        L{WebSite.rootURL} returns an absolute URL with the I{https} scheme and
+        an explicit port number in the netloc for a request made onto a
+        hostname different from the one L{WebSite} is configured with if the
+        L{WebSite} has an HTTPS server on a non-standard port.
+        """
+        request = FakeRequest(isSecure=True)
+        request.setHeader('host', 'alice.example.com')
+        store = Store()
+        ws = website.WebSite(store=store, hostname=u'example.com')
+        SSLPort(store=store, factory=ws, portNumber=12345)
+        self.assertEqual(str(ws.rootURL(request)), 'https://example.com:12345/')
+
+
+    def test_onlyHTTPLogin(self):
+        """
+        If there's no secure port, login works over HTTP anyway.
         """
         ws = website.WebSite(store=self.store)
         installOn(ws, self.store)
@@ -327,9 +450,9 @@ class WebSiteTestCase(unittest.TestCase):
         self.failUnless(isinstance(res, LoginPage))
 
 
-    def testOnlyHTTPSignup(self):
+    def test_onlyHTTPSignup(self):
         """
-        If there's no secure port, work over HTTP anyway.
+        If there's no secure port, signup works over HTTP anyway.
         """
         ws = website.WebSite(store=self.store)
         installOn(ws, self.store)
@@ -361,6 +484,256 @@ class WebSiteTestCase(unittest.TestCase):
 
 
 
+class WebSiteIntegrationTests(unittest.TestCase):
+    """
+    Integration (ie, not unit) tests for the behavior of L{WebSite.getFactory}.
+    """
+    def setUp(self):
+        """
+        Create a L{Store} with a L{WebSite} in it.  Get a protocol factory from
+        the website and save it for tests to use.  Patch L{twisted.web.http}
+        and L{nevow.guard} so that they don't create garbage timed calls that
+        have to be cleaned up.
+        """
+        self.store = Store()
+        installOn(userbase.LoginSystem(store=self.store), self.store)
+
+        self.web = website.WebSite(store=self.store, hostname=u'example.com')
+        installOn(self.web, self.store)
+        TCPPort(store=self.store, factory=self.web, portNumber=80)
+
+        self.site = self.web.getFactory()
+
+        self.origFunctions = (http._logDateTimeStart, GuardSession.checkExpired.im_func)
+        http._logDateTimeStart = lambda: None
+        GuardSession.checkExpired = lambda self: None
+
+
+    def tearDown(self):
+        """
+        Restore the patched functions to their original state.
+        """
+        http._logDateTimeStart = self.origFunctions[0]
+        GuardSession.checkExpired = self.origFunctions[1]
+        del self.origFunctions
+
+
+    def get(self, uri, headers={}):
+        """
+        Retrieve the resource at the given URI from C{self.site}.
+
+        Return a L{Deferred} which is called back with the request after
+        resource traversal and rendering has finished.
+
+        @type uri: C{str}
+        @param uri: The absolute path to the resource to retrieve, eg
+            I{/private/12345}.
+
+        @type headers: C{dict}
+        @param headers: HTTP headers to include in the request.
+        """
+        if 'host' not in headers:
+            headers['host'] = self.web.hostname
+
+        currentSegments = tuple(URL.fromString(uri).pathList())
+        request = AccumulatingFakeRequest(headers=headers, uri=uri,
+                                          currentSegments=currentSegments)
+        requestContext = RequestContext(parent=self.site.context, tag=request)
+        requestContext.remember((), ICurrentSegments)
+        requestContext.remember(currentSegments, IRemainingSegments)
+
+        page = self.site.getPageContextForRequestContext(requestContext)
+        page.addCallback(
+            renderPage,
+            topLevelContext=lambda tag: tag,
+            reqFactory=lambda: request)
+        page.addCallback(lambda ignored: request)
+        return page
+
+
+    def test_rootResource(self):
+        """
+        A sessionless, unauthenticated request for C{/} is responded to with a
+        redirect to negotiate a session.
+        """
+        page = self.get('/')
+        def rendered(request):
+            redirectLocation = URL.fromString(request.redirected_to)
+            key, path = redirectLocation.pathList()
+            self.assertTrue(key.startswith(SESSION_KEY))
+            self.assertEqual(path, '')
+        page.addCallback(rendered)
+        return page
+
+
+    def test_mantissaStylesheet(self):
+        """
+        A sessionless, unauthenticated request for C{/Mantissa/mantissa.css} is
+        responded to with the contents of the mantissa css file.
+        """
+        page = self.get('/Mantissa/mantissa.css')
+        def rendered(request):
+            self.assertEqual(
+                request.accumulator,
+                FilePath(__file__).parent().sibling('static').child('mantissa.css').getContent())
+        page.addCallback(rendered)
+        return page
+
+
+    def _fakeOfferings(self, store, offerings):
+        """
+        Override the adaption hook on the given L{Store} instance so that
+        adapting it to L{IOfferingTechnician} returns an object which
+        reports the given offerings as installed.
+        """
+        class FakeOfferingTechnician(object):
+            def getInstalledOfferings(self):
+                return offerings
+
+        def fakeOfferingConform(interface):
+            if interface is IOfferingTechnician:
+                return FakeOfferingTechnician()
+            return Store.__conform__(self.store, interface)
+
+        store.__conform__ = fakeOfferingConform
+
+
+    def test_offeringWithStaticContent(self):
+        """
+        L{StaticContent} has a L{File} child with the name of one of the
+        offerings passed to its initializer which has a static content path.
+        """
+        # Make a fake offering to get its static content rendered.
+        offeringName = u'name of the offering'
+        offeringPath = FilePath(self.mktemp())
+        offeringPath.makedirs()
+        childName = 'content'
+        childContent = 'the content'
+        offeringPath.child(childName).setContent(childContent)
+
+        self._fakeOfferings(self.store, {
+                offeringName: Offering(
+                    offeringName, None, None, None, None, None, None,
+                    offeringPath, None)})
+
+        page = self.get('/static/' + offeringName + '/' + childName)
+        def rendered(request):
+            self.assertEqual(request.accumulator, childContent)
+        page.addCallback(rendered)
+        return page
+
+
+
+class StylesheetRewritingRequestWrapperTests(unittest.TestCase):
+    """
+    Tests for L{StylesheetRewritingRequestWrapper}.
+    """
+    def test_replaceMantissa(self):
+        """
+        L{StylesheetRewritingRequestWrapper._replace} changes URLs of the form
+        I{/Mantissa/foo} to I{<rootURL>/static/mantissa-base/foo}.
+        """
+        request = object()
+        roots = {request: URL.fromString('/bar/')}
+        wrapper = website.StylesheetRewritingRequestWrapper(request, [], roots.get)
+        self.assertEqual(
+            wrapper._replace('/Mantissa/foo.png'),
+            '/bar/static/mantissa-base/foo.png')
+
+
+    def test_replaceOtherOffering(self):
+        """
+        L{StylesheetRewritingRequestWrapper._replace} changes URLs of the form
+        I{/Something/foo} to I{<rootURL>/static/Something/foo} if C{Something}
+        gives the name of an installed offering with a static content path.
+        """
+        request = object()
+        roots = {request: URL.fromString('/bar/')}
+        wrapper = website.StylesheetRewritingRequestWrapper(request, ['OfferingName'], roots.get)
+        self.assertEqual(
+            wrapper._replace('/OfferingName/foo.png'),
+            '/bar/static/OfferingName/foo.png')
+
+
+    def test_nonOfferingOnlyGivenPrefix(self):
+        """
+        L{StylesheetRewritingRequestWrapper._replace} only changes URLs of the
+        form I{/Something/foo} so they are beneath the root URL if C{Something}
+        does not give the name of an installed offering.
+        """
+        request = object()
+        roots = {request: URL.fromString('/bar/')}
+        wrapper = website.StylesheetRewritingRequestWrapper(
+            request, ['Foo'], roots.get)
+        self.assertEqual(
+            wrapper._replace('/OfferingName/foo.png'),
+            '/bar/OfferingName/foo.png')
+
+
+    def test_shortURL(self):
+        """
+        L{StylesheetRewritingRequestWrapper._replace} changes URLs with only
+        one segment so they are beneath the root URL.
+        """
+        request = object()
+        roots = {request: URL.fromString('/bar/')}
+        wrapper = website.StylesheetRewritingRequestWrapper(
+            request, [], roots.get)
+        self.assertEqual(
+            wrapper._replace('/'),
+            '/bar/')
+
+
+    def test_absoluteURL(self):
+        """
+        L{StylesheetRewritingRequestWrapper._replace} does not change absolute
+        URLs.
+        """
+        wrapper = website.StylesheetRewritingRequestWrapper(object(), [], None)
+        self.assertEqual(
+            wrapper._replace('http://example.com/foo'),
+            'http://example.com/foo')
+
+
+    def test_relativeUnmodified(self):
+        """
+        L{StylesheetRewritingRequestWrapper._replace} does not change URLs with
+        relative paths.
+        """
+        wrapper = website.StylesheetRewritingRequestWrapper(object(), [], None)
+        self.assertEqual(wrapper._replace('relative/path'), 'relative/path')
+
+
+    def test_finish(self):
+        """
+        L{StylesheetRewritingRequestWrapper.finish} causes all written bytes to
+        be translated with C{_replace} written to the wrapped request.
+        """
+        stylesheetFormat = """
+            .foo {
+                background-image: url(%s)
+            }
+        """
+        originalStylesheet = stylesheetFormat % ("/Foo/bar",)
+        expectedStylesheet = stylesheetFormat % ("/bar/Foo/bar",)
+
+        request = FakeRequest()
+        roots = {request: URL.fromString('/bar/')}
+        wrapper = website.StylesheetRewritingRequestWrapper(
+            request, [], roots.get)
+        wrapper.write(originalStylesheet)
+        wrapper.finish()
+        # Parse and serialize both versions to normalize whitespace so we can
+        # make a comparison.
+        parser = CSSParser()
+        self.assertEqual(
+            parser.parseString(request.accumulator).cssText,
+            parser.parseString(expectedStylesheet).cssText)
+    if CSSParser is None:
+        test_finish.skip = "Stylesheet rewriting test requires cssutils package."
+
+
+
 class SSLWebSiteTestCase(unittest.TestCase):
     """
     WebSite tests that require an SSL certificate to be generated.
@@ -387,7 +760,6 @@ class SSLWebSiteTestCase(unittest.TestCase):
         del self.origFunction
         svc = service.IService(self.store)
         return svc.stopService()
-
 
 
     def testOnlySecureSignup(self):
@@ -563,6 +935,23 @@ class UnguardedWrapperTests(unittest.TestCase):
         """
         self.store = createStore()
         installOffering(self.store, baseOffering, {})
+
+
+    def test_static(self):
+        """
+        L{website.WebSite} has a I{static} child which returns a
+        L{StaticContent} instance.
+        """
+        installOn(website.WebSite(store=self.store), self.store)
+        request = FakeRequest(uri='/static/extra', currentSegments=[])
+        wrapper = website.UnguardedWrapper(self.store, None)
+        resource, segments = wrapper.locateChild(request, ('static', 'extra'))
+        self.assertTrue(isinstance(resource, StaticContent))
+        self.assertEqual(
+            resource.staticPaths,
+            {baseOffering.name: baseOffering.staticContentPath})
+        self.assertEqual(segments, ('extra',))
+
 
     def test_secureLoginRequest(self):
         """

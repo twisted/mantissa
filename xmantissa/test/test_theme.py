@@ -536,9 +536,9 @@ class TestSiteTemplateResolver(TestCase):
 
 
 
-class TestXHTMLDirectoryTheme(TestCase):
+class XHTMLDirectoryThemeTests(TestCase):
     """
-    Tests for L{TestXHTMLDirectoryTheme}.
+    Tests for L{XHTMLDirectoryTheme}.
     """
     def setUp(self):
         """
@@ -554,7 +554,7 @@ class TestXHTMLDirectoryTheme(TestCase):
 
     def test_directoryAttribute(self):
         """
-        L{TestXHTMLDirectoryTheme} should have a directory attribute of type
+        L{XHTMLDirectoryTheme} should have a directory attribute of type
         L{twisted.python.filepath.FilePath}.
         """
         self.assertEqual(self.theme.directory, self.testDir)
@@ -563,7 +563,7 @@ class TestXHTMLDirectoryTheme(TestCase):
 
     def test_childFragmentsInGetDocFactory(self):
         """
-        L{TestXHTMLDirectoryTheme.getDocFactory} should handle subdirectories
+        L{XHTMLDirectoryTheme.getDocFactory} should handle subdirectories
         sanely, without exposing parent directories.
         """
         fragmentName = 'dir/file'
@@ -577,6 +577,35 @@ class TestXHTMLDirectoryTheme(TestCase):
         self.assertEqual(foundPath, expectedPath)
         self.assertRaises(InsecurePath, self.theme.getDocFactory,
                           '../insecure/')
+
+
+    def test_noStylesheetLocation(self):
+        """
+        L{XHTMLDirectoryTheme.head} returns C{None} if I{stylesheetLocation} is
+        C{None}.
+        """
+        self.assertIdentical(self.theme.head(None, None), None)
+
+
+    def test_stylesheetLocation(self):
+        """
+        L{XHTMLDirectoryTheme.head} returns a link tag which gives the location
+        of the stylesheet given by I{stylesheetLocation} if there is one.
+        """
+        store = Store()
+        site = WebSite(store=store)
+        port = TCPPort(store=store, portNumber=80, factory=site)
+        self.theme.stylesheetLocation = ['foo', 'bar']
+        request = FakeRequest()
+
+        link = self.theme.head(request, site)
+        self.assertEqual(link.tagName, 'link')
+        self.assertEqual(link.attributes['rel'], 'stylesheet')
+        self.assertEqual(link.attributes['type'], 'text/css')
+        self.assertEqual(
+            site.rootURL(request).child('foo').child('bar'),
+            link.attributes['href'])
+
 
 
 class TestThemeCache(TestCase):

@@ -1,17 +1,20 @@
 # -*- test-case-name: xmantissa.test.test_theme -*-
 
-import os, sys, weakref
+import sys, weakref
 
 from zope.interface import implements
 
 from twisted.python import reflect
 from twisted.python.util import sibpath
 from twisted.python.filepath import FilePath
+from twisted.python.components import registerAdapter
 
 from epsilon.structlike import record
 
 from nevow.loaders import xmlfile
 from nevow import inevow, tags, athena, page
+
+from axiom.store import Store
 
 from xmantissa import ixmantissa
 from xmantissa.ixmantissa import ITemplateNameResolver
@@ -104,6 +107,7 @@ class SiteTemplateResolver(object):
     installed, if you want to actually get a template back)
     """
     implements(ITemplateNameResolver)
+
     def __init__(self, siteStore):
         self.siteStore = siteStore
 
@@ -120,10 +124,10 @@ class SiteTemplateResolver(object):
                 return loader
         return default
 
+registerAdapter(SiteTemplateResolver, Store, ITemplateNameResolver)
 
 
 _marker = object()
-
 def _realGetLoader(n, default=_marker):
     """
     Search all themes for a template named C{n}, returning a loader
@@ -173,12 +177,18 @@ class XHTMLDirectoryTheme(object):
     be calculated based on where your subclass was defined.
 
     @ivar directoryName: the name of the directory containing the appropriate
-    template files.
+        template files.
 
     @ivar themeName: the name of the theme that this directory represents.
-    This will be displayed to the user.
+        This will be displayed to the user.
+
+    @ivar stylesheetLocation: A C{list} of C{str} giving the path segments
+        beneath the root at which the stylesheet for this theme is available,
+        or C{None} if there is no applicable stylesheet.
     """
     implements(ixmantissa.ITemplateNameResolver)
+
+    stylesheetLocation = None
 
     def __init__(self, themeName, priority=0, directoryName=None):
         """
@@ -210,18 +220,25 @@ class XHTMLDirectoryTheme(object):
 
     def head(self, request, website):
         """
-        Provide content to include in the head of the document.  Override this.
+        Provide content to include in the head of the document.  If you only
+        need to provide a stylesheet, see L{stylesheetLocation}.  Otherwise,
+        override this.
 
         @type request: L{inevow.IRequest} provider
         @param request: The request object for which this is a response.
 
         @param website: The site-wide L{xmantissa.website.WebSite} instance.
-        Primarily of interest for its C{cleartextRoot} and C{encryptedRoot}
-        methods.
+            Primarily of interest for its C{rootURL} method.
 
         @return: Anything providing or adaptable to L{nevow.inevow.IRenderer},
-        or C{None} to include nothing.
+            or C{None} to include nothing.
         """
+        stylesheet = self.stylesheetLocation
+        if stylesheet is not None:
+            root = website.rootURL(request)
+            for segment in stylesheet:
+                root = root.child(segment)
+            return tags.link(rel='stylesheet', type='text/css', href=root)
 
 
     # ITemplateNameResolver
@@ -254,12 +271,13 @@ class XHTMLDirectoryTheme(object):
 
 
 class MantissaTheme(XHTMLDirectoryTheme):
-    def head(self, request, website):
-        root = website.rootURL(request)
-        return tags.link(
-            rel='stylesheet',
-            type='text/css',
-            href=root.child('Mantissa').child('mantissa.css'))
+    """
+    Basic Mantissa-provided theme.
+
+    Most templates in the I{base} theme will usually be satisfied from this
+    theme provider.
+    """
+    stylesheetLocation = ['static', 'mantissa-base', 'mantissa.css']
 
 
 

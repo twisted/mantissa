@@ -51,7 +51,7 @@ class PasswordResetTestCase(TestCase):
             internal=True)
 
         self.store = store
-        ws = WebSite(store=self.store, hostname=u'example.com')
+        self.website = ws = WebSite(store=self.store, hostname=u'example.com')
         installOn(ws, self.store)
         securePort = SSLPort(store=self.store, portNumber=0, factory=ws)
         installOn(securePort, self.store)
@@ -238,6 +238,8 @@ class PasswordResetTestCase(TestCase):
         Test that if the user only supplies the local part of their username
         then the password resetter will still find the correct user.
         """
+        hostname = self.website.hostname.encode('ascii')
+
         def handleRequest(username, url):
             handleRequest.attempt = self.reset.newAttemptForUser(username)
             handleRequest.username = username
@@ -249,12 +251,12 @@ class PasswordResetTestCase(TestCase):
                 AccumulatingFakeRequest.__init__(self, *a, **kw)
                 self.args = {'username': ['joe'],
                              'email': ['']}
-                self.setHeader('host', 'divmod.com')
+                self.setHeader('host', hostname)
 
         self.reset.handleRequestForUser = handleRequest
         d = renderPage(self.reset, reqFactory=Request)
         d.addCallback(lambda _: self.assertEquals(handleRequest.username,
-                                                  'joe@divmod.com'))
+                                                  'joe@' + hostname))
         return d
 
 
