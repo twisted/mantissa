@@ -215,6 +215,14 @@ class AuthenticatedNavigationTestMixin:
         raise NotImplementedError("%r did not implement createPage" % (self,))
 
 
+    def rootURL(self, request):
+        """
+        Return the root URL for the website associated with the page returned
+        by L{createPage}.
+        """
+        raise NotImplementedError("%r did not implement rootURL" % (self,))
+
+
     def test_authenticatedAuthenticateLinks(self):
         """
         The I{authenticateLinks} renderer should remove the tag it is passed
@@ -347,6 +355,22 @@ class AuthenticatedNavigationTestMixin:
                              flattened)
 
 
+    def test_rootURL(self):
+        """
+        The I{base} renderer should add the website's root URL to the tag it is
+        passed.
+        """
+        page = self.createPage(self.username)
+        baseTag = div()
+        request = FakeRequest(headers={'host': 'example.com'})
+        ctx = context.WebContext(tag=baseTag)
+        ctx.remember(request, inevow.IRequest)
+        tag = page.render_rootURL(ctx, None)
+        self.assertIdentical(tag, baseTag)
+        self.assertEqual(tag.attributes, {})
+        self.assertEqual(tag.children, [self.rootURL(request)])
+
+
     def test_noUsername(self):
         """
         The I{username} renderer should remove its node from the output when
@@ -458,6 +482,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
 
         def siteStoreTxn():
             Mantissa().installSite(self.siteStore, "/", generateCert=False)
+            self.website = self.siteStore.findUnique(WebSite)
             ticketed = signup.FreeTicketSignup(
                 store=self.siteStore, prefixURL=self.signupURL,
                 prompt=self.signupPrompt)
@@ -473,6 +498,13 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
             self.privateApp = PrivateApplication(store=self.userStore)
             installOn(self.privateApp, self.userStore)
         self.userStore.transact(userStoreTxn)
+
+
+    def rootURL(self, request):
+        """
+        Return the root URL as reported by C{self.website}.
+        """
+        return self.website.rootURL(request)
 
 
     def test_unauthenticatedAuthenticateLinks(self):

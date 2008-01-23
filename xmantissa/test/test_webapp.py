@@ -117,9 +117,8 @@ class GenericNavigationAthenaPageTests(TestCase,
         """
         self.siteStore = Store()
         def siteStoreTxn():
-            installOn(
-                website.WebSite(store=self.siteStore),
-                self.siteStore)
+            self.website = website.WebSite(store=self.siteStore)
+            installOn(self.website, self.siteStore)
 
             self.userStore = SubStore.createNew(
                 self.siteStore, ['child', 'lookup']).open()
@@ -142,6 +141,13 @@ class GenericNavigationAthenaPageTests(TestCase,
             TestFragment(),
             self.privateApp.getPageComponents(),
             username)
+
+
+    def rootURL(self, request):
+        """
+        Return the root URL as reported by C{self.website}.
+        """
+        return self.website.rootURL(request)
 
 
     def test_childLookup(self):

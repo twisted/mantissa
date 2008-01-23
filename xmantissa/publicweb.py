@@ -314,11 +314,21 @@ class PublicPageMixin(object):
     Mixin for use by C{Page} or C{LivePage} subclasses that are visible to
     unauthenticated clients.
 
+    @ivar store: The site store.
+
     @ivar needsSecure: whether this page requires SSL to be rendered.
     """
     fragment = None
     username = None
     needsSecure = False
+
+
+    def _webSite(self):
+        """
+        Return the site WebSite.
+        """
+        return inevow.IResource(self.store)
+
 
     def renderHTTP(self, ctx):
         """
@@ -326,7 +336,7 @@ class PublicPageMixin(object):
         exists and the page demands it.
         """
         req = inevow.IRequest(ctx)
-        securePort = inevow.IResource(self.store).securePort
+        securePort = self._webSite().securePort
         if self.needsSecure and not req.isSecure() and securePort is not None:
             return URL.fromContext(
                 ctx).secure(port=securePort.getHost().port)
@@ -449,6 +459,13 @@ class PublicPageMixin(object):
         attribute, or "Divmod".
         """
         return ctx.tag[getattr(self.fragment, 'title', 'Divmod')]
+
+
+    def render_rootURL(self, ctx, data):
+        """
+        Add the WebSite's root URL as a child of the given tag.
+        """
+        return ctx.tag[self._webSite().rootURL(IRequest(ctx))]
 
 
     def render_header(self, ctx, data):

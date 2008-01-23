@@ -62,14 +62,32 @@ class _WebIDFormatException(TypeError):
     """
 
 class _ShellRenderingMixin(object):
+    """
+    View mixin for Pages which use the I{shell} template.
+
+    This class provides somewhat sensible default implementations for a number
+    of the renderers required by the I{shell} template.
+
+    @ivar webapp: The L{PrivateApplication} of the user for whom this is a
+        view.  This must provide the I{rootURL} method as well as
+        L{IWebTranslator} and L{ITemplateNameResolver}.  This must be an item
+        in a user store associated with the site store (so that the site store
+        is available).
+    """
     fragmentName = 'main'
     searchPattern = None
 
-    def __init__(self, resolver, translator, pageComponents, username):
-        self.resolver = resolver
-        self.translator = translator
+    def __init__(self, webapp, pageComponents, username):
+        self.webapp = self.translator = self.resolver = webapp
         self.pageComponents = pageComponents
         self.username = username
+
+
+    def _siteStore(self):
+        """
+        Get the site store from C{self.webapp}.
+        """
+        return self.webapp.store.parent
 
 
     def getDocFactory(self, fragmentName, default=None):
@@ -88,8 +106,27 @@ class _ShellRenderingMixin(object):
     def render_content(self, ctx, data):
         raise NotImplementedError("implement render_context in subclasses")
 
+
     def render_title(self, ctx, data):
         return ctx.tag[self.__class__.__name__]
+
+
+    def render_rootURL(self, ctx, data):
+        """
+        Add the WebSite's root URL as a child of the given tag.
+
+        The root URL is the location of the resource beneath which all standard
+        Mantissa resources (such as the private application and static content)
+        is available.  This can be important if a page is to be served at a
+        location which is different from the root URL in order to make links in
+        static XHTML templates resolve correctly (for example, by adding this
+        value as the href of a <base> tag).
+        """
+        # It's not a Resource, it's a site configuration object.  There should
+        # be another interface. See #920. -exarkun
+        site = IResource(self._siteStore())
+        return ctx.tag[site.rootURL(IRequest(ctx))]
+
 
     def render_head(self, ctx, data):
         return ctx.tag
@@ -140,7 +177,7 @@ class _ShellRenderingMixin(object):
         Render the code for recording Google Analytics statistics, if so
         configured.
         """
-        key = APIKey.getKeyForAPI(self.webapp.store.parent, APIKey.URCHIN)
+        key = APIKey.getKeyForAPI(self._siteStore(), APIKey.URCHIN)
         if key is None:
             return ''
         return ctx.tag.fillSlots('urchin-key', key.apiKey)
@@ -168,11 +205,12 @@ class _ShellRenderingMixin(object):
 
     def _getVersions(self):
         versions = []
-        for (name, offering) in getInstalledOfferings(self.webapp.store.parent).iteritems():
+        for (name, offering) in getInstalledOfferings(self._siteStore()).iteritems():
             if offering.version is not None:
                 v = offering.version
                 versions.append(str(v).replace(v.package, name))
         return ' '.join(versions)
+
 
     def render_footer(self, ctx, data):
         footer = [self._getVersions()]
@@ -182,6 +220,8 @@ class _ShellRenderingMixin(object):
             if f is not None:
                 footer.append(f)
         return ctx.tag[footer]
+
+
 
 INSPECTROFY = os.environ.get('MANTISSA_DEV')
 
@@ -232,17 +272,15 @@ class FragmentWrapperMixin:
 
 class GenericNavigationPage(FragmentWrapperMixin, Page, _ShellRenderingMixin):
     def __init__(self, webapp, fragment, pageComponents, username):
-        self.webapp = webapp
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
+        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
 
 class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, _ShellRenderingMixin):
     def __init__(self, webapp, fragment, pageComponents, username):
-        self.webapp = webapp
         livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
+        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
     # XXX TODO: support live nav, live fragments somehow
@@ -285,7 +323,6 @@ class GenericNavigationAthenaPage(MantissaLivePage,
 
         @see: L{PrivateApplication.preferredTheme}
         """
-        self.webapp = webapp
         userStore = webapp.store
         siteStore = userStore.parent
 
@@ -295,7 +332,7 @@ class GenericNavigationAthenaPage(MantissaLivePage,
             fragment,
             jsModuleRoot=None,
             docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
+        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
         FragmentWrapperMixin.__init__(self, fragment, pageComponents)
         self.unsupportedBrowserLoader = (webapp
                                          .getDocFactory("athena-unsupported"))
@@ -357,10 +394,9 @@ class PrivateRootPage(Page, _ShellRenderingMixin):
     addSlash = True
 
     def __init__(self, webapp, pageComponents, username):
-        self.webapp = webapp
         self.username = username
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, webapp, pageComponents, username)
+        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
 
     def child_(self, ctx):
         navigation = self.pageComponents.navigation

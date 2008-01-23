@@ -4,6 +4,7 @@
   <head nevow:render="head">
     <title nevow:render="title" />
     <script type="text/javascript" src="/Mantissa/js/shell.js"></script>
+    <base><nevow:attr name="href" nevow:render="rootURL" /><!-- IE dislikes self-closing base tags --></base>
   </head>
 
   <body>
