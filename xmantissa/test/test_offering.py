@@ -3,8 +3,8 @@
 Tests for xmantissa.offering.
 """
 
-from zope.interface import Interface
-from zope.interface.verify import verifyClass
+from zope.interface import Interface, implements
+from zope.interface.verify import verifyClass, verifyObject
 
 from twisted.trial import unittest
 
@@ -142,9 +142,11 @@ class OfferingTest(unittest.TestCase):
 
         self.test_installOffering()
 
-        self.assertEquals(
-            offering.getInstalledOfferingNames(self.store),
-            [u"mantissa-base", u"test_offering"])
+        installed = offering.getInstalledOfferingNames(self.store)
+        installed.sort()
+        expected = [u"mantissa-base", u"test_offering"]
+        expected.sort()
+        self.assertEquals(installed, expected)
 
 
     def test_getInstalledOfferings(self):
@@ -161,77 +163,159 @@ class OfferingTest(unittest.TestCase):
 
 
 
-class OfferingAdapterTests(unittest.TestCase):
+class FakeOfferingTechnician(object):
     """
-    Tests for L{offering.OfferingAdapter}.
+    In-memory only implementation of the offering inspection/installation API.
+
+    @ivar installedOfferings: A mapping from offering names to corresponding
+        L{IOffering} providers which have been passed to C{installOffering}.
     """
+    implements(ixmantissa.IOfferingTechnician)
+
+    def __init__(self):
+        self.installedOfferings = {}
+
+
+    def installOffering(self, offering):
+        """
+        Add the given L{IOffering} provider to the list of installed offerings.
+        """
+        self.installedOfferings[offering.name] = offering
+
+
+    def getInstalledOfferings(self):
+        """
+        Return a copy of the internal installed offerings mapping.
+        """
+        return self.installedOfferings.copy()
+
+
+    def getInstalledOfferingNames(self):
+        """
+        Return the names from the internal installed offerings mapping.
+        """
+        return self.installedOfferings.keys()
+
+
+
+class OfferingTechnicianTestMixin:
+    """
+    L{unittest.TestCase} mixin which defines unit tests for classes which
+    implement L{IOfferingTechnician}.
+
+    @ivar offerings: A C{list} of L{Offering} instances which will be installed
+        by the tests this mixin defines.
+    """
+    offerings = [
+        offering.Offering(u'an offering', None, [], [], [], [], []),
+        offering.Offering(u'another offering', None, [], [], [], [], [])]
+
+    def createTechnician(self):
+        """
+        @return: An L{IOfferingTechnician} provider which will be tested.
+        """
+        raise NotImplementedError(
+            "%r did not implement createTechnician" % (self.__class__,))
+
+
     def test_interface(self):
         """
-        L{offering.OfferingAdapter} provides L{ixmantissa.IOfferingTechnician}
-        and implements all of its methods.
+        L{createTechnician} returns an instance of a type which declares that
+        it implements L{IOfferingTechnician} and has all of the methods and
+        attributes defined by the interface.
         """
+        technician = self.createTechnician()
+        technicianType = type(technician)
         self.assertTrue(
-            ixmantissa.IOfferingTechnician.implementedBy(
-                offering.OfferingAdapter))
+            ixmantissa.IOfferingTechnician.implementedBy(technicianType))
         self.assertTrue(
-            verifyClass(ixmantissa.IOfferingTechnician,
-                        offering.OfferingAdapter))
+            verifyClass(ixmantissa.IOfferingTechnician, technicianType))
+        self.assertTrue(
+            verifyObject(ixmantissa.IOfferingTechnician, technician))
 
 
     def test_getInstalledOfferingNames(self):
         """
-        L{offering.OfferingAdapter.getInstalledOfferingNames} returns a C{list} of
-        C{unicode} strings, each element giving the name of an offering
-        installed on the wrapped L{Store}.
+        The L{ixmantissa.IOfferingTechnician.getInstalledOfferingNames}
+        implementation returns a C{list} of C{unicode} strings, each element
+        giving the name of an offering which has been installed.
         """
-        firstOffering = u'an offering'
-        secondOffering = u'another offering'
-
-        store = Store()
-        offer = offering.OfferingAdapter(store)
+        offer = self.createTechnician()
         self.assertEqual(offer.getInstalledOfferingNames(), [])
 
-        offer.installOffering(offering.Offering(
-                firstOffering, None, [], [], None, None, None))
-        self.assertEqual(offer.getInstalledOfferingNames(), [firstOffering])
-
-        offer.installOffering(offering.Offering(
-                secondOffering, None, [], [], None, None, None))
-        self.assertEqual(offer.getInstalledOfferingNames(),
-                         [firstOffering, secondOffering])
+        expected = []
+        for dummyOffering in self.offerings:
+            offer.installOffering(dummyOffering)
+            expected.append(dummyOffering.name)
+            expected.sort()
+            installed = offer.getInstalledOfferingNames()
+            installed.sort()
+            self.assertEqual(installed, expected)
 
 
     def test_getInstalledOfferings(self):
         """
-        L{offering.OfferingAdapter.getInstalledOfferings} returns a C{dict}
-        mapping C{unicode} offering names to the corresponding L{IOffering}
-        providers.
+        The L{ixmantissa.IOfferingTechnician.getInstalledOfferings}
+        implementation returns a C{dict} mapping C{unicode} offering names to
+        the corresponding L{IOffering} providers.
         """
-        firstOfferingName = u'an offering'
-        firstOffering = offering.Offering(
-            firstOfferingName, None, [], [], None, None, None)
-
-        secondOfferingName = u'another offering'
-        secondOffering = offering.Offering(
-            secondOfferingName, None, [], [], None, None, None)
-
-        store = Store()
-        offer = offering.OfferingAdapter(store)
+        offer = self.createTechnician()
         self.assertEqual(offer.getInstalledOfferings(), {})
 
-        firstInstalledOffering = offer.installOffering(firstOffering)
-        object.__setattr__(
-            firstInstalledOffering, 'getOffering', lambda: firstOffering)
-        self.assertEqual(
-            offer.getInstalledOfferings(), {firstOfferingName: firstOffering})
+        expected = {}
+        for dummyOffering in self.offerings:
+            offer.installOffering(dummyOffering)
+            expected[dummyOffering.name] = dummyOffering
+            self.assertEqual(offer.getInstalledOfferings(), expected)
 
-        secondInstalledOffering = offer.installOffering(secondOffering)
-        object.__setattr__(
-            secondInstalledOffering, 'getOffering', lambda: secondOffering)
-        self.assertEqual(
-            offer.getInstalledOfferings(),
-            {firstOfferingName: firstOffering,
-             secondOfferingName: secondOffering})
+
+
+class OfferingAdapterTests(unittest.TestCase, OfferingTechnicianTestMixin):
+    """
+    Tests for L{offering.OfferingAdapter}.
+    """
+    def setUp(self):
+        """
+        Hook offering plugin discovery so that only the fake offerings the test
+        wants exist.
+        """
+        self.origGetOfferings = offering.getOfferings
+        offering.getOfferings = self.getOfferings
+
+
+    def tearDown(self):
+        """
+        Restore the original L{getOfferings} function.
+        """
+        offering.getOfferings = self.origGetOfferings
+
+
+    def getOfferings(self):
+        """
+        Return some dummy offerings, as defined by C{self.offerings}.
+        """
+        return self.offerings
+
+
+    def createTechnician(self):
+        """
+        Create an L{offering.OfferingAdapter}.
+        """
+        store = Store()
+        technician = offering.OfferingAdapter(store)
+        return technician
+
+
+
+class FakeOfferingTechnicianTests(unittest.TestCase, OfferingTechnicianTestMixin):
+    """
+    Tests (ie, verification) for L{FakeOfferingTechnician}.
+    """
+    def createTechnician(self):
+        """
+        Create a L{FakeOfferingTechnician}.
+        """
+        return FakeOfferingTechnician()
 
 
 

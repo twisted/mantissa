@@ -24,7 +24,7 @@ from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.dependency import installOn
 
-from xmantissa.ixmantissa import ITemplateNameResolver
+from xmantissa.ixmantissa import ITemplateNameResolver, IOfferingTechnician
 from xmantissa.port import TCPPort
 from xmantissa import webtheme
 from xmantissa.webtheme import (
@@ -32,11 +32,13 @@ from xmantissa.webtheme import (
     ThemedElement, _ThemedMixin, ThemedDocumentFactory,
     SiteTemplateResolver, XHTMLDirectoryTheme)
 from xmantissa.website import WebSite
-from xmantissa.offering import installOffering
+from xmantissa.offering import Offering, installOffering
 from xmantissa.plugins.baseoff import baseOffering
 
 from xmantissa.publicweb import PublicAthenaLivePage
 from xmantissa.webapp import GenericNavigationAthenaPage, _PageComponents
+
+from xmantissa.test.test_offering import FakeOfferingTechnician
 
 
 class ThemedDocumentFactoryTests(TestCase):
@@ -472,14 +474,26 @@ class TestSiteTemplateResolver(TestCase):
     """
     Tests for L{SiteTemplateResolver}
     """
-
     def setUp(self):
         """
-        Setup the store and a template resolver for the tests.
+        Create a L{Store} with a fake L{IOfferingTechnician} powerup which
+        allows fine-grained control of template name resolution.
         """
+        self.offeringTech = FakeOfferingTechnician()
         self.store = Store()
-        installOffering(self.store, baseOffering, {})
+        self.store.inMemoryPowerUp(self.offeringTech, IOfferingTechnician)
         self.siteResolver = SiteTemplateResolver(self.store)
+
+
+    def getDocFactoryWithoutCaching(self, templateName):
+        """
+        Use C{self.siteResolver} to get a loader for the named template,
+        flushing the template cache first in order to make the result reflect
+        any changes which in offering or theme availability which may have
+        happened since the last call.
+        """
+        webtheme.theThemeCache.emptyCache()
+        return self.siteResolver.getDocFactory(templateName)
 
 
     def test_getDocFactory(self):
@@ -487,19 +501,19 @@ class TestSiteTemplateResolver(TestCase):
         L{SiteTemplateResolver.getDocFactory} should return only installed
         themes for its store.
         """
-        self.assertEqual(self.siteResolver.getDocFactory('bogus'), None)
-        resolvedTemplate = self.siteResolver.getDocFactory('shell')
-        # Note: nevow doesn't *really* have a stable white-box API for
-        # determining the template's path, but this is close enough, since we
-        # should only construct these one way (without using the lame-o
-        # templateDir feature).
-        # but let's sanity check just to be sure.
-        self.assertIdentical(resolvedTemplate.templateDir, None)
-        foundPath = FilePath(resolvedTemplate.template)
-        expectedPath = FilePath(
-            baseOffering.themes[0].directoryName).child(
-            'shell.html')
-        self.assertEqual(foundPath, expectedPath)
+        class FakeTheme(object):
+            priority = 0
+
+            def getDocFactory(self, templateName, default=None):
+                if templateName == 'shell':
+                    return object()
+                return default
+
+        self.assertIdentical(self.getDocFactoryWithoutCaching('shell'), None)
+        self.offeringTech.installOffering(
+            Offering(
+                u'an offering', None, [], [], [], [], [FakeTheme()]))
+        self.assertNotIdentical(self.getDocFactoryWithoutCaching('shell'), None)
 
 
 
