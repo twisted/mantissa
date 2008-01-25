@@ -1,3 +1,28 @@
+0.6.18 (2008-01-18):
+  - Introduced an API for filtering lists of people, and some UI for
+    doing this with your address book.
+  - ShareIDs can now contain non-ASCII characters.
+  - The implementation of WebSite.rootURL has changed so that it
+    considers the Host header of the request when constructing the URL
+    to return.  Requests made to unrecognized hosts will now have a
+    root URL which is absolute and includes the configured hostname of
+    the WebSite.  This allows name-based virtual hosting to work
+    without requiring all static content to be served beneath the
+    virtual host domain name.  Requests made to recognized hosts will
+    continue to use relative URLs with absolute paths.
+  - Mantissa's Offering interface now includes support for the
+    definition of the root of an offering's static content and this is
+    now served without requiring a session.
+  - Offerings are now managed using an object implementing a new
+    mantissa interface rather than with free functions.
+  - The base XHTML directory theme class now supports a simpler API
+    for adding a stylesheet to the head of pages.
+  - Many classes now use ThemedDocumentFactory rather than trying to
+    load a document factory directly.
+  - PrivateApplication.getDocFactory now only returns loaders from
+    themes for installed offerings instead of considering all
+    offerings available to the system.
+
 0.6.17 (2008-01-16):
   - IContactType implementations are now allowed to arrange their
     contact items into named groups.  The structure of these groups
