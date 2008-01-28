@@ -8,6 +8,7 @@ from twisted.python.components import registerAdapter
 from twisted.trial.unittest import TestCase
 
 from nevow import inevow, rend, url
+from nevow.flat.ten import flatten
 from nevow.context import WovenContext
 from nevow.athena import LiveElement
 from nevow.testutil import FakeRequest
@@ -22,6 +23,19 @@ from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa import (websharing, sharing, signup, offering, product,
                        ixmantissa, website)
+
+
+class _StringifyMixin:
+    """
+    Implement stringification of URL-like objects for testing.
+    """
+
+    def webStringifyURL(self, urlObject):
+        """
+        Flatten the given URL object into a L{str} as if it were being rendered
+        on a web page.
+        """
+        return flatten(urlObject)
 
 
 
@@ -55,10 +69,11 @@ class _TemplateNameResolver(Item):
 
 
 
-class WebSharingTestCase(TestCase):
+class WebSharingTestCase(TestCase, _StringifyMixin):
     """
     Tests for L{xmantissa.websharing.linkTo}
     """
+
     def setUp(self):
         """
         Set up some state.
@@ -88,7 +103,7 @@ class WebSharingTestCase(TestCase):
         self.failUnless(isinstance(linkURL, url.URL),
                         "linkTo should return a nevow.url.URL, not %r" %
                         (type(linkURL)))
-        self.assertEquals(str(linkURL), '/users/right/loginsystem')
+        self.assertEquals(self.webStringifyURL(linkURL), '/users/right/loginsystem')
 
 
     def test_linkToProxy(self):
@@ -108,13 +123,13 @@ class WebSharingTestCase(TestCase):
         """
         for (shareID, urlID) in [(u'a', 'a'), (u'\xe9', '%C3%A9')]:
             shareURL = websharing._ShareURL(shareID, netloc='', scheme='')
-            self.assertEqual(str(shareURL.child('c')), '/%s/c' % urlID)
+            self.assertEqual(self.webStringifyURL(shareURL.child('c')), '/%s/c' % urlID)
             # make sure subsequent child calls on the original have the same
             # behaviour
-            self.assertEqual(str(shareURL.child('d')), '/%s/d' % urlID)
+            self.assertEqual(self.webStringifyURL(shareURL.child('d')), '/%s/d' % urlID)
             # and that child calls on the returned urls don't (i.e. not
             # '/a/c/a/d'
-            self.assertEqual(str(shareURL.child('c').child('d')),
+            self.assertEqual(self.webStringifyURL(shareURL.child('c').child('d')),
                              '/%s/c/d' % urlID)
 
 
@@ -124,8 +139,8 @@ class WebSharingTestCase(TestCase):
         L{nevow.url.URL} when no store ID is passed.
         """
         shareURL = websharing._ShareURL(None, netloc='', scheme='')
-        self.assertEqual(str(shareURL.child('a')), '/a')
-        self.assertEqual(str(shareURL.child('a').child('b')), '/a/b')
+        self.assertEqual(self.webStringifyURL(shareURL.child('a')), '/a')
+        self.assertEqual(self.webStringifyURL(shareURL.child('a').child('b')), '/a/b')
 
 
     def test_shareURLNoClassmethodConstructors(self):
@@ -162,9 +177,9 @@ class WebSharingTestCase(TestCase):
         share = sharing.getShare(
             self.s, sharing.getEveryoneRole(self.s), u'share-id')
         url = websharing.linkTo(share)
-        self.assertEqual(str(url), '/users/right/')
+        self.assertEqual(self.webStringifyURL(url), '/users/right/')
         # and if we call child()
-        self.assertEqual(str(url.child('child')), '/users/right/share-id/child')
+        self.assertEqual(self.webStringifyURL(url.child('child')), '/users/right/share-id/child')
 
 
     def test_defaultShareIDInteractionNoMatch(self):
@@ -178,7 +193,22 @@ class WebSharingTestCase(TestCase):
         share = sharing.getShare(
             self.s, sharing.getEveryoneRole(self.s), u'not-the-share-id')
         url = websharing.linkTo(share)
-        self.assertEqual(str(url), '/users/right/not-the-share-id')
+        self.assertEqual(self.webStringifyURL(url), '/users/right/not-the-share-id')
+
+
+    def test_noRequestAvailable(self):
+        """
+        Verify that L{websharing.linkTo} will discover an appropriate hostname,
+        port number, and scheme from the L{WebSite} installed on the site.
+        """
+        siteStore = Store()
+        self.s.parent = siteStore
+        ws = WebSite(store=siteStore)
+        # install a TCP port, make sure that we get back the expected netloc
+        TCPPort(store=siteStore, factory=ws)
+        # what happens if we don't have any TCP ports?  (Do we care?  that
+        # means that the server doesn't have a web site accessible, which means
+        # it is going to be damn hard to reproduce for real.)
 
 
 
@@ -313,7 +343,7 @@ registerAdapter(ShareableView, IShareable,
                 ixmantissa.INavigableFragment)
 
 
-class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
+class UserIndexPageTestCase(_UserIdentificationMixin, _StringifyMixin, TestCase):
     """
     Tests for L{xmantissa.websharing.UserIndexPage}
     """
@@ -387,7 +417,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         localpart of the account's internal L{axiom.userbase.LoginMethod}
         """
         websharing.addDefaultShareID(self.userStore, u'ashare', 0)
-        pathString = str(websharing.linkTo(self.share))
+        pathString = self.webStringifyURL(websharing.linkTo(self.share))
         self.assertEquals(pathString[0], "/") # sanity check
         segments = tuple(pathString[1:].split("/"))
         self._verifySegmentsMatch(segments)
