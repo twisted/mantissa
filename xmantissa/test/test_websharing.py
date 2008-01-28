@@ -7,7 +7,7 @@ from twisted.python.components import registerAdapter
 
 from twisted.trial.unittest import TestCase
 
-from nevow import inevow, rend, url
+from nevow import inevow, rend, url, context
 from nevow.flat.ten import flatten
 from nevow.context import WovenContext
 from nevow.athena import LiveElement
@@ -23,6 +23,7 @@ from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa import (websharing, sharing, signup, offering, product,
                        ixmantissa, website)
+from xmantissa.port import TCPPort
 
 
 class _StringifyMixin:
@@ -35,7 +36,10 @@ class _StringifyMixin:
         Flatten the given URL object into a L{str} as if it were being rendered
         on a web page.
         """
-        return flatten(urlObject)
+        wc = context.WovenContext()
+        fakeRequest = FakeRequest()
+        wc.remember(fakeRequest, inevow.IRequest)
+        return flatten(urlObject, wc)
 
 
 
@@ -86,6 +90,15 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         acct.addLoginMethod(
             u'wrong', u'host', internal=False, verified=False)
         self.share = sharing.shareItem(self.ls, shareID=u'loginsystem')
+        # XXX I might need to do something about this because the addAccount
+        # breaks if it happens at the wrong time
+        siteStore = Store()
+        self.s.parent = siteStore
+        self.webSite = website.WebSite(store=siteStore,
+                                       hostname=u"sharing.linkto.example.com")
+        # install a TCP port, make sure that we get back the expected netloc
+        TCPPort(store=siteStore, factory=self.webSite, portNumber=8123)
+
 
 
     def test_linkToShare(self):
@@ -122,11 +135,13 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         constructor is passed when C{child} is called.
         """
         for (shareID, urlID) in [(u'a', 'a'), (u'\xe9', '%C3%A9')]:
-            shareURL = websharing._ShareURL(shareID, netloc='', scheme='')
-            self.assertEqual(self.webStringifyURL(shareURL.child('c')), '/%s/c' % urlID)
+            shareURL = websharing._ShareURL(shareID, self.webSite, netloc='', scheme='')
+            self.assertEqual(self.webStringifyURL(shareURL.child('c')),
+                             '/%s/c' % urlID)
             # make sure subsequent child calls on the original have the same
             # behaviour
-            self.assertEqual(self.webStringifyURL(shareURL.child('d')), '/%s/d' % urlID)
+            self.assertEqual(self.webStringifyURL(shareURL.child('d')),
+                             '/%s/d' % urlID)
             # and that child calls on the returned urls don't (i.e. not
             # '/a/c/a/d'
             self.assertEqual(self.webStringifyURL(shareURL.child('c').child('d')),
@@ -138,9 +153,11 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         Test that L{xmantissa.websharing._ShareURL} behaves like a regular
         L{nevow.url.URL} when no store ID is passed.
         """
-        shareURL = websharing._ShareURL(None, netloc='', scheme='')
-        self.assertEqual(self.webStringifyURL(shareURL.child('a')), '/a')
-        self.assertEqual(self.webStringifyURL(shareURL.child('a').child('b')), '/a/b')
+        shareURL = websharing._ShareURL(None, self.webSite, netloc='', scheme='')
+        self.assertEqual(
+            self.webStringifyURL(shareURL.child('a')), '/a')
+        self.assertEqual(
+            self.webStringifyURL(shareURL.child('a').child('b')), '/a/b')
 
 
     def test_shareURLNoClassmethodConstructors(self):
@@ -162,7 +179,7 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         Test that L{xmantissa.websharing._ShareURL} can be cloned, and that
         clones will remember the share ID.
         """
-        shareURL = websharing._ShareURL(u'a', netloc='', scheme='')
+        shareURL = websharing._ShareURL(u'a', None, netloc='', scheme='')
         shareURL = shareURL.cloneURL('', '', None, None, '')
         self.assertEqual(shareURL._shareID, u'a')
 
@@ -179,7 +196,8 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         url = websharing.linkTo(share)
         self.assertEqual(self.webStringifyURL(url), '/users/right/')
         # and if we call child()
-        self.assertEqual(self.webStringifyURL(url.child('child')), '/users/right/share-id/child')
+        self.assertEqual(self.webStringifyURL(url.child('child')),
+                         '/users/right/share-id/child')
 
 
     def test_defaultShareIDInteractionNoMatch(self):
@@ -201,14 +219,17 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         Verify that L{websharing.linkTo} will discover an appropriate hostname,
         port number, and scheme from the L{WebSite} installed on the site.
         """
-        siteStore = Store()
-        self.s.parent = siteStore
-        ws = WebSite(store=siteStore)
-        # install a TCP port, make sure that we get back the expected netloc
-        TCPPort(store=siteStore, factory=ws)
         # what happens if we don't have any TCP ports?  (Do we care?  that
         # means that the server doesn't have a web site accessible, which means
         # it is going to be damn hard to reproduce for real.)
+        url = websharing.linkTo(self.share)
+        # Render it without a hostname.  Note: there is an issue here, which is
+        # that if 'flatten' is invoked without an argument, it will still give
+        # a relative URI with an absolute path.  Maybe that's not what we want.
+        result = flatten(url, WovenContext())
+        self.assertEqual(
+            result,
+            "http://sharing.linkto.example.com:8123/users/right/loginsystem")
 
 
 
@@ -362,7 +383,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, _StringifyMixin, TestCase)
                                    magicValue=self.magicValue)
         self.share = sharing.shareItem(
             self.shareable, shareID=u'ashare')
-        self.website = website.WebSite(store=self.siteStore)
+        self.website = self.siteStore.findUnique(website.WebSite)
 
 
     def test_locateChild(self):

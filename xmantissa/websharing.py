@@ -17,6 +17,7 @@ from axiom.item import Item
 from axiom.attributes import text, integer
 
 from nevow import inevow, url, rend
+from nevow.flat.ten import registerFlattener
 
 from xmantissa import ixmantissa
 from xmantissa import sharing
@@ -77,12 +78,17 @@ class _ShareURL(url.URL):
     An L{url.URL} subclass which inserts share ID as a path segment in the URL
     just before the first call to L{child} modifies it.
     """
-    def __init__(self, shareID, *a, **k):
+    def __init__(self, shareID, webSite, *a, **k):
         """
         @param shareID: The ID of the share we are generating a URL for.
         @type shareID: C{unicode}.
+
+        @param webSite: an object representing a running website's
+        configuration, from the site store.
+        @type webSite: L{xmantissa.website.WebSite}
         """
         self._shareID = shareID
+        self._webSite = webSite
         url.URL.__init__(self, *a, **k)
 
 
@@ -103,7 +109,21 @@ class _ShareURL(url.URL):
         constructor was passed.
         """
         return self.__class__(
-            self._shareID, scheme, netloc, pathsegs, querysegs, fragment)
+            self._shareID, self._webSite,
+            scheme, netloc, pathsegs, querysegs, fragment)
+
+
+    def _updateNetloc(self):
+        """
+        Update the 'netloc' attribute of this L{_ShareURL} based on its
+        associated L{WebSite}.
+        """
+        # XXX wrong because:
+        #   * ignores HTTPS, SSL port
+        rootURL = (self._webSite.cleartextRoot(self._webSite.hostname))
+        # self._webSite.encryptedRoot(self._webSite.hostname) or
+        self.netloc = rootURL.netloc
+        self.scheme = rootURL.scheme
 
 
     # there is no point providing an implementation of any these methods which
@@ -143,6 +163,35 @@ class _ShareURL(url.URL):
     fromContext = classmethod(fromContext)
 
 
+def _flattenShareURL(shareURL, context):
+    """
+    Flatten a L{_ShareURL}, updating its netloc if the context implies that one
+    is not to be had.
+    """
+    req = inevow.IRequest(context, None)
+    if req is None:
+        shareURL._updateNetloc()
+    return url.URLSerializer(shareURL, context)
+
+
+registerFlattener(_flattenShareURL, _ShareURL)
+
+
+
+def _websiteFromUserStore(userStore):
+    """
+    Based on a user store, locate a L{WebSite} object that represents the site
+    configuration.
+
+    What do I do when the website isn't around?  Crap!  What do I do when the
+    user store is actually a site store?  Crap!
+    """
+    # local import because of websharing->publicweb->website->websharing
+    # circularity
+    from xmantissa.website import WebSite
+    return userStore.parent.findUnique(WebSite)
+
+
 
 def linkTo(sharedProxyOrItem):
     """
@@ -160,6 +209,7 @@ def linkTo(sharedProxyOrItem):
         userStore = sharing.itemFromProxy(sharedProxyOrItem).store
     else:
         userStore = sharedProxyOrItem.store
+    webSite =_websiteFromUserStore(userStore)
     for lm in userbase.getLoginMethods(userStore):
         if lm.internal:
             path = ['users', lm.localpart.encode('ascii')]
@@ -169,7 +219,8 @@ def linkTo(sharedProxyOrItem):
             else:
                 shareID = None
                 path.append(sharedProxyOrItem.shareID)
-            return _ShareURL(shareID, scheme='', netloc='', pathsegs=path)
+            return _ShareURL(shareID, webSite,
+                             scheme='', netloc='', pathsegs=path)
 
 
 
