@@ -22,6 +22,8 @@ from nevow.flat.ten import registerFlattener
 from xmantissa import ixmantissa
 from xmantissa import sharing
 
+
+
 class _DefaultShareID(Item):
     """
     Item which holds a default share ID for a user's store.  Default share IDs
@@ -36,7 +38,6 @@ class _DefaultShareID(Item):
     priority = integer(doc="""
     The priority of this default.  Higher means more important.
     """)
-
 
 
 
@@ -118,10 +119,8 @@ class _ShareURL(url.URL):
         Update the 'netloc' attribute of this L{_ShareURL} based on its
         associated L{WebSite}.
         """
-        # XXX wrong because:
-        #   * ignores HTTPS, SSL port
-        rootURL = (self._webSite.cleartextRoot(self._webSite.hostname))
-        # self._webSite.encryptedRoot(self._webSite.hostname) or
+        rootURL = (self._webSite.encryptedRoot(self._webSite.hostname) or
+                   self._webSite.cleartextRoot(self._webSite.hostname))
         self.netloc = rootURL.netloc
         self.scheme = rootURL.scheme
 
@@ -163,6 +162,7 @@ class _ShareURL(url.URL):
     fromContext = classmethod(fromContext)
 
 
+
 def _flattenShareURL(shareURL, context):
     """
     Flatten a L{_ShareURL}, updating its netloc if the context implies that one
@@ -172,8 +172,6 @@ def _flattenShareURL(shareURL, context):
     if req is None:
         shareURL._updateNetloc()
     return url.URLSerializer(shareURL, context)
-
-
 registerFlattener(_flattenShareURL, _ShareURL)
 
 
@@ -193,14 +191,20 @@ def _websiteFromUserStore(userStore):
 
 
 
-def linkTo(sharedProxyOrItem):
+def linkTo(sharedProxyOrItem, absolute=False):
     """
     Generate the path part of a URL to link to a share item or its proxy.
 
     @param sharedProxy: a L{sharing.SharedProxy} or L{sharing.Share}
 
+    @param absolute: an indicator as to whether the resulting URL object should
+    be unconditionally absolute.  This is useful if, for example, you want to
+    present an URL for copying and pasting.  Note that in some circumstances
+    the returned URL may be absolute anyway.
+
     @return: a URL object, which when converted to a string will look
     something like '/users/user@host/shareID'
+
     @rtype: L{nevow.url.URL}
 
     @rtype: str
@@ -219,8 +223,11 @@ def linkTo(sharedProxyOrItem):
             else:
                 shareID = None
                 path.append(sharedProxyOrItem.shareID)
-            return _ShareURL(shareID, webSite,
-                             scheme='', netloc='', pathsegs=path)
+            url = _ShareURL(shareID, webSite,
+                            scheme='', netloc='', pathsegs=path)
+            if absolute:
+                url._updateNetloc()
+            return url
 
 
 

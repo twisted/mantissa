@@ -23,7 +23,7 @@ from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa import (websharing, sharing, signup, offering, product,
                        ixmantissa, website)
-from xmantissa.port import TCPPort
+from xmantissa.port import TCPPort, SSLPort
 
 
 class _StringifyMixin:
@@ -217,7 +217,8 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
     def test_noRequestAvailable(self):
         """
         Verify that L{websharing.linkTo} will discover an appropriate hostname,
-        port number, and scheme from the L{WebSite} installed on the site.
+        port number, and scheme from the L{WebSite} installed on the site when
+        its context does not include an IRequest.
         """
         # what happens if we don't have any TCP ports?  (Do we care?  that
         # means that the server doesn't have a web site accessible, which means
@@ -230,6 +231,33 @@ class WebSharingTestCase(TestCase, _StringifyMixin):
         self.assertEqual(
             result,
             "http://sharing.linkto.example.com:8123/users/right/loginsystem")
+
+
+    def test_explicitlyAbsolute(self):
+        """
+        Verify that L{websharing.linkTo} will discover an appropriate hostname,
+        portnumber, and scheme from the L{WebSite} installed on the site when
+        its 'absolute' parameter is set to True.
+        """
+        url = websharing.linkTo(self.share, absolute=True)
+        result = self.webStringifyURL(url)
+        self.assertEqual(
+            result,
+            "http://sharing.linkto.example.com:8123/users/right/loginsystem")
+
+
+    def test_absoluteHTTPS(self):
+        """
+        Verify that L{websharing.linkTo} will properly generate an HTTPS URL if
+        an HTTPS port is available.
+        """
+        port = SSLPort(store=self.webSite.store, factory=self.webSite,
+                       portNumber=8443)
+        url = websharing.linkTo(self.share, absolute=True)
+        result = self.webStringifyURL(url)
+        self.assertEqual(
+            result,
+            "https://sharing.linkto.example.com:8443/users/right/loginsystem")
 
 
 
