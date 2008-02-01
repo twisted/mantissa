@@ -750,6 +750,17 @@ class WebSite(Item, SiteRootMixin):
         self.site = None
 
 
+    def _hostname(self):
+        """
+        Determine the canonical hostname of this site.  Use the configured name
+        if there is one, otherwise make up a default which might make sense
+        based on the system's hostname.
+        """
+        if self.hostname is None:
+            return socket.getfqdn()
+        return self.hostname.encode('ascii')
+
+
     def _root(self, scheme, hostname, portObj, standardPort):
         # TODO - real unicode support (but punycode is so bad)
         if portObj is None:
@@ -759,10 +770,7 @@ class WebSite(Item, SiteRootMixin):
         port = portObj.listeningPort
 
         if hostname is None:
-            if self.hostname is None:
-                hostname = socket.getfqdn()
-            else:
-                hostname = self.hostname.encode('ascii')
+            hostname = self._hostname()
         else:
             hostname = hostname.split(':')[0].encode('ascii')
 
@@ -846,10 +854,7 @@ class WebSite(Item, SiteRootMixin):
         @return: The location at which the root of the resource hierarchy for
             this website is available.
         """
-        if self.hostname:
-            siteHostname = self.hostname
-        else:
-            siteHostname = socket.getfqdn()
+        siteHostname = self._hostname()
         host = request.getHeader('host') or siteHostname
         if ':' in host:
             host = host.split(':', 1)[0]
@@ -928,11 +933,10 @@ class WebSite(Item, SiteRootMixin):
                     'you need to install a userbase before using this service.')
             guardedRoot = websession.PersistentSessionWrapper(
                 self.store,
-                Portal(realm, [chkr, AllowAnonymousAccess()]))
-            self.site = AxiomSite(
-                self.store,
-                UnguardedWrapper(self.store, guardedRoot),
-                logPath=self.httpLog)
+                Portal(realm, [chkr, AllowAnonymousAccess()]),
+                domains=[self._hostname()])
+            unguardedRoot = UnguardedWrapper(self.store, guardedRoot)
+            self.site = AxiomSite(self.store, unguardedRoot, logPath=self.httpLog)
             if self.debug:
                 self.site = policies.TrafficLoggingFactory(self.site, 'http')
         return self.site

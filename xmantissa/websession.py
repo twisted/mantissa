@@ -148,6 +148,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         transientSessionLifetime=TRANSIENT_SESSION_LIFETIME,
         persistentSessionLifetime=PERSISTENT_SESSION_LIFETIME,
         sessionCleanFrequency=SESSION_CLEAN_FREQUENCY,
+        enableSubdomains=False,
+        domains=(),
         **kw):
         """Initialize the PersistentSessionWrapper
         """
@@ -158,6 +160,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         self.sessionLifetime = transientSessionLifetime
         self.persistentSessionLifetime = persistentSessionLifetime
         self.sessionCleanFrequency = sessionCleanFrequency
+        self._enableSubdomains = enableSubdomains
+        self._domains = domains
 
 
     def createSessionForKey(self, key, user):
@@ -181,10 +185,55 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         # if the session doesn't exist, we ignore that fact here.
 
 
+    def cookieDomainForRequest(self, request):
+        """
+        Pick a domain to use when setting cookies.
+        """
+        host = request.getHeader('host').split(':')[0]
+        for domain in self._domains:
+            suffix = "." + domain
+            if host == domain:
+                # The request is for a domain which is directly recognized.
+                if self._enableSubdomains:
+                    # Subdomains are enabled, so the suffix is returned to
+                    # enable the cookie for this domain and all its subdomains.
+                    return suffix
+
+                # Subdomains are not enabled, so None is returned to allow the
+                # default restriction, which will enable this cookie only for
+                # the domain in the request, to apply.
+                return None
+
+            if self._enableSubdomains and host.endswith(suffix):
+                # The request is for a subdomain of a directly recognized
+                # domain and subdomains are enabled.  Drop the unrecognized
+                # subdomain portion and return the suffix to enable the cookie
+                # for this domain and all its subdomains.
+                return suffix
+
+        if self._enableSubdomains:
+            # No directly recognized domain matched the request.  If subdomains
+            # are enabled, prefix the request domain with "." to make the
+            # cookie valid for that domain and all its subdomains.  This
+            # probably isn't extremely useful.  Perhaps it shouldn't work this
+            # way.
+            return "." + host
+
+        # Subdomains are disabled and the domain from the request was not
+        # recognized.  Return None to get the default behavior.
+        return None
+
+
     def savorSessionCookie(self, request):
-        """Make the session cookie last as long as the persistant session."""
+        """
+        Make the session cookie last as long as the persistant session.
+
+        @param request: The HTTP request object for the guard login URL.
+        """
         cookieValue = request.getSession().uid
-        request.addCookie(self.cookieKey, cookieValue, path='/', max_age=PERSISTENT_SESSION_LIFETIME)
+        request.addCookie(
+            self.cookieKey, cookieValue, path='/', max_age=PERSISTENT_SESSION_LIFETIME,
+            domain=self.cookieDomainForRequest(request))
 
 
     def login(self, request, session, creds, segments):
@@ -200,7 +249,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                 creds = userbase.Preauthenticated(preauth)
 
         def cbLoginSuccess(input):
-            """User authenticated successfully.
+            """
+            User authenticated successfully.
 
             Create the persistent session, and associate it with the
             username. (XXX it doesn't work like this now)
