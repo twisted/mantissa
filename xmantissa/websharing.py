@@ -286,10 +286,14 @@ class SharingIndex(object):
         @rtype: L{xmantissa.publicweb.PublicAthenaLivePage}
         """
         fragment = ixmantissa.INavigableFragment(sharedItem)
-        # If you're shared, you MUST implement customizeFor (maybe this should
-        # be a different interface? ugh.
-        fragment = fragment.customizeFor(self.avatarName)
-        if fragment.fragmentName is not None:
+
+        # The ways in which views are customized for viewers are manifold. 
+        # It would be ideal if there were only one place which handled
+        # customization. See #2047.
+        customizeFor = getattr(fragment, 'customizeFor', None)
+        if customizeFor is not None:
+            fragment = customizeFor(self.avatarName)
+        if getattr(fragment, 'fragmentName', None) is not None:
             fragDocFactory = ixmantissa.IWebTranslator(
                 self.userStore).getDocFactory(fragment.fragmentName, None)
             if fragDocFactory is not None:

@@ -10,9 +10,8 @@ from warnings import warn
 from zope.interface import implements
 
 from twisted.internet import defer
-from twisted.python import util
 
-from nevow import rend, tags, inevow, static
+from nevow import rend, tags, inevow
 from nevow.inevow import IRequest, IResource
 from nevow.url import URL
 
@@ -23,11 +22,17 @@ from xmantissa.webtheme import ThemedDocumentFactory, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
 from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
 
-# Certain people are importing getLoader from here.  That is bad.  Please do
-# not do that.  Thank you.
-from xmantissa.webtheme import getLoader
-# Also, let's suppress the pyflakes warning; we're doing this on purpose.
-getLoader
+
+def getLoader(*a, **kw):
+    """
+    Deprecated.  Don't use this.
+    """
+    warn("xmantissa.publicweb.getLoader is deprecated, use "
+         "PrivateApplication.getDocFactory or SiteTemplateResolver."
+         "getDocFactory.", category=DeprecationWarning, stacklevel=2)
+    from xmantissa.webtheme import getLoader
+    return getLoader(*a, **kw)
+
 
 
 def renderShortUsername(ctx, username):
@@ -201,6 +206,10 @@ class _CustomizingResource(object):
     """
     implements(inevow.IResource)
 
+    def __repr__(self):
+        return '<Customizing Resource %r: %r>' % (self.forWho, self.currentResource)
+
+
     def __init__(self, topResource, forWho):
         """
         Create a _CustomizingResource.
@@ -215,13 +224,13 @@ class _CustomizingResource(object):
         self.forWho = forWho
 
 
-    def locateChild(self, ctx, path):
+    def locateChild(self, ctx, segments):
         """
         Return a Deferred which will fire with the customized version of the
         resource being located.
         """
         D = defer.maybeDeferred(
-            self.currentResource.locateChild, ctx, path)
+            self.currentResource.locateChild, ctx, segments)
 
         def finishLocating((nextRes, nextPath)):
             custom = ixmantissa.ICustomizable(nextRes, None)
@@ -336,12 +345,12 @@ class PublicPageMixin(object):
         exists and the page demands it.
         """
         req = inevow.IRequest(ctx)
-        securePort = self._webSite().securePort
-        if self.needsSecure and not req.isSecure() and securePort is not None:
-            return URL.fromContext(
-                ctx).secure(port=securePort.getHost().port)
-        else:
-            return super(PublicPageMixin, self).renderHTTP(ctx)
+        if self.needsSecure and not req.isSecure():
+            securePort = self._webSite().securePort
+            if securePort is not None:
+                return URL.fromContext(
+                    ctx).secure(port=securePort.getHost().port)
+        return super(PublicPageMixin, self).renderHTTP(ctx)
 
 
     def _getViewerPrivateApplication(self):
@@ -715,15 +724,13 @@ class PublicFrontPage(PublicPage):
 
     def renderHTTP(self, ctx):
         """
-        If viewed by a logged in user, redirect them to their application at
-        /private.  Otherwise, view the public index page.
+        Increment a view counter and fall back to the base behavior.
         """
         if self.username:
-            self.original.publicViews += 1
-            return URL.fromContext(ctx).click('/').child('private')
-        else:
             self.original.privateViews += 1
-            return PublicPage.renderHTTP(self, ctx)
+        else:
+            self.original.publicViews += 1
+        return PublicPage.renderHTTP(self, ctx)
 
 
 
@@ -844,17 +851,15 @@ class FrontPage(item.Item, website.PrefixURLMixin):
 
     publicViews = attributes.integer(
         doc="""
-        The number of times this object has been viewed in a public
-        (non-authenticated) context.  This includes renderings of the front
-        page only.
+        The number of times this object has been viewed anonymously.  This
+        includes renderings of the front page only.
         """,
         default=0)
 
     privateViews = attributes.integer(
         doc="""
-        The number of times this object has been viewed in a private
-        (authenticated) context.  This only counts the number of times users
-        have been redirected from "/" to "/private".
+        The number of times this object has been viewed non-anonymously.  This
+        includes renderings of the front page only.
         """,
         default=0)
 

@@ -255,7 +255,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
             Create the persistent session, and associate it with the
             username. (XXX it doesn't work like this now)
             """
-
             user = request.args.get('username')
             if user is not None:
                 # create a database session and associate it with this user

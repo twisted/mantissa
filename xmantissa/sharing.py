@@ -357,7 +357,7 @@ class SharedProxy(object):
                 if iface in rself._adapterCache:
                     return getattr(rself._adapterCache[iface], name)
                 return getattr(rself._sharedItem, name)
-        raise AttributeError(name)
+        raise AttributeError("%r has no attribute %r" % (self, name))
 
 
     def __setattr__(self, name, value):

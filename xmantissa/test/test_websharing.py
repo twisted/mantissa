@@ -474,6 +474,22 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         self.assertEqual(res.fragment.customizedFor, u'bill@net')
 
 
+    def test_uncustomizableSharedFragment(self):
+        """
+        L{websharing.SharingIndex._makeShareResource} does not customize
+        fragments which do not support customization.
+        """
+        class UncustomizableFragment(object):
+            pass
+
+        fragment = UncustomizableFragment()
+        self.shareable.inMemoryPowerUp(fragment, ixmantissa.INavigableFragment)
+
+        sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
+        page = sharingIndex._makeShareResource(self.shareable)
+        self.assertIdentical(page.fragment, fragment)
+
+
     def test_jsModuleURLs(self):
         """
         Public pages should use the same JS module URL structure that private
@@ -562,6 +578,22 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         res = sharingIndex._makeShareResource(self.shareable)
         self.assertIdentical(res.fragment.docFactory, None)
 
+
+    def test_shareFragmentNoFragmentName(self):
+        """
+        L{websharing.SharingIndex._makeShareResource} does not set a
+        C{docFactory} attribute on the share's fragment if the fragment has no
+        C{fragmentName} attribute.
+        """
+        expectedDocFactory = object()
+        class FragmentWithoutName(object):
+            docFactory = expectedDocFactory
+
+        fragment = FragmentWithoutName()
+        self.shareable.inMemoryPowerUp(fragment, ixmantissa.INavigableFragment)
+        sharingIndex = websharing.SharingIndex(self.userStore, None)
+        page = sharingIndex._makeShareResource(self.shareable)
+        self.assertIdentical(page.fragment.docFactory, expectedDocFactory)
 
 
 

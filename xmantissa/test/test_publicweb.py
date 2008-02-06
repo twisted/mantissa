@@ -15,6 +15,7 @@ from nevow import rend, context, inevow
 from nevow.flat import flatten
 from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
+from nevow.loaders import stan
 
 from xmantissa.ixmantissa import (
     IPublicPage, ITemplateNameResolver, INavigableElement)
@@ -26,7 +27,7 @@ from xmantissa.webnav import Tab
 from xmantissa.offering import Offering, InstalledOffering
 from xmantissa.publicweb import (
     FrontPage, PublicAthenaLivePage, PublicNavAthenaLivePage,
-    _OfferingsFragment)
+    _OfferingsFragment, PublicFrontPage, getLoader)
 from xmantissa import publicweb
 from xmantissa.signup import PasswordResetResource
 
@@ -199,6 +200,52 @@ class _OfferingsFragmentTestCase(TestCase):
             list(fragment.data_offerings(None, None)),
             [{'name': firstOffering.name}])
 
+
+
+class PublicFrontPageTests(TestCase):
+    """
+    Tests for L{PublicFrontPage}.
+    """
+    def test_anonymousRenderHTTP(self):
+        """
+        Without a username, L{PublicFrontPage.renderHTTP} increments the
+        wrapped L{FrontPage}'s public view counter and invokes the base
+        I{renderHTTP} implementation.
+        """
+        store = Store()
+        frontPage = FrontPage(store=store)
+        resource = PublicFrontPage(frontPage, None)
+        resource.docFactory = stan('document')
+        request = FakeRequest()
+        ctx = context.WebContext()
+        ctx.remember(request, inevow.IRequest)
+        result = resource.renderHTTP(ctx)
+        def rendered(ignored):
+            self.assertEqual(request.accumulator, 'document')
+            self.assertEqual(frontPage.publicViews, 1)
+        result.addCallback(rendered)
+        return result
+
+
+    def test_authenticatedRenderHTTP(self):
+        """
+        With a username, L{PublicFrontPage.renderHTTP} increments the wrapped
+        L{FrontPage}'s private view counter and invokes the base I{renderHTTP}
+        implementation.
+        """
+        store = Store()
+        frontPage = FrontPage(store=store)
+        resource = PublicFrontPage(frontPage, None, u'alice@example.org')
+        resource.docFactory = stan('document')
+        request = FakeRequest()
+        ctx = context.WebContext()
+        ctx.remember(request, inevow.IRequest)
+        result = resource.renderHTTP(ctx)
+        def rendered(ignored):
+            self.assertEqual(request.accumulator, 'document')
+            self.assertEqual(frontPage.privateViews, 1)
+        result.addCallback(rendered)
+        return result
 
 
 class AuthenticatedNavigationTestMixin:
@@ -603,3 +650,22 @@ class PublicNavAthenaLivePageTestCase(_PublicAthenaLivePageTestMixin, TestCase):
     def createPage(self, forUser):
         return PublicNavAthenaLivePage(
             self.siteStore, TestFragment(), forUser=forUser)
+
+
+
+class GetLoaderTests(TestCase):
+    """
+    Tests for L{xmantissa.publicweb.getLoader}.
+    """
+    def test_deprecated(self):
+        """
+        Calling L{getLoader} emits a deprecation warning.
+        """
+        self.assertWarns(
+            DeprecationWarning,
+            "xmantissa.publicweb.getLoader is deprecated, use "
+            "PrivateApplication.getDocFactory or SiteTemplateResolver."
+            "getDocFactory.",
+            __file__,
+            lambda: getLoader("shell"))
+

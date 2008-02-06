@@ -1,5 +1,12 @@
 
+"""
+Tests for L{xmantissa.website.WebSite}'s discovery of L{ISiteRootPlugin}
+powerups.
+"""
+
 from twisted.trial import unittest
+
+from nevow.testutil import FakeRequest
 
 from axiom.store import Store
 from axiom.item import Item
@@ -11,9 +18,12 @@ from xmantissa.ixmantissa import ISiteRootPlugin
 
 from zope.interface import implements
 
+
 class Dummy:
     def __init__(self, pfx):
         self.pfx = pfx
+
+
 
 class PrefixTester(Item, PrefixURLMixin):
 
@@ -35,22 +45,26 @@ class PrefixTester(Item, PrefixURLMixin):
         for iface, priority in self.__getPowerupInterfaces__([]):
             self.store.powerUp(self, iface, priority)
 
+
+
 class SiteRootTest(unittest.TestCase):
-    def testPrefixPriorityMath(self):
-        s = Store()
+    def test_prefixPriorityMath(self):
+        """
+        L{WebSite.locateChild} returns the most specific L{ISiteRootPlugin}
+        based on I{prefixURL} and the request path segments.
+        """
+        store = Store()
 
-        PrefixTester(store=s,
-                     prefixURL=u"hello").installSite()
+        PrefixTester(store=store, prefixURL=u"hello").installSite()
+        PrefixTester(store=store, prefixURL=u"").installSite()
 
-        PrefixTester(store=s,
-                     prefixURL=u"").installSite()
+        website = WebSite(store=store)
+        installOn(website, store)
 
-        ws = WebSite(store=s)
-        installOn(ws, s)
-        res, segs = ws.locateChild(None, ('hello',))
+        res, segs = website.locateChild(FakeRequest(), ('hello',))
         self.assertEquals(res.pfx, 'hello')
         self.assertEquals(segs, ())
 
-        res, segs = ws.locateChild(None, ('',))
+        res, segs = website.locateChild(FakeRequest(), ('',))
         self.assertEquals(res.pfx, '')
         self.assertEquals(segs, ('',))
