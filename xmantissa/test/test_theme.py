@@ -12,7 +12,7 @@ from nevow.loaders import stan, xmlstr
 from nevow.tags import (
     html, head, body, img, script, link, invisible, directive)
 from nevow.context import WovenContext
-from nevow.testutil import FakeRequest, AccumulatingFakeRequest as makeRequest
+from nevow.testutil import FakeRequest
 from nevow.flat import flatten
 from nevow.inevow import IRequest
 from nevow.page import renderer
@@ -39,6 +39,7 @@ from xmantissa.publicweb import PublicAthenaLivePage
 from xmantissa.webapp import GenericNavigationAthenaPage, _PageComponents
 
 from xmantissa.test.test_offering import FakeOfferingTechnician
+from xmantissa.test.validation import XHTMLDirectoryThemeTestsMixin
 
 
 class ThemedDocumentFactoryTests(TestCase):
@@ -66,20 +67,6 @@ class ThemedDocumentFactoryTests(TestCase):
             docFactory = ThemedDocumentFactory(fragmentName, 'StubResolver')
         self.assertIdentical(Dummy().docFactory, _docFactory)
         self.assertEqual(loadAttempts, [fragmentName])
-
-
-
-def testHead(theme):
-    """
-    Check that the head method of the given theme doesn't explode.
-    @param theme: probably an L{xmantissa.webtheme.XHTMLDirectoryTheme}
-    """
-    store = Store()
-    site = WebSite(store=store)
-    installOn(site, store)
-    port = TCPPort(store=store, portNumber=80, factory=site)
-    installOn(port, store)
-    flatten(theme.head(makeRequest(), site))
 
 
 
@@ -369,8 +356,14 @@ class WebThemeTestCase(TestCase):
         return d
 
 
-    def test_head(self):
-        testHead(MantissaTheme(''))
+
+class MantissaThemeTests(XHTMLDirectoryThemeTestsMixin, TestCase):
+    """
+    Stock L{XHTMLDirectoryTheme} tests applied to L{baseOffering} and its
+    theme.
+    """
+    offering = baseOffering
+    theme = offering.themes[0]
 
 
 
