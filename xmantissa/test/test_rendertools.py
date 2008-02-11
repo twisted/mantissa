@@ -19,21 +19,25 @@ class LivePageRendererTestCase(TestCase):
     """
 
     message = 'Hello, world.'
-    docFactory = stan(p(render=directive('liveElement'))[message])
+
+    def docFactory(self, renderer, message):
+        return stan(p(render=directive(renderer))[message])
 
     def testRenderLiveFragment(self):
         """
         Test that L{render} spits out the right thing for a L{LiveFragment}.
         """
+        docFactory = self.docFactory('liveFragment', self.message)
         self.assertIn(
             self.message,
-            renderLiveFragment(LiveFragment(docFactory=self.docFactory)))
+            renderLiveFragment(LiveFragment(docFactory=docFactory)))
 
 
     def testRenderLiveElement(self):
         """
         Test that L{render} spits out the right thing for a L{LiveElement}.
         """
+        docFactory = self.docFactory('liveElement', self.message)
         self.assertIn(
             self.message,
-            renderLiveFragment(LiveElement(docFactory=self.docFactory)))
+            renderLiveFragment(LiveElement(docFactory=docFactory)))
