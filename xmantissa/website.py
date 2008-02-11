@@ -1,14 +1,12 @@
 # -*- test-case-name: xmantissa.test.test_website -*-
 
 """
-
 This module defines the basic engine for web sites and applications using
 Mantissa.  It defines the basic in-database web server, and an authentication
 binding using nevow.guard.
 
 To interact with the code defined here, create a web site using the
 command-line 'axiomatic' program using the 'web' subcommand.
-
 """
 
 import socket
