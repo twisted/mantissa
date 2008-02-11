@@ -430,6 +430,31 @@ class MugshotTestCase(unittest.TestCase):
         self._doMakeThumbnailTest(smaller=True)
 
 
+    def test_placeholderForPerson(self):
+        """
+        L{Mugshot.placeholderForPerson} should return a correctly-initialized
+        L{Mugshot} for the given person.
+        """
+        store = Store(self.mktemp())
+        organizer = Organizer(store=store)
+        installOn(organizer, store)
+        person = organizer.createPerson(u'Alice')
+
+        mugshot = Mugshot.placeholderForPerson(person)
+
+        self.assertTrue(isinstance(mugshot, Mugshot))
+        self.assertIdentical(mugshot.store, None)
+        self.assertIdentical(mugshot.person, person)
+        self.assertEqual(mugshot.type, u'image/jpeg')
+        imageDir = FilePath(people.__file__).parent().child(
+            'static').child('images')
+        self.assertEqual(
+            mugshot.body, imageDir.child('mugshot-placeholder.jpg'))
+        self.assertEqual(
+            mugshot.smallerBody,
+            imageDir.child('mugshot-placeholder-smaller.jpg'))
+
+
 
 class WhitespaceNormalizationTests(unittest.TestCase):
     """
@@ -1906,11 +1931,24 @@ class PeopleModelTestCase(unittest.TestCase):
 
     def test_noMugshot(self):
         """
-        L{Person.getMugshot} should return C{None} for a person with whom no
-        mugshot item is associated.
+        L{Person.getMugshot} should call L{Mugshot.placeholderForPerson} when
+        called on a L{Person} without a stored L{Mugshot}.
         """
+        people = []
+        thePlaceholder = object()
+        def placeholderForPerson(person):
+            people.append(person)
+            return thePlaceholder
         person = Person(store=self.store)
-        self.assertIdentical(person.getMugshot(), None)
+        originalPlaceholderForPerson = Mugshot.placeholderForPerson
+        try:
+            Mugshot.placeholderForPerson = staticmethod(
+                placeholderForPerson)
+            getMugshotResult = person.getMugshot()
+        finally:
+            Mugshot.placeholderForPerson = originalPlaceholderForPerson
+        self.assertIdentical(getMugshotResult, thePlaceholder)
+        self.assertEqual(people, [person])
 
 
     def test_getMugshot(self):
@@ -1921,7 +1959,7 @@ class PeopleModelTestCase(unittest.TestCase):
         store = Store(filesdir=self.mktemp())
         person = Person(store=store)
         image = Mugshot(
-            store=store, type=u"image/png",
+            store=store, type=u'image/png',
             body=store.filesdir.child('a'),
             smallerBody=store.filesdir.child('b'),
             person=person)
@@ -2672,51 +2710,19 @@ class PersonDetailFragmentTests(unittest.TestCase):
     def test_mugshotChild(self):
         """
         L{PersonDetailFragment}'s I{mugshot} child should return a
-        L{MugshotResource} wrapping the person's L{Mugshot} item.
+        L{MugshotResource} wrapping the result of calling
+        L{Person.getMugshot}.
         """
-        store = Store(filesdir=self.mktemp())
-        organizer = Organizer(store=store)
-        installOn(organizer, store)
-        person = organizer.createPerson(u'Alice')
-        mugshot = Mugshot(
-            store=store,
-            person=person,
-            type=u'image/png',
-            body=store.filesdir.child('a'),
-            smallerBody=store.filesdir.child('b'))
-        fragment = PersonDetailFragment(person)
+        theMugshot = object()
+        class StubMugshotPerson(StubPerson):
+            organizer = StubOrganizer()
+            def getMugshot(self):
+                return theMugshot
+        fragment = PersonDetailFragment(StubMugshotPerson([]))
         (res, segments) = fragment.locateChild(None, ('mugshot',))
         self.assertTrue(isinstance(res, MugshotResource))
-        self.assertIdentical(res.mugshot, mugshot)
+        self.assertIdentical(res.mugshot, theMugshot)
         self.assertEqual(segments, ())
-
-
-    def test_mugshotChildNoMugshot(self):
-        """
-        Similar to L{test_displayMugshot}, but for the case where the person
-        has no mugshot.  The returned L{MugshotResource} should wrap a
-        L{Mugshot} item with attributes pointing at the mugshot placeholder
-        images.
-        """
-        store = Store(self.mktemp())
-        organizer = Organizer(store=store)
-        installOn(organizer, store)
-        person = organizer.createPerson(u'Alice')
-        fragment = PersonDetailFragment(person)
-        (res, segments) = fragment.locateChild(None, ('mugshot',))
-        self.assertTrue(isinstance(res, MugshotResource))
-        mugshot = res.mugshot
-        self.assertTrue(isinstance(mugshot, Mugshot))
-        self.assertIdentical(mugshot.store, None)
-        self.assertIdentical(mugshot.person, person)
-        self.assertEqual(mugshot.type, u'image/png')
-        imageDir = FilePath(people.__file__).parent().child(
-            'static').child('images')
-        self.assertEqual(
-            mugshot.body, imageDir.child('mugshot-placeholder.png'))
-        self.assertEqual(
-            mugshot.smallerBody,
-            imageDir.child('smaller-mugshot-placeholder.png'))
 
 
 

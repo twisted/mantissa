@@ -494,11 +494,14 @@ class Person(item.Item):
 
     def getMugshot(self):
         """
-        Return the L{Mugshot} associated with this L{Person} or C{None} if
-        there isn't one.
+        Return the L{Mugshot} associated with this L{Person}, or an unstored
+        L{Mugshot} pointing at a placeholder mugshot image.
         """
-        return self.store.findUnique(
+        mugshot = self.store.findUnique(
             Mugshot, Mugshot.person == self, default=None)
+        if mugshot is not None:
+            return mugshot
+        return Mugshot.placeholderForPerson(self)
 
 
     def registerExtract(self, extract, timestamp=None):
@@ -2435,6 +2438,26 @@ class Mugshot(item.Item):
     makeThumbnail = classmethod(makeThumbnail)
 
 
+    def placeholderForPerson(cls, person):
+        """
+        Make an unstored, placeholder L{Mugshot} instance for the given
+        person.
+
+        @param person: A person without a L{Mugshot}.
+        @type person: L{Person}
+
+        @rtype: L{Mugshot}
+        """
+        imageDir = FilePath(__file__).parent().child(
+            'static').child('images')
+        return cls(
+            type=u'image/jpeg',
+            body=imageDir.child('mugshot-placeholder.jpg'),
+            smallerBody=imageDir.child(
+                'mugshot-placeholder-smaller.jpg'),
+            person=person)
+    placeholderForPerson = classmethod(placeholderForPerson)
+
 def mugshot1to2(old):
     """
     Upgrader for L{Mugshot} from version 1 to version 2, which sets the
@@ -2591,20 +2614,9 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
 
     def child_mugshot(self, ctx):
         """
-        Return the resource displaying this Person's mugshot picture, or a
-        placeholder mugshot.
+        Return a L{MugshotResource} displaying this L{Person}'s mugshot image.
         """
-        mugshot = self.person.getMugshot()
-        if mugshot is None:
-            imageDir = FilePath(__file__).parent().child(
-                'static').child('images')
-            mugshot = Mugshot(
-                type=u'image/png',
-                body=imageDir.child('mugshot-placeholder.png'),
-                smallerBody=imageDir.child(
-                    'smaller-mugshot-placeholder.png'),
-                person=self.person)
-        return MugshotResource(mugshot)
+        return MugshotResource(self.person.getMugshot())
 
 
 
@@ -2624,7 +2636,7 @@ class PersonFragment(rend.Fragment):
                                                Mugshot.person == self.person,
                                                default=None)
         if mugshot is None:
-            mugshotURL = '/Mantissa/images/smaller-mugshot-placeholder.png'
+            mugshotURL = '/Mantissa/images/mugshot-placeholder-smaller.jpg'
         else:
             mugshotURL = detailURL + '/mugshot/smaller'
 
