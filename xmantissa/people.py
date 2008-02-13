@@ -822,6 +822,37 @@ class Organizer(item.Item):
         return defaults
 
 
+    def _makeListChangeEditorialParam(self, contactType, person):
+        """
+        Convert a L{IContactType} which allows multiple contact items into a
+        L{liveform.ListChangeParameter} suitable for editing the contact items
+        which exist for the given person.
+
+        @type contactType: L{IContactType} provider.
+
+        @type person: L{Person}
+        @param person: The person whose contact info is being edited.
+
+        @rtype: L{liveform.ListChangeParameter}.
+        """
+        defaults = []
+        modelObjects = []
+        for contactItem in contactType.getContactItems(person):
+            defaultedParameters = contactType.getParameters(contactItem)
+            if defaultedParameters is None:
+                continue
+            defaults.append(self._parametersToDefaults(
+                defaultedParameters))
+            modelObjects.append(contactItem)
+        descriptiveIdentifier = _descriptiveIdentifier(contactType)
+        return liveform.ListChangeParameter(
+            contactType.uniqueIdentifier(),
+            contactType.getParameters(None),
+            defaults=defaults,
+            modelObjects=modelObjects,
+            modelObjectDescription=descriptiveIdentifier)
+
+
     def getContactEditorialParameters(self, person):
         """
         Yield L{LiveForm} parameters to edit each contact item of each contact
@@ -833,26 +864,11 @@ class Organizer(item.Item):
             is the L{LiveForm} parameter object for that contact item.
         """
         for contactType in self.getContactTypes():
-            contactItems = list(contactType.getContactItems(person))
             if contactType.allowMultipleContactItems:
-                defaults = []
-                modelObjects = []
-                for contactItem in contactItems:
-                    defaultedParameters = contactType.getParameters(contactItem)
-                    if defaultedParameters is None:
-                        continue
-                    defaults.append(self._parametersToDefaults(
-                        defaultedParameters))
-                    modelObjects.append(contactItem)
-                descriptiveIdentifier = _descriptiveIdentifier(contactType)
-                param = liveform.ListChangeParameter(
-                    contactType.uniqueIdentifier(),
-                    contactType.getParameters(None),
-                    defaults=defaults,
-                    modelObjects=modelObjects,
-                    modelObjectDescription=descriptiveIdentifier)
+                param = self._makeListChangeEditorialParam(
+                    contactType, person)
             else:
-                (contactItem,) = contactItems
+                (contactItem,) = contactType.getContactItems(person)
                 param = liveform.FormParameter(
                     contactType.uniqueIdentifier(),
                     liveform.LiveForm(
