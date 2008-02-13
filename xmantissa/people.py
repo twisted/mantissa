@@ -166,26 +166,6 @@ class BaseContactType(object):
         raise NotImplementedError("%s did not implement getParameters" % (self,))
 
 
-    def coerce(self, **kw):
-        """
-        Callback for input validation.
-
-        @param **kw: Mapping of submitted parameter names to values.
-
-        @rtype: C{dict}
-        @return: Mapping of coerced parameter names to values.
-        """
-        return kw
-
-
-    def getEditorialForm(self, contact):
-        """
-        Create a L{liveform.LiveForm} for editing an instance of this kind of
-        contact item using the parameters returned by L{getParameters}.
-        """
-        return liveform.LiveForm(self.coerce, self.getParameters(contact))
-
-
     def getContactGroup(self, contactItem):
         """
         Return C{None}.

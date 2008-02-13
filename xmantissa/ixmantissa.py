@@ -644,18 +644,6 @@ class IContactType(Interface):
         """
 
 
-    def getEditorialForm(contact):
-        """
-        Return a L{LiveForm} which will allow the given contact item to be
-        edited.
-
-        @param contact: An L{Item} previously returned by this provider's
-            C{createContactItem} method for which a form should be returned.
-
-        @rtype: L{LiveForm}
-        """
-
-
     def editContactItem(contact, **parameters):
         """
         Update the given contact item to reflect the new parameters.
