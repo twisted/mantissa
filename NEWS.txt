@@ -1,3 +1,7 @@
+0.6.19 (2008-02-19):
+  - The Mantissa People mugshot placeholder image has been updated and
+    the placeholder code refactored.
+
 0.6.18 (2008-02-06):
   - Added a renderer which exposes the value of WebSite.rootURL and
     added a base tag to the shell template which sets that URL as
