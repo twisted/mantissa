@@ -1,3 +1,12 @@
+0.6.18 (2008-02-06):
+  - Added a renderer which exposes the value of WebSite.rootURL and
+    added a base tag to the shell template which sets that URL as
+    the base for links on the page.
+  - Implemented a session-wrapper hook in Mantissa's
+    PersistentSessionWrapper to base the domain parameter of the
+    session cookie on the domains the site is configured with and a
+    flag indicating whether the cookie should be valid for subdomains.
+
 0.6.18 (2008-01-18):
   - Introduced an API for filtering lists of people, and some UI for
     doing this with your address book.
