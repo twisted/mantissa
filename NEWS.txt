@@ -1,3 +1,5 @@
+  - Mugshot thumbnail generation:  avoid aliasing paletted and bicolor images.
+
 0.6.19 (2008-02-19):
   - The Mantissa People mugshot placeholder image has been updated and
     the placeholder code refactored.

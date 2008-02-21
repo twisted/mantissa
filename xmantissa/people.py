@@ -72,7 +72,15 @@ def makeThumbnail(inputFile, outputFile, thumbnailSize, outputFormat='jpeg'):
         # throw the ImportError here
         import PIL
     image = Image.open(inputFile)
-    image.thumbnail((thumbnailSize, thumbnailSize), Image.ANTIALIAS)
+    # Resize needed?
+    if thumbnailSize < max(image.size):
+        # Convert bilevel and paletted images to grayscale and RGB respectively;
+        # otherwise PIL silently switches to Image.NEAREST sampling.
+        if image.mode == '1':
+            image = image.convert('L')
+        elif image.mode == 'P':
+            image = image.convert('RGB')
+        image.thumbnail((thumbnailSize, thumbnailSize), Image.ANTIALIAS)
     image.save(outputFile, outputFormat)
 
 

@@ -2,6 +2,8 @@
 """
 Tests for L{xmantissa.people}.
 """
+from __future__ import division
+
 import warnings
 
 from zope.interface import implements
@@ -175,39 +177,85 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
         self.assertEqual(output['b'], u'c')
 
 
-    def test_makeThumbnail(self):
+    def _makeThumbnailPairs(self, inputSizes, outputSize):
         """
-        Verify that L{makeThumbnail} makes a correctly scaled thumbnail image.
+        Generate a collection of L{makeThumbnail} input/output image pairs in
+        various formats, for the given input sizes.
         """
         try:
             from PIL import Image
         except ImportError:
             raise unittest.SkipTest('PIL is not available')
+        formatsToModes = {
+            'JPEG': ['L', 'RGB'],
+            'PNG': ['1', 'L', 'P', 'RGB', 'RGBA'],
+        }
+        modesToWhite = {
+            '1': 1,
+            'L': 0xFF,
+            'P': 0xFF,
+            'RGB': (0xFF, 0xFF, 0xFF),
+            'RGBA': (0xFF, 0xFF, 0xFF, 0xFF),
+        }
+        for format in formatsToModes:
+            for mode in formatsToModes[format]:
+                for inputSize in inputSizes:
+                    cause = ('Image.new(%r, %r) via %s'
+                             % (mode, inputSize, format))
+                    (inFile, outFile) = (self.mktemp(), self.mktemp())
+                    # Input image...
+                    image = Image.new(mode, inputSize)
+                    # Plot pixels along the diagonal to provoke aliasing.
+                    for i in xrange(min(inputSize)):
+                        image.putpixel((i, i), modesToWhite[mode])
+                    image.save(file(inFile, 'w'), format)
+                    self.assertEqual(Image.open(inFile).mode, mode, cause)
+                    untouchedInput = file(inFile).read()
+                    # Output image...
+                    makeThumbnail(file(inFile), file(outFile, 'w'),
+                                  outputSize, format)
+                    self.assertEqual(file(inFile).read(), untouchedInput, cause)
+                    yield (Image.open(inFile), Image.open(outFile), cause)
 
-        # make an image to thumbnail
-        fullSizePath = self.mktemp()
-        fullSizeFormat = 'JPEG'
-        fullWidth = 543
-        fullHeight = 102
-        Image.new('RGB', (fullWidth, fullHeight)).save(
-            file(fullSizePath, 'w'), fullSizeFormat)
-        # thumbnail it
-        thumbnailPath = self.mktemp()
-        thumbnailSize = 60
-        thumbnailFormat = 'TIFF'
-        makeThumbnail(
-            fullSizePath, thumbnailPath, thumbnailSize, thumbnailFormat)
-        # open the thumbnail, make sure it's the right size and format
-        thumbnailImage = Image.open(file(thumbnailPath))
-        scaleFactor = float(thumbnailSize) / fullWidth
-        expectedHeight = int(fullHeight * scaleFactor)
-        self.assertEqual(
-            thumbnailImage.size, (thumbnailSize, expectedHeight))
-        self.assertEqual(thumbnailImage.format, thumbnailFormat)
-        # make sure the original image is untouched
-        originalImage = Image.open(file(fullSizePath))
-        self.assertEqual(originalImage.format, fullSizeFormat)
-        self.assertEqual(originalImage.size, (fullWidth, fullHeight))
+
+    def test_makeThumbnail(self):
+        """
+        L{makeThumbnail} should scale images, preserving their aspect ratio, and
+        expanding their color space if necessary.
+        """
+        sizes = [(x, y) for x in [30, 60, 120]
+                        for y in [30, 60, 120]
+                        if 60 < max(x, y)]
+        for (input, output, cause) in self._makeThumbnailPairs(sizes, 60):
+            (x1, y1) = input.size
+            (x2, y2) = output.size
+            self.assertEquals(max(x2, y2), 60, cause)
+            self.assertEquals(x2/y2, x1/y1, cause)
+            expectedMode = {'1': 'L', 'P': 'RGB'}.get(input.mode, input.mode)
+            self.assertEquals(output.mode, expectedMode, cause)
+            self.assertEquals(output.format, input.format, cause)
+            # Compare the output color distribution to Image.ANTIALIAS sampling.
+            # (Skip JPEG due to interfering noise.)
+            if output.format != 'JPEG':
+                expectedColors = (9, 13)[input.size != (120, 120)]
+                self.assertEqual(len(output.getcolors()), expectedColors, cause)
+                if 1 < len(output.getbands()):  # Ugh.
+                    for extrema in output.getextrema():
+                        self.assertEqual(extrema, (0, 119), cause)
+                else:
+                    self.assertEqual(output.getextrema(), (0, 119), cause)
+
+
+    def test_makeThumbnailNoResize(self):
+        """
+        L{makeThumbnail} should leave images under thumbnail size unchanged.
+        """
+        sizes = [(x, y) for x in [30, 60]
+                        for y in [30, 60]]
+        for (input, output, cause) in self._makeThumbnailPairs(sizes, 60):
+            self.assertEquals(output.size, input.size, cause)
+            self.assertEquals(output.mode, input.mode, cause)
+            self.assertEquals(output.format, input.format, cause)
 
 
     def test_descriptiveIdentifier(self):
