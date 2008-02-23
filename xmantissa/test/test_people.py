@@ -493,14 +493,14 @@ class MugshotTestCase(unittest.TestCase):
         self.assertTrue(isinstance(mugshot, Mugshot))
         self.assertIdentical(mugshot.store, None)
         self.assertIdentical(mugshot.person, person)
-        self.assertEqual(mugshot.type, u'image/jpeg')
+        self.assertEqual(mugshot.type, u'image/png')
         imageDir = FilePath(people.__file__).parent().child(
             'static').child('images')
         self.assertEqual(
-            mugshot.body, imageDir.child('mugshot-placeholder.jpg'))
+            mugshot.body, imageDir.child('mugshot-placeholder.png'))
         self.assertEqual(
             mugshot.smallerBody,
-            imageDir.child('mugshot-placeholder-smaller.jpg'))
+            imageDir.child('mugshot-placeholder-smaller.png'))
 
 
 

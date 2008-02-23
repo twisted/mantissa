@@ -2459,10 +2459,10 @@ class Mugshot(item.Item):
         imageDir = FilePath(__file__).parent().child(
             'static').child('images')
         return cls(
-            type=u'image/jpeg',
-            body=imageDir.child('mugshot-placeholder.jpg'),
+            type=u'image/png',
+            body=imageDir.child('mugshot-placeholder.png'),
             smallerBody=imageDir.child(
-                'mugshot-placeholder-smaller.jpg'),
+                'mugshot-placeholder-smaller.png'),
             person=person)
     placeholderForPerson = classmethod(placeholderForPerson)
 
@@ -2644,7 +2644,7 @@ class PersonFragment(rend.Fragment):
                                                Mugshot.person == self.person,
                                                default=None)
         if mugshot is None:
-            mugshotURL = '/Mantissa/images/mugshot-placeholder-smaller.jpg'
+            mugshotURL = '/Mantissa/images/mugshot-placeholder-smaller.png'
         else:
             mugshotURL = detailURL + '/mugshot/smaller'
 
