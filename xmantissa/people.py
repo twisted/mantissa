@@ -1327,18 +1327,19 @@ class OrganizerFragment(LiveElement):
         # see the comment in Organizer.urlForViewState which suggests an
         # alternate implementation of this kind of functionality.
         request = inevow.IRequest(ctx)
-        if 'initial-person' not in request.args:
+        if not set(['initial-person', 'initial-state']).issubset( # <=
+            set(request.args)):
             return
-        initialPersonName = request.args['initial-person'][0]
+        initialPersonName = request.args['initial-person'][0].decode('utf-8')
         initialPerson = self.store.findFirst(
-            Person, Person.name == initialPersonName.decode('ascii'))
+            Person, Person.name == initialPersonName)
         if initialPerson is None:
             return
-        initialState = request.args['initial-state'][0]
+        initialState = request.args['initial-state'][0].decode('utf-8')
         if initialState not in ORGANIZER_VIEW_STATES.ALL_STATES:
             return
         self.initialPerson = initialPerson
-        self.initialState = initialState.decode('ascii')
+        self.initialState = initialState
 
 
     def getInitialArguments(self):

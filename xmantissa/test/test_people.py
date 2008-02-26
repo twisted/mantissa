@@ -3216,14 +3216,13 @@ class OrganizerFragmentBeforeRenderTestCase(unittest.TestCase):
         L{OrganizerFragment} if a valid person name and valid initial view
         state are present in the query args.
         """
-        person = self.organizer.createPerson(u'Alice')
+        person = self.organizer.createPerson(u'Andr\xe9')
         self.fragment.beforeRender(
             self._makeContextWithRequestArgs(
-                {'initial-person': [person.name],
-                 'initial-state': [ORGANIZER_VIEW_STATES.EDIT]}))
+            {'initial-person': [person.name.encode('utf-8')],
+             'initial-state': [ORGANIZER_VIEW_STATES.EDIT.encode('utf-8')]}))
         self.assertIdentical(self.fragment.initialPerson, person)
-        self.assertEqual(
-            self.fragment.initialState, ORGANIZER_VIEW_STATES.EDIT)
+        self.assertEqual(self.fragment.initialState, ORGANIZER_VIEW_STATES.EDIT)
 
 
     def test_invalidPersonAndValidState(self):
@@ -3235,7 +3234,7 @@ class OrganizerFragmentBeforeRenderTestCase(unittest.TestCase):
         self.fragment.beforeRender(
             self._makeContextWithRequestArgs(
                 {'initial-person': ['Alice'],
-                 'initial-state': [ORGANIZER_VIEW_STATES.EDIT]}))
+                 'initial-state': [ORGANIZER_VIEW_STATES.EDIT.encode('utf-8')]}))
         self.assertIdentical(self.fragment.initialPerson, None)
         self.assertIdentical(self.fragment.initialState, None)
 
@@ -3246,12 +3245,12 @@ class OrganizerFragmentBeforeRenderTestCase(unittest.TestCase):
         name and invalid initial view state.
         """
         person = self.organizer.createPerson(u'Alice')
-        self.fragment.beforeRender(
-            self._makeContextWithRequestArgs(
-                {'initial-person': ['Alice'],
-                 'initial-state': ['invalid view state']}))
-        self.assertIdentical(self.fragment.initialPerson, None)
-        self.assertIdentical(self.fragment.initialState, None)
+        for args in [{'initial-person': ['Alice']},
+                     {'initial-person': ['Alice'],
+                      'initial-state': [u'\xe9dit'.encode('utf-8')]}]:
+            self.fragment.beforeRender(self._makeContextWithRequestArgs(args))
+            self.assertIdentical(self.fragment.initialPerson, None)
+            self.assertIdentical(self.fragment.initialState, None)
 
 
 
