@@ -4,6 +4,7 @@ from twisted.trial import unittest
 from axiom import store, userbase
 from axiom.item import Item
 from axiom.attributes import inmemory, integer
+from axiom.plugins import mantissacmd
 
 from xmantissa import signup, offering
 from xmantissa.plugins import free_signup
@@ -213,10 +214,10 @@ class ValidatingSignupFormTests(unittest.TestCase):
         form will allow signup.
         """
         domain = u"example.com"
-        class FakeUserInfoSignup(object):
-            def createUser(self):
-                pass
-            def getAvailableDomains(self):
-                return [domain, u"example.org"]
-        form = signup.ValidatingSignupForm(FakeUserInfoSignup())
+        siteStore = store.Store(filesdir=self.mktemp())
+        mantissacmd.Mantissa().installSite(siteStore, domain, u"", False)
+        login = siteStore.findUnique(userbase.LoginSystem)
+        login.addAccount(u"alice", domain, u"password", internal=True)
+        userInfo = signup.UserInfoSignup(store=siteStore, prefixURL=u"opaque")
+        form = signup.ValidatingSignupForm(userInfo)
         self.assertEqual(form.getInitialArguments(), (domain,))

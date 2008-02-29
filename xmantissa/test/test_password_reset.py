@@ -1,26 +1,21 @@
-from twisted.trial.unittest import TestCase
-
 import email
+
+from twisted.trial.unittest import TestCase
 
 from nevow.url import URL
 from nevow.flat import flatten
 from nevow.inevow import IResource
-from nevow import loaders
 from nevow.testutil import AccumulatingFakeRequest, renderPage
 
 from axiom.store import Store
 from axiom import userbase
 from axiom.dependency import installOn
+from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa import ixmantissa
-from xmantissa import signup
-from xmantissa.website import WebSite
-from xmantissa.port import SSLPort
-from xmantissa.prefs import PreferenceAggregator
+from xmantissa.web import SiteConfiguration
 from xmantissa.webapp import PrivateApplication
 from xmantissa.signup import PasswordResetResource, _PasswordResetAttempt
-from xmantissa.offering import installOffering
-from xmantissa.plugins.baseoff import baseOffering
 
 
 class PasswordResetTestCase(TestCase):
@@ -28,9 +23,11 @@ class PasswordResetTestCase(TestCase):
         """
         Set up a fake objects and methods for the password reset tests.
         """
-        store = Store()
-        installOffering(store, baseOffering, {})
-        self.loginSystem = store.findUnique(userbase.LoginSystem)
+        siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(siteStore, u"divmod.com", u"", False)
+        self.loginSystem = siteStore.findUnique(userbase.LoginSystem)
+        self.site = siteStore.findUnique(SiteConfiguration)
+
         la = self.loginSystem.addAccount(
             u'joe', u'divmod.com', u'secret', internal=True)
 
@@ -50,26 +47,17 @@ class PasswordResetTestCase(TestCase):
             verified=True,
             internal=True)
 
-        self.store = store
-        self.website = ws = WebSite(store=self.store, hostname=u'example.com')
-        installOn(ws, self.store)
-        securePort = SSLPort(store=self.store, portNumber=0, factory=ws)
-        installOn(securePort, self.store)
+        self.siteStore = siteStore
 
         # Set up the user store to have all the elements necessary to redirect
         # in the case where the user is already logged in.
         substore = la.avatars.open()
-        usws = WebSite(store=substore)
-        installOn(usws, substore)
-        uswa = PrivateApplication(store=substore)
-        installOn(uswa, substore)
-        uspa = PreferenceAggregator(store=substore)
-        installOn(uspa, substore)
+        installOn(PrivateApplication(store=substore), substore)
 
-        self.substore = substore
+        self.userStore = substore
         self.loginAccount = la
         self.nonExternalAccount = account
-        self.reset = PasswordResetResource(self.store)
+        self.reset = PasswordResetResource(self.siteStore)
 
 
     def test_reset(self):
@@ -81,7 +69,8 @@ class PasswordResetTestCase(TestCase):
             u'more secret')
 
         self.assertEqual(self.loginAccount.password, u'more secret')
-        self.assertEqual(self.store.count(_PasswordResetAttempt), 0)
+        self.assertEqual(
+            self.siteStore.query(_PasswordResetAttempt).count(), 0)
 
 
     def test_attemptByKey(self):
@@ -179,10 +168,10 @@ class PasswordResetTestCase(TestCase):
         redirect to the settings page, since the user can change their password
         from there.
         """
-        self.assertNotIdentical(self.substore.parent, None) # sanity check
-        prefPage = ixmantissa.IPreferenceAggregator(self.substore)
-        urlPath = ixmantissa.IWebTranslator(self.substore).linkTo(prefPage.storeID)
-        app = IResource(self.substore)
+        self.assertNotIdentical(self.userStore.parent, None) # sanity check
+        prefPage = ixmantissa.IPreferenceAggregator(self.userStore)
+        urlPath = ixmantissa.IWebTranslator(self.userStore).linkTo(prefPage.storeID)
+        app = IResource(self.userStore)
         rsc = IResource(app.child_resetPassword(None))
         afr = AccumulatingFakeRequest()
         d = renderPage(rsc, reqFactory=lambda : afr)
@@ -238,7 +227,7 @@ class PasswordResetTestCase(TestCase):
         Test that if the user only supplies the local part of their username
         then the password resetter will still find the correct user.
         """
-        hostname = self.website.hostname.encode('ascii')
+        hostname = self.site.hostname.encode('ascii')
 
         def handleRequest(username, url):
             handleRequest.attempt = self.reset.newAttemptForUser(username)

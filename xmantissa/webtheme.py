@@ -372,20 +372,6 @@ class _ThemedMixin(object):
         return self.pythonClass(inevow.IRequest(ctx), ctx.tag)
 
 
-    _website = None
-    def getWebSite(self):
-        """
-        Retrieve the L{xmantissa.website.WebSite} instance installed on the
-        site-store.
-        """
-        if self._website is None:
-            siteStore = self.store
-            if siteStore.parent is not None:
-                siteStore = siteStore.parent
-            self._website = inevow.IResource(siteStore)
-        return self._website
-
-
     # ITemplateNameResolver
     def getDocFactory(self, fragmentName, default=None):
         f = getattr(self.page, "getDocFactory", getLoader)

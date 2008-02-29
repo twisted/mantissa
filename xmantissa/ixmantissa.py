@@ -209,6 +209,55 @@ class IFulltextIndexable(Interface):
 
 
 
+
+class ISiteURLGenerator(Interface):
+    """
+    Lowest-level APIs for generating URLs which refer to parts of a Mantissa
+    site.
+    """
+    def cleartextRoot(hostname=None):
+        """
+        Return the HTTP URL which is at the root of this site.
+
+        @param hostname: An optional unicode string which, if specified, will
+            be used as the hostname in the resulting URL, regardless of other
+            considerations.
+
+        @rtype: L{nevow.url.URL}
+        """
+
+
+    def encryptedRoot(hostname=None):
+        """
+        Return the HTTPS URL which is at the root of this site.
+
+        @param hostname: An optional unicode string which, if specified, will
+            be used as the hostname in the resulting URL, regardless of other
+            considerations.
+
+        @rtype: L{nevow.url.URL}
+        """
+
+
+    def rootURL(request):
+        """
+        Return the URL for the root of this website which is appropriate to use
+        in links generated in response to the given request.
+
+        @type request: L{twisted.web.http.Request}
+        @param request: The request which is being responded to.
+
+        @rtype: L{URL}
+        @return: The location at which the root of the resource hierarchy for
+            this website is available.
+
+        NOTE: This function may take an URL (which is the "base" URL, relative
+        to which all links in the ultimate view context will be interpreted)
+        instead of a Request in the future.
+        """
+
+
+
 class IStaticShellContent(Interface):
     """
     Represents per-store header/footer content thats used to buttress

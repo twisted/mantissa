@@ -185,12 +185,8 @@ class WebSharingTestCase(TestCase):
 class _UserIdentificationMixin:
     def setUp(self):
         self.siteStore = Store(filesdir=self.mktemp())
-        Mantissa().installSite(self.siteStore, "/", generateCert=False)
-        Mantissa().installAdmin(self.siteStore, 'admin@localhost', '')
-        for off in offering.getOfferings():
-            if off.name == 'mantissa':
-                offering.installOffering(self.siteStore, off, {})
-                break
+        Mantissa().installSite(self.siteStore, u"localhost", u"", False)
+        Mantissa().installAdmin(self.siteStore, u'admin', u'localhost', '')
         self.loginSystem = self.siteStore.findUnique(LoginSystem)
         self.adminStore = self.loginSystem.accountByAddress(
             u'admin', u'localhost').avatars.open()
@@ -317,6 +313,10 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
     """
     Tests for L{xmantissa.websharing.UserIndexPage}
     """
+    username = u'alice'
+    domain = u'example.com'
+    shareID = u'ashare'
+
     def setUp(self):
         """
         Create an additional user for UserIndexPage, and share a single item with a
@@ -325,14 +325,12 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         _UserIdentificationMixin.setUp(self)
         self.magicValue = 123412341234
         self.signup.createUser(
-            u'', u'username', u'localhost', u'', u'username@internet')
+            u'', self.username, self.domain, u'', u'username@internet')
         self.userStore = websharing._storeFromUsername(
-            self.siteStore, u'username')
+            self.siteStore, self.username)
         self.shareable = Shareable(store=self.userStore,
                                    magicValue=self.magicValue)
-        self.share = sharing.shareItem(
-            self.shareable, shareID=u'ashare')
-        self.website = website.WebSite(store=self.siteStore)
+        self.share = sharing.shareItem(self.shareable, shareID=self.shareID)
 
 
     def test_locateChild(self):
@@ -347,7 +345,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         userStore2 = websharing._storeFromUsername(self.siteStore, u'andr\xe9')
         index = websharing.UserIndexPage(self.loginSystem)
 
-        for _username, _store in [(u'username', self.userStore),
+        for _username, _store in [(self.username, self.userStore),
                                   (u'andr\xe9', userStore2)]:
             (found, remaining) = index.locateChild(
                 None, [_username.encode('utf-8'), 'x', 'y', 'z'])
@@ -360,37 +358,14 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
                              rend.NotFound)
 
 
-    def test_userURL(self):
-        """
-        Verify that the /users/username URL will return the root page for the user
-        specified.
-        """
-        websharing.addDefaultShareID(self.userStore, u'ashare', 0)
-        self._verifySegmentsMatch(('users', 'username', ''))
-
-
-    def _verifySegmentsMatch(self, segments):
-        """
-        Verify that the given tuple of segments can be used to retrieve a public
-        view for this test's share.
-        """
-        resource = self.website
-        request = FakeRequest()
-        while segments:
-            resource, segments = resource.locateChild(request, segments)
-        self.assertEquals(resource.fragment.showMagicValue(), self.magicValue)
-
-
     def test_linkToMatchesUserURL(self):
         """
         Test that L{xmantissa.websharing.linkTo} generates a URL using the
         localpart of the account's internal L{axiom.userbase.LoginMethod}
         """
-        websharing.addDefaultShareID(self.userStore, u'ashare', 0)
         pathString = str(websharing.linkTo(self.share))
-        self.assertEquals(pathString[0], "/") # sanity check
-        segments = tuple(pathString[1:].split("/"))
-        self._verifySegmentsMatch(segments)
+        expected = u'/users/%s/%s' % (self.username, self.shareID)
+        self.assertEqual(pathString, expected.encode('ascii'))
 
 
     def test_emptySegmentNoDefault(self):

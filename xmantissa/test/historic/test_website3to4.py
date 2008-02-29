@@ -16,12 +16,5 @@ class WebSiteUpgradeTestCase(StubbedTest):
         # Test that it is still an IResource powerup
         ws = IResource(self.store)
 
-        # Test its old attributes
-        self.assertIdentical(ws.installedOn, self.store)
-        self.assertEquals(ws.httpLog, 'path/to/httpd.log')
+        # Test its only remaining attribute.
         self.assertEquals(ws.hitCount, 100)
-
-        # Test the new attribute.  We can't actually figure out what hostname
-        # the administrator would want, so we leave it as None (which is the
-        # default for new WebSites anyway).
-        self.assertIdentical(ws.hostname, None)

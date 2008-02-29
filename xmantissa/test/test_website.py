@@ -1,626 +1,324 @@
 
+from epsilon import hotfix
+hotfix.require('twisted', 'trial_assertwarns')
+
 import sha
-import socket
 
 from zope.interface import implements
+from zope.interface.verify import verifyObject
 
 try:
     from cssutils import CSSParser
 except ImportError:
     CSSParser = None
 
+from twisted.python.components import registerAdapter
 from twisted.internet.address import IPv4Address
 from twisted.trial import unittest, util
-from twisted.application import service
-from twisted.web import http
 from twisted.python.filepath import FilePath
 
 from nevow.flat import flatten
-from nevow.context import RequestContext, WebContext
-from nevow.testutil import AccumulatingFakeRequest, renderPage
-from nevow.testutil import renderLivePage, FakeRequest
+from nevow.context import WebContext
+from nevow.testutil import FakeRequest
 from nevow.url import URL
-from nevow.inevow import IResource, IRequest, ICurrentSegments, IRemainingSegments
-from nevow.rend import WovenContext
+from nevow.inevow import IResource, IRequest
+from nevow.rend import WovenContext, NotFound
 from nevow.athena import LivePage
-from nevow.guard import LOGIN_AVATAR, SESSION_KEY, GuardSession
-
-from epsilon.scripts import certcreate
+from nevow.guard import LOGIN_AVATAR
 
 from axiom import userbase
 from axiom.store import Store
 from axiom.dependency import installOn
+from axiom.plugins.mantissacmd import Mantissa
 
-from xmantissa.ixmantissa import IOfferingTechnician
+from xmantissa.ixmantissa import (
+    IProtocolFactoryFactory, ISiteURLGenerator, ISiteRootPlugin)
 from xmantissa.port import TCPPort, SSLPort
-from xmantissa import website, signup, publicweb
+from xmantissa import website, publicweb
+from xmantissa.websharing import UserIndexPage
+from xmantissa.signup import PasswordResetResource
 from xmantissa.publicweb import LoginPage
-from xmantissa.product import Product
-from xmantissa.offering import Offering, installOffering
+from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
+from xmantissa.cachejs import theHashModuleProvider
 
-from xmantissa.website import SiteRootMixin, WebSite
 from xmantissa.website import MantissaLivePage, APIKey
-from xmantissa.website import StaticContent
-
-from xmantissa.cachejs import HashedJSModuleProvider
-
-# Secure port number used for testing.
-TEST_SECURE_PORT = 9123
+from xmantissa.web import SecuringWrapper, _SecureWrapper, StaticContent, UnguardedWrapper, SiteConfiguration
 
 
 maybeEncryptedRootWarningMessage = (
-    "Use WebSite.rootURL instead of WebSite.maybeEncryptedRoot")
+    "Use ISiteURLGenerator.rootURL instead of WebSite.maybeEncryptedRoot")
 maybeEncryptedRootSuppression = util.suppress(
     message=maybeEncryptedRootWarningMessage,
     category=DeprecationWarning)
 
 
 
-def createStore(path=None):
+class SiteConfigurationTests(unittest.TestCase):
     """
-    Create a new in-memory Store.  Give it a LoginSystem and create an SSL
-    certificate in its files directory.
-
-    @rtype: L{Store}
-    """
-
-    store = Store(path)
-    login = userbase.LoginSystem(store=store)
-    installOn(login, store)
-    return store
-
-
-
-class WebSiteTestCase(unittest.TestCase):
-    """
-    Tests for L{xmantissa.website.WebSite}.
+    L{xmantissa.web.Site} defines how to create an HTTP server.
     """
     def setUp(self):
+        self.domain = u"example.com"
+        self.store = Store()
+        self.site = SiteConfiguration(store=self.store, hostname=self.domain)
+
+
+    def test_interfaces(self):
         """
-        Setup a store with a valid offering to run tests against.
+        L{SiteConfiguration} implements L{IProtocolFactoryFactory} and
+        L{ISiteURLGenerator}.
         """
-        self.origFunction = http._logDateTimeStart
-        http._logDateTimeStart = lambda: None
-
-        self.store = createStore()
-        installOffering(self.store, baseOffering, {})
-        svc = service.IService(self.store)
-        svc.privilegedStartService()
-        svc.startService()
+        self.assertTrue(verifyObject(ISiteURLGenerator, self.site))
+        self.assertTrue(verifyObject(IProtocolFactoryFactory, self.site))
 
 
-    def tearDown(self):
-        http._logDateTimeStart = self.origFunction
-        del self.origFunction
-        svc = service.IService(self.store)
-        return svc.stopService()
+    def _baseTest(self, portType, scheme, portNumber, method):
+        portType(store=self.store, portNumber=portNumber, factory=self.site)
+        self.assertEquals(
+            getattr(self.site, method)(), URL(scheme, self.domain))
 
 
     def test_cleartextRoot(self):
         """
-        Test that the L{WebSite.cleartextRoot} method returns the proper URL
-        for HTTP communication with this site.
+        L{SiteConfiguration.cleartextRoot} method returns the proper URL for
+        HTTP communication with this site.
         """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        TCPPort(store=self.store, portNumber=80, factory=ws)
-        self.assertEquals(
-            flatten(ws.cleartextRoot()),
-            'http://example.com/')
-
-
-    def test_cleartextRootNonstandardPort(self):
-        """
-        Test that the L{WebSite.cleartextRoot} method returns the proper URL
-        for HTTP communication with this site even if the server is listening
-        on a funky port number.
-        """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        TCPPort(store=self.store, portNumber=8000, factory=ws)
-        self.assertEquals(
-            flatten(ws.cleartextRoot()),
-            'http://example.com:8000/')
-
-
-    def test_cleartextRootUnavailable(self):
-        """
-        Test that the L{WebSite.cleartextRoot} method returns None if there is
-        no HTTP server listening.
-        """
-        ws = website.WebSite(store=self.store)
-        self.assertEquals(ws.cleartextRoot(), None)
-
-
-    def test_cleartextRootWithoutHostname(self):
-        """
-        Test that the L{WebSite.cleartextRoot} method returns a best-guess URL
-        if there is no hostname available.
-        """
-        ws = website.WebSite(store=self.store)
-        TCPPort(store=self.store, portNumber=8000, factory=ws)
-        self.assertEquals(
-            flatten(ws.cleartextRoot()),
-            'http://%s:8000/' % (socket.getfqdn(),))
-
-
-    def test_cleartextRootHostOverride(self):
-        """
-        Test that if a hostname is explicitly passed to
-        L{WebSite.cleartextRoot}, it overrides the configured hostname in the
-        result.
-        """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        TCPPort(store=self.store, portNumber=80, factory=ws)
-        self.assertEquals(
-            flatten(ws.cleartextRoot(u'example.net')),
-            'http://example.net/')
-
-
-    def test_cleartextRootPortZero(self):
-        """
-        If C{WebSite.portNumber} is 0, then the server will begin
-        listening on a random port. Check that L{WebSite.cleartextRoot}
-        will return the right port when this is the case.
-        """
-        randomPort = 7777
-
-        class FakePort(object):
-            def getHost(self):
-                return IPv4Address('TCP', u'example.com', randomPort)
-
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        port.listeningPort = FakePort()
-        self.assertEquals(flatten(ws.cleartextRoot()),
-                          'http://example.com:%s/' % (randomPort,))
-
-
-    def test_cleartextRootPortZeroDisconnected(self):
-        """
-        If C{WebSite.securePortNumber} is 0 and the server is not listening
-        then there is no valid URL. Check that L{WebSite.cleartextRoot}
-        returns None.
-        """
-        ws = website.WebSite(store=self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        self.assertEquals(None, ws.cleartextRoot())
+        self._baseTest(TCPPort, 'http', 80, 'cleartextRoot')
 
 
     def test_encryptedRoot(self):
         """
-        Test that the L{WebSite.encryptedRoot} method returns the proper URL
-        for HTTPS communication with this site.
+        L{SiteConfiguration.encryptedRoot} method returns the proper URL for
+        HTTPS communication with this site.
         """
-        ws = website.WebSite(store=self.store,hostname=u'example.com')
-        SSLPort(store=self.store, portNumber=443, factory=ws)
-        self.assertEquals(flatten(ws.encryptedRoot()), 'https://example.com/')
+        self._baseTest(SSLPort, 'https', 443, 'encryptedRoot')
+
+
+    def _nonstandardPortTest(self, portType, scheme, portNumber, method):
+        portType(store=self.store, portNumber=portNumber, factory=self.site)
+        self.assertEquals(
+            getattr(self.site, method)(),
+            URL(scheme, '%s:%s' % (self.domain, portNumber)))
+
+
+    def test_cleartextRootNonstandardPort(self):
+        """
+        L{SiteConfiguration.cleartextRoot} method returns the proper URL for
+        HTTP communication with this site even if the server is listening on a
+        non-standard port number.
+        """
+        self._nonstandardPortTest(TCPPort, 'http', 8000, 'cleartextRoot')
 
 
     def test_encryptedRootNonstandardPort(self):
         """
-        Test that the L{WebSite.encryptedRoot} method returns the proper URL
-        for HTTPS communication with this site even if the server is listening
-        on a funky port number.
+        L{SiteConfiguration.encryptedRoot} method returns the proper URL for
+        HTTPS communication with this site even if the server is listening on a
+        non-standard port number.
         """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        SSLPort(store=self.store, portNumber=8443, factory=ws)
-        self.assertEquals(
-            flatten(ws.encryptedRoot()),
-            'https://example.com:8443/')
+        self._nonstandardPortTest(SSLPort, 'https', 8443, 'encryptedRoot')
+
+
+    def _unavailableTest(self, method):
+        self.assertEquals(getattr(self.site, method)(), None)
+
+
+    def test_cleartextRootUnavailable(self):
+        """
+        L{SiteConfiguration.cleartextRoot} method returns None if there is no
+        HTTP server listening.
+        """
+        self._unavailableTest('cleartextRoot')
 
 
     def test_encryptedRootUnavailable(self):
         """
-        Test that the L{WebSite.encryptedRoot} method returns None if there is
-        no HTTP server listening.
+        L{SiteConfiguration.encryptedRoot} method returns None if there is no
+        HTTPS server listening.
         """
-        ws = website.WebSite(store=self.store)
-        self.assertEquals(ws.encryptedRoot(), None)
+        self._unavailableTest('encryptedRoot')
 
 
-    def test_encryptedRootWithoutHostname(self):
-        """
-        Test that the L{WebSite.encryptedRoot} method returns a non-universal
-        URL if there is no hostname available.
-        """
-        ws = website.WebSite(store=self.store)
-        SSLPort(store=self.store, portNumber=8443, factory=ws)
-
+    def _hostOverrideTest(self, portType, scheme, portNumber, method):
+        portType(store=self.store, portNumber=portNumber, factory=self.site)
         self.assertEquals(
-            flatten(ws.encryptedRoot()),
-            'https://%s:8443/' % (socket.getfqdn(),))
+            getattr(self.site, method)(u'example.net'),
+            URL(scheme, 'example.net'))
+
+
+    def test_cleartextRootHostOverride(self):
+        """
+        A hostname passed to L{SiteConfiguration.cleartextRoot} overrides the
+        configured hostname in the result.
+        """
+        self._hostOverrideTest(TCPPort, 'http', 80, 'cleartextRoot')
 
 
     def test_encryptedRootHostOverride(self):
         """
-        Test that if a hostname is explicitly passed to
-        L{WebSite.encryptedRoot}, it overrides the configured hostname in the
-        result.
+        A hostname passed to L{SiteConfiguration.encryptedRoot} overrides the
+        configured hostname in the result.
         """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        SSLPort(store=self.store, portNumber=443, factory=ws)
-        self.assertEquals(
-            flatten(ws.encryptedRoot(u'example.net')),
-            'https://example.net/')
+        self._hostOverrideTest(SSLPort, 'https', 443, 'encryptedRoot')
 
 
-    def test_encryptedRootPortZero(self):
-        """
-        If C{WebSite.securePortNumber} is 0, then the server will begin
-        listening on a random port. Check that L{WebSite.encryptedRoot}
-        will return the right port when this is the case.
-        """
+    def _portZero(self, portType, scheme, method):
         randomPort = 7777
 
         class FakePort(object):
             def getHost(self):
                 return IPv4Address('TCP', u'example.com', randomPort)
 
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        port = SSLPort(store=self.store, portNumber=0, factory=ws)
+        port = portType(store=self.store, portNumber=0, factory=self.site)
         port.listeningPort = FakePort()
         self.assertEquals(
-            flatten(ws.encryptedRoot()),
-            'https://example.com:%s/' % (randomPort,))
+            getattr(self.site, method)(),
+            URL(scheme, '%s:%s' % (self.domain, randomPort)))
+
+
+    def test_cleartextRootPortZero(self):
+        """
+        When the C{portNumber} of a started L{TCPPort} which refers to the
+        C{SiteConfiguration} is C{0}, L{SiteConfiguration.cleartextRoot}
+        returns an URL with the port number which was actually bound in the
+        netloc.
+        """
+        self._portZero(TCPPort, 'http', 'cleartextRoot')
+
+
+    def test_encryptedRootPortZero(self):
+        """
+        When the C{portNumber} of a started L{SSLPort} which refers to the
+        C{SiteConfiguration} is C{0}, L{SiteConfiguration.encryptedRoot}
+        returns an URL with the port number which was actually bound in the
+        netloc.
+        """
+        self._portZero(SSLPort, 'https', 'encryptedRoot')
+
+
+    def _portZeroDisconnected(self, portType, method):
+        portType(store=self.store, portNumber=0, factory=self.site)
+        self.assertEquals(None, getattr(self.site, method)())
+
+
+    def test_cleartextRootPortZeroDisconnected(self):
+        """
+        When the C{portNumber} of an unstarted L{TCPPort} which refers to the
+        C{SiteConfiguration} is C{0}, L{SiteConfiguration.cleartextRoot}
+        returns C{None}.
+        """
+        self._portZeroDisconnected(TCPPort, 'cleartextRoot')
 
 
     def test_encryptedRootPortZeroDisconnected(self):
         """
-        If C{WebSite.securePortNumber} is 0 and the server is not listening
-        then there is no valid URL. Check that L{WebSite.encryptedRoot}
-        returns None.
+        When the C{portNumber} of an unstarted L{SSLPort} which refers to the
+        C{SiteConfiguration} is C{0}, L{SiteConfiguration.encryptedRoot}
+        returns C{None}.
         """
-        ws = website.WebSite(store=self.store)
-        port = SSLPort(store=self.store, portNumber=0, factory=ws)
-        self.assertEquals(None, ws.encryptedRoot())
-
-
-    def test_maybeEncryptedRoot(self):
-        """
-        If HTTPS service is available, L{WebSite.maybeEncryptedRoot} should
-        return the same as L{WebSite.encryptedRoot}.
-        """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        SSLPort(store=self.store, portNumber=443, factory=ws)
-        self.assertEquals(ws.encryptedRoot(), ws.maybeEncryptedRoot())
-    test_maybeEncryptedRoot.suppress = [maybeEncryptedRootSuppression]
-
-
-    def test_maybeEncryptedRootUnavailable(self):
-        """
-        If HTTPS service is not available, L{WebSite.maybeEncryptedRoot} should
-        return the same as L{WebSite.cleartextRoot}.
-        """
-        ws = website.WebSite(store=self.store, hostname=u'example.com')
-        TCPPort(store=self.store, portNumber=80, factory=ws)
-        self.assertEquals(ws.cleartextRoot(), ws.maybeEncryptedRoot())
-    test_maybeEncryptedRootUnavailable.suppress = [
-        maybeEncryptedRootSuppression]
-
-
-    def test_maybeEncryptedRootDeprecated(self):
-        """
-        L{WebSite.maybeEncryptedRoot} is deprecated and calling it should
-        emit a deprecation warning.
-        """
-        ws = website.WebSite(store=self.store)
-        self.assertWarns(
-            DeprecationWarning,
-            maybeEncryptedRootWarningMessage,
-            __file__,
-            ws.maybeEncryptedRoot, 'example.com')
+        self._portZeroDisconnected(SSLPort, 'encryptedRoot')
 
 
     def test_rootURL(self):
         """
-        L{WebSite.rootURL} returns C{/} for a request made onto the hostname
-        the L{WebSite} is configured with.
+        L{SiteConfiguration.rootURL} returns C{/} for a request made onto the
+        hostname with which the L{SiteConfiguration} is configured.
         """
         request = FakeRequest()
-        request.setHeader('host', 'example.com')
-        ws = website.WebSite(hostname=u'example.com')
-        self.assertEqual(str(ws.rootURL(request)), '/')
+        request.setHeader('host', self.domain.encode('ascii'))
+        self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
     def test_rootURLWithoutHost(self):
         """
-        L{WebSite.rootURL} returns C{/} for a request made without a I{Host}
-        header.
+        L{SiteConfiguration.rootURL} returns C{/} for a request made without a
+        I{Host} header.
         """
         request = FakeRequest()
-        ws = website.WebSite(hostname=u'example.com')
-        self.assertEqual(str(ws.rootURL(request)), '/')
+        self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
     def test_rootURLWWWSubdomain(self):
         """
-        L{WebSite.rootURL} returns C{/} for a request made onto the I{www}
-        subdomain of the hostname the L{WebSite} is configured with.
+        L{SiteConfiguration.rootURL} returns C{/} for a request made onto the
+        I{www} subdomain of the hostname of the L{SiteConfiguration}.
         """
         request = FakeRequest()
-        request.setHeader('host', 'www.example.com')
-        ws = website.WebSite(hostname=u'example.com')
-        self.assertEqual(str(ws.rootURL(request)), '/')
+        request.setHeader('host', 'www.' + self.domain.encode('ascii'))
+        self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
-    def test_rootURLUnconfiguredHostname(self):
-        """
-        L{WebSite.rootURL} returns C{/} for a request made onto the hostname
-        returned by L{socket.getfqdn} if L{WebSite.hostname} is C{None}.
-        """
-        request = FakeRequest()
-        request.setHeader('host', socket.getfqdn())
-        ws = website.WebSite()
-        self.assertEqual(str(ws.rootURL(request)), '/')
+    def _differentHostnameTest(self, portType, portNumber, isSecure, scheme):
+        request = FakeRequest(isSecure=isSecure)
+        request.setHeader('host', 'alice.' + self.domain.encode('ascii'))
+        portType(store=self.store, factory=self.site, portNumber=portNumber)
+        self.assertEqual(self.site.rootURL(request), URL(scheme, self.domain))
 
 
-    def test_rootURLWWWSubdomainUnconfiguredHostname(self):
+    def test_cleartextRootURLDifferentHostname(self):
         """
-        L{WebSite.rootURL} returns C{/} for a request made onto the I{www}
-        subdomain of the hostname returned by L{socket.getfqdn} if
-        L{WebSite.hostname} is C{None}.
+        L{SiteConfiguration.rootURL} returns an absolute URL with the HTTP
+        scheme and its hostname as the netloc and with a path of C{/} for a
+        request made over HTTP onto a hostname different from the hostname of the
+        L{SiteConfiguration}.
+
         """
-        request = FakeRequest()
-        request.setHeader('host', 'www.' + socket.getfqdn())
-        ws = website.WebSite()
-        self.assertEqual(str(ws.rootURL(request)), '/')
+        self._differentHostnameTest(TCPPort, 80, False, 'http')
 
 
-    def test_rootURLDifferentHostname(self):
+    def test_encryptedRootURLDifferentHostname(self):
         """
-        L{WebSite.rootURL} returns an absolute URL with L{WebSite}'s hostname
-        as its netloc and with a path of C{/} for a request made onto a
-        hostname different from the one L{WebSite} is configured with.
+        L{SiteConfiguration.rootURL} returns an absolute URL with its hostname
+        as the netloc and with a path of C{/} for a request made over HTTPS onto a
+        hostname different from the hostname of the L{SiteConfiguration}.
         """
-        request = FakeRequest()
-        request.setHeader('host', 'alice.example.com')
-        store = Store()
-        ws = website.WebSite(store=store, hostname=u'example.com')
-        TCPPort(store=store, factory=ws, portNumber=80)
-        self.assertEqual(str(ws.rootURL(request)), 'http://example.com/')
+        self._differentHostnameTest(SSLPort, 443, True, 'https')
 
 
-    def test_rootURLDifferentHostnameNonstandardPort(self):
+    def _differentHostnameNonstandardPort(self, portType, isSecure, scheme):
+        portNumber = 12345
+        request = FakeRequest(isSecure=isSecure)
+        request.setHeader('host', 'alice.' + self.domain.encode('ascii'))
+        portType(store=self.store, factory=self.site, portNumber=portNumber)
+        self.assertEqual(
+            self.site.rootURL(request),
+            URL(scheme, '%s:%s' % (self.domain.encode('ascii'), portNumber)))
+
+
+    def test_cleartextRootURLDifferentHostnameNonstandardPort(self):
         """
-        L{WebSite.rootURL} returns an absolute URL an explicit port number in
-        the netloc for a request made onto a hostname different from the one
-        L{WebSite} is configured with if the L{WebSite} has an HTTP server on a
-        non-standard port.
+        L{SiteConfiguration.rootURL} returns an absolute URL with an HTTP
+        scheme and an explicit port number in the netloc for a request made
+        over HTTP onto a hostname different from the hostname of the
+        L{SiteConfiguration} if the L{SiteConfiguration} has an HTTP server on
+        a non-standard port.
         """
-        request = FakeRequest()
-        request.setHeader('host', 'alice.example.com')
-        store = Store()
-        ws = website.WebSite(store=store, hostname=u'example.com')
-        TCPPort(store=store, factory=ws, portNumber=12345)
-        self.assertEqual(str(ws.rootURL(request)), 'http://example.com:12345/')
+        self._differentHostnameNonstandardPort(TCPPort, False, 'http')
+
+
+    def test_encryptedRootURLDifferentHostnameNonstandardPort(self):
+        """
+        L{SiteConfiguration.rootURL} returns an absolute URL with an HTTPS
+        scheme and an explicit port number in the netloc for a request made
+        over HTTPS onto a hostname different from the hostname of the
+        L{SiteConfiguration} if the L{SiteConfiguration} has an HTTPS server on
+        a non-standard port.
+        """
+        self._differentHostnameNonstandardPort(SSLPort, True, 'https')
 
 
     def test_rootURLNonstandardRequestPort(self):
         """
-        L{WebSite.rootURL} returns C{/} for a request made onto a non-standard
-        port which is one on which the L{WebSite} is configured to listen.
+        L{SiteConfiguration.rootURL} returns C{/} for a request made onto a
+        non-standard port which is one on which the L{SiteConfiguration} is
+        configured to listen.
         """
         request = FakeRequest()
-        request.setHeader('host', 'example.com:54321')
-        store = Store()
-        ws = website.WebSite(store=store, hostname=u'example.com')
-        TCPPort(store=store, factory=ws, portNumber=54321)
-        self.assertEqual(str(ws.rootURL(request)), '/')
-
-
-    def test_rootURLDifferentHostnameSecure(self):
-        """
-        L{WebSite.rootURL} returns an absolute URL with an I{https} scheme for
-        a request made onto a hostname different from the one L{WebSite} is
-        configured with.
-        """
-        request = FakeRequest(isSecure=True)
-        request.setHeader('host', 'alice.example.com')
-        store = Store()
-        ws = website.WebSite(store=store, hostname=u'example.com')
-        SSLPort(store=store, factory=ws, portNumber=443)
-        self.assertEqual(str(ws.rootURL(request)), 'https://example.com/')
-
-
-    def test_rootURLDifferentHostnameSecureNonstandardPort(self):
-        """
-        L{WebSite.rootURL} returns an absolute URL with the I{https} scheme and
-        an explicit port number in the netloc for a request made onto a
-        hostname different from the one L{WebSite} is configured with if the
-        L{WebSite} has an HTTPS server on a non-standard port.
-        """
-        request = FakeRequest(isSecure=True)
-        request.setHeader('host', 'alice.example.com')
-        store = Store()
-        ws = website.WebSite(store=store, hostname=u'example.com')
-        SSLPort(store=store, factory=ws, portNumber=12345)
-        self.assertEqual(str(ws.rootURL(request)), 'https://example.com:12345/')
-
-
-    def test_onlyHTTPLogin(self):
-        """
-        If there's no secure port, login works over HTTP anyway.
-        """
-        ws = website.WebSite(store=self.store)
-        installOn(ws, self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        installOn(port, self.store)
-
-        res, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
-        self.failUnless(isinstance(res, LoginPage))
-
-
-    def test_onlyHTTPSignup(self):
-        """
-        If there's no secure port, signup works over HTTP anyway.
-        """
-        ws = website.WebSite(store=self.store)
-        installOn(ws, self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        installOn(port, self.store)
-
-        portNum = port.listeningPort.getHost().port
-
-        self.store.parent = self.store #blech
-
-        sc = signup.SignupConfiguration(store=self.store)
-        installOn(sc, self.store)
-        sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
-
-        # Make some domains available, so we don't need to create LoginMethods
-        # or anything like that.
-        object.__setattr__(sg, 'getAvailableDomains', lambda: [u'example.com'])
-
-        signupPage = sg.createResource()
-        fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
-        result = renderLivePage(signupPage, reqFactory=lambda: fr)
-        def rendered(ignored):
-            #we should get some sort of a page
-            self.assertEquals(fr.redirected_to, None)
-            self.assertNotEquals(len(fr.accumulator), 0)
-        result.addCallback(rendered)
-        return result
-
-
-
-class WebSiteIntegrationTests(unittest.TestCase):
-    """
-    Integration (ie, not unit) tests for the behavior of L{WebSite.getFactory}.
-    """
-    def setUp(self):
-        """
-        Create a L{Store} with a L{WebSite} in it.  Get a protocol factory from
-        the website and save it for tests to use.  Patch L{twisted.web.http}
-        and L{nevow.guard} so that they don't create garbage timed calls that
-        have to be cleaned up.
-        """
-        self.store = Store()
-        installOn(userbase.LoginSystem(store=self.store), self.store)
-
-        self.web = website.WebSite(store=self.store, hostname=u'example.com')
-        installOn(self.web, self.store)
-        TCPPort(store=self.store, factory=self.web, portNumber=80)
-
-        self.site = self.web.getFactory()
-
-        self.origFunctions = (http._logDateTimeStart, GuardSession.checkExpired.im_func)
-        http._logDateTimeStart = lambda: None
-        GuardSession.checkExpired = lambda self: None
-
-
-    def tearDown(self):
-        """
-        Restore the patched functions to their original state.
-        """
-        http._logDateTimeStart = self.origFunctions[0]
-        GuardSession.checkExpired = self.origFunctions[1]
-        del self.origFunctions
-
-
-    def get(self, uri, headers={}):
-        """
-        Retrieve the resource at the given URI from C{self.site}.
-
-        Return a L{Deferred} which is called back with the request after
-        resource traversal and rendering has finished.
-
-        @type uri: C{str}
-        @param uri: The absolute path to the resource to retrieve, eg
-            I{/private/12345}.
-
-        @type headers: C{dict}
-        @param headers: HTTP headers to include in the request.
-        """
-        if 'host' not in headers:
-            headers['host'] = self.web.hostname
-
-        currentSegments = tuple(URL.fromString(uri).pathList())
-        request = AccumulatingFakeRequest(headers=headers, uri=uri,
-                                          currentSegments=currentSegments)
-        requestContext = RequestContext(parent=self.site.context, tag=request)
-        requestContext.remember((), ICurrentSegments)
-        requestContext.remember(currentSegments, IRemainingSegments)
-
-        page = self.site.getPageContextForRequestContext(requestContext)
-        page.addCallback(
-            renderPage,
-            topLevelContext=lambda tag: tag,
-            reqFactory=lambda: request)
-        page.addCallback(lambda ignored: request)
-        return page
-
-
-    def test_rootResource(self):
-        """
-        A sessionless, unauthenticated request for C{/} is responded to with a
-        redirect to negotiate a session.
-        """
-        page = self.get('/')
-        def rendered(request):
-            redirectLocation = URL.fromString(request.redirected_to)
-            key, path = redirectLocation.pathList()
-            self.assertTrue(key.startswith(SESSION_KEY))
-            self.assertEqual(path, '')
-        page.addCallback(rendered)
-        return page
-
-
-    def test_mantissaStylesheet(self):
-        """
-        A sessionless, unauthenticated request for C{/Mantissa/mantissa.css} is
-        responded to with the contents of the mantissa css file.
-        """
-        page = self.get('/Mantissa/mantissa.css')
-        def rendered(request):
-            self.assertEqual(
-                request.accumulator,
-                FilePath(__file__).parent().sibling('static').child('mantissa.css').getContent())
-        page.addCallback(rendered)
-        return page
-
-
-    def _fakeOfferings(self, store, offerings):
-        """
-        Override the adaption hook on the given L{Store} instance so that
-        adapting it to L{IOfferingTechnician} returns an object which
-        reports the given offerings as installed.
-        """
-        class FakeOfferingTechnician(object):
-            def getInstalledOfferings(self):
-                return offerings
-
-        def fakeOfferingConform(interface):
-            if interface is IOfferingTechnician:
-                return FakeOfferingTechnician()
-            return Store.__conform__(self.store, interface)
-
-        store.__conform__ = fakeOfferingConform
-
-
-    def test_offeringWithStaticContent(self):
-        """
-        L{StaticContent} has a L{File} child with the name of one of the
-        offerings passed to its initializer which has a static content path.
-        """
-        # Make a fake offering to get its static content rendered.
-        offeringName = u'name of the offering'
-        offeringPath = FilePath(self.mktemp())
-        offeringPath.makedirs()
-        childName = 'content'
-        childContent = 'the content'
-        offeringPath.child(childName).setContent(childContent)
-
-        self._fakeOfferings(self.store, {
-                offeringName: Offering(
-                    offeringName, None, None, None, None, None, None,
-                    offeringPath, None)})
-
-        page = self.get('/static/' + offeringName + '/' + childName)
-        def rendered(request):
-            self.assertEqual(request.accumulator, childContent)
-        page.addCallback(rendered)
-        return page
+        request.setHeader(
+            'host', '%s:%s' % (self.domain.encode('ascii'), 54321))
+        TCPPort(store=self.store, factory=self.site, portNumber=54321)
+        self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
 
@@ -734,91 +432,23 @@ class StylesheetRewritingRequestWrapperTests(unittest.TestCase):
 
 
 
-class SSLWebSiteTestCase(unittest.TestCase):
-    """
-    WebSite tests that require an SSL certificate to be generated.
-    """
-    def setUp(self):
-        """
-        Setup a store with a valid offering to run tests against.
-        """
-        self.store = createStore(self.mktemp())
-        self.certPath = self.store.newFilePath('server.pem')
-        certcreate.main(['--filename', self.certPath.path, '--quiet'])
-
-        self.origFunction = http._logDateTimeStart
-        http._logDateTimeStart = lambda: None
-
-        installOffering(self.store, baseOffering, {})
-        svc = service.IService(self.store)
-        svc.privilegedStartService()
-        svc.startService()
-
-
-    def tearDown(self):
-        http._logDateTimeStart = self.origFunction
-        del self.origFunction
-        svc = service.IService(self.store)
-        return svc.stopService()
-
-
-    def testOnlySecureSignup(self):
-        """
-        Make sure the signup page is only displayed over HTTPS.
-        """
-        ws = website.WebSite(store=self.store)
-        installOn(ws, self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        installOn(port, self.store)
-        securePort = SSLPort(store=self.store, portNumber=0, certificatePath=self.certPath, factory=ws)
-        installOn(securePort, self.store)
-
-        self.store.parent = self.store #blech
-
-        securePortNum = securePort.listeningPort.getHost().port
-
-        sc = signup.SignupConfiguration(store=self.store)
-        installOn(sc, self.store)
-        sg = sc.createSignup(u"test", signup.UserInfoSignup,
-                             {"prefixURL": u"signup"}, Product(store=self.store), u"", u"Test")
-        signupPage = sg.createResource()
-        fr = AccumulatingFakeRequest(uri='/signup', currentSegments=['signup'])
-        result = renderPage(signupPage, reqFactory=lambda: fr)
-
-        def rendered(ignored):
-            self.assertEqual(fr.redirected_to, 'https://localhost:%s/signup' % (securePortNum,))
-        result.addCallback(rendered)
-        return result
-
-
-    def testOnlySecureLogin(self):
-        """
-        Make sure the login page is only displayed over HTTPS.
-        """
-        ws = website.WebSite(store=self.store)
-        installOn(ws, self.store)
-        port = TCPPort(store=self.store, portNumber=0, factory=ws)
-        installOn(port, self.store)
-        securePort = SSLPort(store=self.store, portNumber=0, certificatePath=self.certPath, factory=ws)
-        installOn(securePort, self.store)
-
-        url, _ = ws.site.resource.locateChild(FakeRequest(), ["login"])
-        self.assertEquals(url.scheme, "https")
-
-
-
 class LoginPageTests(unittest.TestCase):
     """
     Tests for functionality related to login.
     """
+    domain = u"example.com"
+
     def setUp(self):
         """
         Create a L{Store}, L{WebSite} and necessary request-related objects to
         test L{LoginPage}.
         """
-        self.store = createStore()
-        website.WebSite(store=self.store)
-        installOffering(self.store, baseOffering, {})
+        self.siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, self.domain, u"", False)
+        self.site = self.siteStore.findUnique(SiteConfiguration)
+        installOn(
+            TCPPort(store=self.siteStore, factory=self.site, portNumber=80),
+            self.siteStore)
         self.context = WebContext()
         self.request = FakeRequest()
         self.context.remember(self.request)
@@ -840,9 +470,9 @@ class LoginPageTests(unittest.TestCase):
                 self.segments = segments
                 self.arguments = arguments
 
-        page = StubLoginPage.fromRequest(self.store, request)
+        page = StubLoginPage.fromRequest(self.siteStore, request)
         self.assertTrue(isinstance(page, StubLoginPage))
-        self.assertIdentical(page.store, self.store)
+        self.assertIdentical(page.store, self.siteStore)
         self.assertEqual(page.segments, ['foo', 'bar'])
         self.assertEqual(page.arguments, {'quux': ['corge']})
 
@@ -860,11 +490,11 @@ class LoginPageTests(unittest.TestCase):
             return result
         publicweb.IStaticShellContent = stubInterface
         try:
-            page = LoginPage(self.store)
+            page = LoginPage(self.siteStore)
         finally:
             publicweb.IStaticShellContent = originalInterface
         self.assertEqual(len(adaptions), 1)
-        self.assertIdentical(adaptions[0][0], self.store)
+        self.assertIdentical(adaptions[0][0], self.siteStore)
         self.assertIdentical(page.staticContent, result)
 
 
@@ -874,10 +504,10 @@ class LoginPageTests(unittest.TestCase):
         L{URL} which includes all the segments given to the L{LoginPage}.
         """
         segments = ('foo', 'bar')
-        page = LoginPage(self.store, segments)
+        page = LoginPage(self.siteStore, segments)
         page.beforeRender(self.context)
         loginAction = self.context.locateSlotData('login-action')
-        expectedLocation = URL.fromContext(self.context)
+        expectedLocation = URL.fromString('/')
         for segment in (LOGIN_AVATAR,) + segments:
             expectedLocation = expectedLocation.child(segment)
         self.assertEqual(loginAction, expectedLocation)
@@ -890,10 +520,10 @@ class LoginPageTests(unittest.TestCase):
         L{LoginPage}.
         """
         args = {'foo': ['bar']}
-        page = LoginPage(self.store, (), args)
+        page = LoginPage(self.siteStore, (), args)
         page.beforeRender(self.context)
         loginAction = self.context.locateSlotData('login-action')
-        expectedLocation = URL.fromContext(self.context)
+        expectedLocation = URL.fromString('/')
         expectedLocation = expectedLocation.child(LOGIN_AVATAR)
         expectedLocation = expectedLocation.add('foo', 'bar')
         self.assertEqual(loginAction, expectedLocation)
@@ -905,7 +535,7 @@ class LoginPageTests(unittest.TestCase):
         extracted from the traversal context.
         """
         segments = ('foo', 'bar')
-        page = LoginPage(self.store)
+        page = LoginPage(self.siteStore)
         child, remaining = page.locateChild(self.context, segments)
         self.assertTrue(isinstance(child, LoginPage))
         self.assertEqual(remaining, ())
@@ -918,7 +548,7 @@ class LoginPageTests(unittest.TestCase):
         arguments extracted from the traversal context.
         """
         self.request.args = {'foo': ['bar']}
-        page = LoginPage(self.store)
+        page = LoginPage(self.siteStore)
         child, remaining = page.locateChild(self.context, None)
         self.assertTrue(isinstance(child, LoginPage))
         self.assertEqual(child.arguments, self.request.args)
@@ -933,117 +563,333 @@ class UnguardedWrapperTests(unittest.TestCase):
         """
         Set up a store with a valid offering to test against.
         """
-        self.store = createStore()
+        self.store = Store()
         installOffering(self.store, baseOffering, {})
+        self.site = ISiteURLGenerator(self.store)
+
+
+    def test_live(self):
+        """
+        L{UnguardedWrapper} has a I{live} child which returns a L{LivePage}
+        instance.
+        """
+        request = FakeRequest(uri='/live/foo', currentSegments=[])
+        wrapper = UnguardedWrapper(self.store, None)
+        resource = wrapper.child_live(request)
+        self.assertTrue(isinstance(resource, LivePage))
+
+
+    def test_jsmodules(self):
+        """
+        L{UnguardedWrapper} has a I{__jsmodules__} child which returns a
+        L{LivePage} instance.
+        """
+        request = FakeRequest(uri='/__jsmodule__/foo', currentSegments=[])
+        wrapper = UnguardedWrapper(None, None)
+        resource = wrapper.child___jsmodule__(request)
+
+        # This is weak.  Identity of this object doesn't matter.  The caching
+        # and jsmodule serving features are what matter. -exarkun
+        self.assertIdentical(resource, theHashModuleProvider)
 
 
     def test_static(self):
         """
-        L{website.WebSite} has a I{static} child which returns a
+        L{UnguardedWrapper} has a I{static} child which returns a
         L{StaticContent} instance.
         """
-        installOn(website.WebSite(store=self.store), self.store)
         request = FakeRequest(uri='/static/extra', currentSegments=[])
-        wrapper = website.UnguardedWrapper(self.store, None)
-        resource, segments = wrapper.locateChild(request, ('static', 'extra'))
+        wrapper = UnguardedWrapper(self.store, None)
+        resource = wrapper.child_static(request)
         self.assertTrue(isinstance(resource, StaticContent))
         self.assertEqual(
             resource.staticPaths,
             {baseOffering.name: baseOffering.staticContentPath})
-        self.assertEqual(segments, ('extra',))
 
 
-    def test_secureLoginRequest(self):
+
+class AnonymousSiteTests(unittest.TestCase):
+    def setUp(self):
         """
-        When queried over HTTPS, L{UnguardedWrapper.locateChild} should consume
-        the leading C{'login'} segment of a request and return a L{LoginPage}
-        and the remaining segments.
+        Set up a store with a valid offering to test against.
         """
-        request = FakeRequest(
-            uri='/login/foo',
-            currentSegments=[],
-            isSecure=True)
-        wrapper = website.UnguardedWrapper(self.store, None)
-        child, segments = wrapper.locateChild(request, ('login', 'foo'))
-        self.assertTrue(isinstance(child, LoginPage))
-        self.assertIdentical(child.store, self.store)
-        self.assertEqual(child.segments, ())
-        self.assertEqual(child.arguments, {})
-        self.assertEqual(segments, ('foo',))
+        self.store = Store()
+        installOffering(self.store, baseOffering, {})
+        self.site = ISiteURLGenerator(self.store)
+        self.resource = IResource(self.store)
 
 
-    def test_insecureLoginRequest(self):
+    def test_login(self):
         """
-        When queried for I{login} over HTTP, L{UnguardedWrapper.locateChild}
-        should respond with a redirect to a location which differs on in its
-        use of HTTPS instead of HTTP.
+        L{AnonymousSite} has a I{login} child which returns a L{LoginPage}
+        instance.
         """
         host = 'example.org'
         port = 1234
+        netloc = '%s:%d' % (host, port)
 
         request = FakeRequest(
-            headers={'host': '%s:%d' % (host, port)},
+            headers={'host': netloc},
             uri='/login/foo',
             currentSegments=[],
             isSecure=False)
 
-        class FakeStore(object):
-            implements(IResource)
-            class securePort(object):
-                def getHost():
-                    return IPv4Address('TCP', '127.0.0.1', port, 'INET')
-                getHost = staticmethod(getHost)
+        self.site.hostname = host.decode('ascii')
+        SSLPort(store=self.store, portNumber=port, factory=self.site)
 
-        store = FakeStore()
-        wrapper = website.UnguardedWrapper(store, None)
-        child, segments = wrapper.locateChild(request, ('login', 'foo'))
-        self.assertTrue(isinstance(child, URL))
-
-        self.assertEqual(
-            str(child),
-            str(URL('https', 'example.org:%d' % (port,), ['login', 'foo'])))
-        self.assertEqual(segments, ())
+        resource = self.resource.child_login(request)
+        self.assertTrue(isinstance(resource, LoginPage))
+        self.assertIdentical(resource.store, self.store)
+        self.assertEqual(resource.segments, ())
+        self.assertEqual(resource.arguments, {})
 
 
-    def test_needsSecureChild(self):
+    def test_resetPassword(self):
         """
-        L{UnguardedWrapper} should automatically generate a redirect to an
-        HTTPS URL when queried for a child over HTTP with a C{True} value for
-        its I{needsSecure} attribute.
+        L{AnonymousSite} has a I{resetPassword} child which returns a
+        L{PasswordResetResource} instance.
         """
-        hostname = 'example.org'
-        httpsPortNumber = 12345
-        pathsegs = ['requires', 'security']
-        store = Store()
-        site = website.WebSite(store=store)
-        installOn(site, store)
-        SSLPort(store=store, portNumber=httpsPortNumber, factory=site)
+        resource = self.resource.child_resetPassword(None)
+        self.assertTrue(isinstance(resource, PasswordResetResource))
+        self.assertIdentical(resource.store, self.store)
 
-        class GuardedRoot(object):
-            implements(IResource)
-            def locateChild(self, context, pathsegs):
-                return SecureResource(), pathsegs
 
-        class SecureResource(object):
-            implements(IResource)
-            needsSecure = True
+    def test_users(self):
+        """
+        L{AnonymousSite} has a I{users} child which returns a L{UserIndexPage}
+        instance.
+        """
+        resource = self.resource.child_users(None)
+        self.assertTrue(isinstance(resource, UserIndexPage))
+        self.assertIdentical(
+            resource.loginSystem, self.store.findUnique(userbase.LoginSystem))
 
-        wrapper = website.UnguardedWrapper(store, GuardedRoot())
+
+    def test_notFound(self):
+        """
+        L{AnonymousSite.locateChild} returns L{NotFound} for requests it cannot
+        find another response for.
+        """
+        result = self.resource.locateChild(None, ("foo", "bar"))
+        self.assertIdentical(result, NotFound)
+
+
+    def test_siteRootPlugin(self):
+        """
+        L{AnonymousSite.locateChild} queries for L{ISiteRootPlugin} providers
+        and returns the result of their I{resourceFactory} method if it is not
+        C{None}.
+        """
+        result = object()
+        calledWith = []
+        class SiteRootPlugin(object):
+            def resourceFactory(self, segments):
+                calledWith.append(segments)
+                return result
+
+        self.store.inMemoryPowerUp(SiteRootPlugin(), ISiteRootPlugin)
+        self.assertIdentical(
+            self.resource.locateChild(None, ("foo", "bar")),
+            result)
+        self.assertEqual(calledWith, [("foo", "bar")])
+
+
+
+class StubResource(object):
+    """
+    An L{IResource} implementation which behaves in a way which is useful for
+    testing L{SecuringWrapper}.
+
+    @ivar childResource: The object which will be returned as a child resource
+        from C{locateChild}.
+    @ivar childSegments: The object which will be returned as the
+        unconsumed segments from C{locateChild}.
+    @ivar renderContent: The object to return from C{renderHTTP}.
+    @ivar renderedWithContext: The argument passed to C{renderHTTP}.
+    """
+    implements(IResource)
+
+    def __init__(self, childResource, childSegments, renderContent):
+        self.childResource = childResource
+        self.childSegments = childSegments
+        self.renderContent = renderContent
+
+
+    def renderHTTP(self, context):
+        self.renderedWithContext = context
+        return self.renderContent
+
+
+    def locateChild(self, context, segments):
+        self.locatedWith = (context, segments)
+        return self.childResource, self.childSegments
+
+
+
+class NotResource(object):
+    """
+    A class which does not implement L{IResource}.
+    """
+
+
+
+class NotResourceAdapter(object):
+    """
+    An adapter from L{NotResource} to L{IResource} (not really - but close
+    enough for the tests).
+    """
+    def __init__(self, notResource):
+        self.notResource = notResource
+
+
+registerAdapter(NotResourceAdapter, NotResource, IResource)
+
+
+
+class SecuringWrapperTests(unittest.TestCase):
+    """
+    L{SecuringWrapper} makes sure that any resource which is eventually
+    retrieved from a wrapped resource and then rendered is rendered over HTTPS
+    if possible and desired.
+    """
+    def setUp(self):
+        """
+        Create a resource and a wrapper to test.
+        """
+        self.store = Store()
+        self.urlGenerator = SiteConfiguration(store=self.store,
+                                              hostname=u"example.com")
+        self.child = StubResource(None, None, None)
+        self.childSegments = ("baz", "quux")
+        self.content = "some bytes perhaps"
+        self.resource = StubResource(
+            self.child, self.childSegments, self.content)
+        self.wrapper = SecuringWrapper(self.urlGenerator, self.resource)
+
+
+    def test_locateChildHTTPS(self):
+        """
+        L{SecuringWrapper.locateChild} returns the wrapped resource and the
+        unmodified segments if it is called with a secure request.
+        """
+        segments = ("foo", "bar")
+        request = FakeRequest(isSecure=True)
+        newResource, newSegments = self.wrapper.locateChild(request, segments)
+        self.assertIdentical(newResource, self.resource)
+        self.assertEqual(newSegments, segments)
+
+
+    def test_locateChildHTTP(self):
+        """
+        L{SecuringWrapper.locateChild} returns a L{_SecureWrapper} wrapped
+        around its own wrapped resource along with the unmodified segments if
+        it is called with an insecure request.
+        """
+        segments = ("foo", "bar")
+        request = FakeRequest(isSecure=False)
+        newResource, newSegments = self.wrapper.locateChild(request, segments)
+        self.assertTrue(isinstance(newResource, _SecureWrapper))
+        self.assertIdentical(newResource.urlGenerator, self.urlGenerator)
+        self.assertIdentical(newResource.wrappedResource, self.resource)
+        self.assertEqual(newSegments, segments)
+
+
+    def test_renderHTTPNeedsSecure(self):
+        """
+        L{SecuringWrapper.renderHTTP} returns a L{URL} pointing at the same
+        location as the request URI but with an https scheme if the wrapped
+        resource has a C{needsSecure} attribute with a true value and the
+        request is over http.
+        """
+        SSLPort(store=self.store, factory=self.urlGenerator, portNumber=443)
         request = FakeRequest(
-            headers={'host': hostname},
-            uri='/'.join([''] + pathsegs),
-            currentSegments=[],
-            isSecure=False)
-        child = wrapper.locateChild(request, pathsegs)
-        def cbChild((child, segments)):
-            self.assertEqual(
-                child,
-                URL(scheme='https',
-                    netloc='%s:%d' % (hostname, httpsPortNumber),
-                    pathsegs=pathsegs))
-            self.assertEqual(segments, ())
-        child.addCallback(cbChild)
-        return child
+            isSecure=False, uri='/bar/baz', currentSegments=['bar', 'baz'])
+        self.resource.needsSecure = True
+        result = self.wrapper.renderHTTP(request)
+        self.assertEqual(
+            result, URL('https', self.urlGenerator.hostname, ['bar', 'baz']))
+
+
+    def test_renderHTTP(self):
+        """
+        L{SecuringWrapper.renderHTTP} returns the result of the wrapped
+        resource's C{renderHTTP} method if the wrapped resource does not have a
+        C{needsSecure} attribute with a true value.
+        """
+        request = FakeRequest(
+            isSecure=False, uri='/bar/baz', currentSegments=['bar', 'baz'])
+        result = self.wrapper.renderHTTP(request)
+        self.assertIdentical(self.resource.renderedWithContext, request)
+        self.assertEqual(result, self.content)
+
+
+    def test_renderHTTPS(self):
+        """
+        L{SecuringWrapper.renderHTTP} returns the result of the wrapped
+        resource's C{renderHTTP} method if it is called with a secure request.
+        """
+        request = FakeRequest(isSecure=True)
+        result = self.wrapper.renderHTTP(request)
+        self.assertIdentical(self.resource.renderedWithContext, request)
+        self.assertEqual(result, self.content)
+
+
+    def test_renderHTTPCannotSecure(self):
+        """
+        L{SecuringWrapper.renderHTTP} returns the result of the wrapped
+        resource's C{renderHTTP} method if it is invoked over http but there is
+        no https location available.
+        """
+        request = FakeRequest(isSecure=False)
+        result = self.wrapper.renderHTTP(request)
+        self.assertIdentical(self.resource.renderedWithContext, request)
+        self.assertEqual(result, self.content)
+
+
+    def test_childLocateChild(self):
+        """
+        L{_SecureWrapper.locateChild} returns a L{Deferred} which is called
+        back with the result of the wrapped resource's C{locateChild} method
+        wrapped in another L{_SecureWrapper}.
+        """
+        segments = ('foo', 'bar')
+        request = FakeRequest()
+        wrapper = _SecureWrapper(self.urlGenerator, self.resource)
+        result = wrapper.locateChild(request, segments)
+        def locatedChild((resource, segments)):
+            self.assertTrue(isinstance(resource, _SecureWrapper))
+            self.assertIdentical(resource.wrappedResource, self.child)
+            self.assertEqual(segments, self.childSegments)
+        result.addCallback(locatedChild)
+        return result
+
+
+    def test_notFound(self):
+        """
+        A L{_SecureWrapper.locateChild} lets L{NotFound} results from the
+        wrapped resource pass through.
+        """
+        segments = ('foo', 'bar')
+        request = FakeRequest()
+        self.resource.childResource = None
+        self.resource.childSegments = ()
+        wrapper = _SecureWrapper(self.urlGenerator, self.resource)
+        result = wrapper.locateChild(request, segments)
+        def locatedChild(result):
+            self.assertIdentical(result, NotFound)
+        result.addCallback(locatedChild)
+        return result
+
+
+    def test_adaption(self):
+        """
+        A L{_SecureWrapper} constructed with an object which does not provide
+        L{IResource} adapts it to L{IResource} and operates on the result.
+        """
+        notResource = NotResource()
+        wrapper = _SecureWrapper(self.urlGenerator, notResource)
+        self.assertTrue(isinstance(wrapper.wrappedResource, NotResourceAdapter))
+        self.assertIdentical(wrapper.wrappedResource.notResource, notResource)
 
 
 
@@ -1066,74 +912,13 @@ class AthenaResourcesTestCase(unittest.TestCase):
         resource.beforeRender(ctx)
 
 
-    def test_jsmodules(self):
+    def makeLivePage(self):
         """
-        Test that the C{__jsmodule__} child of the site's root is an object which
-        will serve up JavaScript modules for Athena applications.
+        Create a MantissaLivePage instance for testing.
         """
-        topResource = SiteRootMixin()
-        # Don't even need to provide a store - this data is retrieved from
-        # code, not the database, and it _should never_ touch the database on
-        # the way to getting it.
-        resource, segments = topResource.locateChild(None, ('__jsmodule__',))
-        self.failUnless(isinstance(resource, HashedJSModuleProvider))
-        self.assertEquals(segments, ())
-
-
-    def test_live(self):
-        """
-        Test that the C{live} child of the site's root is a L{LivePage}
-        object.
-        """
-        topResource = SiteRootMixin()
-        (resource, segments) = topResource.locateChild(None, ('live',))
-        self.failUnless(isinstance(resource, LivePage))
-        self.assertEqual(segments, ())
-
-
-    def test_liveNoHitCount(self):
-        """
-        Test that accessing the C{live} child of the site's root does not
-        increment the C{hitCount} attribute.
-        """
-        topResource = SiteRootMixin()
-        topResource.locateChild(None, ('live',))
-        self.assertEqual(topResource.hitCount, 0)
-
-
-    def test_hitsCountedByDefault(self):
-        """
-        Test that children of the site's root will contribute to the hit count
-        if they don't explicitly state otherwise.
-        """
-        topResource = SiteRootMixin()
-        topResource.child_x = lambda *a: (None, ())
-        topResource.locateChild(None, ('x',))
-        self.assertEqual(topResource.hitCount, 1)
-
-
-    def test_hitsCountedifTrue(self):
-        """
-        Test that children of the site's root will contribute to the hit count
-        if they express an interest in doing that.
-        """
-        topResource = SiteRootMixin()
-        topResource.child_x = lambda *a: (None, ())
-        topResource.child_x.countHits = True
-        topResource.locateChild(None, ('x',))
-        self.assertEqual(topResource.hitCount, 1)
-
-
-    def test_hitsNotCountedIfFalse(self):
-        """
-        Test that children of the site's root won't contribute to the hit
-        count if they ask not to.
-        """
-        topResource = SiteRootMixin()
-        topResource.child_x = lambda *a: (None, ())
-        topResource.child_x.countHits = False
-        topResource.locateChild(None, ('x',))
-        self.assertEqual(topResource.hitCount, 0)
+        siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(siteStore, self.hostname.decode('ascii'), u"", False)
+        return MantissaLivePage(ISiteURLGenerator(siteStore))
 
 
     def test_transportRoot(self):
@@ -1143,17 +928,6 @@ class AthenaResourcesTestCase(unittest.TestCase):
         """
         livePage = self.makeLivePage()
         self.assertEquals(flatten(livePage.transportRoot), 'http://localhost/live')
-
-
-    def makeLivePage(self):
-        """
-        Create a MantissaLivePage instance for testing.
-        """
-        store = Store()
-        self.webSite = WebSite(store=store, hostname=self.hostname.decode('ascii'))
-        installOn(self.webSite, store)
-        SSLPort(store=store, factory=self.webSite, portNumber=TEST_SECURE_PORT)
-        return MantissaLivePage(self.webSite)
 
 
     def test_debuggableMantissaLivePage(self):

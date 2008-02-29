@@ -4,13 +4,16 @@ import sys, os, struct
 from twisted.python import util
 from twisted.cred import portal
 
-from axiom import errors as eaxiom, userbase
+from axiom import errors as eaxiom
 from axiom.scripts import axiomatic
 from axiom.attributes import AND
 from axiom.dependency import installOn
 
-from xmantissa import website, webadmin, publicweb, stats
+from xmantissa.ixmantissa import IOfferingTechnician
+from xmantissa import webadmin, publicweb, stats
+from xmantissa.web import SiteConfiguration
 from xmantissa.port import TCPPort, SSLPort
+from xmantissa.plugins.baseoff import baseOffering
 
 from epsilon.asplode import splode
 from epsilon.scripts import certcreate
@@ -50,6 +53,12 @@ class Mantissa(axiomatic.AxiomaticCommand):
     # duplicate installations of these components do not create garbage
     # objects.
 
+    # Yea?  Where's the unit tests for that?  And who re-runs "axiomatic
+    # mantissa" on the same Store multiple times anyway?  Better that it should
+    # give an error than transparently... do... something... maybe...  I'm
+    # actively not preserving the idempotency behavior in my changes to this
+    # code. -exarkun
+
     name = 'mantissa'
     description = 'Blank Mantissa service'
 
@@ -65,7 +74,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
          'URL at which to publish the public front page.')]
 
     def postOptions(self):
-        s = self.parent.getStore()
+        siteStore = self.parent.getStore()
         if self['admin-password'] is None:
             pws = u'Divmod\u2122 Mantissa\u2122 password for %r: ' % (self['admin-user'],)
             self['admin-password'] = gtpswd((u'Enter ' + pws).encode(sys.stdout.encoding, 'ignore'),
@@ -76,50 +85,46 @@ class Mantissa(axiomatic.AxiomaticCommand):
         adminUser = self.decodeCommandLine(self['admin-user'])
         adminPassword = self['admin-password']
 
-        s.transact(self.installSite, s, publicURL)
-        s.transact(self.installAdmin, s, adminUser, adminPassword)
+        adminLocal, adminDomain = adminUser.split(u'@')
+
+        siteStore.transact(self.installSite, siteStore, adminDomain, publicURL)
+        siteStore.transact(
+            self.installAdmin, siteStore, adminLocal, adminDomain, adminPassword)
 
 
-    def installSite(self, s, publicURL, generateCert=True):
-        certPath = s.filesdir.child("server.pem")
+    def installSite(self, siteStore, domain, publicURL, generateCert=True):
+        certPath = siteStore.filesdir.child("server.pem")
         if generateCert and not certPath.exists():
             certcreate.main([
                     '--filename', certPath.path, '--quiet',
-                    '--serial-number', str(genSerial())])
+                    '--serial-number', str(genSerial()),
+                    '--hostname', domain])
 
-        # Install a user database so that people can log in.
-        installOn(s.findOrCreate(userbase.LoginSystem), s)
+        # Install the base Mantissa offering.
+        IOfferingTechnician(siteStore).installOffering(baseOffering)
 
-        # Install an HTTP server and root resource so we have some way
-        # to access it through the web: point it at port 8080.
-        def siteCreated(site):
-            installOn(site, s)
-            port = TCPPort(store=s, portNumber=8080, factory=site)
-            installOn(port, s)
-            port = SSLPort(store=s, portNumber=8443, certificatePath=certPath, factory=site)
-            installOn(port, s)
-        s.findOrCreate(website.WebSite, siteCreated)
-
-        # Install static resources required for DeveloperApplication
-        # below.  This is installed 'sessionlessly', meaning for
-        # everyone, because although only developers will have access
-        # to the *server* component of the Python command line, there
-        # is no security reason to restrict access to the browser
-        # parts of it (and it's faster that way)
-        installOn(s.findOrCreate(webadmin.DeveloperSite), s)
+        # Make the HTTP server baseOffering includes listen somewhere.
+        site = siteStore.findUnique(SiteConfiguration)
+        site.hostname = domain
+        installOn(
+            TCPPort(store=siteStore, factory=site, portNumber=8080),
+            siteStore)
+        installOn(
+            SSLPort(store=siteStore, factory=site, portNumber=8443,
+                    certificatePath=certPath),
+            siteStore)
 
         # Install a front page on the top level store so that the
         # developer will have something to look at when they start up
         # the server.
-        fp = s.findOrCreate(publicweb.FrontPage, prefixURL=u'')
-        installOn(fp, s)
+        fp = siteStore.findOrCreate(publicweb.FrontPage, prefixURL=u'')
+        installOn(fp, siteStore)
 
 
-    def installAdmin(self, s, username, password):
+    def installAdmin(self, s, username, domain, password):
         # Add an account for our administrator, so they can log in through the
         # web.
         r = portal.IRealm(s)
-        username, domain = username.split('@')
         try:
             acc = r.addAccount(username, domain, password, internal=True, verified=True)
         except eaxiom.DuplicateUser:

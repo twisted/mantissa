@@ -34,7 +34,7 @@ from xmantissa.website import PrefixURLMixin, WebSite
 from xmantissa.websession import usernameFromRequest
 from xmantissa.publicweb import PublicAthenaLivePage, PublicPage
 from xmantissa.webnav import Tab
-from xmantissa.webtheme import getLoader
+from xmantissa.webtheme import ThemedDocumentFactory, getLoader
 from xmantissa.webapp import PrivateApplication
 from xmantissa import plugins, liveform
 from xmantissa.websession import PersistentSession
@@ -652,14 +652,16 @@ class ValidatingSignupForm(liveform.LiveForm):
         'password',
         'emailAddress']
 
+    docFactory = ThemedDocumentFactory("user-info-signup", "templateResolver")
+
     def __init__(self, uis):
         self.userInfoSignup = uis
+        self.templateResolver = ITemplateNameResolver(uis.store)
         super(ValidatingSignupForm, self).__init__(
             uis.createUser,
             [liveform.Parameter(pname, liveform.TEXT_INPUT, unicode)
              for pname in
              self._parameterNames])
-        self.docFactory = getLoader("user-info-signup")
 
 
     def getInitialArguments(self):
@@ -735,6 +737,7 @@ class UserInfoSignup(Item, PrefixURLMixin):
             IStaticShellContent(self.store, None))
         page.needsSecure = True
         return page
+
 
     # UserInfoSignup
     def getAvailableDomains(self):

@@ -3,6 +3,7 @@ import os, sys
 
 from cStringIO import StringIO
 
+from twisted.python.usage import UsageError
 from twisted.trial.unittest import TestCase
 
 from axiom.plugins import webcmd
@@ -10,7 +11,9 @@ from axiom.plugins import webcmd
 from axiom.dependency import installOn
 from axiom.store import Store
 from axiom.test.util import CommandStubMixin
+from axiom.plugins.mantissacmd import Mantissa
 
+from xmantissa.web import SiteConfiguration
 from xmantissa.website import WebSite, APIKey
 
 def _captureStandardOutput(f, *a, **k):
@@ -39,6 +42,17 @@ class TestIdempotentListing(CommandStubMixin, TestCase):
 
     def setUp(self):
         self.store = Store()
+        self.options = webcmd.WebConfiguration()
+        self.options.parent = self
+
+
+    def test_requiresBaseOffering(self):
+        """
+        L{WebConfiguration.postOptions} raises L{UsageError} if it is used on a
+        store which does not have the Mantissa base offering installed.
+        """
+        self.assertRaises(UsageError, self.options.postOptions)
+
 
     def _list(self):
         wconf = webcmd.WebConfiguration()
@@ -58,8 +72,8 @@ class TestIdempotentListing(CommandStubMixin, TestCase):
 
 class ConfigurationTestCase(CommandStubMixin, TestCase):
     def setUp(self):
-        self.dbdir = self.mktemp()
-        self.store = Store(self.dbdir)
+        self.store = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.store, u"example.com", u"", False)
 
 
     def test_shortOptionParsing(self):
@@ -69,13 +83,13 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         """
         opt = webcmd.WebConfiguration()
         opt.parent = self
-        certFile = os.path.join(self.dbdir, 'files/name')
+        certFile = self.store.filesdir.child('name')
         opt.parseOptions([
-                '-p', '8080', '-s', '8443', '-f', certFile,
+                '-p', '8080', '-s', '8443', '-f', certFile.path,
                 '-h', 'http.log', '-H', 'example.com'])
         self.assertEquals(opt['port'], '8080')
         self.assertEquals(opt['secure-port'], '8443')
-        self.assertEquals(opt['pem-file'], certFile)
+        self.assertEquals(opt['pem-file'], certFile.path)
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
 
@@ -87,14 +101,14 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         """
         opt = webcmd.WebConfiguration()
         opt.parent = self
-        certFile = os.path.join(self.dbdir, 'files/name')
+        certFile = self.store.filesdir.child('name')
         opt.parseOptions([
                 '--port', '8080', '--secure-port', '8443',
-                '--pem-file', certFile, '--http-log', 'http.log',
+                '--pem-file', certFile.path, '--http-log', 'http.log',
                 '--hostname', 'example.com', '--urchin-key', 'A123'])
         self.assertEquals(opt['port'], '8080')
         self.assertEquals(opt['secure-port'], '8443')
-        self.assertEquals(opt['pem-file'], certFile)
+        self.assertEquals(opt['pem-file'], certFile.path)
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
         self.assertEquals(opt['urchin-key'], 'A123')
@@ -118,34 +132,21 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
 
     def test_hostname(self):
         """
-        Test that the --hostname option changes the C{hostname} attribute of
-        the C{WebSite} instance being manipulated.
+        The I{hostname} option changes the C{hostname} attribute of the
+        L{SiteConfiguration} object installed on the store.  The hostname
+        cannot be set to the empty string.
         """
-        ws = WebSite(store=self.store)
-        installOn(ws, self.store)
-
         opt = webcmd.WebConfiguration()
         opt.parent = self
         opt['hostname'] = 'example.com'
         opt.postOptions()
 
-        self.assertEquals(ws.hostname, u'example.com')
-
-
-    def test_unsetHostname(self):
-        """
-        Test that passing an empty string to --hostname changes the C{hostname}
-        attribute of the C{WebSite} instance to C{None}.
-        """
-        ws = WebSite(store=self.store)
-        installOn(ws, self.store)
-
-        opt = webcmd.WebConfiguration()
-        opt.parent = self
         opt['hostname'] = ''
-        opt.postOptions()
+        self.assertRaises(UsageError, opt.postOptions)
 
-        self.assertEquals(ws.hostname, None)
+        self.assertEqual(
+            self.store.findUnique(SiteConfiguration).hostname,
+            u"example.com")
 
 
     def test_urchinKey(self):

@@ -10,8 +10,7 @@ from xmantissa.signup import SignupConfiguration
 adminOffering = offering.Offering(
     name = u'mantissa',
     description = u'Powerups for administrative control of a Mantissa server.',
-    siteRequirements = [(None, webadmin.DeveloperSite),
-                        (iaxiom.IScheduler, scheduler.Scheduler)],
+    siteRequirements = [],
     appPowerups = [scheduler.SubScheduler, stats.StatsService],
     installablePowerups = [("Signup Configuration", "Allows configuration of signup mechanisms", SignupConfiguration),
                            ("Traceback Viewer", "Allows viewing unhandled exceptions which occur on the server", TracebackViewer),

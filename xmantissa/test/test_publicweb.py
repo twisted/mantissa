@@ -18,18 +18,21 @@ from nevow.testutil import FakeRequest
 from nevow.loaders import stan
 
 from xmantissa.ixmantissa import (
-    IPublicPage, ITemplateNameResolver, INavigableElement)
+    IPublicPage, ITemplateNameResolver, INavigableElement, ISiteURLGenerator,
+    IOfferingTechnician)
 from xmantissa import signup
 from xmantissa.website import WebSite, APIKey
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
 from xmantissa.offering import Offering, InstalledOffering
+from xmantissa.webtheme import theThemeCache
 from xmantissa.publicweb import (
     FrontPage, PublicAthenaLivePage, PublicNavAthenaLivePage,
     _OfferingsFragment, PublicFrontPage, getLoader)
 from xmantissa import publicweb
 from xmantissa.signup import PasswordResetResource
+from xmantissa.test.test_offering import FakeOfferingTechnician
 
 
 class FakeTheme(object):
@@ -167,9 +170,9 @@ class FakeApplication(Item):
 
 
 
-class _OfferingsFragmentTestCase(TestCase):
+class OfferingsFragmentTestCase(TestCase):
     """
-    Tests for L{_OFferingsFragment}.
+    Tests for L{_OfferingsFragment}.
     """
     def test_offerings(self):
         """
@@ -251,6 +254,10 @@ class PublicFrontPageTests(TestCase):
 class AuthenticatedNavigationTestMixin:
     """
     Mixin defining test methods for the authenticated navigation view.
+
+    @ivar siteStore: The site Store with which the page returned by
+        L{createPage} will be associated (probably by way of a user store and
+        an item).
     """
     userinfo = (u'testuser', u'example.com')
     username = u'@'.join(userinfo)
@@ -268,6 +275,47 @@ class AuthenticatedNavigationTestMixin:
         by L{createPage}.
         """
         raise NotImplementedError("%r did not implement rootURL" % (self,))
+
+
+    def test_headRenderer(self):
+        """
+        The I{head} renderer gets the head section for each installed theme by
+        calling their C{head} method with the request being rendered and adds
+        the result to the tag it is passed.
+        """
+        headCalls = []
+        customHead = object()
+        class CustomHeadTheme(object):
+            priority = 0
+            themeName = "custom"
+            def head(self, request, site):
+                headCalls.append((request, site))
+                return customHead
+            def getDocFactory(self, name, default):
+                return default
+
+        tech = FakeOfferingTechnician()
+        tech.installOffering(Offering(
+                name=u'fake', description=u'', siteRequirements=[],
+                appPowerups=[], installablePowerups=[], loginInterfaces=[],
+                themes=[CustomHeadTheme()]))
+        self.siteStore.inMemoryPowerUp(tech, IOfferingTechnician)
+
+        # Flush the cache, which is global, else the above fake-out is
+        # completely ignored.
+        theThemeCache.emptyCache()
+
+        page = self.createPage(self.username)
+        tag = div()
+        ctx = context.WebContext(tag=tag)
+        request = FakeRequest()
+        ctx.remember(request, inevow.IRequest)
+        result = page.render_head(ctx, None)
+        self.assertEqual(result.tagName, 'div')
+        self.assertEqual(result.attributes, {})
+        self.assertIn(customHead, result.children)
+        self.assertEqual(
+            headCalls, [(request, ISiteURLGenerator(self.siteStore))])
 
 
     def test_authenticatedAuthenticateLinks(self):
@@ -523,13 +571,11 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     signupPrompt = u'sign up now'
 
     def setUp(self):
-        self.store = Store(filesdir=self.mktemp())
-        installOn(WebSite(store=self.store), self.store)
         self.siteStore = Store(filesdir=self.mktemp())
 
         def siteStoreTxn():
-            Mantissa().installSite(self.siteStore, "/", generateCert=False)
-            self.website = self.siteStore.findUnique(WebSite)
+            Mantissa().installSite(
+                self.siteStore, self.userinfo[1], u"", False)
             ticketed = signup.FreeTicketSignup(
                 store=self.siteStore, prefixURL=self.signupURL,
                 prompt=self.signupPrompt)
@@ -551,7 +597,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
         """
         Return the root URL as reported by C{self.website}.
         """
-        return self.website.rootURL(request)
+        return ISiteURLGenerator(self.siteStore).rootURL(request)
 
 
     def test_unauthenticatedAuthenticateLinks(self):

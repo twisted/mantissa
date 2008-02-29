@@ -17,7 +17,7 @@ from nevow.rend import WovenContext
 from nevow.testutil import FakeRequest
 from nevow.inevow import IRequest, IResource
 
-from xmantissa.ixmantissa import ITemplateNameResolver
+from xmantissa.ixmantissa import ITemplateNameResolver, ISiteURLGenerator
 from xmantissa.offering import InstalledOffering, installOffering
 from xmantissa.webtheme import theThemeCache
 from xmantissa import website, webapp
@@ -78,6 +78,9 @@ class WebIDLocationTest(TestCase):
 
 
 class TestFragment(LiveFragment):
+    def head(self):
+        pass
+
     def locateChild(self, ctx, segs):
         if segs[0] == 'child-of-fragment':
             return ('I AM A CHILD OF THE FRAGMENT', segs[1:])
@@ -115,10 +118,9 @@ class GenericNavigationAthenaPageTests(TestCase,
         """
         Set up a site store, user store, and page instance to test with.
         """
-        self.siteStore = Store()
+        self.siteStore = Store(filesdir=self.mktemp())
         def siteStoreTxn():
-            self.website = website.WebSite(store=self.siteStore)
-            installOn(self.website, self.siteStore)
+            Mantissa().installSite(self.siteStore, u"localhost", u"", False)
 
             self.userStore = SubStore.createNew(
                 self.siteStore, ['child', 'lookup']).open()
@@ -147,7 +149,7 @@ class GenericNavigationAthenaPageTests(TestCase,
         """
         Return the root URL as reported by C{self.website}.
         """
-        return self.website.rootURL(request)
+        return ISiteURLGenerator(self.siteStore).rootURL(request)
 
 
     def test_childLookup(self):
@@ -207,8 +209,7 @@ class PrivateApplicationTestCase(TestCase):
     """
     def setUp(self):
         self.siteStore = Store(filesdir=self.mktemp())
-        Mantissa().installSite(self.siteStore, "/", generateCert=False)
-        installOffering(self.siteStore, baseOffering, None)
+        Mantissa().installSite(self.siteStore, u"example.com", u"", False)
 
         self.userAccount = Create().addAccount(
             self.siteStore, u'testuser', u'example.com', u'password')

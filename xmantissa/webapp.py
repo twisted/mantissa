@@ -37,7 +37,8 @@ from xmantissa.offering import getInstalledOfferings
 
 from xmantissa.ixmantissa import (INavigableFragment, INavigableElement,
                                   ISiteRootPlugin, IWebTranslator,
-                                  IStaticShellContent, ITemplateNameResolver)
+                                  IStaticShellContent, ITemplateNameResolver,
+                                  ISiteURLGenerator)
 
 from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
@@ -122,9 +123,7 @@ class _ShellRenderingMixin(object):
         static XHTML templates resolve correctly (for example, by adding this
         value as the href of a <base> tag).
         """
-        # It's not a Resource, it's a site configuration object.  There should
-        # be another interface. See #920. -exarkun
-        site = IResource(self._siteStore())
+        site = ISiteURLGenerator(self._siteStore())
         return ctx.tag[site.rootURL(IRequest(ctx))]
 
 
@@ -246,13 +245,13 @@ class FragmentWrapperMixin:
 
         userStore = self.webapp.store
         siteStore = userStore.parent
-        website = IResource(siteStore)
+        site = ISiteURLGenerator(siteStore)
 
         l = self.pageComponents.themes
         _reorderForPreference(l, self.webapp.preferredTheme)
         extras = []
         for theme in l:
-            extra = theme.head(req, website)
+            extra = theme.head(req, site)
             if extra is not None:
                 extras.append(extra)
         extra = self.fragment.head()
@@ -327,7 +326,7 @@ class GenericNavigationAthenaPage(MantissaLivePage,
         siteStore = userStore.parent
 
         MantissaLivePage.__init__(
-            self, IResource(siteStore),
+            self, ISiteURLGenerator(siteStore),
             getattr(fragment, 'iface', None),
             fragment,
             jsModuleRoot=None,

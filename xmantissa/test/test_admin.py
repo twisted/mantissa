@@ -104,8 +104,8 @@ class ActionsTestCase(TestCase):
         this class's docstring.
         """
         self.siteStore = Store(filesdir=self.mktemp())
-        Mantissa().installSite(self.siteStore, "/", generateCert=False)
-        Mantissa().installAdmin(self.siteStore, u'admin@localhost', u'asdf')
+        Mantissa().installSite(self.siteStore, u"localhost", u"", False)
+        Mantissa().installAdmin(self.siteStore, u'admin', u'localhost', u'asdf')
 
         self.siteMethod = self.siteStore.findUnique(
             LoginMethod, LoginMethod.localpart == u'admin')

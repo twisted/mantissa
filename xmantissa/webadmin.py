@@ -1086,11 +1086,3 @@ def endowAdminPowerups(userStore):
     # here.
     oc = offering.OfferingConfiguration(store=userStore)
     installOn(oc, userStore)
-
-    installedOffering = userStore.parent.findUnique(
-                            offering.InstalledOffering,
-                            offering.InstalledOffering.offeringName == baseOffering.name,
-                            default=None)
-
-    if installedOffering is None:
-        oc.installOffering(baseOffering, None)

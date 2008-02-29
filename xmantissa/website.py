@@ -9,7 +9,6 @@ To interact with the code defined here, create a web site using the
 command-line 'axiomatic' program using the 'web' subcommand.
 """
 
-import socket
 import warnings
 
 from zope.interface import implements
@@ -19,19 +18,13 @@ try:
 except ImportError:
     CSSParser = None
 
-from twisted.cred.portal import IRealm, Portal
-from twisted.cred.checkers import ICredentialsChecker, AllowAnonymousAccess
-from twisted.protocols import policies
-from twisted.internet import defer
 from twisted.application.service import IService
-from twisted.python.filepath import FilePath
 
 from epsilon.structlike import record
 
 from nevow.inevow import IRequest, IResource
 from nevow.rend import NotFound, Page, Fragment
 from nevow import inevow
-from nevow.appserver import NevowSite, NevowRequest
 from nevow.static import File
 from nevow.url import URL
 from nevow import url
@@ -39,23 +32,17 @@ from nevow import athena
 
 from axiom import upgrade
 from axiom.item import Item, _PowerupConnector, declareLegacyItem
-from axiom.attributes import AND, integer, inmemory, text, reference, bytes, boolean
+from axiom.attributes import AND, integer, text, reference, bytes, boolean
 from axiom.userbase import LoginSystem
 from axiom.dependency import installOn
 
 from xmantissa.ixmantissa import (
     ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory,
-    IWebTranslator, IPreferenceAggregator, IOfferingTechnician)
-from xmantissa import websession
+    ISiteURLGenerator)
 from xmantissa.port import TCPPort, SSLPort
-
+from xmantissa.web import SiteConfiguration
 from xmantissa.cachejs import theHashModuleProvider
 
-
-class WebConfigurationError(RuntimeError):
-    """
-    You specified some invalid configuration.
-    """
 
 class MantissaLivePage(athena.LivePage):
     """
@@ -128,41 +115,6 @@ class MantissaLivePage(athena.LivePage):
 
 
 
-class StaticContent(record('staticPaths processors')):
-    """
-    Parent resource for all static content provided by all installed offerings.
-
-    This resource has a child by the name of each offering which declares a
-    static content path which serves that path.
-
-    @ivar staticPaths: A C{dict} mapping offering names to L{FilePath}
-        instances for each offering which should be able to publish static
-        content.
-
-    @ivar processors: A C{dict} mapping extensions (with leading ".") to
-        two-argument callables.  These processors will be attached to the
-        L{nevow.static.File} returned by C{locateChild}.
-    """
-    implements(inevow.IResource)
-
-    def locateChild(self, context, segments):
-        """
-        Find the offering with the name matching the first segment and return a
-        L{File} for its I{staticContentPath}.
-        """
-        name = segments[0]
-        try:
-            staticContent = self.staticPaths[name]
-        except KeyError:
-            return NotFound
-        else:
-            resource = File(staticContent.path)
-            resource.processors = self.processors
-            return resource, segments[1:]
-        return NotFound
-
-
-
 class SiteRootMixin(object):
     """
     Mixin class providing useful methods for the very top of the Mantissa site
@@ -190,8 +142,6 @@ class SiteRootMixin(object):
 
     hitCount = 0
 
-    hashCache = theHashModuleProvider
-
     def renderHTTP(self, ctx):
         """
         This page is not renderable, because it is the very root of the server.
@@ -200,48 +150,6 @@ class SiteRootMixin(object):
         """
         raise NotImplementedError(
             "This _must_ be installed at the root of a server.")
-
-
-    def child___jsmodule__(self, ignored):
-        """
-        __jsmodule__ child which provides support for Athena applications to
-        use a centralized URL to deploy JavaScript code.
-        """
-        return self.hashCache
-
-
-    def child_live(self, ctx):
-        """
-        The 'live' namespace is reserved for Athena LivePages.  By default in
-        Athena applications these resources are child resources of whatever URL
-        the live page ends up at, but this root URL is provided so that the
-        reliable message queuing logic can sidestep all resource traversal, and
-        therefore, all database queries.  This is an important optimization,
-        since Athena's implementation assumes that HTTP hits to the message
-        queue resource are cheap.
-
-        @return: an L{athena.LivePage} instance.
-        """
-        return athena.LivePage(None, None)
-    child_live.countHits = False
-
-
-    def child_Mantissa(self, ctx):
-        """
-        Serve files from C{xmantissa/static/} at the URL C{/Mantissa}.
-        """
-        # Cheating!  It *looks* like there's an app store, but there isn't
-        # really, because this is the One Store To Bind Them All.
-
-        # We shouldn't really cheat here.  It would be better to have one real
-        # Mantissa offering that has its static content served up the same way
-        # every other offering's content is served.  There's already a
-        # /static/mantissa-static/.  This child definition is only still here
-        # because some things still reference this URL.  For example,
-        # JavaScript files and any CSS file which uses Mantissa content but is
-        # from an Offering which does not provide a staticContentPath.
-        # See #2469.  -exarkun
-        return File(FilePath(__file__).sibling("static").path)
 
 
     def locateChild(self, ctx, segments):
@@ -278,85 +186,6 @@ class SiteRootMixin(object):
                 return child, segments
         return NotFound
 
-
-
-class UnguardedWrapper(SiteRootMixin):
-    """
-    Resource which wraps the top of the Mantissa resource hierarchy and adds a
-    login resource and performs redirects to HTTPS URLs as necessary.
-
-    @ivar store: The site L{Store} for the resource hierarchy being wrapped.
-    @ivar guardedRoot: The root resource of the hierarchy being wrapped.
-    """
-    implements(inevow.IResource)
-
-    powerupInterface = ISessionlessSiteRootPlugin
-    hitCount = 0
-
-    def __init__(self, store, guardedRoot):
-        self.store = store
-        self.guardedRoot = guardedRoot
-
-
-    def child_static(self, context):
-        """
-        Serve a container page for static content for Mantissa and other
-        offerings.
-        """
-        offeringTech = IOfferingTechnician(self.store)
-        installedOfferings = offeringTech.getInstalledOfferings()
-        offeringsWithContent = dict([
-                (offering.name, offering.staticContentPath)
-                for offering
-                in installedOfferings.itervalues()
-                if offering.staticContentPath])
-
-        # If you wanted to do CSS rewriting for all CSS files served beneath
-        # /static/, you could do it by passing a processor for ".css" here.
-        # eg:
-        #
-        # website = inevow.IResource(self.store)
-        # factory = StylesheetFactory(
-        #     offeringsWithContent.keys(), website.rootURL)
-        # StaticContent(offeringsWithContent, {
-        #               ".css": factory.makeStylesheetResource})
-        return StaticContent(offeringsWithContent, {})
-
-
-    def locateChild(self, ctx, segments):
-        request = inevow.IRequest(ctx)
-        if segments[0] == 'login':
-            webSite = inevow.IResource(self.store, None)
-            if webSite is not None:
-                securePort = webSite.securePort
-            else:
-                securePort = None
-            if not request.isSecure() and securePort is not None:
-                url = URL.fromContext(ctx)
-                newurl = url.secure(port=securePort.getHost().port)
-                for seg in segments:
-                    newurl = newurl.child(seg)
-                return newurl, ()
-            else:
-                # This should be eliminated by having a regular child_login in
-                # publicweb instead, I think, but for now we can eliminate a
-                # confusing circular import --glyph
-                from xmantissa.publicweb import LoginPage
-                return LoginPage(self.store), segments[1:]
-        x = SiteRootMixin.locateChild(self, ctx, segments)
-        if x is not NotFound:
-            return x
-        def maybeSecure((child, segments)):
-            if getattr(child, 'needsSecure', None):
-                request = inevow.IRequest(ctx)
-                if not request.isSecure():
-                    website = inevow.IResource(self.store)
-                    root = website.encryptedRoot(request.getHeader('host'))
-                    root = root.click('/'.join(segments))
-                    return root, ()
-            return child, segments
-        return defer.maybeDeferred(self.guardedRoot.locateChild, ctx, segments
-                                   ).addCallback(maybeSecure)
 
 
 JUST_SLASH = ('',)
@@ -549,22 +378,6 @@ def upgradeStaticRedirect1To2(oldRedirect):
     return newRedirect
 upgrade.registerUpgrader(upgradeStaticRedirect1To2, 'web_static_redirect', 1, 2)
 
-class AxiomRequest(NevowRequest):
-    def __init__(self, store, *a, **kw):
-        NevowRequest.__init__(self, *a, **kw)
-        self.store = store
-
-    def process(self, *a, **kw):
-        return self.store.transact(NevowRequest.process, self, *a, **kw)
-
-
-class AxiomSite(NevowSite):
-    def __init__(self, store, *a, **kw):
-        NevowSite.__init__(self, *a, **kw)
-        self.store = store
-        self.requestFactory = lambda *a, **kw: AxiomRequest(self.store, *a, **kw)
-
-
 class AxiomPage(Page):
     def renderHTTP(self, ctx):
         return self.store.transact(Page.renderHTTP, self, ctx)
@@ -700,101 +513,16 @@ class StylesheetRewritingRequestWrapper(object):
 
 class WebSite(Item, SiteRootMixin):
     """
-    Govern an HTTP server which binds a port on startup and tears it down at
-    shutdown using the Twisted Service system.  Unfortunately, also provide web
-    pages.  These two tasks should be the responsibility of two separate Items,
-    but writing the upgrader to fix this won't be fun so I don't want to do it.
-    Someone else should though.
+    An IResource avatar which supports L{ISiteRootPlugin}s on user stores
+    and a limited number of other statically defined children.
     """
-    implements(IProtocolFactoryFactory, IResource)
-
-    powerupInterfaces = (IProtocolFactoryFactory, IResource)
+    powerupInterfaces = (IResource,)
+    implements(*powerupInterfaces)
 
     typeName = 'mantissa_web_powerup'
-    schemaVersion = 5
+    schemaVersion = 6
 
     hitCount = integer(default=0)
-    installedOn = reference()
-
-    hostname = text(doc="""
-    The primary hostname by which this website will be accessible.  If set to
-    C{None}, a guess will be made using L{socket.getfqdn}.
-    """, default=None)
-
-    httpLog = bytes(default=None)
-
-    site = inmemory()
-
-    debug = False
-
-    def securePort():
-        """
-        Define a backwards compatibility property for the IListeningPort for
-        the HTTPS server which used to be an attribute on WebSite.
-        """
-        def get(self):
-            warnings.warn(
-                "WebSite.securePort is deprecated!",
-                stacklevel=3, category=DeprecationWarning)
-            port = self._getPort(SSLPort)
-            if port is not None:
-                return port.listeningPort
-            return None
-        return get,
-    securePort = property(*securePort())
-
-
-    def activate(self):
-        self.site = None
-
-
-    def _hostname(self):
-        """
-        Determine the canonical hostname of this site.  Use the configured name
-        if there is one, otherwise make up a default which might make sense
-        based on the system's hostname.
-        """
-        if self.hostname is None:
-            return socket.getfqdn()
-        return self.hostname.encode('ascii')
-
-
-    def _root(self, scheme, hostname, portObj, standardPort):
-        # TODO - real unicode support (but punycode is so bad)
-        if portObj is None:
-            return None
-
-        portNumber = portObj.portNumber
-        port = portObj.listeningPort
-
-        if hostname is None:
-            hostname = self._hostname()
-        else:
-            hostname = hostname.split(':')[0].encode('ascii')
-
-        if portNumber == 0:
-            if port is None:
-                return None
-            else:
-                portNumber = port.getHost().port
-
-        # At some future point, we may want to make pathsegs persistently
-        # configurable - perhaps scheme and hostname as well - in order to
-        # easily support reverse proxying configurations, particularly where
-        # Mantissa is being "mounted" somewhere other than /.  See also rootURL
-        # which has some overlap with this method (the difference being
-        # universal vs absolute URLs - rootURL may want to call cleartextRoot
-        # or encryptedRoot in the future).  See #417 and #2309.
-        pathsegs = ['']
-        if portNumber != standardPort:
-            hostname = '%s:%d' % (hostname, portNumber)
-        return URL(scheme, hostname, pathsegs)
-
-
-    def _getPort(self, portType):
-        return self.store.findFirst(
-            portType, portType.factory == self, default=None)
-
 
     def cleartextRoot(self, hostname=None):
         """
@@ -805,7 +533,15 @@ class WebSite(Item, SiteRootMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
-        return self._root('http', hostname, self._getPort(TCPPort), 80)
+        warnings.warn(
+            "Use ISiteURLGenerator.rootURL instead of WebSite.cleartextRoot.",
+            category=DeprecationWarning,
+            stacklevel=2)
+        if self.store.parent is not None:
+            generator = ISiteURLGenerator(self.store.parent)
+        else:
+            generator = ISiteURLGenerator(self.store)
+        return generator.cleartextRoot(hostname)
 
 
     def encryptedRoot(self, hostname=None):
@@ -817,7 +553,15 @@ class WebSite(Item, SiteRootMixin):
         be used as the hostname in the resulting URL, regardless of the
         C{hostname} attribute of this item.
         """
-        return self._root('https', hostname, self._getPort(SSLPort), 443)
+        warnings.warn(
+            "Use ISiteURLGenerator.rootURL instead of WebSite.encryptedRoot.",
+            category=DeprecationWarning,
+            stacklevel=2)
+        if self.store.parent is not None:
+            generator = ISiteURLGenerator(self.store.parent)
+        else:
+            generator = ISiteURLGenerator(self.store)
+        return generator.encryptedRoot(hostname)
 
 
     def maybeEncryptedRoot(self, hostname=None):
@@ -830,13 +574,17 @@ class WebSite(Item, SiteRootMixin):
         C{hostname} attribute of this item.
         """
         warnings.warn(
-            "Use WebSite.rootURL instead of "
+            "Use ISiteURLGenerator.rootURL instead of "
             "WebSite.maybeEncryptedRoot",
             category=DeprecationWarning,
-            stacklevel=3)
-        root = self.encryptedRoot(hostname)
+            stacklevel=2)
+        if self.store.parent is not None:
+            generator = ISiteURLGenerator(self.store.parent)
+        else:
+            generator = ISiteURLGenerator(self.store)
+        root = generator.encryptedRoot(hostname)
         if root is None:
-            root = self.cleartextRoot(hostname)
+            root = generator.cleartextRoot(hostname)
         return root
 
 
@@ -852,92 +600,29 @@ class WebSite(Item, SiteRootMixin):
         @return: The location at which the root of the resource hierarchy for
             this website is available.
         """
-        siteHostname = self._hostname()
-        host = request.getHeader('host') or siteHostname
-        if ':' in host:
-            host = host.split(':', 1)[0]
-        if (host == siteHostname or
-            host.startswith('www.') and host[len('www.'):] == siteHostname):
-            return URL(scheme='', netloc='', pathsegs=[''])
+        warnings.warn(
+            "Use ISiteURLGenerator.rootURL instead of WebSite.rootURL.",
+            category=DeprecationWarning,
+            stacklevel=2)
+        if self.store.parent is not None:
+            generator = ISiteURLGenerator(self.store.parent)
         else:
-            if request.isSecure():
-                return self.encryptedRoot(self.hostname)
-            else:
-                return self.cleartextRoot(self.hostname)
-
-
-    def child_users(self, ctx):
-        """
-        Return a child resource to provide access to items shared by users.
-
-        @return: a resource whose children will be private pages of individual
-        users.
-
-        @rtype L{xmantissa.websharing.UserIndexPage}
-        """
-        # inner import due to websharing->publicweb->website circularity
-        from xmantissa.websharing import UserIndexPage
-        ls = self.store.findUnique(LoginSystem, default=None)
-        if ls is None:
-            return None
-        return UserIndexPage(ls)
+            generator = ISiteURLGenerator(self.store)
+        return generator.rootURL(request)
 
 
     def child_resetPassword(self, ctx):
         """
-        Return a page which will allow the user to re-set their password.
+        Redirect authenticated users to their settings page (hopefully they
+        have one) when they try to reset their password.
 
-        If the user is logged in, locate their IPreferenceAggregator and return
-        that so that they can set their password on the settings page.
-        Otherwise, return a L{PasswordResetResource} so that anonymous users
-        may request their password be emailed to them.
-
-        Note: the mechanism used to determine whether a user is 'logged in'
-        here is simply looking for an IPreferenceAggregator; in other words, it
-        assumes that one will never be installed on a site store.  If you do
-        that, users will not be able to reset their passwords.  Eventually,
-        there ought to be separate objects for handling user-store and
-        site-store IResource behavior, and this could be on one but not the
-        other.  For now, though, the additional check for being logged in would
-        be redundant, since there is no really clean way to check for the
-        user's logged-in-ness either.
+        This is the wrong way for this functionality to be implemented.  See
+        #2524.
         """
-        pa = IPreferenceAggregator(self.store, None)
-        wt = IWebTranslator(self.store, None)
-        if pa is not None and wt is not None:
-            path = wt.linkTo(pa.storeID)
-            return url.here.click(path)
-        else:
-            from xmantissa.signup import PasswordResetResource
-            return PasswordResetResource(self.store)
-
-
-    # IProtocolFactoryFactory
-    def getFactory(self):
-        """
-        Create an L{AxiomSite} which supports authenticated and anonymous
-        access.
-        """
-        if self.site is None:
-            realm = IRealm(self.store, None)
-            if realm is None:
-                raise WebConfigurationError(
-                    'No realm: '
-                    'you need to install a userbase before using this service.')
-            chkr = ICredentialsChecker(self.store, None)
-            if chkr is None:
-                raise WebConfigurationError(
-                    'No checkers: '
-                    'you need to install a userbase before using this service.')
-            guardedRoot = websession.PersistentSessionWrapper(
-                self.store,
-                Portal(realm, [chkr, AllowAnonymousAccess()]),
-                domains=[self._hostname()])
-            unguardedRoot = UnguardedWrapper(self.store, guardedRoot)
-            self.site = AxiomSite(self.store, unguardedRoot, logPath=self.httpLog)
-            if self.debug:
-                self.site = policies.TrafficLoggingFactory(self.site, 'http')
-        return self.site
+        from xmantissa.ixmantissa import IWebTranslator, IPreferenceAggregator
+        return URL.fromString(
+            IWebTranslator(self.store).linkTo(
+                IPreferenceAggregator(self.store).storeID))
 
 
     def setServiceParent(self, parent):
@@ -947,6 +632,13 @@ class WebSite(Item, SiteRootMixin):
         powerup, it will still be found as one one more time and this method
         will be called on it.
         """
+
+
+    def getFactory(self):
+        """
+        @see L{setServiceParent}.
+        """
+        return self.store.findUnique(SiteConfiguration).getFactory()
 
 
 
@@ -1013,29 +705,76 @@ class APIKey(Item):
 
 
 
-def upgradeWebSite1To2(oldSite):
+def _makeSiteConfiguration(oldSite, couldHavePorts):
+    if oldSite.store.parent is not None:
+        return
+
+    site = SiteConfiguration(
+        store=oldSite.store,
+        httpLog=oldSite.store.filesdir.child('httpd.log'),
+        hostname=getattr(oldSite, "hostname", None) or u"localhost")
+    installOn(site, site.store)
+
+    if couldHavePorts:
+        for tcp in site.store.query(TCPPort, TCPPort.factory == oldSite):
+            tcp.factory = site
+        for ssl in site.store.query(SSLPort, SSLPort.factory == oldSite):
+            ssl.factory = site
+    else:
+        oldSite.store.powerDown(oldSite, IService)
+
+        if oldSite.portNumber is not None:
+            port = TCPPort(
+                store=oldSite.store,
+                portNumber=oldSite.portNumber,
+                factory=site)
+            installOn(port, oldSite.store)
+
+        securePortNumber = oldSite.securePortNumber
+        certificateFile = oldSite.certificateFile
+        if securePortNumber is not None and certificateFile:
+            oldCertPath = site.store.dbdir.preauthChild(certificateFile)
+            if oldCertPath.exists():
+                newCertPath = site.store.newFilePath('server.pem')
+                oldCertPath.copyTo(newCertPath)
+                port = SSLPort(
+                    store=site.store,
+                    portNumber=oldSite.securePortNumber,
+                    certificatePath=newCertPath,
+                    factory=site)
+                installOn(port, site.store)
+
+
+declareLegacyItem(
+    WebSite.typeName, 1, dict(
+        hitCount = integer(default=0),
+        installedOn = reference(),
+        portNumber = integer(default=0),
+        securePortNumber = integer(default=0),
+        certificateFile = bytes(default=None)))
+
+def upgradeWebSite1To6(oldSite):
     newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 1, 2,
-        hitCount=oldSite.hitCount,
-        installedOn=oldSite.installedOn,
-        portNumber=oldSite.portNumber,
-        securePortNumber=oldSite.securePortNumber,
-        certificateFile=oldSite.certificateFile,
-        httpLog=None)
+        'mantissa_web_powerup', 1, 6,
+        hitCount=oldSite.hitCount)
+    _makeSiteConfiguration(oldSite, False)
     return newSite
-upgrade.registerUpgrader(upgradeWebSite1To2, 'mantissa_web_powerup', 1, 2)
+upgrade.registerUpgrader(upgradeWebSite1To6, 'mantissa_web_powerup', 1, 6)
 
+declareLegacyItem(
+    WebSite.typeName, 2, dict(
+        hitCount = integer(default=0),
+        installedOn = reference(),
+        portNumber = integer(default=0),
+        securePortNumber = integer(default=0),
+        certificateFile = bytes(default=None),
+        httpLog = bytes(default=None)))
 
-def upgradeWebSite2to3(oldSite):
+def upgradeWebSite2to6(oldSite):
     # This is dumb and we should have a way to run procedural upgraders.
     newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 2, 3,
-        hitCount=oldSite.hitCount,
-        installedOn=oldSite.installedOn,
-        portNumber=oldSite.portNumber,
-        securePortNumber=oldSite.securePortNumber,
-        certificateFile=oldSite.certificateFile,
-        httpLog=oldSite.httpLog)
+        'mantissa_web_powerup', 2, 6,
+        hitCount=oldSite.hitCount)
     staticMistake = newSite.store.findUnique(StaticSite,
                                              StaticSite.prefixURL == u'static/mantissa',
                                              default=None)
@@ -1043,64 +782,61 @@ def upgradeWebSite2to3(oldSite):
         # Ugh, need cascading deletes
         staticMistake.store.powerDown(staticMistake, ISessionlessSiteRootPlugin)
         staticMistake.deleteFromStore()
-    return newSite
-upgrade.registerUpgrader(upgradeWebSite2to3, 'mantissa_web_powerup', 2, 3)
 
-
-def upgradeWebsite3to4(oldSite):
-    """
-    Add a C{None} hostname attribute.
-    """
-    newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 3, 4,
-        installedOn=oldSite.installedOn,
-        portNumber=oldSite.portNumber,
-        securePortNumber=oldSite.securePortNumber,
-        certificateFile=oldSite.certificateFile,
-        httpLog=oldSite.httpLog,
-        hitCount=oldSite.hitCount,
-        hostname=None)
+    _makeSiteConfiguration(oldSite, False)
     return newSite
-upgrade.registerUpgrader(upgradeWebsite3to4, 'mantissa_web_powerup', 3, 4)
+upgrade.registerUpgrader(upgradeWebSite2to6, 'mantissa_web_powerup', 2, 6)
 
 declareLegacyItem(
-    WebSite.typeName, 4, dict(hitCount=integer(default=0),
-                              installedOn=reference(),
-                              hostname=text(default=None),
-                              portNumber=integer(default=0),
-                              securePortNumber=integer(default=0),
-                              certificateFile=bytes(default=0),
-                              httpLog=bytes(default=None)))
+    WebSite.typeName, 3, dict(
+        hitCount = integer(default=0),
+        installedOn = reference(),
+        portNumber = integer(default=0),
+        securePortNumber = integer(default=0),
+        certificateFile = bytes(default=None),
+        httpLog = bytes(default=None)))
 
-def upgradeWebsite4to5(oldSite):
+def upgradeWebsite3to6(oldSite):
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', 3, 6,
+        hitCount=oldSite.hitCount)
+    _makeSiteConfiguration(oldSite, False)
+    return newSite
+upgrade.registerUpgrader(upgradeWebsite3to6, 'mantissa_web_powerup', 3, 6)
+
+declareLegacyItem(
+    WebSite.typeName, 4, dict(
+        hitCount=integer(default=0),
+        installedOn=reference(),
+        hostname=text(default=None),
+        portNumber=integer(default=0),
+        securePortNumber=integer(default=0),
+        certificateFile=bytes(default=0),
+        httpLog=bytes(default=None)))
+
+def upgradeWebsite4to6(oldSite):
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', 4, 6,
+        hitCount=oldSite.hitCount)
+    _makeSiteConfiguration(oldSite, False)
+    return newSite
+upgrade.registerUpgrader(upgradeWebsite4to6, 'mantissa_web_powerup', 4, 6)
+
+declareLegacyItem(
+    WebSite.typeName, 5, dict(
+        hitCount=integer(default=0),
+        installedOn=reference(),
+        hostname=text(default=None),
+        httpLog=bytes(default=None)))
+
+def upgradeWebsite5to6(oldSite):
     """
-    Create TCPPort and SSLPort items as appropriate.
+    Create a L{SiteConfiguration} if this is a site store's L{WebSite}.
     """
     newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 4, 5,
-        installedOn=oldSite.installedOn,
-        httpLog=oldSite.httpLog,
-        hitCount=oldSite.hitCount,
-        hostname=oldSite.hostname)
-
-    if oldSite.portNumber is not None:
-        port = TCPPort(store=newSite.store, portNumber=oldSite.portNumber, factory=newSite)
-        installOn(port, newSite.store)
-
-    securePortNumber = oldSite.securePortNumber
-    certificateFile = oldSite.certificateFile
-    if securePortNumber is not None and certificateFile:
-        oldCertPath = newSite.store.dbdir.preauthChild(certificateFile)
-        if oldCertPath.exists():
-            newCertPath = newSite.store.newFilePath('server.pem')
-            oldCertPath.copyTo(newCertPath)
-            port = SSLPort(store=newSite.store, portNumber=oldSite.securePortNumber, factory=newSite, certificatePath=newCertPath)
-            installOn(port, newSite.store)
-    try:
-        newSite.store.powerDown(newSite, IService)
-    except ValueError:
-        #maybe it wasn't powered up?
-        pass
-
+        oldSite.typeName, 5, 6,
+        hitCount=oldSite.hitCount)
+    _makeSiteConfiguration(oldSite, True)
     return newSite
-upgrade.registerUpgrader(upgradeWebsite4to5, 'mantissa_web_powerup', 4, 5)
+upgrade.registerUpgrader(upgradeWebsite5to6, WebSite.typeName, 5, 6)
+

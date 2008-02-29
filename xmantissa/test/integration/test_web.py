@@ -23,6 +23,7 @@ from nevow import athena
 from axiom.store import Store
 from axiom.attributes import text
 from axiom.item import Item
+from axiom.dependency import installOn
 from axiom.userbase import LoginSystem
 from axiom.plugins.mantissacmd import Mantissa
 
@@ -30,14 +31,14 @@ import xmantissa
 from xmantissa.ixmantissa import (
     INavigableFragment, IOfferingTechnician, IPreferenceAggregator,
     IWebTranslator)
-from xmantissa.port import TCPPort
-from xmantissa.offering import Offering, installOffering
+from xmantissa.port import TCPPort, SSLPort
+from xmantissa.offering import Offering
 from xmantissa.product import Product
-from xmantissa.website import WebSite
+from xmantissa.web import SiteConfiguration
 from xmantissa.webapp import PrivateApplication
 from xmantissa.sharing import getEveryoneRole
 from xmantissa.websharing import addDefaultShareID
-from xmantissa.plugins.baseoff import baseOffering
+from xmantissa.signup import UserInfoSignup
 
 
 def getResource(site, uri, headers={}, cookies={}):
@@ -61,12 +62,15 @@ def getResource(site, uri, headers={}, cookies={}):
     cookies = cookies.copy()
 
     url = URL.fromString(uri)
+    path = '/' + url.path
+
     args = {}
     for (k, v) in url.queryList():
         args.setdefault(k, []).append(v)
     remainingSegments = tuple(url.pathList())
-    request = FakeRequest(headers=headers, cookies=cookies, uri=uri,
-                          args=args, currentSegments=())
+    request = FakeRequest(
+        isSecure=url.scheme == 'https', uri=path, args=args, headers=headers,
+        cookies=cookies, currentSegments=())
     requestContext = RequestContext(parent=site.context, tag=request)
     requestContext.remember((), ICurrentSegments)
     requestContext.remember(remainingSegments, IRemainingSegments)
@@ -80,7 +84,7 @@ def getResource(site, uri, headers={}, cookies={}):
     return page
 
 
-def getWithSession(site, redirectLimit, uri, headers={}):
+def getWithSession(site, redirectLimit, uri, headers={}, cookies={}):
     """
     Retrieve the resource at the given URI from C{site} while supplying a
     cookie identifying an existing session.
@@ -88,10 +92,9 @@ def getWithSession(site, redirectLimit, uri, headers={}):
     @see L{getResource}
     """
     visited = []
-    cookies = {}
+    cookies = cookies.copy()
 
     result = Deferred()
-    page = getResource(site, uri, headers)
     def rendered(request):
         if request.redirected_to is None:
             result.callback(request)
@@ -109,9 +112,6 @@ def getWithSession(site, redirectLimit, uri, headers={}):
                 # Respect redirects
                 location = URL.fromString(request.redirected_to)
                 newHeaders['host'] = location.netloc
-                # Easiest way to make it relative
-                location.scheme = ''
-                location.netloc = ''
 
                 # Respect cookies
                 cookies.update(request.cookies)
@@ -121,7 +121,12 @@ def getWithSession(site, redirectLimit, uri, headers={}):
                     site, str(location), newHeaders, cookies)
                 page.addCallbacks(rendered, result.errback)
 
-    page.addCallbacks(rendered, result.errback)
+    try:
+        page = getResource(site, uri, headers, cookies)
+    except:
+        result.errback()
+    else:
+        page.addCallbacks(rendered, result.errback)
     return result
 
 
@@ -198,16 +203,17 @@ class IntegrationTestsMixin:
         have to be cleaned up.
         """
         self.store = Store(filesdir=self.mktemp()) # See #2484
-        installOffering(self.store, baseOffering, {})
-        Mantissa().installSite(self.store, u'', False) # See #2483
-        self.web = self.store.findUnique(WebSite)
+        Mantissa().installSite(self.store, self.domain, u'', False) # See #2483
+        self.site = self.store.findUnique(SiteConfiguration)
         self.login = self.store.findUnique(LoginSystem)
 
-        # XXX These things should be offering installation parameters.
-        self.web.hostname = self.domain
-        TCPPort(store=self.store, factory=self.web, portNumber=80)
+        # Ports should be offering installation parameters.  This assumes a
+        # TCPPort and an SSLPort are created by Mantissa.installSite. See
+        # #538.  -exarkun
+        self.store.query(
+            SSLPort, SSLPort.factory == self.site).deleteFromStore()
 
-        self.site = self.web.getFactory()
+        self.factory = self.site.getFactory()
 
         self.origFunctions = (http._logDateTimeStart,
                               GuardSession.checkExpired.im_func,
@@ -246,7 +252,7 @@ class AnonymousWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
             exception.
         """
         page = getResource(
-            self.site, uri, {'host': self.domain.encode('ascii')})
+            self.factory, uri, {'host': self.domain.encode('ascii')})
         page.addCallback(verifyCallback)
         return page
 
@@ -313,6 +319,96 @@ class AnonymousWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
                 offeringName.encode('ascii'), childName), rendered)
 
 
+    def test_loginOverHTTP(self):
+        """
+        The login page is displayed over HTTP if there is no SSL server
+        available.
+        """
+        page = getWithSession(
+            self.factory, 2, '/login', {'host': self.domain.encode('ascii')})
+        def rendered(request):
+            # Sanity check.
+            self.assertFalse(
+                request.isSecure(), "Somehow managed to get HTTPS.")
+            # This is a weak assertion.  There should be a better way to verify
+            # that this is the LoginPage because that's what I care about - not
+            # what's in the template. -exarkun
+            self.assertIn("login-form", request.accumulator)
+        page.addCallback(rendered)
+        return page
+
+
+    def test_loginOverHTTPS(self):
+        """
+        The login page is displayed over HTTPS even if it is initially
+        requested over HTTP, if there is an SSL server available.
+        """
+        # Create the necessary SSL server
+        SSLPort(store=self.store, factory=self.site, portNumber=443)
+
+        page = getWithSession(
+            self.factory, 3, '/login', {'host': self.domain.encode('ascii')})
+        def rendered(request):
+            self.assertTrue(request.isSecure(), "Page not served over HTTPS.")
+            self.assertIn("login-form", request.accumulator)
+        page.addCallback(rendered)
+        return page
+
+
+    def _createSignup(self, at):
+        # Create a signup mechanism at the specified URL
+        installOn(UserInfoSignup(store=self.store, prefixURL=at), self.store)
+
+        # Ensure there will be a domain available for UserInfoSignup's view to
+        # use.  This isn't really significant to the test, it's just necessary
+        # with the implementation which exists as I am writing this
+        # test. -exarkun
+        self.login.addAccount(
+            u'alice', u'example.com', u'password', internal=True)
+
+
+    def test_userInfoSignupOverHTTP(self):
+        """
+        The L{UserInfoSignup} page is displayed over HTTP if there is no SSL
+        server available.
+        """
+        self._createSignup(u'foobar-signup')
+
+        # It is not necessarily the case that we want /signup to require a
+        # session.  However, that is how it is currently implemented so I will
+        # not change it now. -exarkun
+        page = getWithSession(
+            self.factory, 3, '/foobar-signup',
+            {'host': self.domain.encode('ascii')})
+        def rendered(request):
+            # Sanity check.
+            self.assertFalse(
+                request.isSecure(), "Somehow managed to get HTTPS.")
+            self.assertIn("Create Account", request.accumulator)
+        page.addCallback(rendered)
+        return page
+
+
+    def test_userInfoSignupOverHTTPS(self):
+        """
+        The signup page is displayed over HTTPS even if it is initially
+        requested over HTTP, if there is an SSL server available.
+        """
+        # Create the necessary SSL server
+        SSLPort(store=self.store, factory=self.site, portNumber=443)
+
+        self._createSignup(u'barbaz-signup')
+
+        page = getWithSession(
+            self.factory, 3, '/barbaz-signup',
+            {'host': self.domain.encode('ascii')})
+        def rendered(request):
+            self.assertTrue(request.isSecure(), "Page not served over HTTPS.")
+            self.assertIn("Create Account", request.accumulator)
+        page.addCallback(rendered)
+        return page
+
+
     def test_userSharedResource(self):
         """
         An item shared by a user to everybody can be accessed by an
@@ -331,8 +427,37 @@ class AnonymousWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
 
         # Get it.
         page = getWithSession(
-            self.site, 2, '/users/%s/%s' % (
+            self.factory, 2, '/users/%s/%s' % (
                 username.encode('ascii'), shareID.encode('ascii')),
+            {'host': self.domain.encode('ascii')})
+        def rendered(request):
+            self.assertIn(sharedContent.encode('ascii'), request.accumulator)
+        page.addCallback(rendered)
+        return page
+
+
+    def test_defaultUserSharedResource(self):
+        """
+        The resource for the default share can be accessed by an
+        unauthenticated user.
+        """
+        # Make a user to own the shared item.
+        username = u'alice'
+        aliceAccount = self.login.addAccount(
+            username, self.domain, u'password', internal=True)
+        aliceStore = aliceAccount.avatars.open()
+
+        # Make an item to share.
+        sharedContent = u'content owned by alice and shared to everyone'
+        shareID = getEveryoneRole(aliceStore).shareItem(
+            DummyItem(store=aliceStore, markup=sharedContent)).shareID
+
+        # Make it the default share.
+        addDefaultShareID(aliceStore, shareID, 0)
+
+        # Get it.
+        page = getWithSession(
+            self.factory, 3, '/users/%s' % (username.encode('ascii'),),
             {'host': self.domain.encode('ascii')})
         def rendered(request):
             self.assertIn(sharedContent.encode('ascii'), request.accumulator)
@@ -375,10 +500,10 @@ class AuthenticatedWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
 
         # Log in to the web as Alice.
         login = getWithSession(
-            self.site, 3, '/__login__?username=%s@%s&password=%s' % (
+            self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 self.username.encode('ascii'), self.domain.encode('ascii'),
                 'password'),
-            {'host': self.web.hostname.encode('ascii')})
+            {'host': self.domain.encode('ascii')})
         def loggedIn(request):
             self.cookies = request.cookies
         login.addCallback(loggedIn)
@@ -395,14 +520,14 @@ class AuthenticatedWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
 
         # Get the password reset resource.
         page = getResource(
-            self.site, '/resetPassword',
-            headers={'host': self.web.hostname.encode('ascii')},
+            self.factory, '/resetPassword',
+            headers={'host': self.domain.encode('ascii')},
             cookies=self.cookies)
 
         def rendered(request):
             # Make sure it's a redirect to the settings page.
             self.assertEquals(
-                'http://' + self.web.hostname.encode('ascii') + urlPath,
+                'http://' + self.domain.encode('ascii') + urlPath,
                 request.redirected_to)
         page.addCallback(rendered)
         return page
@@ -418,8 +543,33 @@ class AuthenticatedWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
             DummyItem(store=self.userStore, markup=sharedContent)).shareID
 
         page = getResource(
-            self.site, '/users/%s/%s' % (
+            self.factory, '/users/%s/%s' % (
                 self.username.encode('ascii'), shareID.encode('ascii')),
+            {'host': self.domain.encode('ascii')},
+            self.cookies)
+
+        def rendered(request):
+            self.assertIn(sharedContent, request.accumulator)
+        page.addCallback(rendered)
+        return page
+
+
+    def test_defaultUserSharedResource(self):
+        """
+        The resource for the default share can be accessed by an authenticated
+        user.
+        """
+        # Make an item and share it.
+        sharedContent = u'content owned by alice and shared to everyone'
+        shareID = getEveryoneRole(self.userStore).shareItem(
+            DummyItem(store=self.userStore, markup=sharedContent)).shareID
+
+        # Make it the default.
+        addDefaultShareID(self.userStore, shareID, 0)
+
+        # Get it.
+        page = getWithSession(
+            self.factory, 1, '/users/%s' % (self.username.encode('ascii'),),
             {'host': self.domain.encode('ascii')},
             self.cookies)
 
@@ -473,7 +623,7 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         the user to whom that subdomain corresponds.
         """
         page = getWithSession(
-            self.site, 2, '/' + self.share.shareID.encode('ascii'),
+            self.factory, 2, '/' + self.share.shareID.encode('ascii'),
             {'host': virtualHost.encode('ascii')})
         def rendered(request):
             self.assertIn(
@@ -505,14 +655,14 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         # Log in through the web as Bob.
         cookies = {}
         login = getWithSession(
-            self.site, 3, '/__login__?username=%s@%s&password=%s' % (
+            self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 username.encode('ascii'), domain.encode('ascii'), 'password'),
             {'host': self.domain.encode('ascii')})
         def loggedIn(request):
             # Get the share page from the virtual host as the authenticated
             # user.
             return getResource(
-                self.site, '/' + self.share.shareID.encode('ascii'),
+                self.factory, '/' + self.share.shareID.encode('ascii'),
                 headers={'host': self.virtualHost.encode('ascii')},
                 cookies=request.cookies)
         login.addCallback(loggedIn)
@@ -550,13 +700,13 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         # Log in through the web as Bob.
         cookies = {}
         login = getWithSession(
-            self.site, 3, '/__login__?username=%s@%s&password=%s' % (
+            self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 username.encode('ascii'), domain.encode('ascii'), 'password'),
             {'host': self.domain.encode('ascii')})
         def loggedIn(request):
             # Get the share page as the authenticated user.
             return getResource(
-                self.site, '/',
+                self.factory, '/',
                 headers={'host': self.virtualHost.encode('ascii')},
                 cookies=request.cookies)
         login.addCallback(loggedIn)

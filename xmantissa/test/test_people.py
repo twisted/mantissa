@@ -3183,7 +3183,7 @@ class OrganizerFragmentBeforeRenderTestCase(unittest.TestCase):
         """
         self.siteStore = Store(filesdir=self.mktemp())
         def siteStoreTxn():
-            Mantissa().installSite(self.siteStore, '/')
+            Mantissa().installSite(self.siteStore, u"example.com", u"", False)
             userAccount = Create().addAccount(
                 self.siteStore,
                 u'testuser',

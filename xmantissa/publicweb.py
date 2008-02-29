@@ -11,16 +11,18 @@ from zope.interface import implements
 
 from twisted.internet import defer
 
-from nevow import rend, tags, inevow
 from nevow.inevow import IRequest, IResource
+from nevow import rend, tags, inevow
 from nevow.url import URL
 
 from axiom import item, attributes, upgrade, userbase
+from axiom.dependency import dependsOn
 
 from xmantissa import ixmantissa, website, offering
 from xmantissa.webtheme import ThemedDocumentFactory, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
 from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
+from xmantissa.websharing import UserIndexPage
 
 
 def getLoader(*a, **kw):
@@ -82,12 +84,14 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
     substore) to represent the public portion of your application and then wrap
     a PublicWeb around it as the plugin in the top-level store.  Example::
 
-        s = Store("my-site.axiom")
+        siteStore = Store("my-site.axiom")
         # Install login database
-        ls = LoginSystem(store=s)
+        ls = LoginSystem(store=siteStore)
         # Install HTTP server
-        WebSite(store=s, portNumber=8080, securePortNumber=8443,
-                certificateFile='server.pem').installOn(s)
+        web = SiteConfiguration(store=siteStore)
+        installOn(web, siteStore)
+        port = TCPPort(store=siteStore, factory=web, port=8080)
+        installOn(port, siteStore)
 
         # Add 'system user' to hold data that will be displayed on the public page.
         mySiteSystemUser = ls.addAccount('my-site', 'my-site.example.com', None)
@@ -99,10 +103,11 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
                          IPublicPage)
         # Install the PublicWeb on the top-level store, as a plugin for the
         # WebSite installed above.
-        PublicWeb(store=s,
-                  sessionless=True,  # Alternatively, sessioned=True
-                  prefixURL=u'path/to/my-site',
-                  application=mySiteSystemUser).installOn(s)
+        installOn(
+            PublicWeb(store=siteStore,
+                      sessionless=True,  # Alternatively, sessioned=True
+                      prefixURL=u'path/to/my-site',
+                      application=mySiteSystemUser), siteStore)
 
 
     @ivar application: An Item which implements L{ixmantissa.IPublicPage}.
@@ -324,33 +329,9 @@ class PublicPageMixin(object):
     unauthenticated clients.
 
     @ivar store: The site store.
-
-    @ivar needsSecure: whether this page requires SSL to be rendered.
     """
     fragment = None
     username = None
-    needsSecure = False
-
-
-    def _webSite(self):
-        """
-        Return the site WebSite.
-        """
-        return inevow.IResource(self.store)
-
-
-    def renderHTTP(self, ctx):
-        """
-        Issue a redirect to an HTTPS URL for this resource if one
-        exists and the page demands it.
-        """
-        req = inevow.IRequest(ctx)
-        if self.needsSecure and not req.isSecure():
-            securePort = self._webSite().securePort
-            if securePort is not None:
-                return URL.fromContext(
-                    ctx).secure(port=securePort.getHost().port)
-        return super(PublicPageMixin, self).renderHTTP(ctx)
 
 
     def _getViewerPrivateApplication(self):
@@ -474,7 +455,8 @@ class PublicPageMixin(object):
         """
         Add the WebSite's root URL as a child of the given tag.
         """
-        return ctx.tag[self._webSite().rootURL(IRequest(ctx))]
+        return ctx.tag[
+            ixmantissa.ISiteURLGenerator(self.store).rootURL(IRequest(ctx))]
 
 
     def render_header(self, ctx, data):
@@ -539,9 +521,9 @@ class PublicPageMixin(object):
         Retrieve a list of header content from all installed themes on the site
         store.
         """
-        website = inevow.IResource(self.store)
+        site = ixmantissa.ISiteURLGenerator(self.store)
         for t in getInstalledThemes(self.store):
-            yield t.head(req, website)
+            yield t.head(req, site)
 
 
     def render_head(self, ctx, data):
@@ -743,6 +725,11 @@ class LoginPage(PublicPage):
     logic.
     """
 
+    # Try to get SSL if possible.  See xmantissa.web.SecuringWrapper and
+    # xmantissa.web.SiteConfiguration.getFactory.  This should really be
+    # indicated in some other way.  See #2525 -exarkun
+    needsSecure = True
+
     def __init__(self, store, segments=(), arguments=None,
                  templateResolver=None):
         """
@@ -779,13 +766,8 @@ class LoginPage(PublicPage):
         to, and the error message to display (if any), and fill the 'login
         action' and 'error' slots in the template accordingly.
         """
-        url = URL.fromContext(ctx).click('/')
-
-        ws = self.store.findFirst(website.WebSite)
-
-        if ws.securePort is not None:
-            url = url.secure(port=ws.securePort.getHost().port)
-
+        generator = ixmantissa.ISiteURLGenerator(self.store)
+        url = generator.rootURL(IRequest(ctx))
         url = url.child('__login__')
         for seg in self.segments:
             url = url.child(seg)
@@ -913,7 +895,7 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         if templateResolver is None:
             templateResolver = ixmantissa.ITemplateNameResolver(self.store)
         self.templateResolver = templateResolver
-        super(PublicAthenaLivePage, self).__init__(IResource(self.store), *a, **kw)
+        super(PublicAthenaLivePage, self).__init__(ixmantissa.ISiteURLGenerator(self.store), *a, **kw)
         if fragment is not None:
             self.fragment = fragment
             # everybody who calls this has a different idea of what 'fragment'
@@ -965,3 +947,61 @@ class PublicNavAthenaLivePage(PublicAthenaLivePage):
             "Use PublicAthenaLivePage instead of PublicNavAthenaLivePage",
             category=DeprecationWarning,
             stacklevel=2)
+
+
+class AnonymousSite(item.Item):
+    """
+    Root IResource implementation for unauthenticated users.
+
+    This resource allows users to login, reset their passwords, or access
+    content provided by any site root plugins.
+    """
+    powerupInterfaces = (IResource,)
+    implements(*powerupInterfaces)
+
+    loginSystem = dependsOn(userbase.LoginSystem)
+
+    def child_resetPassword(self, ctx):
+        """
+        Return a page which will allow the user to re-set their password.
+        """
+        from xmantissa.signup import PasswordResetResource
+        return PasswordResetResource(self.store)
+
+
+    def child_login(self, ctx):
+        """
+        Return a login page.
+        """
+        return LoginPage(self.store)
+
+
+    def child_users(self, ctx):
+        """
+        Return a child resource to provide access to items shared by users.
+
+        @return: a resource whose children will be private pages of individual
+        users.
+
+        @rtype L{xmantissa.websharing.UserIndexPage}
+        """
+        return UserIndexPage(self.loginSystem)
+
+
+    def locateChild(self, context, segments):
+        """
+        Return a statically defined child or a child defined by a site root
+        plugin or an avatar from guard.
+        """
+        shortcut = getattr(self, 'child_' + segments[0], None)
+        if shortcut:
+            res = shortcut(context)
+            if res is not None:
+                return res, segments[1:]
+
+        for plg in self.store.powerupsFor(ixmantissa.ISiteRootPlugin):
+            childAndSegments = plg.resourceFactory(segments)
+            if childAndSegments is not None:
+                return childAndSegments
+
+        return rend.NotFound

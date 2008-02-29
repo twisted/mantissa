@@ -3,14 +3,19 @@ from twisted.python.filepath import FilePath
 
 from nevow.inevow import IResource
 
-from xmantissa.webtheme import MantissaTheme
+from xmantissa.ixmantissa import ISiteURLGenerator
 from xmantissa import offering
+from xmantissa.web import SiteConfiguration
+from xmantissa.webtheme import MantissaTheme
+from xmantissa.publicweb import AnonymousSite
 import xmantissa
 
 baseOffering = offering.Offering(
     name=u'mantissa-base',
     description=u'Basic Mantissa functionality',
-    siteRequirements=(),
+    siteRequirements=[
+        (ISiteURLGenerator, SiteConfiguration),
+        (IResource, AnonymousSite)],
     appPowerups=(),
     installablePowerups=(),
     loginInterfaces = [(IResource, "Web logins")],

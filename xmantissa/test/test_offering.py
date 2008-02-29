@@ -17,6 +17,7 @@ from axiom.dependency import installedOn
 
 from xmantissa import ixmantissa, offering
 
+from xmantissa.web import SiteConfiguration
 from xmantissa.plugins.baseoff import baseOffering
 from xmantissa.plugins.offerings import peopleOffering
 
@@ -72,10 +73,11 @@ class OfferingPluginTest(unittest.TestCase):
 class OfferingTest(unittest.TestCase):
     def setUp(self):
         self.store = Store(filesdir=self.mktemp())
-        Mantissa().installSite(self.store, "/", generateCert=False)
-        Mantissa().installAdmin(self.store, u'admin@localhost', u'asdf')
+        Mantissa().installSite(self.store, u"localhost", u"", False)
+        Mantissa().installAdmin(self.store, u'admin', u'localhost', u'asdf')
         self.userbase = self.store.findUnique(userbase.LoginSystem)
-        self.adminAccount = self.userbase.accountByAddress(u'admin', u'localhost')
+        self.adminAccount = self.userbase.accountByAddress(
+            u'admin', u'localhost')
         off = offering.Offering(
             name=u'test_offering',
             description=u'This is an offering which tests the offering '
@@ -331,3 +333,20 @@ class BaseOfferingTests(unittest.TestCase):
         """
         self.assertTrue(
             baseOffering.staticContentPath.child('mantissa.css').exists())
+
+
+    def test_siteConfiguration(self):
+        """
+        Installing L{baseOffering} on a store results in the store being
+        powered up for L{ISiteURLGenerator}.
+        """
+        store = Store()
+        ixmantissa.IOfferingTechnician(store).installOffering(baseOffering)
+
+        # Really I just want the adaption to succeed with a good object.  The
+        # providedBy assertion is the best I can think of. -exarkun
+        self.assertTrue(
+            ixmantissa.ISiteURLGenerator.providedBy(
+                ixmantissa.ISiteURLGenerator(store)),
+            "ISiteURLGenerator powerup does not provide ISiteURLGenerator.")
+
