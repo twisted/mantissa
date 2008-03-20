@@ -147,18 +147,20 @@ Mantissa.Test.TestRegionModel.ArrayRegionServer.methods(
      * available.
      */
     function rowsBeforeValue(self, value, count) {
+        var result = [];
         if (value === null) {
-            return self.deferredReturn(
-                self.array.slice(
-                    self.array.length - count,
-                    self.array.length));
-        }
-        for (var i = 0; i < self.array.length; ++i) {
-            if (self.array[i].value > value) {
-                return self.deferredReturn(self.array.slice(i - count, i));
+            result = self.array.slice(
+                self.array.length - count,
+                self.array.length);
+        } else {
+            for (var i = 0; i < self.array.length; ++i) {
+                if (self.array[i].value > value) {
+                    result = self.array.slice(i - count, i);
+                    break;
+                }
             }
         }
-        return self.deferredReturn([]);
+        return self.deferredReturn(result);
     },
 
     /**
@@ -354,7 +356,6 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
      * data, because that is where the user will be looking if this insertion
      * is in response to an expose() request.
      */
-
     function test_overlapDetectionNoGap(self) {
         var server = null;
         var model = self.makeRegionModel(
@@ -376,7 +377,6 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
      * reverse order results in one underlying row range which contains the
      * merged row data.
      */
-
     function test_overlapDetectionNoGapBackwards(self) {
         var server = null;
         var model = self.makeRegionModel(
@@ -488,7 +488,6 @@ Mantissa.Test.TestRegionModel.InsertRowDataTests.methods(
      * the new A+C amalgam as well as a gap, as C's values do not overlap with
      * B's values.
      */
-
     function test_pushRightLeftOverlap(self) {
         var server = null;
         var model = self.makeRegionModel(
@@ -1243,7 +1242,6 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * Verify that "expose()" raises an exception when passed a negative
      * value.
      */
-
     function test_exposeOutOfBounds(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
         var model = self.makeRegionModel(
@@ -1260,7 +1258,6 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * Verify that the first expose() will request data from the beginning and
      * end of the dataset.
      */
-
     function test_firstExpose(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
             [
@@ -1290,7 +1287,6 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * Verify that exposing some rows, then scrolling down to expose some
      * more, will unify the regions as expected.
      */
-
     function test_scrollAndExpand(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
             [
@@ -1386,7 +1382,6 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * the region which is on the boundary to be expanded, and expanded enough
      * that the visible area is fully covered.
      */
-
     function test_exposeExactlyAdjacent(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
             [
@@ -1484,12 +1479,124 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
 
         self.assertIdentical(model._regions.length, 2);
 
-        var threeQuarters = (
-            (model._regions[model._regions.length - 1].lastOffset() / 4) * 3);
+        var firstRegion = model._regions[0];
+        var lastRegion = model._regions[1];
+        var threeQuarterOffset = (((lastRegion.firstOffset() - firstRegion.lastOffset()) /
+                                  4) * 3) + firstRegion.lastOffset();
 
         self.assertIdentical(
-            model.estimateValueAtOffset(threeQuarters),
+            model.estimateValueAtOffset(threeQuarterOffset),
             0.75);
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.TextColumn.estimateQueryValue} should yield a
+     * string proportionally between two alphabetical values.
+     */
+    function test_estimateTextQueryValue(self) {
+        var column = Mantissa.ScrollTable.TextColumn();
+        self.assertIdentical(
+            column.estimateQueryValue('A', 'Z', 0.75),
+            String.fromCharCode(
+                'a'.charCodeAt(0) +
+                    ((('z'.charCodeAt(0) - 'a'.charCodeAt(0)) / 4) * 3)));
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.TextColumn.estimateQueryValue} should skip the
+     * capital letters when estimating between characters which come before
+     * the range of capital letters.
+     */
+    function test_estimateTextQueryValueSkipCase(self) {
+        var column = Mantissa.ScrollTable.TextColumn();
+        self.assertIdentical(
+            column.estimateQueryValue('@', 'n', 0.5),
+            'd');
+        self.assertIdentical(
+            column.estimateQueryValue('0', '9', 0.5),
+            '4');
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.TextColumn.estimateQueryValue} should pad out
+     * its lower argument in the case where it is given adjacent strings,
+     * i.e. strings where the difference is exactly one code point.  (It can't
+     * use NULLs to pad out the result (SQLite doesn't recognize them), so it
+     * should use \N{START OF HEADING}, code point 1).
+     */
+    function test_estimateAdjacentTextValue(self) {
+        var column = Mantissa.ScrollTable.TextColumn();
+        self.assertIdentical(
+            column.estimateQueryValue('person 100', 'person 2', 0.5),
+            "person 100\u0001");
+        self.assertIdentical(
+            column.estimateQueryValue('person 2', 'person 100', 0.5),
+            "person 100\u0001");
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.TextColumn.estimateQueryValue} should give back
+     * an extended version of one of its arguments in the case where one of
+     * its arguments is a prefix of the other.
+     */
+    function test_estimatePrefixTextValue(self) {
+        var column = Mantissa.ScrollTable.TextColumn();
+        self.assertIdentical(
+            column.estimateQueryValue('0123456789', '012345', 0.5),
+            "01234567");
+        self.assertIdentical(
+            column.estimateQueryValue('012345', '0123456789', 0.5),
+            "01234567");
+        self.assertIdentical(
+            column.estimateQueryValue('012345', '0123456789', 0.9999),
+            "012345678");
+        self.assertIdentical(
+            column.estimateQueryValue('012345', '0123456789', 0.0001),
+            "0123456");
+        self.assertIdentical(
+            column.estimateQueryValue('0123456789', '012345', 0.9999),
+            "0123456");
+        self.assertIdentical(
+            column.estimateQueryValue('0123456789', '012345', 0.0001),
+            "012345678");
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.TextColumn}'s sort values should be lower-cased
+     * according to SQLite's simplistic algorithm - a simple conversion of
+     * uppercase latin letters to lowercase, not full case conversion.
+     */
+    function test_extractTextSortKey(self) {
+        self.assertIdentical(
+            Mantissa.ScrollTable.TextColumn('value').extractSortKey(
+                {value: 'A VALue\u00F8\u00D8'}),
+            'a value\u00F8\u00D8');
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.RegionModel.estimateValueAtOffset} should work
+     * correctly with L{Mantissa.ScrollTable.TextColumn}.
+     */
+    function test_estimateTextValue(self) {
+        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
+            [self.makeRow('AA'),
+             self.makeRow('AB'),
+
+             self.makeRow('AY'),
+             self.makeRow('AZ')
+             ]);
+        var model = self.makeRegionModel(
+            server, Mantissa.ScrollTable.TextColumn('value'));
+        model._initialize();
+        var firstRegion = model._regions[0];
+        var lastRegion = model._regions[1];
+        var halfwayOffset = ((lastRegion.firstOffset() - firstRegion.lastOffset()) /
+                                  2) + firstRegion.lastOffset();
+        var ordB = 'b'.charCodeAt(0);
+        var halfwayChar = String.fromCharCode(
+            ordB + (('y'.charCodeAt(0) - ordB) / 2)); // 'm'
+        self.assertIdentical(
+            model.estimateValueAtOffset(halfwayOffset), 'a' + halfwayChar);
     },
 
     /**
@@ -1753,11 +1860,16 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      */
     function test_getRowData(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
-        var model = self.makeRegionModel(server,
-                                         Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
 
-        model.insertRowData(0, [self.makeRow(1), self.makeRow(2), self.makeRow(3)]);
-        model.insertRowData(500, [self.makeRow(4), self.makeRow(5), self.makeRow(6)]);
+        model.insertRowData(0, [self.makeRow(1),
+                                self.makeRow(2),
+                                self.makeRow(3)]);
+
+        model.insertRowData(500, [self.makeRow(4),
+                                  self.makeRow(5),
+                                  self.makeRow(6)]);
 
         var rowData = model.getRowData(0);
         self.assertIdentical(rowData.value, 1);
@@ -1767,17 +1879,29 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
     },
 
     /**
+     * Make a region model with five rows and the given ascending-ness.
+     */
+    function _makeSimpleModel(self, ascending/*= true*/, rowcount/*= 5*/) {
+        var rows = [];
+        if (rowcount === undefined) {
+            rowcount = 5;
+        }
+        for (var i = 0; i < rowcount; i++) {
+            rows.push(self.makeRow(i+1));
+        }
+        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(rows);
+        return self.makeRegionModel(
+            server,
+            Mantissa.Test.TestRegionModel.SkewedColumn('value'),
+            ascending);
+    },
+
+    /**
      * Verify that rowsFollowingRow will retrieve the appropriate rows from
      * the server when the sort-order is ascending.
      */
     function test_rowsFollowingRow(self) {
-        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
-            [self.makeRow(1), self.makeRow(2),
-             self.makeRow(3),
-             self.makeRow(4), self.makeRow(5)]);
-        var model = self.makeRegionModel(
-            server,
-            Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self._makeSimpleModel();
         var capture = null;
         model.rowsFollowingRow(self.makeRow(3)).addCallback(
             function (result) {
@@ -1795,14 +1919,7 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * from the server when the sort-order is descending.
      */
     function test_rowsFollowingRowDescending(self) {
-        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
-            [self.makeRow(1), self.makeRow(2),
-             self.makeRow(3),
-             self.makeRow(4), self.makeRow(5)]);
-        var model = self.makeRegionModel(
-            server,
-            Mantissa.Test.TestRegionModel.SkewedColumn('value'),
-            false);
+        var model = self._makeSimpleModel(false);
         var capture = null;
         model.rowsFollowingRow(self.makeRow(3)).addCallback(
             function (result) {
@@ -1816,17 +1933,112 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
     },
 
     /**
+     * Verify that L{Mantissa.ScrollTable.RegionModel.rowsPrecedingRow} will
+     * retrieve the appropriate rows from the server when the sort-order is
+     * ascending.
+     */
+    function test_rowsPrecedingRow(self) {
+        var model = self._makeSimpleModel(true, 7);
+        // 3 is the minimum page size where you can verify the interactions
+        // with the sort requested of the server, because if you ask for a
+        // pagesize of 2 then only 1 result comes back from the server, no
+        // ordering...
+        model._pagesize = 3;
+        var capture;
+        model.rowsPrecedingRow(self.makeRow(5)).addCallback(
+            function(result) {
+                capture = result;
+            });
+        self.assertIdentical(capture.length, 3);
+        self.assertIdentical(capture[0].value, 3);
+        self.assertIdentical(capture[0].__TEMPORARY__, undefined);
+        self.assertIdentical(capture[1].value, 4);
+        self.assertIdentical(capture[1].__TEMPORARY__, undefined);
+        self.assertIdentical(capture[2].value, 5);
+        self.assertIdentical(capture[2].__TEMPORARY__, true);
+    },
+
+    /**
+     * Verify that L{Mantissa.ScrollTable.RegionModel.rowsPrecedingRow} will
+     * retrieve the appropriate rows from the server when the sort-order is
+     * descending.
+     */
+    function test_rowsPrecedingRowDescending(self) {
+        var model = self._makeSimpleModel(false, 7);
+        model._pagesize = 3;
+        var capture;
+        model.rowsPrecedingRow(self.makeRow(3)).addCallback(
+            function(result) {
+                capture = result;
+            });
+        self.assertIdentical(capture.length, 3);
+        self.assertIdentical(capture[0].value, 5);
+        self.assertIdentical(capture[0].__TEMPORARY__, undefined);
+        self.assertIdentical(capture[1].value, 4);
+        self.assertIdentical(capture[1].__TEMPORARY__, undefined);
+        self.assertIdentical(capture[2].value, 3);
+        self.assertIdentical(capture[2].__TEMPORARY__, true);
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.RowRegion.coalesceAtMyEnd} should notice if the
+     * region "on top" ends with a temporary row, and remove that row from the
+     * resulting coalesced data.
+     */
+    function test_insertTemporaryRowAbove(self) {
+        var model = self._makeSimpleModel(false, 7);
+        model._pagesize = 3;
+        var capture;
+        model.rowsPrecedingRow(self.makeRow(4)).addCallback(
+            function (result) {
+                capture = result;
+            });
+        var realRegion = Mantissa.ScrollTable.RowRegion(
+            model, 2, [self.makeRow(4), self.makeRow(3), self.makeRow(2)]);
+        var newRegionWithTemp = Mantissa.ScrollTable.RowRegion(
+            model, 0, capture);
+        self.assertIdentical(
+            newRegionWithTemp.rows[newRegionWithTemp.rows.length - 1].__TEMPORARY__, true);
+        newRegionWithTemp.coalesceAtMyEnd(realRegion);
+        for (var i = 0; i < newRegionWithTemp.rows.length; i++) {
+            self.assertIdentical(newRegionWithTemp.rows[i].__TEMPORARY__, undefined);
+        }
+        // The view should have had its temporary row purged as well.
+        self.assertIdentical(model.view.removals.length, 1);
+        self.assertIdentical(model.view.removals[0][0], newRegionWithTemp.viewPeer);
+        self.assertIdentical(model.view.removals[0][1], 2);
+    },
+
+    /**
+     * L{Mantissa.ScrollTable.RowRegion.coalesceAtMyEnd} should notice if the
+     * region "on the bottom" begins with a temporary row, and remove that row
+     * from the resulting coalesced data.
+     */
+    function test_insertTemporaryRowBelow(self) {
+        var model = self._makeSimpleModel(false, 7);
+        model._pagesize = 3;
+        var capture;
+        model.rowsFollowingRow(self.makeRow(4)).addCallback(
+            function (result) {
+                capture = result;
+            });
+        var realRegion = Mantissa.ScrollTable.RowRegion(
+            model, 2, [self.makeRow(6), self.makeRow(5), self.makeRow(4)]);
+        var newRegionWithTemp = Mantissa.ScrollTable.RowRegion(
+            model, 0, capture);
+        self.assertIdentical(newRegionWithTemp.rows[0].__TEMPORARY__, true);
+        realRegion.coalesceAtMyEnd(newRegionWithTemp);
+        for (var i = 0; i < realRegion.rows.length; i++) {
+            self.assertIdentical(realRegion.rows[i].__TEMPORARY__, undefined);
+        }
+    },
+
+    /**
      * Verify that rowsFollowingValue will retrieve the appropriate rows from
      * the server when the sort-order is ascending.
      */
     function test_rowsFollowingValue(self) {
-        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
-            [self.makeRow(1), self.makeRow(2),
-             self.makeRow(3),
-             self.makeRow(4), self.makeRow(5)]);
-        var model = self.makeRegionModel(
-            server,
-            Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self._makeSimpleModel();
         var capture = null;
         model.rowsFollowingValue(3).addCallback(
             function (result) {
@@ -1842,14 +2054,7 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * the server when the sort-order is descending.
      */
     function test_rowsFollowingValueDescending(self) {
-        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
-            [self.makeRow(1), self.makeRow(2),
-             self.makeRow(3),
-             self.makeRow(4), self.makeRow(5)]);
-        var model = self.makeRegionModel(
-            server,
-            Mantissa.Test.TestRegionModel.SkewedColumn('value'),
-            false);
+        var model = self._makeSimpleModel(false);
         var capture = null;
         model.rowsFollowingValue(3).addCallback(
             function (result) {
@@ -1865,14 +2070,7 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * into appropriate regions if the sort order is descending.
      */
     function test_initializeRespectsDescending(self) {
-        var server = Mantissa.Test.TestRegionModel.ArrayRegionServer(
-            [self.makeRow(1), self.makeRow(2),
-             self.makeRow(3),
-             self.makeRow(4), self.makeRow(5)]);
-        var model = self.makeRegionModel(
-            server,
-            Mantissa.Test.TestRegionModel.SkewedColumn('value'),
-            false);
+        var model = self._makeSimpleModel(false);
         model._initialize();    // deferred fires synchronously
         // Some sanity checks...
         self.assertIdentical(model._regions.length, 2);
@@ -1916,8 +2114,8 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      */
     function test_findIndex(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
-        var model = self.makeRegionModel(server,
-                                         Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
 
         model.insertRowData(0, [self.makeRow(1), self.makeRow(2), self.makeRow(3)]);
         model.insertRowData(500, [self.makeRow(4), self.makeRow(5), self.makeRow(6)]);
@@ -1934,8 +2132,8 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      */
     function test_findIndexBadWebID(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
-        var model = self.makeRegionModel(server,
-                                         Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
         self.assertThrows(
             Mantissa.ScrollTable.NoSuchWebID,
             function() {
@@ -1950,8 +2148,8 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      */
     function test_rowCount(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
-        var model = self.makeRegionModel(server,
-                                         Mantissa.Test.TestRegionModel.SkewedColumn('value'));
+        var model = self.makeRegionModel(
+            server, Mantissa.Test.TestRegionModel.SkewedColumn('value'));
 
         self.assertIdentical(model.rowCount(), 0);
         model.insertRowData(0, [self.makeRow(1), self.makeRow(2), self.makeRow(3)]);
@@ -1959,7 +2157,6 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
         model.insertRowData(500, [self.makeRow(4), self.makeRow(5), self.makeRow(6)]);
         self.assertIdentical(model.rowCount(), 6);
     },
-
     function _makeFakeNode(self, widgetID) {
         var el = document.createElement("span");
         el.id = 'athena:'+widgetID;
@@ -2013,7 +2210,6 @@ Mantissa.Test.TestRegionModel.RegionModelViewTests.methods(
      * Verify that the RegionModel will remove all of its rows and tell the
      * view to remove all of its regions when asked to empty itself.
      */
-
     function test_empty(self) {
         var server = Mantissa.Test.TestRegionModel.ArrayRegionServer([]);
         var model = self.makeRegionModel(
@@ -2474,7 +2670,6 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
      * Verify that the given page size will be detected from the given row and
      * viewport heights.
      */
-
     function _verifyPageSize(self, pageSize, rowHeight, viewportHeight) {
         // XXX only works with the mock DOM implementation.  There's no other
         // way to run these tests right now, but what if, one day...?
@@ -2552,7 +2747,6 @@ Mantissa.Test.TestRegionModel.RegionDOMTests.methods(
      * words, they should be inserted at a pixel offset based on the distance
      * from the preceding region, not an absolute offset.
      */
-
     function test_overlappingRegionView(self) {
         self.table._getRowHeight = function () {
             return 22;

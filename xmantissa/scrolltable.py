@@ -564,8 +564,8 @@ class InequalityModel(_ScrollableBase):
 
     def rowsBeforeValue(self, value, count):
         """
-        Retrieve display data for rows with sort-column values less than the given
-        value.
+        Retrieve display data for rows with sort-column values less than the
+        given value.
 
         @type value: Some type compatible with the current sort column.
         @param value: Starting value in the index for the current sort column
@@ -612,7 +612,7 @@ class InequalityModel(_ScrollableBase):
         count -= len(results)
         if count:
             secondQuery = self.inequalityQuery(currentSortAttribute < value,
-                                                count, False)
+                                               count, False)
             results.extend(self.constructRows(secondQuery))
         return results[::-1]
 

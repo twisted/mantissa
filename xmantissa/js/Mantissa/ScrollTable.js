@@ -1816,10 +1816,48 @@ Mantissa.ScrollTable.Column.methods(
     },
 
     /**
+     * Extract the key to sort a row by from the row.  By default, this is the
+     * same as extractValue, but subclasses may override it to produce sort
+     * ordering that differs from the normal JavaScript ordering of the
+     * visible data.
+     *
+     * @param row: An object representing a row within a RegionModel, returned
+     * by dataAsRow.
+     *
+     * @return: a value dependent on the type of this column.
+     */
+    function extractSortKey(self, row) {
+        return self.extractValue(row);
+    },
+
+    /**
      * Construct some DOM objects to represent this value in a scrolltable.
      */
     function valueToDOM(self, columnValue) {
         return document.createTextNode(columnValue.toString());
+    },
+
+    /**
+     * Estimate the value which would appear at a relative position between
+     * between two other values, based on the type of this column.
+     *
+     * @param value1: The first value.
+     *
+     * @param value2: The second value.
+     *
+     * @param relativePositionBetween: An indication of the relative closeness
+     * to each value.  A value of close to 0.0 indicates that the result
+     * should be close to 0.0, a value close to 1.0 indicates the result
+     * should be close to value2. A value of 0.5 indicates the result should
+     * be exactly half-way between the two given values.
+     *
+     * @type relativePositionBetween: C{Number} (float between 0 and 1).
+     */
+    function estimateQueryValue(self, value1, value2, relativePositionBetween) {
+        value1 = self.toNumber(value1);
+        value2 = self.toNumber(value2);
+        return self.fromNumber(
+            value1 + (relativePositionBetween * (value2 - value1)));
     });
 
 
@@ -1901,11 +1939,130 @@ Mantissa.ScrollTable.TextColumn = Mantissa.ScrollTable.Column.subclass(
  */
 Mantissa.ScrollTable.TextColumn.methods(
     /**
+     * Override the base implementation to do simple case-conversion (using
+     * sqlite's naive algorithm) on the result of L{extractSortKey} to
+     * correspond to Axiom's case-insensitive sort ordering.
+     */
+     function extractSortKey(self, row) {
+         var input = self.extractValue(row);
+         return self._sqliteLowerCase(input);
+     },
+
+     /**
+      * This method replicates the naive, locale-independent case conversion
+      * algorithm implemented by sqlite, to match the sorting that axiom will
+      * do.
+      *
+      * @param input: a string.
+      *
+      * @return: a string, with the ASCII upper case letters converted to
+      * ASCII lower case according to en_US case-conversion rules.
+      */
+     function _sqliteLowerCase(self, input) {
+         var result = '';
+         for (var char in input) {
+             var each = input[char];
+             if (each >= 'A' && each <= 'Z') {
+                 result += each.toLowerCase();
+             } else {
+                 result += each;
+             }
+         }
+         return result;
+     },
+
+    /**
+     * Estimate the string to query for based on two values and the distance
+     * between them.  For example, half way between "Jim Jones" and "Jim
+     * Zzzxyx" is "Jim R".
+     *
+     * @param value1: a string
+     *
+     * @param value2: a string
+     *
+     * @param relativePositionBetween: a floating point number between 0.0 and 1.0.
+     */
+     function estimateQueryValue(self, value1, value2, relativePositionBetween) {
+         var value1 = self._sqliteLowerCase(value1);
+         var value2 = self._sqliteLowerCase(value2);
+         // Make sure that value1 is always the lesser value, or shorter value
+         // in the case where one is a prefix of the other, to simplify later
+         // code.
+         if (value1 > value2) {
+             var swap;
+             swap = value2;
+             value2 = value1;
+             value1 = swap;
+             relativePositionBetween = 1 - relativePositionBetween;
+         }
+         var i = 0;
+
+         for (i; i < value1.length; i++) {
+             if (value1[i] !== value2[i]) {
+                 break;
+             }
+         }
+
+         // Is one string a prefix of the other?
+         if (i === value1.length) {
+             // In that case, lengthen it by an appropriate amount.
+             var diffChars = (value2.length - value1.length);
+             var numChars = Math.ceil(diffChars * relativePositionBetween);
+             if (numChars === diffChars) {
+                 numChars -= 1;
+             }
+             return value2.substring(0, value1.length + numChars);
+         }
+
+         // XXX TODO: If you have 'joe' and 'joe smith', this leaves us in a
+         // bad state.  We should simply return 'joe' in that case, or perhaps
+         // 'joe\x01'.
+
+         /**
+          * Convert the common location in one of the inputs to a character
+          * code, skipping the capital letter range.
+          */
+         var skipUp = function (x) {
+             var charval = x.charCodeAt(i);
+             if (charval < 'Z'.charCodeAt(0)) {
+                 return charval + 26;
+             }
+             return charval;
+         };
+
+         /**
+          * Convert a character code which has skipped the uppercase range to
+          * a lower case character.
+          */
+         var skipDown = function (y) {
+             if (y <= 'Z'.charCodeAt(0)) {
+                 y -= 26;
+             }
+             return String.fromCharCode(y);
+         };
+
+         var c1 = skipUp(value1);
+         var c2 = skipUp(value2);
+         var distance = c2 - c1;
+
+         if (Math.abs(distance) === 1) {
+             return value1+'\u0001';
+         }
+
+         var targetCode = c1 + (relativePositionBetween * distance);
+         var targetChar = skipDown(targetCode);
+
+         var result = (value1.substring(0, i) + targetChar);
+         return result;
+     },
+
+    /**
      * Return a representative string.
      */
     function fakeValue(self) {
-        return "A string with a few words in it.";
+        return "short";
     });
+
 
 Mantissa.ScrollTable.BooleanColumn = Mantissa.ScrollTable.Column.subclass(
     'Mantissa.ScrollTable.BooleanColumn');
@@ -2091,7 +2248,7 @@ Mantissa.ScrollTable.RowRegion.methods(
      * on the type of the sort column.
      */
     function _extractValue(self, row) {
-        return self.regionModel.sortColumn.extractValue(row);
+        return self.regionModel.sortColumn.extractSortKey(row);
     },
 
     /**
@@ -2205,9 +2362,15 @@ Mantissa.ScrollTable.RowRegion.methods(
                 // FOUND THE OVERLAP AT J
                 var overlappingRows = rowCount - j;
                 if (overlappingRows < region.rows.length) {
-                    self.rows.splice.apply(
-                        self.rows,
-                        [j, overlappingRows].concat(region.rows));
+                    if (self.rows[self.rows.length-1].__TEMPORARY__) {
+                        // Back up!
+                        overlappingRows--;
+                        self.rows.pop();
+                        // This next line needs tests.
+                        self.viewPeer.removeViewRow(self.rows.length);
+                    }
+                    self.rows.push.apply(self.rows,
+                                         region.rows.slice(overlappingRows));
                     self.viewPeer.mergeWithRegionView(
                         region.viewPeer, overlappingRows);
                 } else {
@@ -2464,6 +2627,19 @@ Mantissa.ScrollTable.RegionModel.methods(
                             if (newDataCount !== 0) {
                                 return;
                             }
+                            // There's no data available.  We'll issue a
+                            // second request to actually get some.
+
+                            // XXX TODO: if we've requested data where there
+                            // is none (past the end of the region, for
+                            // example) we should deal with that differently
+                            // than some data coming back and no rows being
+                            // inserted.
+
+                            // if (newRegion === null) {
+                            //     return;
+                            // }
+
                             return self.rowsPrecedingRow(
                                 newRegion.rows[0], true
                                 ).addCallback(function (moreRows) {
@@ -2520,7 +2696,7 @@ Mantissa.ScrollTable.RegionModel.methods(
      * Common, underlying implementation of rowsFollowingRow and
      * rowsPrecedingRow.
      */
-    function _rowsRelatedToRow(self, row, exactlyAdjacent, invertFlip) {
+    function _rowsRelatedToRow(self, row, exactlyAdjacent, wantPreceding) {
         var result = null;
         var pagesize = self._pagesize;
         if (!exactlyAdjacent) {
@@ -2534,23 +2710,33 @@ Mantissa.ScrollTable.RegionModel.methods(
             }
         };
         serverRow[self.sortColumn.name] = row[self.sortColumn.name];
-        var treatAsAscending = self._sortAscending ^ invertFlip;
-        if (treatAsAscending) {
-            result = self.server.rowsAfterRow(serverRow, pagesize);
+        if (self._sortAscending) {
+            if (wantPreceding) {
+                result = self.server.rowsBeforeRow(serverRow, pagesize);
+            } else {
+                result = self.server.rowsAfterRow(serverRow, pagesize);
+            }
         } else {
-            result = self.server.rowsBeforeRow(serverRow, pagesize);
-            result.addCallback(function (result) {
-                return result.reverse();
+            if (wantPreceding) {
+                result = self.server.rowsAfterRow(serverRow, pagesize);
+            } else {
+                result = self.server.rowsBeforeRow(serverRow, pagesize);
+            }
+        }
+        if (!self._sortAscending) {
+            result.addCallback(function (rows) {
+                rows.reverse();
+                return rows;
             });
         }
         result.addCallback(function (data) {
-            if (invertFlip) {
-                data.splice(data.length, 0, serverRow);
-            } else {
-                data.splice(0, 0, serverRow);
-            }
-            return data;
-        });
+                if (wantPreceding) {
+                    data.splice(data.length, 0, serverRow);
+                } else {
+                    data.splice(0, 0, serverRow);
+                }
+                return data;
+            });
         return result;
     },
 
@@ -2580,13 +2766,11 @@ Mantissa.ScrollTable.RegionModel.methods(
     function estimateValueAtOffset(self, offset) {
         var r1 = self._regionBefore(offset);
         var r2 = self._regionAfter(offset);
-        var n1 = self.sortColumn.toNumber(r1.lastValue());
-        var n2 = self.sortColumn.toNumber(r2.firstValue());
-        var offsetCount = (r2.lastOffset() - r1.firstOffset());
-        var changePerOffset = ((n2 - n1) / offsetCount);
-        var estimateNumber = (changePerOffset * (offset - r1.firstOffset())) + n1;
-        var estimateValue = self.sortColumn.fromNumber(estimateNumber);
-        return estimateValue;
+        var v1 = r1.lastValue();
+        var v2 = r2.firstValue();
+        var blankOffsets = r2.firstOffset() - r1.lastOffset();
+        return self.sortColumn.estimateQueryValue(
+            v1, v2, (offset - r1.lastOffset()) / blankOffsets);
     },
 
     function _regionBefore(self, offset) {
@@ -2692,6 +2876,11 @@ Mantissa.ScrollTable.RegionModel.methods(
      * affected by this insertion.
      */
     function insertRowData(self, offset, data) {
+        // XXX TODO: if there's no actual data being inserted, we can (and
+        // really should) skip all of this.
+        if (data.length === 0) {
+            return [0, null];
+        }
         var newRegion = Mantissa.ScrollTable.RowRegion(self, offset, data);
         for (var i = 0; i < self._regions.length; ++i) {
             var thisRegion = self._regions[i];
@@ -2984,11 +3173,13 @@ Mantissa.ScrollTable.DOMRegionView.methods(
             if (row.__TEMPORARY__) {
                 rowNode = MochiKit.DOM.SPAN(
                     {"class": "row-temporary-placeholder"},
-                    "TEMPORARY ROW PLACEHOLDER");
+                    "TempRow");
             } else {
-                /* XXX _createRow shouldn't really take an offset argument; we
-                 * need to figure out another way to make the rows alternate
-                 * colors. */
+                /* XXX _createRow shouldn't really take an offset argument,
+                 * since the offset of the rows may shift as more rows are
+                 * requested; we need to figure out another way to make the
+                 * rows alternate colors.  A CSS selector, perhaps?
+                 */
                 rowNode = self.tableView._createRow(
                     self.rowRegion.offset + i, row);
             }
@@ -3010,7 +3201,7 @@ Mantissa.ScrollTable.DOMRegionView.methods(
      * argument where new data begins.
      */
     function mergeWithRegionView(self, regionView, newDataStart) {
-        for(var i = 0; i < newDataStart; i++) {
+        for (var i = 0; i < newDataStart; i++) {
             regionView.removeViewRow(0);
         }
         var otherRegionViewNode = regionView.node.childNodes[0];
