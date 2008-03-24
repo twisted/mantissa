@@ -544,7 +544,7 @@ class AdminStatsFragment(athena.LiveElement):
         # the initial page render.  Work around this by forcing all these
         # dependencies to load at startup.
         return [
-            T.script(language='javascript', src='/private/jsmodule/PlotKit.' + x)
+            T.script(type='text/javascript', src='/private/jsmodule/PlotKit.' + x)
             for x in ['Base', 'Canvas', 'Layout', 'SVGRenderer', 'SweetSVG', 'Canvas', 'SweetCanvas']]
 
     def _query(self, *a, **kw):

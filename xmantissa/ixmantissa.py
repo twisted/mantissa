@@ -129,7 +129,7 @@ class ISearchAggregator(Interface):
 
     def count(term):
         """
-        same as ISearchProviders.count, but queries all search providers
+        same as ISearchProvider.count, but queries all search providers
         """
 
     def search(term, keywords, count, offset, sortAscending):
@@ -260,7 +260,7 @@ class ISiteURLGenerator(Interface):
 
 class IStaticShellContent(Interface):
     """
-    Represents per-store header/footer content thats used to buttress
+    Represents per-store header/footer content that's used to buttress
     the shell template
     """
 
@@ -394,7 +394,7 @@ class INavigableElement(Interface):
     def getTabs():
         """Retrieve data about this elements navigation.
 
-        This returns a list of C{xmantissa.appnav.Tab}s.
+        This returns a list of C{xmantissa.webnav.Tab}s.
 
         For example, a powerup which wanted to install navigation under the
         Divmod tab would return this list:::
@@ -452,7 +452,7 @@ class INavigableFragment(Interface):
         """
 
 
-    def locateChild(self, ctx, segments):
+    def locateChild(ctx, segments):
         """
         INavigableFragments may optionally provide a locateChild method similar
         to the one found on L{nevow.inevow.IResource.locateChild}.  You may
@@ -576,7 +576,7 @@ class IPreferenceCollection(Interface):
     def getSections():
         """
         Returns a sequence of INavigableFragments or None. These fragments
-        will be displayed alongside preferences under this collections's
+        will be displayed alongside preferences under this collection's
         settings group.
         """
 

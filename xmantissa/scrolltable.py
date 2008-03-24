@@ -817,7 +817,7 @@ ScrollingFragment = ItemQueryScrollingFragment
 
 
 
-class SequenceScrollingFragment(Scrollable, ScrollableView, LiveElement):
+class SequenceScrollingFragment(IndexingModel, ScrollableView, LiveElement):
     """
     Scrolltable implementation backed by any Python L{axiom.item.Item}
     sequence.

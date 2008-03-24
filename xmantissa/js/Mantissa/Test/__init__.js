@@ -798,7 +798,7 @@ Mantissa.Test.ScrollTableViewTestCase.methods(
     },
 
     /**
-     * Test that the the scrolltable's empty() method removes all row nodes
+     * Test that the scrolltable's empty() method removes all row nodes
      * and empties the model
      */
     function test_empty(self) {

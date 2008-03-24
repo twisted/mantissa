@@ -138,7 +138,7 @@ Mantissa.Test.TestRegionModel.ArrayRegionServer.methods(
      * larger than any actually present in the data set.
      *
      * @return: A L{Divmod.Defer.Deferred} which will be called back with an
-     * C{Array} of row data, where the last element of the array is the the row
+     * C{Array} of row data, where the last element of the array is the row
      * with the largest sort column value less than C{value}, the second to
      * last element is the row with the largest sort column value less than the
      * sort column value of the last row, etc.  Ties are resolved in the same

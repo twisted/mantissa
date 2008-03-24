@@ -2329,7 +2329,7 @@ Mantissa.ScrollTable.RowRegion.methods(
      * @return: an integer, 1 to indicate that offset occurs before this
      * region, 0 to indicate that offset occurs within this region (i.e. it
      * overlaps it), and -1 to indicate that the offset occurs after this
-     * region.a
+     * region.
      */
     function compareToOffset(self, offset) {
         if (offset < self._offset) {

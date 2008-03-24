@@ -2114,7 +2114,7 @@ class AddPersonFragment(athena.LiveFragment):
 
     def head(self):
         """
-        Supply not content to the head area of the page.
+        Supply no content to the head area of the page.
         """
         return None
 
@@ -2386,7 +2386,6 @@ class Mugshot(item.Item):
 
         @param format: The format of the data in C{inputFile}.
         @type format: C{unicode} (e.g. I{jpeg})
-        @type input
 
         @rtype: L{Mugshot}
         """
