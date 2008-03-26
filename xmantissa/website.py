@@ -34,7 +34,7 @@ from axiom import upgrade
 from axiom.item import Item, _PowerupConnector, declareLegacyItem
 from axiom.attributes import AND, integer, text, reference, bytes, boolean
 from axiom.userbase import LoginSystem
-from axiom.dependency import installOn
+from axiom.dependency import installOn, uninstallFrom, installedOn
 
 from xmantissa.ixmantissa import (
     ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory,
@@ -705,9 +705,38 @@ class APIKey(Item):
 
 
 
-def _makeSiteConfiguration(oldSite, couldHavePorts):
-    if oldSite.store.parent is not None:
-        return
+def _makeSiteConfiguration(currentVersion, oldSite, couldHavePorts):
+    from xmantissa.publicweb import AnonymousSite
+
+    newSite = oldSite.upgradeVersion(
+        'mantissa_web_powerup', currentVersion, 6,
+        hitCount=oldSite.hitCount)
+
+    if newSite.store.parent is not None:
+        return newSite
+
+    # SiteConfiguration dependsOn LoginSystem.  LoginSystem was probably
+    # installed by the mantissa axiomatic command.  During the dependency
+    # system conversion, that command was changed to use installOn on the
+    # LoginSystem.  However, no upgrader was supplied to create the new
+    # dependency state.  Consequently, there may be none.  Consequently, a new
+    # LoginSystem will be created if an item which dependsOn LoginSystem is
+    # installed.  This would be bad.  So, set up the necessary dependency state
+    # here, before instantiating SiteConfiguration. -exarkun
+
+    # Addendum: it is almost certainly the case that there are not legitimate
+    # configurations which lack a LoginSystem.  However, a large number of
+    # database upgrade tests construct unrealistic databases.  One aspect of
+    # the unrealism is that they lack a LoginSystem.  Therefore, rather than
+    # changing all the bogus stubs and regenerating the stubs, I will just
+    # support the case where LoginSystem is missing.  However, note that a
+    # LoginSystem upgrader may invalidate this check and result in a duplicate
+    # being created anyway. -exarkun
+    loginSystem = oldSite.store.findUnique(LoginSystem, default=None)
+    if loginSystem is not None and installedOn(loginSystem) is None:
+        installOn(loginSystem, oldSite.store)
+
+    uninstallFrom(oldSite.store, oldSite)
 
     site = SiteConfiguration(
         store=oldSite.store,
@@ -715,14 +744,15 @@ def _makeSiteConfiguration(oldSite, couldHavePorts):
         hostname=getattr(oldSite, "hostname", None) or u"localhost")
     installOn(site, site.store)
 
+    anonymousAvatar = AnonymousSite(store=oldSite.store)
+    installOn(anonymousAvatar, oldSite.store)
+
     if couldHavePorts:
         for tcp in site.store.query(TCPPort, TCPPort.factory == oldSite):
             tcp.factory = site
         for ssl in site.store.query(SSLPort, SSLPort.factory == oldSite):
             ssl.factory = site
     else:
-        oldSite.store.powerDown(oldSite, IService)
-
         if oldSite.portNumber is not None:
             port = TCPPort(
                 store=oldSite.store,
@@ -734,15 +764,16 @@ def _makeSiteConfiguration(oldSite, couldHavePorts):
         certificateFile = oldSite.certificateFile
         if securePortNumber is not None and certificateFile:
             oldCertPath = site.store.dbdir.preauthChild(certificateFile)
-            if oldCertPath.exists():
-                newCertPath = site.store.newFilePath('server.pem')
-                oldCertPath.copyTo(newCertPath)
-                port = SSLPort(
-                    store=site.store,
-                    portNumber=oldSite.securePortNumber,
-                    certificatePath=newCertPath,
-                    factory=site)
-                installOn(port, site.store)
+            newCertPath = site.store.newFilePath('server.pem')
+            oldCertPath.moveTo(newCertPath)
+            port = SSLPort(
+                store=site.store,
+                portNumber=oldSite.securePortNumber,
+                certificatePath=newCertPath,
+                factory=site)
+            installOn(port, site.store)
+
+    newSite.deleteFromStore()
 
 
 declareLegacyItem(
@@ -754,11 +785,7 @@ declareLegacyItem(
         certificateFile = bytes(default=None)))
 
 def upgradeWebSite1To6(oldSite):
-    newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 1, 6,
-        hitCount=oldSite.hitCount)
-    _makeSiteConfiguration(oldSite, False)
-    return newSite
+    return _makeSiteConfiguration(1, oldSite, False)
 upgrade.registerUpgrader(upgradeWebSite1To6, 'mantissa_web_powerup', 1, 6)
 
 declareLegacyItem(
@@ -772,9 +799,7 @@ declareLegacyItem(
 
 def upgradeWebSite2to6(oldSite):
     # This is dumb and we should have a way to run procedural upgraders.
-    newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 2, 6,
-        hitCount=oldSite.hitCount)
+    newSite = _makeSiteConfiguration(2, oldSite, False)
     staticMistake = newSite.store.findUnique(StaticSite,
                                              StaticSite.prefixURL == u'static/mantissa',
                                              default=None)
@@ -783,7 +808,6 @@ def upgradeWebSite2to6(oldSite):
         staticMistake.store.powerDown(staticMistake, ISessionlessSiteRootPlugin)
         staticMistake.deleteFromStore()
 
-    _makeSiteConfiguration(oldSite, False)
     return newSite
 upgrade.registerUpgrader(upgradeWebSite2to6, 'mantissa_web_powerup', 2, 6)
 
@@ -797,11 +821,7 @@ declareLegacyItem(
         httpLog = bytes(default=None)))
 
 def upgradeWebsite3to6(oldSite):
-    newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 3, 6,
-        hitCount=oldSite.hitCount)
-    _makeSiteConfiguration(oldSite, False)
-    return newSite
+    return _makeSiteConfiguration(3, oldSite, False)
 upgrade.registerUpgrader(upgradeWebsite3to6, 'mantissa_web_powerup', 3, 6)
 
 declareLegacyItem(
@@ -815,11 +835,7 @@ declareLegacyItem(
         httpLog=bytes(default=None)))
 
 def upgradeWebsite4to6(oldSite):
-    newSite = oldSite.upgradeVersion(
-        'mantissa_web_powerup', 4, 6,
-        hitCount=oldSite.hitCount)
-    _makeSiteConfiguration(oldSite, False)
-    return newSite
+    return _makeSiteConfiguration(4, oldSite, False)
 upgrade.registerUpgrader(upgradeWebsite4to6, 'mantissa_web_powerup', 4, 6)
 
 declareLegacyItem(
@@ -833,10 +849,6 @@ def upgradeWebsite5to6(oldSite):
     """
     Create a L{SiteConfiguration} if this is a site store's L{WebSite}.
     """
-    newSite = oldSite.upgradeVersion(
-        oldSite.typeName, 5, 6,
-        hitCount=oldSite.hitCount)
-    _makeSiteConfiguration(oldSite, True)
-    return newSite
+    return _makeSiteConfiguration(5, oldSite, True)
 upgrade.registerUpgrader(upgradeWebsite5to6, WebSite.typeName, 5, 6)
 

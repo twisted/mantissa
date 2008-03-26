@@ -86,8 +86,6 @@ class PortTestsMixin:
     highPortNumber = 1234
     someInterface = u'127.0.0.1'
 
-    dbdir = None
-
     def port(self, **kw):
         """
         Create and return a new port instance with the given attribute values.
@@ -119,7 +117,8 @@ class PortTestsMixin:
 
 
     def setUp(self):
-        self.store = Store(self.dbdir)
+        self.filesdir = self.mktemp()
+        self.store = Store(filesdir=self.filesdir)
         self.realFactory = ServerFactory()
         self.factory = DummyFactory(store=self.store, realFactory=self.realFactory)
         self.ports = []
@@ -382,15 +381,6 @@ qYOidx+hKiCxxDGzWVECQHNVutQ1ABjmv6EDJTo28QQsm5hNbfS+tVY3bSihNjLM
 Y+O7ib90LsqfQ8r0GUphQVi4EA4QMJqaF7ZxKms79qA=
 -----END RSA PRIVATE KEY-----
     """
-
-    def setUp(self):
-        """
-        Override the inherited setup to create an on-disk Store so that
-        certificates can be created within it.
-        """
-        self.dbdir = self.mktemp()
-        return super(SSLPortTests, self).setUp()
-
 
     def checkPort(self, port, alternatePort=None):
         if alternatePort is None:

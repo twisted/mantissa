@@ -3,18 +3,12 @@
 Test for upgrading a WebSite by giving it a hostname attribute.
 """
 
-from nevow.inevow import IResource
+from xmantissa.test.historic.test_website4to5 import WebSiteUpgradeTests
 
-from axiom.test.historic.stubloader import StubbedTest
-
-class WebSiteUpgradeTestCase(StubbedTest):
-    def test_hostnameUpgrade(self):
-        """
-        Test that upgraded WebSite instances have their hostname attribute set
-        to something and that all their old attributes are preserved.
-        """
-        # Test that it is still an IResource powerup
-        ws = IResource(self.store)
-
-        # Test its only remaining attribute.
-        self.assertEquals(ws.hitCount, 100)
+# Subclass it to make a TestCase with a __module__ which won't confuse trial
+# and to make stub discovery work correctly.  These two things are implicitly
+# discovered from the class definition are unfortunate. -exarkun
+class WebSiteUpgradeTests(WebSiteUpgradeTests):
+    # This website was so old, it had no hostname information.  So a default
+    # will be filled in. -exarkun
+    expectedHostname = u"localhost"

@@ -57,7 +57,7 @@ def createDatabase(store):
     loginSystem = store.findUnique(LoginSystem)
     account = loginSystem.addAccount(u'testuser', u'localhost', None)
     subStore = account.avatars.open()
-    installOn(WebSite(store=subStore), subStore)
+    installOn(WebSite(store=subStore, hitCount=321), subStore)
 
 
 if __name__ == '__main__':
