@@ -225,8 +225,8 @@ class SiteConfigurationTests(unittest.TestCase):
         L{SiteConfiguration.rootURL} returns C{/} for a request made onto the
         hostname with which the L{SiteConfiguration} is configured.
         """
-        request = FakeRequest()
-        request.setHeader('host', self.domain.encode('ascii'))
+        request = FakeRequest(headers={
+            'host': self.domain.encode('ascii')})
         self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
@@ -244,14 +244,14 @@ class SiteConfigurationTests(unittest.TestCase):
         L{SiteConfiguration.rootURL} returns C{/} for a request made onto the
         I{www} subdomain of the hostname of the L{SiteConfiguration}.
         """
-        request = FakeRequest()
-        request.setHeader('host', 'www.' + self.domain.encode('ascii'))
+        request = FakeRequest(headers={
+            'host': 'www.' + self.domain.encode('ascii')})
         self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
     def _differentHostnameTest(self, portType, portNumber, isSecure, scheme):
-        request = FakeRequest(isSecure=isSecure)
-        request.setHeader('host', 'alice.' + self.domain.encode('ascii'))
+        request = FakeRequest(isSecure=isSecure, headers={
+            'host': 'alice.' + self.domain.encode('ascii')})
         portType(store=self.store, factory=self.site, portNumber=portNumber)
         self.assertEqual(self.site.rootURL(request), URL(scheme, self.domain))
 
@@ -278,8 +278,8 @@ class SiteConfigurationTests(unittest.TestCase):
 
     def _differentHostnameNonstandardPort(self, portType, isSecure, scheme):
         portNumber = 12345
-        request = FakeRequest(isSecure=isSecure)
-        request.setHeader('host', 'alice.' + self.domain.encode('ascii'))
+        request = FakeRequest(isSecure=isSecure, headers={
+            'host': 'alice.' + self.domain.encode('ascii')})
         portType(store=self.store, factory=self.site, portNumber=portNumber)
         self.assertEqual(
             self.site.rootURL(request),
@@ -315,8 +315,8 @@ class SiteConfigurationTests(unittest.TestCase):
         configured to listen.
         """
         request = FakeRequest()
-        request.setHeader(
-            'host', '%s:%s' % (self.domain.encode('ascii'), 54321))
+        request = FakeRequest(isSecure=isSecure, headers={
+            'host': '%s:%s' % (self.domain.encode('ascii'), 54321)})
         TCPPort(store=self.store, factory=self.site, portNumber=54321)
         self.assertEqual(self.site.rootURL(request), URL('', ''))
 
