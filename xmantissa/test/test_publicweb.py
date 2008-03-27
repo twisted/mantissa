@@ -510,7 +510,8 @@ class AuthenticatedNavigationTestMixin:
         """
         page = self.createPage(username)
         userTag = span()
-        req = FakeRequest(headers={'host': hostHeader})
+        req = FakeRequest()
+        req.setHeader('Host', hostHeader)
         ctx = context.WebContext(tag=userTag)
         ctx.remember(req, inevow.IRequest)
         tag = page.render_username(ctx, None)
