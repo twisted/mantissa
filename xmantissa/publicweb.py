@@ -15,6 +15,7 @@ from nevow.inevow import IRequest, IResource
 from nevow import rend, tags, inevow
 from nevow.url import URL
 
+from axiom.iaxiom import IPowerupIndirector
 from axiom import item, attributes, upgrade, userbase
 from axiom.dependency import dependsOn
 
@@ -957,7 +958,7 @@ class AnonymousSite(item.Item):
     content provided by any site root plugins.
     """
     powerupInterfaces = (IResource,)
-    implements(*powerupInterfaces)
+    implements(*powerupInterfaces + (IPowerupIndirector,))
 
     loginSystem = dependsOn(userbase.LoginSystem)
 
@@ -1005,3 +1006,14 @@ class AnonymousSite(item.Item):
                 return childAndSegments
 
         return rend.NotFound
+
+    # IPowerupIndirector
+    def indirect(self, interface):
+        """
+        Create a L{VirtualHostWrapper} so it can have the first chance to
+        handle web requests.
+        """
+        return website.VirtualHostWrapper(
+            self.store,
+            None,
+            self)

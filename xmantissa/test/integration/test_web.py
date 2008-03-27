@@ -31,7 +31,7 @@ import xmantissa
 from xmantissa.ixmantissa import (
     INavigableFragment, IOfferingTechnician, IPreferenceAggregator,
     IWebTranslator)
-from xmantissa.port import TCPPort, SSLPort
+from xmantissa.port import SSLPort
 from xmantissa.offering import Offering
 from xmantissa.product import Product
 from xmantissa.web import SiteConfiguration
@@ -595,8 +595,6 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
     @ivar virtualHost: The full domain name of a user-specific subdomain for
         the user which shared C{share}.
     """
-    skip = "User subdomain virtual hosting not implemented yet.  See #2406."
-
     def setUp(self):
         """
         Create a user account and share an item from it to everyone.
@@ -608,7 +606,7 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         self.userAccount = self.login.addAccount(
             self.username, self.domain, u'password', internal=True)
         self.userStore = self.userAccount.avatars.open()
-        self.virtualHost = u'.'.join((username, self.domain))
+        self.virtualHost = u'.'.join((self.username, self.domain))
 
         # Share something that we'll try to load.
         self.sharedContent = u'content owned by alice and shared to everyone'
@@ -624,7 +622,7 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         """
         page = getWithSession(
             self.factory, 2, '/' + self.share.shareID.encode('ascii'),
-            {'host': virtualHost.encode('ascii')})
+            {'host': self.virtualHost.encode('ascii')})
         def rendered(request):
             self.assertIn(
                 self.sharedContent.encode('ascii'), request.accumulator)
@@ -656,7 +654,7 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         cookies = {}
         login = getWithSession(
             self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
-                username.encode('ascii'), domain.encode('ascii'), 'password'),
+                username.encode('ascii'), self.domain.encode('ascii'), 'password'),
             {'host': self.domain.encode('ascii')})
         def loggedIn(request):
             # Get the share page from the virtual host as the authenticated
@@ -697,11 +695,14 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         # Give it to Bob.
         web.installProductOn(bobStore)
 
+        # Make something the default share.
+        addDefaultShareID(self.userStore, self.share.shareID, 0)
+
         # Log in through the web as Bob.
         cookies = {}
         login = getWithSession(
             self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
-                username.encode('ascii'), domain.encode('ascii'), 'password'),
+                username.encode('ascii'), self.domain.encode('ascii'), 'password'),
             {'host': self.domain.encode('ascii')})
         def loggedIn(request):
             # Get the share page as the authenticated user.

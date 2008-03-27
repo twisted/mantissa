@@ -5,7 +5,7 @@ from twisted.trial.unittest import TestCase
 from nevow.url import URL
 from nevow.flat import flatten
 from nevow.inevow import IResource
-from nevow.testutil import AccumulatingFakeRequest, renderPage
+from nevow.testutil import FakeRequest, renderPage
 
 from axiom.store import Store
 from axiom import userbase
@@ -171,14 +171,14 @@ class PasswordResetTestCase(TestCase):
         self.assertNotIdentical(self.userStore.parent, None) # sanity check
         prefPage = ixmantissa.IPreferenceAggregator(self.userStore)
         urlPath = ixmantissa.IWebTranslator(self.userStore).linkTo(prefPage.storeID)
+        request = FakeRequest(headers={"host": "example.com"})
         app = IResource(self.userStore)
-        rsc = IResource(app.child_resetPassword(None))
-        afr = AccumulatingFakeRequest()
-        d = renderPage(rsc, reqFactory=lambda : afr)
+        rsc = IResource(app.locateChild(request, ("resetPassword",))[0])
+        d = renderPage(rsc, reqFactory=lambda : request)
         def rendered(result):
             self.assertEquals(
-                'http://localhost' + urlPath,
-                afr.redirected_to)
+                'http://example.com' + urlPath,
+                request.redirected_to)
         d.addCallback(rendered)
         return d
 
@@ -207,7 +207,7 @@ class PasswordResetTestCase(TestCase):
         """
         self.reset.handleRequestForUser = lambda *args: self.fail(args)
 
-        _request = AccumulatingFakeRequest(
+        _request = FakeRequest(
             headers={'host': 'example.org'},
             uri='/resetPassword',
             currentSegments=['resetPassword'],
@@ -233,11 +233,11 @@ class PasswordResetTestCase(TestCase):
             handleRequest.attempt = self.reset.newAttemptForUser(username)
             handleRequest.username = username
 
-        class Request(AccumulatingFakeRequest):
+        class Request(FakeRequest):
             method = 'POST'
 
             def __init__(self, *a, **kw):
-                AccumulatingFakeRequest.__init__(self, *a, **kw)
+                FakeRequest.__init__(self, *a, **kw)
                 self.args = {'username': ['joe'],
                              'email': ['']}
                 self.setHeader('host', hostname)
@@ -258,10 +258,10 @@ class PasswordResetTestCase(TestCase):
         def handleRequest(username, url):
             requests.append((username, url))
 
-        class Request(AccumulatingFakeRequest):
+        class Request(FakeRequest):
             method = 'POST'
             def __init__(self, *a, **k):
-                AccumulatingFakeRequest.__init__(self, *a, **k)
+                FakeRequest.__init__(self, *a, **k)
                 self.args = {'username': [''],
                              'email': ['joe@external.com']}
 
@@ -285,10 +285,10 @@ class PasswordResetTestCase(TestCase):
         def handleRequest(username, url):
             requests.append((username, url))
 
-        class Request(AccumulatingFakeRequest):
+        class Request(FakeRequest):
             method = 'POST'
             def __init__(self, *a, **k):
-                AccumulatingFakeRequest.__init__(self, *a, **k)
+                FakeRequest.__init__(self, *a, **k)
                 self.args = {'username': [''],
                              'email': [bogusEmail]}
 

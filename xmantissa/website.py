@@ -18,7 +18,7 @@ try:
 except ImportError:
     CSSParser = None
 
-from twisted.application.service import IService
+from twisted.cred.portal import IRealm
 
 from epsilon.structlike import record
 
@@ -30,18 +30,20 @@ from nevow.url import URL
 from nevow import url
 from nevow import athena
 
+from axiom.iaxiom import IPowerupIndirector
 from axiom import upgrade
 from axiom.item import Item, _PowerupConnector, declareLegacyItem
 from axiom.attributes import AND, integer, text, reference, bytes, boolean
-from axiom.userbase import LoginSystem
+from axiom.userbase import LoginSystem, getDomainNames, getAccountNames
 from axiom.dependency import installOn, uninstallFrom, installedOn
 
 from xmantissa.ixmantissa import (
-    ISiteRootPlugin, ISessionlessSiteRootPlugin, IProtocolFactoryFactory,
+    ISiteRootPlugin, ISessionlessSiteRootPlugin,
     ISiteURLGenerator)
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.web import SiteConfiguration
 from xmantissa.cachejs import theHashModuleProvider
+from xmantissa.websharing import UserIndexPage
 
 
 class MantissaLivePage(athena.LivePage):
@@ -517,7 +519,7 @@ class WebSite(Item, SiteRootMixin):
     and a limited number of other statically defined children.
     """
     powerupInterfaces = (IResource,)
-    implements(*powerupInterfaces)
+    implements(*powerupInterfaces + (IPowerupIndirector,))
 
     typeName = 'mantissa_web_powerup'
     schemaVersion = 6
@@ -639,6 +641,18 @@ class WebSite(Item, SiteRootMixin):
         @see L{setServiceParent}.
         """
         return self.store.findUnique(SiteConfiguration).getFactory()
+
+
+    # IPowerupIndirector
+    def indirect(self, interface):
+        """
+        Create a L{VirtualHostWrapper} so it can have the first chance to
+        handle web requests.
+        """
+        return VirtualHostWrapper(
+            self.store.parent,
+            u'@'.join(getAccountNames(self.store).next()),
+            self)
 
 
 
@@ -852,3 +866,61 @@ def upgradeWebsite5to6(oldSite):
     return _makeSiteConfiguration(5, oldSite, True)
 upgrade.registerUpgrader(upgradeWebsite5to6, WebSite.typeName, 5, 6)
 
+
+
+class VirtualHostWrapper(record('siteStore forWhom wrapped')):
+    """
+    Resource wrapper which implements per-user virtual subdomains.  This should
+    be wrapped around any resource which sits at the root of the hierarchy.  It
+    will examine requests for their hostname and, when appropriate, redirect
+    handling of the query to the appropriate sharing resource.
+
+    @type siteStore: L{Store}
+    @ivar siteStore: The site store which will be queried to determine which
+        hostnames are associated with this server.
+
+    @type forWhom: C{unicode}
+    @ivar forWhom: The username of a viewer for whom to customize the resulting
+        resource, or C{None} if the viewer has no account.
+
+    @type wrapped: L{IResource} provider
+    @ivar wrapped: A resource to which traversal will be delegated if the
+        request is not for a user subdomain.
+    """
+    implements(IResource)
+
+    def subdomain(self, hostname):
+        """
+        Determine of which known domain the given hostname is a subdomain.
+
+        @return: A two-tuple giving the subdomain part and the domain part or
+            C{None} if the domain is not a subdomain of any known domain.
+        """
+        hostname = hostname.split(":")[0]
+        for domain in getDomainNames(self.siteStore):
+            if hostname.endswith("." + domain):
+                username = hostname[:-len(domain) - 1]
+                if username != "www":
+                    return username, domain
+        return None
+
+
+    def locateChild(self, context, segments):
+        """
+        Delegate dispatch to a sharing resource if the request is for a user
+        subdomain, otherwise fall back to the wrapped resource's C{locateChild}
+        implementation.
+        """
+        request = IRequest(context)
+        hostname = request.getHeader('host')
+
+        info = self.subdomain(hostname)
+        if info is not None:
+            username, domain = info
+            index = UserIndexPage(IRealm(self.siteStore))
+            resource = index.locateChild(None, [username])[0]
+            if self.forWhom is not None:
+                resource = resource.customizeFor(self.forWhom)
+            return resource, segments
+
+        return self.wrapped.locateChild(context, segments)

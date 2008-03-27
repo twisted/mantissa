@@ -637,11 +637,12 @@ class AnonymousSiteTests(unittest.TestCase):
         self.site.hostname = host.decode('ascii')
         SSLPort(store=self.store, portNumber=port, factory=self.site)
 
-        resource = self.resource.child_login(request)
+        resource, segments = self.resource.locateChild(request, ("login",))
         self.assertTrue(isinstance(resource, LoginPage))
         self.assertIdentical(resource.store, self.store)
         self.assertEqual(resource.segments, ())
         self.assertEqual(resource.arguments, {})
+        self.assertEqual(segments, ())
 
 
     def test_resetPassword(self):
@@ -649,9 +650,12 @@ class AnonymousSiteTests(unittest.TestCase):
         L{AnonymousSite} has a I{resetPassword} child which returns a
         L{PasswordResetResource} instance.
         """
-        resource = self.resource.child_resetPassword(None)
+        resource, segments = self.resource.locateChild(
+            FakeRequest(headers={"host": "example.com"}),
+            ("resetPassword",))
         self.assertTrue(isinstance(resource, PasswordResetResource))
         self.assertIdentical(resource.store, self.store)
+        self.assertEqual(segments, ())
 
 
     def test_users(self):
@@ -659,10 +663,12 @@ class AnonymousSiteTests(unittest.TestCase):
         L{AnonymousSite} has a I{users} child which returns a L{UserIndexPage}
         instance.
         """
-        resource = self.resource.child_users(None)
+        resource, segments = self.resource.locateChild(
+            FakeRequest(headers={"host": "example.com"}), ("users",))
         self.assertTrue(isinstance(resource, UserIndexPage))
         self.assertIdentical(
             resource.loginSystem, self.store.findUnique(userbase.LoginSystem))
+        self.assertEqual(segments, ())
 
 
     def test_notFound(self):
@@ -670,7 +676,9 @@ class AnonymousSiteTests(unittest.TestCase):
         L{AnonymousSite.locateChild} returns L{NotFound} for requests it cannot
         find another response for.
         """
-        result = self.resource.locateChild(None, ("foo", "bar"))
+        result = self.resource.locateChild(
+            FakeRequest(headers={"host": "example.com"}),
+            ("foo", "bar"))
         self.assertIdentical(result, NotFound)
 
 
@@ -689,7 +697,9 @@ class AnonymousSiteTests(unittest.TestCase):
 
         self.store.inMemoryPowerUp(SiteRootPlugin(), ISiteRootPlugin)
         self.assertIdentical(
-            self.resource.locateChild(None, ("foo", "bar")),
+            self.resource.locateChild(
+                FakeRequest(headers={"host": "example.com"}),
+                ("foo", "bar")),
             result)
         self.assertEqual(calledWith, [("foo", "bar")])
 
@@ -1045,3 +1055,77 @@ class APIKeyTestCase(unittest.TestCase):
         self.assertIdentical(existingAPIKey, returnedAPIKey)
         self.assertEqual(existingAPIKey.apiName, theAPIName)
         self.assertEqual(existingAPIKey.apiKey, newAPIKey)
+
+
+
+class VirtualHostWrapperTests(unittest.TestCase):
+    """
+    Tests for L{VirtualHostWrapper}.
+    """
+    def test_nonSubdomain(self):
+        """
+        L{VirtualHostWrapper.subdomain} returns C{None} when passed a hostname
+        which is not a subdomain of a domain of the site.
+        """
+        site = Store()
+        wrapper = website.VirtualHostWrapper(site, None, None)
+        self.assertIdentical(wrapper.subdomain("example.com"), None)
+
+
+    def test_subdomain(self):
+        """
+        L{VirtualHostWrapper.subdomain} returns a two-tuple of a username and a
+        domain name when passed a hostname which is a subdomain of a known
+        domain.
+        """
+        site = Store()
+        wrapper = website.VirtualHostWrapper(site, None, None)
+        userbase.LoginMethod(
+            store=site,
+            account=site,
+            protocol=u'*',
+            internal=True,
+            verified=True,
+            localpart=u'alice',
+            domain=u'example.com')
+        self.assertEqual(
+            wrapper.subdomain("bob.example.com"),
+            ("bob", "example.com"))
+
+
+    def test_wwwSubdomain(self):
+        """
+        L{VirtualHostWrapper.subdomain} returns C{None} when passed a hostname
+        which is the I{www} subdomain of a domain of the site.
+        """
+        site = Store()
+        wrapper = website.VirtualHostWrapper(site, None, None)
+        userbase.LoginMethod(
+            store=site,
+            account=site,
+            protocol=u'*',
+            internal=True,
+            verified=True,
+            localpart=u'alice',
+            domain=u'example.com')
+        self.assertIdentical(wrapper.subdomain("www.example.com"), None)
+
+
+    def test_subdomainWithPort(self):
+        """
+        L{VirtualHostWrapper.subdomain} handles hostnames with a port component
+        as if they did not have a port component.
+        """
+        site = Store()
+        wrapper = website.VirtualHostWrapper(site, None, None)
+        userbase.LoginMethod(
+            store=site,
+            account=site,
+            protocol=u'*',
+            internal=True,
+            verified=True,
+            localpart=u'alice',
+            domain=u'example.com')
+        self.assertEqual(
+            wrapper.subdomain("bob.example.com:8080"),
+            ("bob", "example.com"))

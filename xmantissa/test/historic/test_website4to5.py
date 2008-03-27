@@ -73,8 +73,8 @@ class WebSiteUpgradeTests(StubbedTest):
         """
         An L{AnonymousSite} is created and installed on the site store.
         """
-        resource = IResource(self.store)
-        self.assertTrue(isinstance(resource, AnonymousSite))
+        resource = self.store.findUnique(AnonymousSite)
+        self.assertEqual(list(self.store.interfacesFor(resource)), [IResource])
         self.assertIdentical(installedOn(resource), self.store)
         self.assertIdentical(resource.loginSystem, IRealm(self.store))
 
