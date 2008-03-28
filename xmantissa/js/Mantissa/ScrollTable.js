@@ -1960,8 +1960,8 @@ Mantissa.ScrollTable.TextColumn.methods(
       */
      function _sqliteLowerCase(self, input) {
          var result = '';
-         for (var char in input) {
-             var each = input[char];
+         for (var i = 0; i < input.length; ++i) {
+             var each = input[i];
              if (each >= 'A' && each <= 'Z') {
                  result += each.toLowerCase();
              } else {
