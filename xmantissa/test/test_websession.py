@@ -19,8 +19,7 @@ class TestUsernameFromRequest(TestCase):
         username in the request if the username doesn't already specify a
         domain.
         """
-        request = FakeRequest()
-        request.setHeader('host', 'divmod.com')
+        request = FakeRequest(headers={'host': 'divmod.com'})
         request.args = {'username': ['joe']}
         username = usernameFromRequest(request)
         self.assertEqual(username, 'joe@divmod.com')
@@ -31,8 +30,7 @@ class TestUsernameFromRequest(TestCase):
         Test that L{usernameFromRequest} returns the username in the request
         if that username specifies a domain.
         """
-        request = FakeRequest()
-        request.setHeader('host', 'divmod.com')
+        request = FakeRequest(headers={'host': 'divmod.com'})
         request.args = {'username': ['joe@notdivmod.com']}
         username = usernameFromRequest(request)
         self.assertEqual(username, 'joe@notdivmod.com')

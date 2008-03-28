@@ -240,7 +240,7 @@ class PasswordResetTestCase(TestCase):
                 FakeRequest.__init__(self, *a, **kw)
                 self.args = {'username': ['joe'],
                              'email': ['']}
-                self.setHeader('host', hostname)
+                self.received_headers['host'] = hostname
 
         self.reset.handleRequestForUser = handleRequest
         d = renderPage(self.reset, reqFactory=Request)
