@@ -187,16 +187,18 @@ class OfferingsFragmentTestCase(TestCase):
         firstInstalledOffering = InstalledOffering(
             store=store, application=FakeApplication(store=store, index=True),
             offeringName=firstOffering.name)
-        object.__setattr__(
-            firstInstalledOffering, 'getOffering', lambda: firstOffering)
+        # (bypass Item.__setattr__)
+        object.__setattr__(firstInstalledOffering, 'getOffering',
+                           lambda: firstOffering)
 
         secondOffering = Offering(u'second offering', None, None, None, None,
                                   None, None)
         secondInstalledOffering = InstalledOffering(
             store=store, application=FakeApplication(store=store, index=False),
             offeringName=secondOffering.name)
-        object.__setattr__(
-            secondInstalledOffering, 'getOffering', lambda: secondOffering)
+        # (bypass Item.__setattr__)
+        object.__setattr__(secondInstalledOffering, 'getOffering',
+                           lambda: secondOffering)
 
         fragment = _OfferingsFragment(FrontPage(store=store))
         self.assertEqual(
