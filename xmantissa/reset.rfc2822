@@ -3,7 +3,7 @@ To: %(to)s
 Subject: Password reset request
 Date: %(date)s
 Message-ID: %(message-id)s
-Content-Type: text/html
+Content-Type: text/html; charset=UTF-8
 Reply-To: %(from)s
 MIME-Version: 1.0
 

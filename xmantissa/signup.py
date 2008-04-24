@@ -200,14 +200,14 @@ class PasswordResetResource(PublicPage):
         host = url.netloc.split(':', 1)[0]
         from_ = 'reset@' + host
 
-        body = file(sibpath(__file__, 'reset.rfc2822')).read()
+        body = file(sibpath(__file__, 'reset.rfc2822')).read().decode('utf-8')
         body %= {'from': from_,
                  'to': email,
                  'date': rfc822.formatdate(),
                  'message-id': smtp.messageid(),
                  'link': url.child(attempt.key)}
 
-        _sendEmail(from_, email, body)
+        _sendEmail(from_, email, body.encode('utf-8'))
 
 
     def attemptByKey(self, key):
