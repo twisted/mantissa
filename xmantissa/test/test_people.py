@@ -311,16 +311,27 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
 
 
 
+def emptyMantissaSiteStore():
+    """
+    Create and return a site store with the base mantissa offering installed
+    on it.
+    """
+    site = Store()
+    installOffering(site, baseOffering, None)
+    return site
+
+
+
 def emptyMantissaUserStore():
     """
     Create a site store with the base mantissa offering installed on it and
     return an empty store which has that as its parent.
     """
-    site = Store()
-    installOffering(site, baseOffering, None)
+    site = emptyMantissaSiteStore()
     user = Store()
     user.parent = site
     return user
+
 
 
 class MugshotUploadFormTestCase(unittest.TestCase):

@@ -21,7 +21,7 @@ from xmantissa.ixmantissa import (
     IPublicPage, ITemplateNameResolver, INavigableElement, ISiteURLGenerator,
     IOfferingTechnician)
 from xmantissa import signup
-from xmantissa.website import WebSite, APIKey
+from xmantissa.website import APIKey
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
@@ -715,4 +715,3 @@ class GetLoaderTests(TestCase):
             "getDocFactory.",
             __file__,
             lambda: getLoader("shell"))
-
