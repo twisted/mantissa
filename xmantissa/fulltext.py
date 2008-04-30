@@ -57,7 +57,7 @@ class _RemoveDocument(item.Item):
     The indexer item with which this deletion is associated.
     """, whenDeleted=attributes.reference.CASCADE)
 
-    documentIdentifier = attributes.bytes(doc="""
+    documentIdentifier = attributes.text(doc="""
     The identifier, as returned by L{IFulltextIndexable.uniqueIdentifier},
     for the document which should be removed from the index.
     """, allowNone=False)
@@ -697,6 +697,51 @@ class PyLuceneIndexer(RemoteIndexer, item.Item):
                 raise IndexCorrupt()
             return _PyLuceneWriter(fsdir, analyzer, writer)
 
+
+class NaiveIndexer(RemoteIndexer, item.Item):
+    """
+    A very simple indexer which creates axiom items for each term indexed.
+    """
+
+    indexCount = attributes.integer(default=0)
+    indexStore = attributes.reference(allowNone=False)
+    _index = attributes.inmemory()
+
+    def openReadIndex(self):
+        """
+        Open the substore used for indexing.
+        """
+        return _NaiveIndex(self.indexStore.open())
+
+    openWriteIndex = openReadIndex
+
+
+class _NaiveIndex(object):
+    """
+    Helper for adding words to a naive index.
+    """
+    def __init__(self, store):
+        self.store = store
+
+    def add(self, message):
+           for part in message.textParts():
+               words = part.split()
+               for word in words:
+                   Word(store=self.store, text=word,
+                        docid=message.uniqueIdentifier())
+
+    def search(self, term, keywords=None, sortAscending=True):
+        return list(self.store.query(Word, Word.text == term).getColumn('docid'))
+
+    def close(self):
+        self.store.close()
+
+class Word(item.Item):
+    """
+    A text atom in a naive index.
+    """
+    text = attributes.text(allowNone=False)
+    docid = attributes.text(allowNone=False)
 
 
 def remoteIndexer1to2(oldIndexer):
