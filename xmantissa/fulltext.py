@@ -715,6 +715,12 @@ class NaiveIndexer(RemoteIndexer, item.Item):
 
     openWriteIndex = openReadIndex
 
+    def reset(self):
+        self.store.query(Word).deleteFromStore()
+        for src in self.getSources():
+            src.removeReliableListener(self)
+            src.addReliableListener(self, style=iaxiom.REMOTE)
+
 
 class _NaiveIndex(object):
     """
@@ -724,26 +730,86 @@ class _NaiveIndex(object):
         self.store = store
 
     def add(self, message):
-           for part in message.textParts():
-               words = part.split()
-               for word in words:
-                   Word(store=self.store, text=word,
-                        docid=message.uniqueIdentifier())
-    def remove(self, item):
-        identifier = ixmantissa.IFulltextIndexable(item).uniqueIdentifier()
-        
+        docid = message.uniqueIdentifier()
+        doc = self.store.findOrCreate(Document,
+                                      uniqueIdentifier=docid,
+                                      sortKey=message.sortKey())
+        doctype = message.documentType()
+        keywords = message.keywordParts()
+        keywords[u"documentType"] = doctype
+        for part in message.textParts():
+            words = part.split()
+            for word in words:
+                Word(store=self.store, text=word,
+                     doc=doc)
+        for (k, v) in keywords.iteritems():
+            for vp in v.split():
+                KeywordValue(store=self.store, key=k, value=vp, doc=doc)
+
+    def remove(self, identifier):
+        doc = self.store.findUnique(Document,
+                                    Document.uniqueIdentifier == identifier)
+        self.store.query(Word, Word.doc == doc).deleteFromStore()
+        doc.deleteFromStore()
+
     def search(self, term, keywords=None, sortAscending=True):
-        return list(self.store.query(Word, Word.text == term).getColumn('docid'))
+        if sortAscending:
+            sortThingy = Document.sortKey.ascending
+        else:
+            sortThingy = Document.sortKey.descending
+
+        constraint = []
+        if len(term) > 0:
+            constraint.append(Word.doc == Document.storeID)
+            constraint.append(Word.text == term)
+        if keywords is not None:
+            docSet = None
+            for (k, v) in keywords.iteritems():
+                docs = self.store.query(
+                    Document,
+                    attributes.AND(
+                            KeywordValue.doc == Document.storeID,
+                            KeywordValue.key == k,
+                            KeywordValue.value == v)).getColumn('storeID')
+                if docSet is None:
+                    docSet = set(docs)
+                    constraint.append(Document.storeID.oneOf(docSet))
+                else:
+                    docSet.intersection_update(set(docs))
+        if len(constraint) > 0:
+            return self.store.query(
+                Document,
+                attributes.AND(*constraint),
+                sort=sortThingy).distinct()
+        else:
+            return []
 
     def close(self):
-        self.store.close()
+        pass
+
+class KeywordValue(item.Item):
+    """
+    A key-value pair associated with a Document.
+    """
+    key = attributes.text(allowNone=False)
+    value = attributes.text(allowNone=False)
+    doc = attributes.reference(allowNone=False)
 
 class Word(item.Item):
     """
     A text atom in a naive index.
     """
     text = attributes.text(allowNone=False)
-    docid = attributes.bytes(allowNone=False)
+    doc = attributes.reference(allowNone=False)
+
+class Document(item.Item):
+    """
+    A document in a naive index.
+    """
+    keywordParts = {}
+    documentType = attributes.bytes()
+    uniqueIdentifier = attributes.bytes()
+    sortKey = attributes.text()
 
 
 def remoteIndexer1to2(oldIndexer):

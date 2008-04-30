@@ -48,7 +48,7 @@ class IndexableThing(item.Item):
 
 
     def sortKey(self):
-        return self.uniqueIdentifier()
+        return u"%04d" % int(self.uniqueIdentifier())
 
 
 
@@ -276,7 +276,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer.close()
 
         reader = self.openReadIndex()
-        reader.remove(u'50')
+        reader.remove('50')
         reader.close()
 
         reader = self.openReadIndex()
@@ -330,13 +330,13 @@ class FulltextTestsMixin(IndexerTestsMixin):
 
         reader = self.openReadIndex()
         self.assertEquals(
-            identifiersFrom(reader.search(u'apple', {'documentType': u'first'})),
+            identifiersFrom(reader.search(u'apple', {u'documentType': u'first'})),
             [1])
         self.assertEquals(
-            identifiersFrom(reader.search(u'apple', {'documentType': u'second'})),
+            identifiersFrom(reader.search(u'apple', {u'documentType': u'second'})),
             [2])
         self.assertEquals(
-            identifiersFrom(reader.search(u'apple', {'documentType': u'three'})),
+            identifiersFrom(reader.search(u'apple', {u'documentType': u'three'})),
             [])
 
 
