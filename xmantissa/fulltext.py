@@ -57,7 +57,7 @@ class _RemoveDocument(item.Item):
     The indexer item with which this deletion is associated.
     """, whenDeleted=attributes.reference.CASCADE)
 
-    documentIdentifier = attributes.text(doc="""
+    documentIdentifier = attributes.bytes(doc="""
     The identifier, as returned by L{IFulltextIndexable.uniqueIdentifier},
     for the document which should be removed from the index.
     """, allowNone=False)
@@ -729,7 +729,9 @@ class _NaiveIndex(object):
                for word in words:
                    Word(store=self.store, text=word,
                         docid=message.uniqueIdentifier())
-
+    def remove(self, item):
+        identifier = ixmantissa.IFulltextIndexable(item).uniqueIdentifier()
+        
     def search(self, term, keywords=None, sortAscending=True):
         return list(self.store.query(Word, Word.text == term).getColumn('docid'))
 
@@ -741,7 +743,7 @@ class Word(item.Item):
     A text atom in a naive index.
     """
     text = attributes.text(allowNone=False)
-    docid = attributes.text(allowNone=False)
+    docid = attributes.bytes(allowNone=False)
 
 
 def remoteIndexer1to2(oldIndexer):

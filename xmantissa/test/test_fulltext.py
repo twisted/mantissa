@@ -25,7 +25,7 @@ def identifiersFrom(hits):
 class IndexableThing(item.Item):
     implements(ixmantissa.IFulltextIndexable)
 
-    _uniqueIdentifier = attributes.text()
+    _uniqueIdentifier = attributes.bytes()
 
     _textParts = attributes.inmemory()
     _keywordParts = attributes.inmemory()
@@ -146,12 +146,12 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'7',
+                _uniqueIdentifier='7',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={}))
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'21',
+                _uniqueIdentifier='21',
                 _textParts=[u'cherry', u'drosophila melanogaster'],
                 _keywordParts={}))
         writer.close()
@@ -165,12 +165,12 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'7',
+                _uniqueIdentifier='7',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={}))
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'21',
+                _uniqueIdentifier='21',
                 _textParts=[u'cherry', u'drosophila melanogaster'],
                 _keywordParts={}))
         writer.close()
@@ -199,7 +199,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'1',
+                _uniqueIdentifier='1',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={}))
         writer.close()
@@ -214,7 +214,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'2',
+                _uniqueIdentifier='2',
                 _textParts=[u'cherry', u'drosophila melanogaster'],
                 _keywordParts={}))
         writer.close()
@@ -247,7 +247,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         """
         item = IndexableThing(
             _documentType=u'thing',
-            _uniqueIdentifier=u'50',
+            _uniqueIdentifier='50',
             _textParts=[u'apple', u'banana'],
             _keywordParts={})
         writer = self.openWriteIndex()
@@ -270,7 +270,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'50',
+                _uniqueIdentifier='50',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={}))
         writer.close()
@@ -291,7 +291,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'50',
+                _uniqueIdentifier='50',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={u'subject': u'fruit'}))
         writer.close()
@@ -318,12 +318,12 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'first',
-                _uniqueIdentifier=u'1',
+                _uniqueIdentifier='1',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={}))
         writer.add(IndexableThing(
                 _documentType=u'second',
-                _uniqueIdentifier=u'2',
+                _uniqueIdentifier='2',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={}))
         writer.close()
@@ -347,7 +347,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                 _documentType=u'thing',
-                _uniqueIdentifier=u'50',
+                _uniqueIdentifier='50',
                 _textParts=[u'apple', u'banana'],
                 _keywordParts={u'subject': u'list of fruit things'}))
         writer.close()
@@ -377,7 +377,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         def makeIndexable(uniqueIdentifier, **k):
             writer.add(IndexableThing(
                          _documentType=u'thing',
-                         _uniqueIdentifier=str(uniqueIdentifier).decode('ascii'),
+                         _uniqueIdentifier=str(uniqueIdentifier),
                          _textParts=[],
                          _keywordParts=dict((unicode(k), unicode(v))
                                                 for (k, v) in k.iteritems())))
@@ -407,7 +407,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                     _documentType=u'thing',
-                    _uniqueIdentifier=u'50',
+                    _uniqueIdentifier='50',
                     _textParts=[u'my name is jack'],
                     _keywordParts={u'car': u'honda'}))
         writer.close()
@@ -431,7 +431,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         writer = self.openWriteIndex()
         writer.add(IndexableThing(
                     _documentType=u'thing',
-                    _uniqueIdentifier=u'50',
+                    _uniqueIdentifier='50',
                     _textParts=[u'123 456'],
                     _keywordParts={u'foo': u'x12'}))
         writer.close()
@@ -457,7 +457,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         for k in keys:
             writer.add(IndexableThing(
                     _documentType=u'thing',
-                    _uniqueIdentifier=str(k).decode('ascii'),
+                    _uniqueIdentifier=str(k),
                     _textParts=[u'ok'],
                     _keywordParts={}))
         writer.close()
@@ -476,7 +476,7 @@ class FulltextTestsMixin(IndexerTestsMixin):
         for i in xrange(5):
             writer.add(IndexableThing(
                         _documentType=u'thing',
-                        _uniqueIdentifier=str(i).decode('ascii'),
+                        _uniqueIdentifier=str(i),
                         _textParts=[u'ok'],
                         _keywordParts={}))
         writer.close()
@@ -512,12 +512,12 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         things = [
             IndexableThing(store=self.store,
                            _documentType=u'thing',
-                           _uniqueIdentifier=u'100',
+                           _uniqueIdentifier='100',
                            _textParts=[u'apple', u'banana'],
                            _keywordParts={}),
             IndexableThing(store=self.store,
                            _documentType=u'thing',
-                           _uniqueIdentifier=u'200',
+                           _uniqueIdentifier='200',
                            _textParts=[u'cherry'],
                            _keywordParts={})]
 
@@ -540,7 +540,7 @@ class CorruptionRecoveryMixin(IndexerTestsMixin):
         things.append(
             IndexableThing(store=self.store,
                            _documentType=u'thing',
-                           _uniqueIdentifier=u'300',
+                           _uniqueIdentifier='300',
                            _textParts=[u'drosophila', u'melanogaster'],
                            _keywordParts={}))
 
@@ -633,7 +633,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         for i in xrange(5):
             writer.add(IndexableThing(
                         _documentType=u'thing',
-                        _uniqueIdentifier=str(i).decode('ascii'),
+                        _uniqueIdentifier=str(i),
                         _textParts=[u'text'],
                         _keywordParts={}))
         writer.close()
@@ -686,7 +686,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
         for i, txt in enumerate(specimens):
             writer.add(IndexableThing(
                         _documentType=u'thing',
-                        _uniqueIdentifier=str(i).decode('ascii'),
+                        _uniqueIdentifier=str(i),
                         _textParts=[txt],
                         _keywordParts={}))
         writer.close()
