@@ -748,7 +748,7 @@ if fulltext.PyLucene is not None:
             for i in identifiers:
                 writer.add(IndexableThing(
                             _documentType=u'thing',
-                            _uniqueIdentifier=str(i).decode('ascii'),
+                            _uniqueIdentifier=str(i),
                             _textParts=[u'e'],
                             _keywordParts={}))
             writer.close()
@@ -821,7 +821,7 @@ if fulltext.PyLucene is not None:
             writer = self.openWriteIndex()
             writer.add(IndexableThing(
                     _documentType=u'thing',
-                    _uniqueIdentifier=u'10',
+                    _uniqueIdentifier='10',
                     _textParts=[u'apple', u'banana'],
                     _keywordParts={}))
             writer.close()
@@ -839,7 +839,7 @@ if fulltext.PyLucene is not None:
             writer = self.openWriteIndex()
             writer.add(IndexableThing(
                     _documentType=u'thing',
-                    _uniqueIdentifier=u'10',
+                    _uniqueIdentifier='10',
                     _textParts=[u'apple', u'banana'],
                     _keywordParts={}))
             writer.close()
