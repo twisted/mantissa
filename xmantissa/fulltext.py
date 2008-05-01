@@ -716,7 +716,13 @@ class NaiveIndexer(RemoteIndexer, item.Item):
     openWriteIndex = openReadIndex
 
     def reset(self):
+        """
+        Remove all indexed data from this substore and reset our reliable
+        listeners.
+        """
         self.store.query(Word).deleteFromStore()
+        self.store.query(Document).deleteFromStore()
+        self.store.query(KeywordValue).deleteFromStore()
         for src in self.getSources():
             src.removeReliableListener(self)
             src.addReliableListener(self, style=iaxiom.REMOTE)
@@ -730,6 +736,9 @@ class _NaiveIndex(object):
         self.store = store
 
     def add(self, message):
+        """
+        Add a L{IFulltextIndexable} to this index.
+        """
         docid = message.uniqueIdentifier()
         doc = self.store.findOrCreate(Document,
                                       uniqueIdentifier=docid,
@@ -747,12 +756,24 @@ class _NaiveIndex(object):
                 KeywordValue(store=self.store, key=k, value=vp, doc=doc)
 
     def remove(self, identifier):
+        """
+        Remove a document from this index.
+        """
         doc = self.store.findUnique(Document,
                                     Document.uniqueIdentifier == identifier)
         self.store.query(Word, Word.doc == doc).deleteFromStore()
+        self.store.query(KeywordValue,
+                         KeywordValue.doc == doc).deleteFromStore()
         doc.deleteFromStore()
 
     def search(self, term, keywords=None, sortAscending=True):
+        """
+        Return the documents associated with this term.
+        @param term: A unicode string to search for.
+        @param keywords: A dict of unicode keys and values to search for.
+        @param sortAscending: Whether to return the results in ascending or
+                              descending order.
+        """
         if sortAscending:
             sortThingy = Document.sortKey.ascending
         else:
