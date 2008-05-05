@@ -309,6 +309,27 @@ class FulltextTestsMixin(IndexerTestsMixin):
             identifiersFrom(reader.search(u'', {u'subject': u'fruit'})), [50])
 
 
+    def test_multipleSearchTerms(self):
+        """
+        A search for multiple words returns results containing all of them.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='7',
+                _textParts=[u'apple', u'purple monkey dishwasher'],
+                _keywordParts={}))
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='8',
+                _textParts=[u'apple', u'orange monkey dishwasher'],
+                _keywordParts={}))
+        writer.close()
+        reader = self.openReadIndex()
+        self.assertEquals(
+            identifiersFrom(reader.search(u'purple dishwasher')), [7])
+
+
     def test_typeRestriction(self):
         """
         Test that the type of an IFulltextIndexable is automatically found when

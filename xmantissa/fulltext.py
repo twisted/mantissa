@@ -778,13 +778,9 @@ class _NaiveIndex(object):
             sortThingy = Document.sortKey.ascending
         else:
             sortThingy = Document.sortKey.descending
-
+        docSet = None
         constraint = []
-        if len(term) > 0:
-            constraint.append(Word.doc == Document.storeID)
-            constraint.append(Word.text == term)
         if keywords is not None:
-            docSet = None
             for (k, v) in keywords.iteritems():
                 docs = self.store.query(
                     Document,
@@ -792,6 +788,19 @@ class _NaiveIndex(object):
                             KeywordValue.doc == Document.storeID,
                             KeywordValue.key == k,
                             KeywordValue.value == v)).getColumn('storeID')
+                if docSet is None:
+                    docSet = set(docs)
+                    constraint.append(Document.storeID.oneOf(docSet))
+                else:
+                    docSet.intersection_update(set(docs))
+        if len(term) > 0:
+            for w in term.split():
+                docs = self.store.query(
+                    Document,
+                    attributes.AND(
+                            Word.doc == Document.storeID,
+                            Word.text == w,
+                            *constraint)).getColumn('storeID')
                 if docSet is None:
                     docSet = set(docs)
                     constraint.append(Document.storeID.oneOf(docSet))
