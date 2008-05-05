@@ -309,27 +309,6 @@ class FulltextTestsMixin(IndexerTestsMixin):
             identifiersFrom(reader.search(u'', {u'subject': u'fruit'})), [50])
 
 
-    def test_multipleSearchTerms(self):
-        """
-        A search for multiple words returns results containing all of them.
-        """
-        writer = self.openWriteIndex()
-        writer.add(IndexableThing(
-                _documentType=u'thing',
-                _uniqueIdentifier='7',
-                _textParts=[u'apple', u'purple monkey dishwasher'],
-                _keywordParts={}))
-        writer.add(IndexableThing(
-                _documentType=u'thing',
-                _uniqueIdentifier='8',
-                _textParts=[u'apple', u'orange monkey dishwasher'],
-                _keywordParts={}))
-        writer.close()
-        reader = self.openReadIndex()
-        self.assertEquals(
-            identifiersFrom(reader.search(u'purple dishwasher')), [7])
-
-
     def test_typeRestriction(self):
         """
         Test that the type of an IFulltextIndexable is automatically found when
@@ -642,6 +621,9 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
 
         self.svc = IService(superstore)
         self.svc.startService()
+        # Try to access the indexer directly first so that if it is
+        # unavailable, the test will be skipped.
+        self.openReadIndex().close()
 
     def tearDown(self):
         """
@@ -727,183 +709,204 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
             ).addCallback(testResults)
 
     def test_unicodeSearch(self):
+ 
         return self.indexer.search(u'\N{WHITE SMILING FACE}')
 
 
-if fulltext.PyLucene is not None:
-
-    class PyLuceneTestsMixin:
-        def createIndexer(self):
-            return fulltext.PyLuceneIndexer(store=self.store, indexDirectory=self.path)
-
-
-    class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.TestCase):
-        def testAutomaticClosing(self):
-            """
-            Test that if we create a writer and call the close-helper function,
-            the writer gets closed.
-            """
-            writer = self.openWriteIndex()
-            fulltext._closeIndexes()
-            self.failUnless(writer.closed, "Writer should have been closed.")
-
-
-        def testRepeatedClosing(self):
-            """
-            Test that if for some reason a writer is explicitly closed after the
-            close-helper has run, nothing untoward occurs.
-            """
-            writer = self.openWriteIndex()
-            fulltext._closeIndexes()
-            writer.close()
-            self.failUnless(writer.closed, "Writer should have stayed closed.")
-
-        def test_resultSlicing(self):
-            """
-            Test that the wrapper object return by the pylucene index correctly
-            handles slices
-            """
-
-            writer = self.openWriteIndex()
-            identifiers = range(20)
-            for i in identifiers:
-                writer.add(IndexableThing(
-                            _documentType=u'thing',
-                            _uniqueIdentifier=str(i),
-                            _textParts=[u'e'],
-                            _keywordParts={}))
-            writer.close()
-
-            reader = self.openReadIndex()
-
-            results = reader.search(u'e')
-
-            self.assertEquals(identifiersFrom(results), identifiers)
-            self.assertEquals(identifiersFrom(results[0:None:2]), identifiers[0:None:2])
-            self.assertEquals(identifiersFrom(results[0:5:1]), identifiers[0:5:1])
-            self.assertEquals(identifiersFrom(results[15:0:-1]), identifiers[15:0:-1])
-            self.assertEquals(identifiersFrom(results[15:None:-1]), identifiers[15:None:-1])
-            self.assertEquals(identifiersFrom(results[0:24:2]), identifiers[0:24:2])
-            self.assertEquals(identifiersFrom(results[24:None:-1]), identifiers[24:None:-1])
+    def test_multipleSearchTerms(self):
+        """
+        A search for multiple words returns results containing all of them.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='7',
+                _textParts=[u'apple', u'purple monkey dishwasher'],
+                _keywordParts={}))
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='8',
+                _textParts=[u'apple', u'orange monkey dishwasher'],
+                _keywordParts={}))
+        writer.close()
+        reader = self.openReadIndex()
+        self.assertEquals(
+            identifiersFrom(reader.search(u'purple dishwasher')), [7])
 
 
-        def test_hitWrapperAttributes(self):
-            """
-            Test that L{xmantissa.fulltext._PyLuceneHitWrapper}'s attributes are
-            set correctly
-            """
-            class Indexable:
-                implements(ixmantissa.IFulltextIndexable)
 
-                def keywordParts(self):
-                    return {u'foo': u'bar', u'baz': u'quux'}
-
-                def uniqueIdentifier(self):
-                    return u'indexable'
-
-                def documentType(self):
-                    return 'the indexable type'
-
-                def sortKey(self):
-                    return 'foo'
-
-                def textParts(self):
-                    return [u'my', u'text']
-
-            indexable = Indexable()
-            writer = self.openWriteIndex()
-            writer.add(indexable)
-            writer.close()
-
-            reader = self.openReadIndex()
-            (wrapper,) = reader.search(u'text')
-
-            self.assertEquals(wrapper.keywordParts, indexable.keywordParts())
-            self.assertEquals(wrapper.uniqueIdentifier, indexable.uniqueIdentifier())
-            self.assertEquals(wrapper.documentType, indexable.documentType())
-            self.assertEquals(wrapper.sortKey, indexable.sortKey())
+class PyLuceneTestsMixin:
+    def createIndexer(self):
+        return fulltext.PyLuceneIndexer(store=self.store, indexDirectory=self.path)
 
 
-    class PyLuceneCorruptionRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin, unittest.TestCase):
-        def corruptIndex(self):
-            """
-            Cause a PyLucene index to appear corrupted.
-            """
-            for ch in self.store.newFilePath(self.path).children():
-                ch.setContent('hello, world')
+class PyLuceneFulltextTestCase(PyLuceneTestsMixin, FulltextTestsMixin, unittest.TestCase):
+    def testAutomaticClosing(self):
+        """
+        Test that if we create a writer and call the close-helper function,
+        the writer gets closed.
+        """
+        writer = self.openWriteIndex()
+        fulltext._closeIndexes()
+        self.failUnless(writer.closed, "Writer should have been closed.")
 
 
-        def testFailureDetectionFromWriter(self):
-            """
-            Fulltext indexes are good at two things: soaking up I/O bandwidth and
-            corrupting themselves.  For the latter case, we need to be able to
-            detect the condition before we can make any response to it.
-            """
-            writer = self.openWriteIndex()
+    def testRepeatedClosing(self):
+        """
+        Test that if for some reason a writer is explicitly closed after the
+        close-helper has run, nothing untoward occurs.
+        """
+        writer = self.openWriteIndex()
+        fulltext._closeIndexes()
+        writer.close()
+        self.failUnless(writer.closed, "Writer should have stayed closed.")
+
+    def test_resultSlicing(self):
+        """
+        Test that the wrapper object return by the pylucene index correctly
+        handles slices
+        """
+
+        writer = self.openWriteIndex()
+        identifiers = range(20)
+        for i in identifiers:
             writer.add(IndexableThing(
-                    _documentType=u'thing',
-                    _uniqueIdentifier='10',
-                    _textParts=[u'apple', u'banana'],
-                    _keywordParts={}))
-            writer.close()
-            self.corruptIndex()
-            self.assertRaises(fulltext.IndexCorrupt, self.openWriteIndex)
-            self.assertRaises(fulltext.IndexCorrupt, self.openReadIndex)
+                        _documentType=u'thing',
+                        _uniqueIdentifier=str(i),
+                        _textParts=[u'e'],
+                        _keywordParts={}))
+        writer.close()
+
+        reader = self.openReadIndex()
+
+        results = reader.search(u'e')
+
+        self.assertEquals(identifiersFrom(results), identifiers)
+        self.assertEquals(identifiersFrom(results[0:None:2]), identifiers[0:None:2])
+        self.assertEquals(identifiersFrom(results[0:5:1]), identifiers[0:5:1])
+        self.assertEquals(identifiersFrom(results[15:0:-1]), identifiers[15:0:-1])
+        self.assertEquals(identifiersFrom(results[15:None:-1]), identifiers[15:None:-1])
+        self.assertEquals(identifiersFrom(results[0:24:2]), identifiers[0:24:2])
+        self.assertEquals(identifiersFrom(results[24:None:-1]), identifiers[24:None:-1])
 
 
-        def testFailureDetectionFromReader(self):
-            """
-            Like testFailureDetectionFromWriter, but opens a reader after
-            corrupting the index and asserts that it also raises the appropriate
-            exception.
-            """
-            writer = self.openWriteIndex()
-            writer.add(IndexableThing(
-                    _documentType=u'thing',
-                    _uniqueIdentifier='10',
-                    _textParts=[u'apple', u'banana'],
-                    _keywordParts={}))
-            writer.close()
-            self.corruptIndex()
-            self.assertRaises(fulltext.IndexCorrupt, self.openReadIndex)
-            self.assertRaises(fulltext.IndexCorrupt, self.openWriteIndex)
+    def test_hitWrapperAttributes(self):
+        """
+        Test that L{xmantissa.fulltext._PyLuceneHitWrapper}'s attributes are
+        set correctly
+        """
+        class Indexable:
+            implements(ixmantissa.IFulltextIndexable)
+
+            def keywordParts(self):
+                return {u'foo': u'bar', u'baz': u'quux'}
+
+            def uniqueIdentifier(self):
+                return u'indexable'
+
+            def documentType(self):
+                return 'the indexable type'
+
+            def sortKey(self):
+                return 'foo'
+
+            def textParts(self):
+                return [u'my', u'text']
+
+        indexable = Indexable()
+        writer = self.openWriteIndex()
+        writer.add(indexable)
+        writer.close()
+
+        reader = self.openReadIndex()
+        (wrapper,) = reader.search(u'text')
+
+        self.assertEquals(wrapper.keywordParts, indexable.keywordParts())
+        self.assertEquals(wrapper.uniqueIdentifier, indexable.uniqueIdentifier())
+        self.assertEquals(wrapper.documentType, indexable.documentType())
+        self.assertEquals(wrapper.sortKey, indexable.sortKey())
+
+
+class PyLuceneCorruptionRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin, unittest.TestCase):
+    def corruptIndex(self):
+        """
+        Cause a PyLucene index to appear corrupted.
+        """
+        for ch in self.store.newFilePath(self.path).children():
+            ch.setContent('hello, world')
+
+
+    def testFailureDetectionFromWriter(self):
+        """
+        Fulltext indexes are good at two things: soaking up I/O bandwidth and
+        corrupting themselves.  For the latter case, we need to be able to
+        detect the condition before we can make any response to it.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='10',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
+        writer.close()
+        self.corruptIndex()
+        self.assertRaises(fulltext.IndexCorrupt, self.openWriteIndex)
+        self.assertRaises(fulltext.IndexCorrupt, self.openReadIndex)
+
+
+    def testFailureDetectionFromReader(self):
+        """
+        Like testFailureDetectionFromWriter, but opens a reader after
+        corrupting the index and asserts that it also raises the appropriate
+        exception.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='10',
+                _textParts=[u'apple', u'banana'],
+                _keywordParts={}))
+        writer.close()
+        self.corruptIndex()
+        self.assertRaises(fulltext.IndexCorrupt, self.openReadIndex)
+        self.assertRaises(fulltext.IndexCorrupt, self.openWriteIndex)
 
 
 
-    class PyLuceneLockedRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin, unittest.TestCase):
-        def setUp(self):
-            CorruptionRecoveryMixin.setUp(self)
-            self.corruptedIndexes = []
+class PyLuceneLockedRecoveryTestCase(PyLuceneTestsMixin, CorruptionRecoveryMixin, unittest.TestCase):
+    def setUp(self):
+        CorruptionRecoveryMixin.setUp(self)
+        self.corruptedIndexes = []
 
 
-        def corruptIndex(self):
-            """
-            Loosely simulate filesystem state following a SIGSEGV or power
-            failure.
-            """
-            self.corruptedIndexes.append(self.openWriteIndex())
+    def corruptIndex(self):
+        """
+        Loosely simulate filesystem state following a SIGSEGV or power
+        failure.
+        """
+        self.corruptedIndexes.append(self.openWriteIndex())
 
 
-    class PyLuceneIndexerAPISearchTestCase(PyLuceneTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
-        pass
+class PyLuceneIndexerAPISearchTestCase(PyLuceneTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
+    pass
 
 
-    class PyLuceneObjectLifetimeTestCase(unittest.TestCase):
-        def test_hitsWrapperClosesIndex(self):
-            """
-            Test that when L{_PyLuceneHitsWrapper} is GC'd, the index which backs
-            its C{Hits} object gets closed.
-            """
-            class TestIndex(object):
-                closed = False
-                def close(self):
-                    self.closed = True
+class PyLuceneObjectLifetimeTestCase(unittest.TestCase):
+    def test_hitsWrapperClosesIndex(self):
+        """
+        Test that when L{_PyLuceneHitsWrapper} is GC'd, the index which backs
+        its C{Hits} object gets closed.
+        """
+        class TestIndex(object):
+            closed = False
+            def close(self):
+                self.closed = True
 
-            index = TestIndex()
-            wrapper = fulltext._PyLuceneHitsWrapper(index, None)
-            self.failIf(index.closed)
-            del wrapper
-            self.failUnless(index.closed)
+        index = TestIndex()
+        wrapper = fulltext._PyLuceneHitsWrapper(index, None)
+        self.failIf(index.closed)
+        del wrapper
+        self.failUnless(index.closed)
 
 
 class  HypeIndexerAPISearchTestCase(HypeTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
