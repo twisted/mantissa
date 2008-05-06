@@ -1254,64 +1254,146 @@ Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
     },
 
     /**
-     * L{Mantissa.People.PersonScroller.makeCellElement} should return an
-     * image tag for the C{vip} column.
+     * Make a row dict out of the given values.
+     *
+     * @param vip: C{vip} value.  Defaults to C{false}.
+     * @type vip: C{Boolean}
+     *
+     * @param mugshotURL: C{mugshotURL} value.  Defaults to C{''}.
+     * @type mugshotURL: C{String}
+     *
+     * @param name: C{name} value.  Defaults to C{''}.
+     * @type name: C{String}
+     *
+     * @rtype: C{Object}
+     */
+    function _makeRowData(self, vip/*=false*/, mugshotURL/*=''*/, name/*=''*/) {
+        if(vip === undefined) {
+            vip = false;
+        }
+        if(mugshotURL === undefined) {
+            mugshotURL = '';
+        }
+        if(name === undefined) {
+            name = '';
+        }
+        return {vip: vip, mugshotURL: mugshotURL, name: name};
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} shouldn't return a
+     * node for the C{vip} column.
      */
     function test_makeCellElementVIP(self) {
         var cellElement = self.scroller.makeCellElement(
-            'vip', {vip: true});
-        self.assertIdentical(cellElement.tagName, 'IMG');
-        cellElement = self.scroller.makeCellElement(
-            'vip', {vip: false});
+            'vip', self._makeRowData(true));
         self.assertIdentical(cellElement, undefined);
+        cellElement = self.scroller.makeCellElement(
+            'vip', self._makeRowData(false));
+        self.assertIdentical(cellElement, undefined);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} shouldn't return a
+     * node for the C{mugshotURL} column.
+     */
+    function test_makeCellElementMugshotURL(self) {
+        var cellElement = self.scroller.makeCellElement(
+            'mugshotURL', self._makeRowData(
+                true, '/test_makeCellElementMugshotURL'));
+        self.assertIdentical(cellElement, undefined);
+    },
+
+    /**
+     * Verify the structure of the given person name node.
+    */
+    function _verifyNameNode(self, nameContainerNode, name, images) {
+        self.assertIdentical(nameContainerNode.tagName, 'SPAN');
+        self.assertIdentical(
+            nameContainerNode.childNodes.length, images.length + 1);
+        var nameNode = nameContainerNode.childNodes[0];
+        self.assertIdentical(nameNode.nodeValue, name);
+        var imageNode;
+        for(var i = 0; i < images.length; i++) {
+            imageNode = nameContainerNode.childNodes[i+1];
+            self.assertIdentical(imageNode.tagName, 'IMG');
+            self.assertIdentical(imageNode.getAttribute('src'), images[i]);
+        }
+    },
+
+    /**
+     * Add an entry for C{name} in L{scroller}'s C{columns} mapping.
+     */
+    function _mockScrollerColumn(self) {
+        self.scroller.columns = {name: {
+            extractValue: function(rowData) {
+                return rowData.name;
+            },
+            valueToDOM: function(value) {
+                return document.createTextNode(value);
+            }}};
+    },
+
+    /**
+     * L{Mantissa.people.PersonScroller.makeCellElement} should include a
+     * C{<img>} tag pointing at the given C{mugshotURL} in the name cell.
+     */
+    function test_makeCellElementNameMugshot(self) {
+        var mugshotURL = '/test_makeCellElementNameMugshot';
+        self._mockScrollerColumn();
+        var cellElement = self.scroller.makeCellElement(
+            'name', self._makeRowData(false, mugshotURL));
+        self.assertIdentical(cellElement.childNodes.length, 3);
+        var mugshotNode = cellElement.childNodes[0];
+        self.assertIdentical(mugshotNode.tagName, 'DIV');
+        self.assertIdentical(
+            mugshotNode.getAttribute('class'), 'people-table-mugshot');
+        self.assertIdentical(
+            mugshotNode.style.backgroundImage, 'url(' + mugshotURL + ')');
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} should include the
+     * person's name in the name cell.
+     */
+    function test_makeCellElementName(self) {
+        var name = 'test_makeCellElementName';
+        self._mockScrollerColumn();
+        var cellElement = self.scroller.makeCellElement(
+            'name', self._makeRowData(false, '', name));
+        self.assertIdentical(cellElement.childNodes.length, 3);
+        var nameContainerNode = cellElement.childNodes[1];
+        self._verifyNameNode(nameContainerNode, name, []);
+    },
+
+    /**
+     * L{Mantissa.People.PersonScroller.makeCellElement} should include a vip
+     * flag image in the name cell DOM for vip people.
+     */
+    function test_makeCellElementNameVIP(self) {
+        var name = 'test_makeCellElementName';
+        self._mockScrollerColumn();
+        var cellElement = self.scroller.makeCellElement(
+            'name', self._makeRowData(true, '', name));
+        self.assertIdentical(cellElement.childNodes.length, 3);
+        var nameContainerNode = cellElement.childNodes[1];
+        self._verifyNameNode(nameContainerNode, name,
+            ['/static/mantissa-base/images/vip-flag.png']);
     },
 
     /**
      * L{Mantissa.People.PersonScroller.makeCellElement} should include an
      * image in the store owner person's name cell.
      */
-    function test_makeCellElementStoreOwner(self) {
+    function test_makeCellElementNameStoreOwner(self) {
         var storeOwnerPersonName = 'Store Owner!';
         self.scroller.storeOwnerPersonName = storeOwnerPersonName;
-        self.scroller.columns = {name: {
-            extractValue: function(rowData) {
-                return rowData.name;
-            },
-            valueToDOM: function(value) {
-                return value;
-            }}};
+        self._mockScrollerColumn();
         var cellElement = self.scroller.makeCellElement(
-            'name', {name: storeOwnerPersonName, vip: false});
-        self.assertIdentical(cellElement.childNodes.length, 2);
-        self.assertIdentical(
-            cellElement.childNodes[0].nodeValue, storeOwnerPersonName);
-        self.assertIdentical(
-            cellElement.childNodes[1].tagName, 'IMG');
-        self.assertIdentical(
-            cellElement.childNodes[1].getAttribute('src'),
-            '/Mantissa/images/me-icon.png');
-    },
-
-    /**
-     * L{Mantissa.People.PersonScroller.makeCellElement} should return a span
-     * tag for the C{name} column.
-     */
-    function test_makeCellElementName(self) {
-        self.scroller.columns = {name: {
-            extractValue: function(rowData) {
-                return rowData.name;
-            },
-            valueToDOM: function(value) {
-                return value;
-            }}};
-        var cellElement = self.scroller.makeCellElement(
-            'name', {name: 'A person name', vip: false});
-        self.assertIdentical(cellElement.tagName, 'SPAN');
-        self.assertIdentical(
-            cellElement.className, 'people-table-person-name');
-        cellElement = self.scroller.makeCellElement(
-            'name', {name: 'A VIP person name', vip: true});
-        self.assertIdentical(cellElement.tagName, 'SPAN');
-        self.assertIdentical(
-            cellElement.className, 'people-table-vip-person-name');
+            'name', self._makeRowData(false, '', storeOwnerPersonName));
+        self.assertIdentical(cellElement.childNodes.length, 3);
+        var nameContainerNode = cellElement.childNodes[1];
+        self._verifyNameNode(
+            nameContainerNode, storeOwnerPersonName,
+            ['/static/mantissa-base/images/me-icon.png']);
     });

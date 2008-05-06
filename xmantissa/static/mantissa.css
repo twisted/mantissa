@@ -261,13 +261,6 @@ iframe.mugshot-upload {
     font-size: 80%;
 }
 
-.people-table-person-name {
-    padding-left: 28px;
-}
-
-.people-table-vip-person-name {
-    padding-left: 6px;
-}
 
 .forgot-password:visited, .forgot-password:link {
     font-weight: bold;
@@ -1400,4 +1393,17 @@ li.installing {
     background-image: url(/Mantissa/images/password-reset-table-header-left-block.png);
     background-repeat: no-repeat;
     width: 153px;
+}
+
+.people-table-mugshot {
+    width: 66px;
+    height: 60px;
+    background-repeat: no-repeat;
+    background-position: 50% 50%;
+    float: left;
+}
+
+.people-table-spacer {
+    clear: left;
+    height: 1px;
 }

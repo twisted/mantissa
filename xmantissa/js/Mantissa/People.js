@@ -519,20 +519,6 @@ Mantissa.People.PersonScroller.methods(
     },
 
     /**
-     * Get some DOM which visually represents the VIP status of a person.
-     *
-     * @param isVIP: Whether the person is a VIP.
-     * @type isVIP: C{Boolean}
-     *
-     * @rtype: L{MochiKit.DOM.IMG}
-     */
-    function _getVIPColumnDOM(self, isVIP) {
-        if(isVIP) {
-            return MochiKit.DOM.IMG({src: "/Mantissa/images/vip-flag.png"});
-        }
-    },
-
-    /**
      * Apply the I{person-list-selected-person-row} class to C{node}, and
      * remove it from the previously-selected row.
      */
@@ -585,31 +571,54 @@ Mantissa.People.PersonScroller.methods(
     },
 
     /**
+     * Wrap the DOM for the I{name} column, including a mugshot C{<img>}.
+     *
+     * @type rowData: C{Object}
+     * @param rowData: Row data mapping.
+     *
+     * @type columnNode: DOM node
+     *
+     * @rtype: DOM node
+     */
+    function _wrapNameColumnDOM(self, rowData, columnNode) {
+        var nameContainerNode = document.createElement('span');
+        nameContainerNode.appendChild(columnNode);
+        if(rowData.vip) {
+            var imgNode = document.createElement('img');
+            imgNode.setAttribute('src', '/static/mantissa-base/images/vip-flag.png');
+            nameContainerNode.appendChild(imgNode);
+        }
+        if(rowData.name === self.storeOwnerPersonName) {
+            var imgNode = document.createElement('img');
+            imgNode.setAttribute('class', 'mantissa-me-icon');
+            imgNode.setAttribute('src', '/static/mantissa-base/images/me-icon.png');
+            nameContainerNode.appendChild(imgNode);
+        }
+        var wrapperNode = document.createElement('div');
+        wrapperNode.setAttribute('class', 'people-table-name-cell');
+        var mugshotNode = document.createElement('div');
+        mugshotNode.setAttribute('class', 'people-table-mugshot');
+        mugshotNode.style.backgroundImage = 'url(' + rowData.mugshotURL + ')';
+        wrapperNode.appendChild(mugshotNode);
+        wrapperNode.appendChild(nameContainerNode);
+        var spacerNode = document.createElement('div');
+        spacerNode.setAttribute('class', 'people-table-spacer');
+        wrapperNode.appendChild(spacerNode);
+        return wrapperNode;
+    },
+
+    /**
      * Override the base implementation to return an image node for the VIP
      * status cell, and a simpler, easier-to-style node for the person name
      * cell
      */
     function makeCellElement(self, colName, rowData) {
-        if(colName == 'vip') {
-            return self._getVIPColumnDOM(rowData.vip);
+        if(colName === 'name') {
+            var columnObject = self.columns[colName];
+            var columnValue = columnObject.extractValue(rowData);
+            var columnNode = columnObject.valueToDOM(columnValue, self);
+            return self._wrapNameColumnDOM(rowData, columnNode);
         }
-        var columnObject = self.columns[colName];
-        var columnValue = columnObject.extractValue(rowData);
-        var columnNode = columnObject.valueToDOM(columnValue, self);
-
-        if(rowData.vip) {
-            className = 'people-table-vip-person-name';
-        } else {
-            className = 'people-table-person-name';
-        }
-        if(rowData.name == self.storeOwnerPersonName) {
-            columnNode = [
-                columnNode,
-                MochiKit.DOM.IMG(
-                    {'class': 'mantissa-me-icon',
-                     'src': '/Mantissa/images/me-icon.png'})];
-        }
-        return MochiKit.DOM.SPAN({'class': className}, columnNode);
     });
 
 

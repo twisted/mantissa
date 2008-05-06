@@ -56,7 +56,7 @@ from xmantissa.people import (
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
     ORGANIZER_VIEW_STATES, MugshotResource, Notes, NotesContactType,
     ReadOnlyNotesView, ContactGroup, AllPeopleFilter, VIPPeopleFilter,
-    TaggedPeopleFilter)
+    TaggedPeopleFilter, MugshotURLColumn)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -65,7 +65,7 @@ from xmantissa.liveform import (
     TEXTAREA_INPUT)
 from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment,
-    IPeopleFilter)
+    IPeopleFilter, IColumn)
 from xmantissa.signup import UserInfo
 from xmantissa.test.peopleutil import PeopleFilterTestMixin
 from xmantissa.plugins.baseoff import baseOffering
@@ -2841,10 +2841,14 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         self.assertIdentical(
             fragment.currentSortColumn.sortAttribute(), Person.name)
         self.assertIdentical(fragment.itemType, Person)
-        self.assertEqual(len(fragment.columns), 2)
+        self.assertEqual(len(fragment.columns), 3)
         self.assertEqual(fragment.columns['name'], Person.name)
         self.assertTrue(isinstance(fragment.columns['vip'], UnsortableColumn))
         self.assertEqual(fragment.columns['vip'].attribute, Person.vip)
+        self.assertTrue(
+            isinstance(fragment.columns['mugshotURL'], MugshotURLColumn))
+        self.assertIdentical(
+            fragment.columns['mugshotURL'].organizer, self.organizer)
 
 
     def test_initialArguments(self):
@@ -3762,3 +3766,53 @@ class StoreOwnerPersonTestCase(unittest.TestCase):
         self.assertEqual(stub.createdContactItems,
                          [userStore.findUnique(EmailAddress)])
 
+
+
+class MugshotURLColumnTestCase(unittest.TestCase):
+    """
+    Tests for L{MugshotURLColumn}.
+    """
+    def test_interface(self):
+        """
+        L{MugshotURLColumn} should provide L{IColumn}.
+        """
+        self.assertNotIdentical(
+            IColumn(MugshotURLColumn(None, None), None),
+            None)
+
+
+    def test_extractValue(self):
+        """
+        L{MugshotURLColumn.extractValue} should return the correct URL.
+        """
+        organizer = StubOrganizer()
+        person = Person(name=u'test_extractValue')
+        self.assertEqual(
+            MugshotURLColumn(organizer, None).extractValue(None, person),
+            organizer.linkToPerson(person) + u'/mugshot/smaller')
+
+
+    def test_sortAttribute(self):
+        """
+        L{MugshotURLColumn.sortAttribute} should return C{None}.
+        """
+        self.assertIdentical(
+            MugshotURLColumn(None, None).sortAttribute(), None)
+
+
+    def test_getType(self):
+        """
+        L{MugshotURLColumn.getType} should return C{text}.
+        """
+        self.assertEqual(MugshotURLColumn(None, None).getType(), 'text')
+
+
+    def test_toComparableValue(self):
+        """
+        L{MugshotURLColumn.toComparableValue} should throw
+        L{NotImplementedError}.
+        """
+        self.assertRaises(
+            NotImplementedError,
+            MugshotURLColumn(None, None).toComparableValue,
+            u'/person/xyz/mugshot/smaller')

@@ -1115,6 +1115,52 @@ class VIPColumn(UnsortableColumn):
 
 
 
+class MugshotURLColumn(record('organizer attributeID')):
+    """
+    L{ixmantissa.IColumn} provider which extracts the URL of a L{Person}'s
+    mugshot.
+
+    @type organizer: L{Organizer}
+    """
+    implements(ixmantissa.IColumn)
+
+    def extractValue(self, model, item):
+        """
+        Figure out the URL of C{item}'s mugshot.
+
+        @type item: L{Person}
+
+        @rtype: C{unicode}
+        """
+        return self.organizer.linkToPerson(item) + u'/mugshot/smaller'
+
+
+    def sortAttribute(self):
+        """
+        Return C{None}.  Unsortable.
+        """
+        return None
+
+
+    def getType(self):
+        """
+        Return C{text}
+        """
+        return 'text'
+
+
+    def toComparableValue(self, value):
+        """
+        This shouldn't be called.
+
+        @raise L{NotImplementedError}: Always.
+        """
+        raise NotImplementedError(
+            '%r does not implement toComparableValue: it is unsortable' %
+            (self.__class__,))
+
+
+
 class PersonScrollingFragment(ScrollingElement):
     """
     Scrolling element which displays L{Person} objects and allows actions to
@@ -1132,7 +1178,8 @@ class PersonScrollingFragment(ScrollingElement):
             organizer.store,
             Person,
             baseConstraint,
-            [VIPColumn(Person.vip, 'vip'),
+            [MugshotURLColumn(organizer, 'mugshotURL'),
+             VIPColumn(Person.vip, 'vip'),
              Person.name],
             defaultSortColumn=defaultSortColumn,
             webTranslator=webTranslator)
