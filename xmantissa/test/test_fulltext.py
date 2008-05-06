@@ -929,6 +929,7 @@ class NaiveIndexerFulltextTestCase(NaiveIndexerTestsMixin, FulltextTestsMixin, u
     Tests for indexing documents with the naive indexer.
     """
 
-#class NaiveIndexerAPISearchTestCase(IndexerAPISearchTestsMixin, unittest.TestCase):
-#    """
-#    """
+class NaiveIndexerAPISearchTestCase(NaiveIndexerTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
+    """
+    Tests for searching documents indexed with the naive indexer.
+    """

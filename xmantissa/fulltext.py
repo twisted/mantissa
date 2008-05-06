@@ -4,7 +4,7 @@
 General functionality re-usable by various concrete fulltext indexing systems.
 """
 
-import atexit, os, weakref, warnings
+import atexit, os, weakref, warnings, re
 
 from zope.interface import implements
 
@@ -703,9 +703,12 @@ class NaiveIndexer(RemoteIndexer, item.Item):
     A very simple indexer which creates axiom items for each term indexed.
     """
 
-    indexCount = attributes.integer(default=0)
-    indexStore = attributes.reference(allowNone=False)
-    _index = attributes.inmemory()
+    indexCount = attributes.integer(default=0,
+                   doc="Number of documents currently indexed by this indexer.")
+    indexStore = attributes.reference(allowNone=False,
+                            doc="The L{SubStore} containing the indexing data.")
+    _index = attributes.inmemory(
+        doc="A _NaiveIndex instance, when this indexer is open.")
 
     def openReadIndex(self):
         """
@@ -727,7 +730,7 @@ class NaiveIndexer(RemoteIndexer, item.Item):
             src.removeReliableListener(self)
             src.addReliableListener(self, style=iaxiom.REMOTE)
 
-
+SEPARATOR = re.compile('[-.@:/]|\s')
 class _NaiveIndex(object):
     """
     Helper for adding words to a naive index.
@@ -747,7 +750,7 @@ class _NaiveIndex(object):
         keywords = message.keywordParts()
         keywords[u"documentType"] = doctype
         for part in message.textParts():
-            words = part.split()
+            words = re.split(SEPARATOR, part)
             for word in words:
                 Word(store=self.store, text=word,
                      doc=doc)
@@ -794,7 +797,7 @@ class _NaiveIndex(object):
                 else:
                     docSet.intersection_update(set(docs))
         if len(term) > 0:
-            for w in term.split():
+            for w in re.split(SEPARATOR, term):
                 docs = self.store.query(
                     Document,
                     attributes.AND(
@@ -807,10 +810,10 @@ class _NaiveIndex(object):
                 else:
                     docSet.intersection_update(set(docs))
         if len(constraint) > 0:
-            return self.store.query(
-                Document,
-                attributes.AND(*constraint),
-                sort=sortThingy).distinct()
+            return list(self.store.query(
+                    Document,
+                    attributes.AND(*constraint),
+                    sort=sortThingy).distinct())
         else:
             return []
 
@@ -821,25 +824,30 @@ class KeywordValue(item.Item):
     """
     A key-value pair associated with a Document.
     """
-    key = attributes.text(allowNone=False)
-    value = attributes.text(allowNone=False)
-    doc = attributes.reference(allowNone=False)
+    key = attributes.text(allowNone=False, doc="A key.")
+    value = attributes.text(allowNone=False, doc="A value.")
+    doc = attributes.reference(allowNone=False,
+                               doc="The document this pair is associated with.")
 
 class Word(item.Item):
     """
     A text atom in a naive index.
     """
-    text = attributes.text(allowNone=False)
-    doc = attributes.reference(allowNone=False)
+    text = attributes.text(allowNone=False, doc="A word in a document.")
+    doc = attributes.reference(allowNone=False,
+                               doc="The document this word is in.")
 
 class Document(item.Item):
     """
     A document in a naive index.
     """
     keywordParts = {}
-    documentType = attributes.bytes()
-    uniqueIdentifier = attributes.bytes()
-    sortKey = attributes.text()
+    documentType = attributes.bytes(
+        doc="A description of the type of this document.")
+    uniqueIdentifier = attributes.bytes(
+        doc="A unique key identifying this document.")
+    sortKey = attributes.text(
+        doc="A string used as this document's value for purposes of sorting.")
 
 
 def remoteIndexer1to2(oldIndexer):
