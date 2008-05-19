@@ -790,19 +790,40 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
     },
 
     /**
-     * Test that calling back C{displayDeferred} with a
-     * L{Mantissa.Test.TestPeople.StubPersonForm} results in a submission
-     * observer being added to the form, and that invoking the observer pokes
-     * the appropriate state.
-     *
-     * @param displayDeferred: Deferred from display{Edit,Add}Person.
-     * @type displayDeferred: L{Divmod.Defer.Deferred}
+     * L{Organizer} should add an observer to L{AddPersonForm} which calls
+     * L{Organizer.displayPersonInfo} with the nickname it is passed.
      */
-    function _doObservationTest(self, displayDeferred) {
+    function test_personCreationObservation(self) {
+        var displayDeferred = self.organizer.displayAddPerson();
         var nickname = 'test nick';
         self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
             return widgetInfo;
         };
+        var refreshed = false;
+        self.organizer.refreshPersonList = function() {
+            refreshed = true;
+            return Divmod.Defer.succeed(undefined);
+        }
+        var form = Mantissa.Test.TestPeople.StubPersonForm();
+        self.calls[0].result.callback(form);
+        form.submissionObservers[0](nickname);
+        self.assertIdentical(refreshed, true);
+        self.assertIdentical(
+            self.organizer.currentlyViewingName, nickname);
+    },
+
+    /**
+     * Similar to L{test_personCreationObservation}, but for
+     * L{Mantissa.People.Organizer.displayEditPerson} and person edit
+     * notification.
+     */
+    function test_personEditObservation(self) {
+        var displayDeferred = self.organizer.displayEditPerson();
+        var nickname = 'test nick';
+        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            return widgetInfo;
+        };
+        var displaying;
         self.organizer.displayPersonInfo = function(nickname) {
             displaying = nickname;
         };
@@ -816,23 +837,6 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
         form.submissionObservers[0](nickname);
         self.assertIdentical(displaying, nickname);
         self.assertIdentical(refreshed, true);
-    },
-
-    /**
-     * L{Organizer} should add an observer to L{AddPersonForm} which calls
-     * L{Organizer.displayPersonInfo} with the nickname it is passed.
-     */
-    function test_personCreationObservation(self) {
-        self._doObservationTest(self.organizer.displayAddPerson());
-    },
-
-    /**
-     * Similar to L{test_personCreationObservation}, but for
-     * L{Mantissa.People.Organizer.displayEditPerson} and person edit
-     * notification.
-     */
-    function test_personEditObservation(self) {
-        self._doObservationTest(self.organizer.displayEditPerson());
     },
 
     /**
@@ -987,6 +991,49 @@ Mantissa.Test.TestPeople.AddPersonTests.methods(
         addPerson.observeSubmission(observer);
         self.assertIdentical(addPersonForm.submissionObservers.length, 1);
         self.assertIdentical(addPersonForm.submissionObservers[0], observer);
+    },
+
+    /**
+     * L{Mantissa.People.AddPerson.loaded} should schedule a call to
+     * L{Mantissa.People.AddPerson.focusNicknameInput}.
+     */
+    function test_loadedSchedulesFocus(self) {
+        var widget = Mantissa.People.AddPerson(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var callLaters = [];
+        widget.callLater = function(callable, seconds) {
+            callLaters.push([callable, seconds]);
+        }
+        var focuses = 0;
+        widget.focusNicknameInput = function() {
+            focuses++;
+        }
+        widget.loaded();
+        self.assertIdentical(callLaters.length, 1);
+        self.assertIdentical(callLaters[0][1], 0);
+        self.assertIdentical(focuses, 0);
+        callLaters[0][0]();
+        self.assertIdentical(focuses, 1);
+    },
+
+    /**
+     * L{Mantissa.People.AddPerson.focusNicknameInput} should focus the node
+     * with the name I{nickname}.
+     */
+    function test_focusNicknameInput(self) {
+        var node = Nevow.Test.WidgetUtil.makeWidgetNode();
+        var input = document.createElement('input');
+        input.setAttribute('type', 'text');
+        input.setAttribute('name', 'nickname');
+        var focuses = 0;
+        input.focus = function() {
+            focuses++;
+        }
+        node.appendChild(input);
+        var widget = Mantissa.People.AddPerson(node);
+        self.assertIdentical(focuses, 0);
+        widget.focusNicknameInput();
+        self.assertIdentical(focuses, 1);
     });
 
 

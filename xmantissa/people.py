@@ -2150,7 +2150,6 @@ class AddPersonFragment(athena.LiveFragment):
         person.
     """
     docFactory = ThemedDocumentFactory('add-person', 'store')
-
     jsClass = u'Mantissa.People.AddPerson'
 
     def __init__(self, organizer):
@@ -2170,80 +2169,31 @@ class AddPersonFragment(athena.LiveFragment):
         liveform.Parameter('nickname', liveform.TEXT_INPUT,
                            _normalizeWhitespace, 'Name')]
 
-    def _addPersonParameters(self):
-        """
-        Return some fixed fields for the person creation form as well as any
-        fields from L{IOrganizerPlugin} powerups.
-        """
-        parameters = self._baseParameters[:]
-        parameters.extend(self.organizer.getContactCreationParameters())
-        return parameters
-
-
     def render_addPersonForm(self, ctx, data):
         """
         Create and return a L{liveform.LiveForm} for creating a new L{Person}.
         """
         addPersonForm = liveform.LiveForm(
-            self.addPerson,
-            self._addPersonParameters(),
-            description='Add Person')
+            self.addPerson, self._baseParameters, description='Add Person')
         addPersonForm.compact()
         addPersonForm.jsClass = u'Mantissa.People.AddPersonForm'
         addPersonForm.setFragmentParent(self)
         return addPersonForm
 
 
-    def _addPerson(self, nickname, **allContactInfo):
+    def addPerson(self, nickname):
         """
-        Implementation of L{Person} creation.
-
-        This method must be called in a transaction.
+        Create a new L{Person} with the given C{nickname}.
 
         @type nickname: C{unicode}
         @param nickname: The value for the I{name} attribute of the created
             L{Person}.
-
-        @param **allContactInfo: Mapping of contact type IDs to L{ListChanges}
-        objects or dictionaries of values.
-        """
-        organizer = self.organizer
-        person = organizer.createPerson(nickname)
-
-        # XXX This has the potential for breakage, if a new contact type is
-        # returned by this call which was not returned by the call used to
-        # generate the form, or vice versa.  I'll happily fix this the very
-        # instant a button is present upon a web page which can provoke
-        # this behavior. -exarkun
-        contactTypes = dict((t.uniqueIdentifier(), t) for t in organizer.getContactTypes())
-        for (contactTypeName, submission) in allContactInfo.iteritems():
-            contactType = contactTypes[contactTypeName]
-            if contactType.allowMultipleContactItems:
-                for create in submission.create:
-                    create.setter(organizer.createContactItem(
-                        contactType, person, create.values))
-            else:
-                organizer.createContactItem(
-                    contactType, person, submission)
-        return person
-
-
-    def addPerson(self, nickname, **contactInfo):
-        """
-        Create a new L{Person} with the given C{nickname} and contact items.
-
-        @type nickname: C{unicode}
-        @param nickname: The value for the I{name} attribute of the created
-            L{Person}.
-
-        @return: C{None}
 
         @raise L{liveform.InputError}: When some aspect of person creation
         raises a L{ValueError}.
         """
         try:
-            self.store.transact(
-                self._addPerson, nickname, **contactInfo)
+            person = self.organizer.createPerson(nickname)
         except ValueError, e:
             raise liveform.InputError(unicode(e))
     expose(addPerson)

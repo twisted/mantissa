@@ -6,8 +6,6 @@ from __future__ import division
 
 import warnings
 
-from zope.interface import implements
-
 from string import lowercase
 
 from twisted.python.reflect import qual
@@ -32,7 +30,7 @@ require('twisted', 'trial_assertwarns')
 from axiom.store import Store, AtomicFile
 from axiom.dependency import installOn
 from axiom.item import Item
-from axiom.attributes import inmemory, text, AND
+from axiom.attributes import text, AND
 from axiom.errors import DeletionDisallowed
 from axiom import tags
 
@@ -67,7 +65,9 @@ from xmantissa.ixmantissa import (
     IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment,
     IPeopleFilter, IColumn)
 from xmantissa.signup import UserInfo
-from xmantissa.test.peopleutil import PeopleFilterTestMixin
+from xmantissa.test.peopleutil import (
+    PeopleFilterTestMixin, StubContactType, StubOrganizerPlugin,
+    StubOrganizer, StubPerson, StubTranslator)
 from xmantissa.plugins.baseoff import baseOffering
 
 
@@ -574,259 +574,6 @@ class WhitespaceNormalizationTests(unittest.TestCase):
         whitespace characters with a single space character.
         """
         self.assertEqual(_normalizeWhitespace(u'x  x'), u'x x')
-
-
-
-class StubOrganizerPlugin(Item):
-    """
-    Organizer powerup which records which people are created and gives back
-    canned responses to method calls.
-    """
-    value = text(
-        doc="""
-        Mandatory attribute.
-        """)
-
-    createdPeople = inmemory(
-        doc="""
-        A list of all L{Person} items created since this item was last loaded
-        from the database.
-        """)
-
-    contactTypes = inmemory(
-        doc="""
-        A list of L{IContactType} implementors to return from
-        L{getContactTypes}.
-        """)
-
-    peopleFilters = inmemory(
-        doc="""
-        A list of L{IPeopleFilter} imlpementors to return from
-        L{getPeopleFilters}.
-        """)
-
-    renamedPeople = inmemory(
-        doc="""
-        A list of two-tuples of C{unicode} with the first element giving the
-        name of each L{Person} item whose name changed at the time of the
-        change and the second element giving the value passed for the old name
-        parameter.
-        """)
-
-    createdContactItems = inmemory(
-        doc="""
-        A list of contact items created since this item was last loaded from
-        the database.
-        """)
-
-    editedContactItems = inmemory(
-        doc="""
-        A list of contact items edited since this item was last loaded from
-        the database.
-        """)
-
-    personalization = inmemory(
-        doc="""
-        An objects to be returned by L{personalize}.
-        """)
-
-    personalizedPeople = inmemory(
-        doc="""
-        A list of people passed to L{personalize}.
-        """)
-
-    def activate(self):
-        """
-        Initialize in-memory state tracking attributes to default values.
-        """
-        self.createdPeople = []
-        self.renamedPeople = []
-        self.createdContactItems = []
-        self.editedContactItems = []
-        self.personalization = None
-        self.personalizedPeople = []
-
-
-    def personCreated(self, person):
-        """
-        Record the creation of a L{Person}.
-        """
-        self.createdPeople.append(person)
-
-
-    def personNameChanged(self, person, oldName):
-        """
-        Record the change of a L{Person}'s name.
-        """
-        self.renamedPeople.append((person.name, oldName))
-
-
-    def contactItemCreated(self, contactItem):
-        """
-        Record the creation of a contact item.
-        """
-        self.createdContactItems.append(contactItem)
-
-
-    def contactItemEdited(self, contactItem):
-        """
-        Record the editing of a contact item.
-        """
-        self.editedContactItems.append(contactItem)
-
-
-    def getContactTypes(self):
-        """
-        Return the contact types list this item was constructed with.
-        """
-        return self.contactTypes
-
-
-    def getPeopleFilters(self):
-        """
-        Return L{peopleFilters}.
-        """
-        return self.peopleFilters
-
-
-    def personalize(self, person):
-        """
-        Record a personalization attempt and return C{self.personalization}.
-        """
-        self.personalizedPeople.append(person)
-        return self.personalization
-
-
-
-class StubReadOnlyView(object):
-    """
-    Test double for the objects returned by L{IContactType.getReadOnlyView}.
-
-    @ivar item: The contact item the view is for.
-    @ivar type: The contact type the contact item comes from.
-    """
-    def __init__(self, contactItem, contactType):
-        self.item = contactItem
-        self.type = contactType
-
-
-
-
-class StubContactType(object):
-    """
-    Behaviorless contact type implementation used for tests.
-
-    @ivar parameters: A list of L{xmantissa.liveform.Parameter} instances which
-        will become the return value of L{getParameters}.
-    @ivar createdContacts: A list of tuples of the arguments passed to
-        C{createContactItem}.
-    @ivar editorialForm: The object which will be returned from
-        L{getEditorialForm}.
-    @ivar editedContacts: A list of the contact items passed to
-        L{getEditorialForm}.
-    @ivar contactItems: The list of objects which will be returned from
-        L{getContactItems}.
-    @ivar queriedPeople: A list of the person items passed to
-        L{getContactItems}.
-    @ivar editedContacts: A list of two-tuples of the arguments passed to
-        L{editContactItem}.
-    @ivar createContactItems: A boolean indicating whether C{createContactItem}
-        will return an object pretending to be a new contact item (C{True}) or
-        C{None} to indicate no contact item was created (C{False}).
-    @ivar theDescriptiveIdentifier: The object to return from
-        L{descriptiveIdentifier}.
-    @ivar contactGroup: The object to return from L{getContactGroup}.
-    """
-    implements(IContactType)
-
-    def __init__(self, parameters, editorialForm, contactItems,
-            createContactItems=True, allowMultipleContactItems=True,
-            theDescriptiveIdentifier=u'', contactGroup=None):
-        self.parameters = parameters
-        self.createdContacts = []
-        self.editorialForm = editorialForm
-        self.editedContacts = []
-        self.contactItems = contactItems
-        self.queriedPeople = []
-        self.editedContacts = []
-        self.createContactItems = createContactItems
-        self.allowMultipleContactItems = allowMultipleContactItems
-        self.theDescriptiveIdentifier = theDescriptiveIdentifier
-        self.contactGroup = contactGroup
-
-
-    def getParameters(self, ignore):
-        """
-        Return L{parameters}.
-        """
-        return self.parameters
-
-
-    def uniqueIdentifier(self):
-        """
-        Return the L{qual} of this class.
-        """
-        return qual(self.__class__).decode('ascii')
-
-
-    def descriptiveIdentifier(self):
-        """
-        Return L{theDescriptiveIdentifier}.
-        """
-        return self.theDescriptiveIdentifier
-
-
-    def getEditorialForm(self, contact):
-        """
-        Return an object which is supposed to be a form for editing an existing
-        instance of this contact type and record the contact object which was
-        passed in.
-        """
-        self.editedContacts.append(contact)
-        return self.editorialForm
-
-
-    def createContactItem(self, person, **parameters):
-        """
-        Record an attempt to create a new contact item of this type for the
-        given person.
-        """
-        contactItem = (person, parameters)
-        self.createdContacts.append(contactItem)
-        if self.createContactItems:
-            return contactItem
-        return None
-
-
-    def getContactItems(self, person):
-        """
-        Return C{self.contactItems} and record the person item passed in.
-        """
-        self.queriedPeople.append(person)
-        return self.contactItems
-
-
-    def editContactItem(self, contact, **changes):
-        """
-        Record an attempt to edit the details of a contact item.
-        """
-        self.editedContacts.append((contact, changes))
-
-
-    def getContactGroup(self, contactItem):
-        """
-        Return L{contactGroup}.
-        """
-        return self.contactGroup
-
-
-    def getReadOnlyView(self, contact):
-        """
-        Return a stub view object for the given contact.
-
-        @rtype: L{StubReadOnlyView}
-        """
-        return StubReadOnlyView(contact, self)
 
 
 
@@ -2529,11 +2276,21 @@ class PeopleTests(unittest.TestCase):
             None)
 
 
+    def test_addPerson(self):
+        """
+        L{AddPersonFragment.addPerson} should add the person.
+        """
+        name = u'Billy Spade'
+        addPerson = AddPersonFragment(self.organizer)
+        addPerson.addPerson(name)
+        self.assertEqual(
+            self.user.query(Person, Person.name == name).count(), 1)
+
+
     def test_addPersonParameters(self):
         """
         L{AddPersonFragment.render_addPersonForm} should return a L{LiveForm}
-        with several fixed parameters and any parameters from available
-        powerups.
+        with several fixed parameters.
         """
         addPersonFrag = AddPersonFragment(self.organizer)
 
@@ -2542,138 +2299,22 @@ class PeopleTests(unittest.TestCase):
         # to the actual value don't affect this test.  The actual value is
         # effectively a declaration, so the only thing one could test about it
         # is that it is equal to itself, anyway.
-        addPersonFrag._baseParameters = [
+        addPersonFrag._baseParameters = baseParameters = [
             Parameter('foo', TEXT_INPUT, unicode, 'Foo')]
 
-        # With no plugins, only the parameters for the builtin contact types
-        # should be returned
         addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(
-            len(addPersonForm.parameters), builtinContactTypeCount + 1)
-
-        contactTypes = [StubContactType((), None, None)]
-        observer = StubOrganizerPlugin(
-            store=self.user, contactTypes=contactTypes)
-        self.user.powerUp(observer, IOrganizerPlugin)
-
-        addPersonForm = addPersonFrag.render_addPersonForm(None, None)
-        self.assertEqual(
-            len(addPersonForm.parameters), builtinContactTypeCount + 2)
-
-
-    def test_addPersonWithContactItems(self):
-        """
-        L{AddPersonFragment.addPerson} should give the L{IContactType} plugins
-        their information from the form submission.
-        """
-        contactType = StubContactType((), None, None)
-        observer = StubOrganizerPlugin(
-            store=self.user, contactTypes=[contactType])
-        self.user.powerUp(observer, IOrganizerPlugin)
-
-        addPersonFragment = AddPersonFragment(self.organizer)
-
-        values = {u'stub': 'value'}
-        addPersonFragment.addPerson(
-            u'nickname',
-            **{_keyword(contactType): ListChanges(
-                [CreateObject(values, lambda x: None)], [], [])})
-
-        person = self.user.findUnique(
-            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertEqual(contactType.createdContacts, [(person, values)])
-
-
-    def test_addPersonWithUnrepeatableContactItems(self):
-        """
-        Similar to L{test_addPersonWithContactItems}, but for the case where
-        the L{IContactType} doesn't allow multiple contact items.
-        """
-        contactType = StubContactType(
-            [Parameter('stub', TEXT_INPUT, lambda x: x)], None, None,
-            allowMultipleContactItems=False)
-        observer = StubOrganizerPlugin(
-            store=self.user, contactTypes=[contactType])
-        self.user.powerUp(observer, IOrganizerPlugin)
-
-        addPersonFragment = AddPersonFragment(self.organizer)
-
-        values = {u'stub': 'value'}
-        addPersonFragment.addPerson(
-            u'nickname', **{_keyword(contactType): values})
-
-        person = self.user.findUnique(
-            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertEqual(contactType.createdContacts, [(person, values)])
-
-
-    def test_addPersonWithBuiltinContactItems(self):
-        """
-        L{AddPersonFragment.addPerson} should work correctly when creating
-        contact items with builtin contact types.
-        """
-        addPersonFrag = AddPersonFragment(self.organizer)
-        addPersonFrag.addPerson(
-            u'Captain P.', **createAddPersonContactInfo(self.user))
-
-        person = self.user.findUnique(
-            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertEquals(person.name, 'Captain P.')
-
-        email = self.user.findUnique(
-            EmailAddress, EmailAddress.person == person)
-        self.assertEquals(email.address, CONTACT_EMAIL)
-
-        pa = self.user.findUnique(
-            PostalAddress, PostalAddress.person == person)
-        self.assertEqual(pa.address, CONTACT_ADDRESS)
-
-
-    def test_addPersonCallsCreateSetter(self):
-        """
-        L{AddPersonFragment.addPerson} should call the L{CreateObject.setter}
-        on the appropriate object, for each item it creates.
-        """
-        def setter(object):
-            setter.objects.append(object)
-        setter.objects = []
-
-        addPersonFragment = AddPersonFragment(self.organizer)
-        addPersonFragment.addPerson(
-            u'Name',
-            **{_keyword(EmailContactType(self.user)): ListChanges(
-                [CreateObject({u'email': u'x@y.z'}, setter)], [], [])})
-
-        person = self.user.findUnique(
-            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        email = self.user.findUnique(EmailAddress, EmailAddress.person == person)
-        self.assertEqual(setter.objects, [email])
-
-
-    def test_addVeryImportantPerson(self):
-        """
-        L{AddPersonFragment.addPerson} should use L{VIPPersonContactType} to
-        set the C{vip} attribute of the new person.
-        """
-        people = []
-        argument = {u'stub': 'value'}
-        view = AddPersonFragment(self.organizer)
-        view.addPerson(
-            u'alice', **{_keyword(VIPPersonContactType()): {u'vip': True}})
-        alice = self.user.findUnique(
-            Person, Person.storeID != self.organizer.storeOwnerPerson.storeID)
-        self.assertTrue(alice.vip)
+        self.assertEqual(addPersonForm.parameters, baseParameters)
 
 
     def test_addPersonValueError(self):
         """
         L{AddPersonFragment.addPerson} raises L{InputError} if
-        L{AddPersonFragment._addPerson} raises a L{ValueError}.
+        L{Organizer.createPerson} raises a L{ValueError}.
         """
         addPersonFragment = AddPersonFragment(self.organizer)
-        def stubAddPerson(*a, **kw):
+        def stubCreatePerson(*a, **kw):
             raise ValueError("Stub nickname rejection")
-        addPersonFragment._addPerson = stubAddPerson
+        object.__setattr__(self.organizer, 'createPerson', stubCreatePerson)
         exception = self.assertRaises(
             InputError, addPersonFragment.addPerson, u'nickname')
         self.assertEqual(exception.args, ("Stub nickname rejection",))
@@ -2705,56 +2346,6 @@ class PeopleTests(unittest.TestCase):
             str(self.organizer.urlForViewState(
                 person, ORGANIZER_VIEW_STATES.EDIT)),
             organizerURL + '?initial-person=A%20Person&initial-state=edit')
-
-
-
-class StubPerson(object):
-    """
-    Stub implementation of L{Person} used for testing.
-
-    @ivar contactItems: A list of three-tuples of the arguments passed to
-        createContactInfoItem.
-    """
-    name = u'person'
-
-    def __init__(self, contactItems):
-        self.contactItems = contactItems
-        self.store = object()
-
-
-    def createContactInfoItem(self, cls, attr, value):
-        """
-        Record the creation of a new contact item.
-        """
-        self.contactItems.append((cls, attr, value))
-
-
-    def getContactInfoItems(self, itemType, valueColumn):
-        """
-        Return an empty list.
-        """
-        return []
-
-
-    def getMugshot(self):
-        """
-        Return C{None} since there is no mugshot.
-        """
-        return None
-
-
-    def getDisplayName(self):
-        """
-        Return a name of some sort.
-        """
-        return u"Alice"
-
-
-    def getEmailAddress(self):
-        """
-        Return an email address.
-        """
-        return u"alice@example.com"
 
 
 
@@ -2801,17 +2392,6 @@ class PersonDetailFragmentTests(unittest.TestCase):
         self.assertTrue(isinstance(res, MugshotResource))
         self.assertIdentical(res.mugshot, theMugshot)
         self.assertEqual(segments, ())
-
-
-
-class StubTranslator(object):
-    """
-    Translate between a dummy row identifier and a dummy object.
-    """
-    implements(IWebTranslator)
-
-    def __init__(self, rowIdentifier, item):
-        self.fromWebID = {rowIdentifier: item}.__getitem__
 
 
 
@@ -2887,130 +2467,6 @@ class PersonScrollingFragmentTests(unittest.TestCase):
         filterByFilter(u'test_filterByFilter')
         self.assertIdentical(
             fragment.baseConstraint, queryComparison)
-
-
-
-class StubOrganizer(object):
-    """
-    Mimic some of the API presented by L{Organizer}.
-
-    @ivar people: A C{dict} mapping C{unicode} strings giving person names to
-    person objects.  These person objects will be returned from appropriate
-    calls to L{personByName}.
-
-    @ivar peoplePluginList: a C{list} of L{IOrganizerPlugin}s.
-
-    @ivar contactTypes: a C{list} of L{IContactType}s.
-
-    @ivar groupedReadOnlyViews: The C{dict} to be returned from
-    L{groupReadOnlyViews}
-
-    @ivar editedPeople: A list of the arguments which have been passed to the
-    C{editPerson} method.
-
-    @ivar deletedPeople: A list of the arguments which have been passed to the
-    C{deletePerson} method.
-
-    @ivar contactEditorialParameters: A mapping of people to lists.  When
-    passed a person, L{getContactEditorialParameters} will return the
-    corresponding list.
-
-    @ivar groupedReadOnlyViewPeople: A list of the arguments passed to
-    L{groupReadOnlyViews}.
-
-    @ivar peopleTags: The value to return from L{getPeopleTags}.
-    @type peopleTags: C{list}
-
-    @ivar peopleFilters: The sequence to return from L{getPeopleFilters}.
-    @type peopleFilters: C{list}
-    """
-    _webTranslator = StubTranslator(None, None)
-
-    def __init__(self, store=None, peoplePlugins=None, contactTypes=None,
-            deletedPeople=None, editedPeople=None,
-            contactEditorialParameters=None, groupedReadOnlyViews=None,
-            peopleTags=None, peopleFilters=None):
-        self.store = store
-        self.people = {}
-        if peoplePlugins is None:
-            peoplePlugins = []
-        if contactTypes is None:
-            contactTypes = []
-        if deletedPeople is None:
-            deletedPeople = []
-        if editedPeople is None:
-            editedPeople = []
-        if contactEditorialParameters is None:
-            contactEditorialParameters = []
-        if groupedReadOnlyViews is None:
-            groupedReadOnlyViews = {}
-        if peopleTags is None:
-            peopleTags = []
-        if peopleFilters is None:
-            peopleFilters = []
-        self.peoplePluginList = peoplePlugins
-        self.contactTypes = contactTypes
-        self.deletedPeople = deletedPeople
-        self.editedPeople = editedPeople
-        self.contactEditorialParameters = contactEditorialParameters
-        self.groupedReadOnlyViews = groupedReadOnlyViews
-        self.groupedReadOnlyViewPeople = []
-        self.peopleTags = peopleTags
-        self.peopleFilters = peopleFilters
-
-
-    def peoplePlugins(self, person):
-        return [p.personalize(person) for p in self.peoplePluginList]
-
-
-    def personByName(self, name):
-        return self.people[name]
-
-
-    def lastNameOrder(self):
-        return None
-
-
-    def deletePerson(self, person):
-        self.deletedPeople.append(person)
-
-
-    def editPerson(self, person, name, edits):
-        self.editedPeople.append((person, name, edits))
-
-
-    def getContactEditorialParameters(self, person):
-        return self.contactEditorialParameters[person]
-
-
-    def getContactTypes(self):
-        return self.contactTypes
-
-
-    def getPeopleFilters(self):
-        """
-        Return L{peopleFilters}.
-        """
-        return self.peopleFilters
-
-
-    def groupReadOnlyViews(self, person):
-        """
-        Return L{groupedReadOnlyViews}.
-        """
-        self.groupedReadOnlyViewPeople.append(person)
-        return self.groupedReadOnlyViews
-
-
-    def linkToPerson(self, person):
-        return "/person/" + person.getDisplayName()
-
-
-    def getPeopleTags(self):
-        """
-        Return L{peopleTags}.
-        """
-        return self.peopleTags
 
 
 

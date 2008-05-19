@@ -230,7 +230,7 @@ Mantissa.People.Organizer.methods(
                 self.view.showCancelFormLink();
                 widget.observeSubmission(
                     function(name) {
-                        self._cbPersonModified(name);
+                        self._cbPersonAdded(name);
                     });
                 self.setDetailWidget(widget);
             });
@@ -259,11 +259,28 @@ Mantissa.People.Organizer.methods(
     },
 
     /**
-     * Called when a person has been added or modified, with their name.
-     * Updates the person list, and selects the person involved.
+     * Called when a person has been modified, with their name.  Updates the
+     * person list, and selects the person involved.
      */
     function _cbPersonModified(self, name) {
         self.displayPersonInfo(name);
+        var result = self.refreshPersonList();
+        result.addCallback(
+            function(ignore) {
+                self.selectInPersonList(name);
+            });
+        return result;
+    },
+
+    /**
+     * Called when a person has been added.
+     *
+     * @type name: C{String}
+     * @param name: The new person's name.
+     */
+    function _cbPersonAdded(self, name) {
+        self.currentlyViewingName = name;
+        self.displayEditPerson();
         var result = self.refreshPersonList();
         result.addCallback(
             function(ignore) {
@@ -652,6 +669,9 @@ Mantissa.People._SubmitNotificationForm.methods(
      * Handle successful submission by invoking any registered observers.
      */
     function submitSuccess(self, result) {
+        if(0 === self.observers.length) {
+            return;
+        }
         var nickname = self.gatherInputAccessors().nickname[0].get();
         for (var i = 0; i < self.observers.length; ++i) {
             self.observers[i](nickname);
@@ -704,6 +724,25 @@ Mantissa.People._SubmitNotificationFormWrapper.methods(
  */
 Mantissa.People.AddPerson = Mantissa.People._SubmitNotificationFormWrapper.subclass(
     'Mantissa.People.AddPerson');
+Mantissa.People.AddPerson.methods(
+    /**
+     * Focus the I{nickname} input.
+     */
+    function focusNicknameInput(self) {
+        self.firstNodeByAttribute('name', 'nickname').focus();
+    },
+
+    /**
+     * Implement this hook to focus the I{nickname} input.
+     */
+    function loaded(self) {
+        /* .focus() is a no-op unless we wait, even though we can get a handle
+         * on the node */
+        self.callLater(
+            function() {
+                self.focusNicknameInput();
+            }, 0);
+    });
 
 
 /**
