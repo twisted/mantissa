@@ -30,7 +30,7 @@ For example, a finger service might be defined in this way::
         implements(IProtocolFactoryFactory)
         powerupInterfaces = (IProtocolFactoryFactory,)
 
-        requestCount = integer(doc=''
+        requestCount = integer(doc='''
         The number of finger requests which have been responded to, ever.
         ''')
 
@@ -50,12 +50,20 @@ except ImportError:
     SSL = None
 
 from twisted.application.service import IService, IServiceCollection
+from twisted.application.strports import parse
 from twisted.internet.ssl import PrivateCertificate, CertificateOptions
 from twisted.python.reflect import qual
+from twisted.python.usage import Options
+from twisted.python.filepath import FilePath
 
 from axiom.item import Item, declareLegacyItem, normalize
 from axiom.attributes import inmemory, integer, reference, path, text
 from axiom.upgrade import registerAttributeCopyingUpgrader
+from axiom.dependency import installOn
+from axiom.scripts.axiomatic import AxiomaticCommand, AxiomaticSubCommand
+
+from xmantissa.ixmantissa import IProtocolFactoryFactory
+
 
 
 class PortMixin:
@@ -267,5 +275,261 @@ declareLegacyItem(
 registerAttributeCopyingUpgrader(SSLPort, 1, 2)
 
 
+class ListOptions(Options):
+    """
+    I{axiomatic port} subcommand for displaying the ports which are currently
+    set up in a store.
+    """
+    longdesc = "Show the port/factory bindings in an Axiom store."
 
-__all__ = ['TCPPort', 'SSLPort']
+    def postOptions(self):
+        """
+        Display details about the ports which already exist.
+        """
+        store = self.parent.parent.getStore()
+        port = None
+        factories = {}
+        for portType in [TCPPort, SSLPort]:
+            for port in store.query(portType):
+                key = port.factory.storeID
+                if key not in factories:
+                    factories[key] = (port.factory, [])
+                factories[key][1].append(port)
+        for factory in store.powerupsFor(IProtocolFactoryFactory):
+            key = factory.storeID
+            if key not in factories:
+                factories[key] = (factory, [])
+        for factory, ports in factories.values():
+            if ports:
+                print '%d) %r listening on:' % (factory.storeID, factory)
+                for port in ports:
+                    if port.interface:
+                        interface = "interface " + port.interface
+                    else:
+                        interface = "any interface"
+                    if isinstance(port, TCPPort):
+                        print '  %d) TCP, %s, port %d' % (
+                            port.storeID, interface, port.portNumber)
+                    else:
+                        if port.certificatePath is not None:
+                            pathPart = 'certificate %s' % (
+                                port.certificatePath.path,)
+                        else:
+                            pathPart = 'NO CERTIFICATE'
+                        if port.portNumber is not None:
+                            portPart = 'port %d' % (port.portNumber,)
+                        else:
+                            portPart = 'NO PORT'
+                        print '  %d) SSL, %s, %s, %s' % (
+                            port.storeID, interface, portPart, pathPart)
+            else:
+                print '%d) %r is not listening.' % (factory.storeID, factory)
+        if not factories:
+            print "There are no ports configured."
+        raise SystemExit(0)
+
+
+
+class DeleteOptions(Options):
+    """
+    I{axiomatic port} subcommand for removing existing ports.
+
+    @type portIdentifiers: C{list} of C{int}
+    @ivar portIdentifiers: The store IDs of the ports to be deleted, built up
+        by the I{port-identifier} parameter.
+    """
+    longdesc = (
+        "Delete an existing port binding from a factory.  If a server is "
+        "currently running using the database from which the port is deleted, "
+        "the factory will *not* stop listening on that port until the server "
+        "is restarted.")
+
+    def __init__(self):
+        Options.__init__(self)
+        self.portIdentifiers = []
+
+
+    def opt_port_identifier(self, storeID):
+        """
+        Identify a port for deletion.
+        """
+        self.portIdentifiers.append(int(storeID))
+
+
+    def _delete(self, store, portIDs):
+        """
+        Try to delete the ports with the given store IDs.
+
+        @param store: The Axiom store from which to delete items.
+
+        @param portIDs: A list of Axiom store IDs for TCPPort or SSLPort items.
+
+        @raise L{SystemExit}: If one of the store IDs does not identify a port
+            item.
+        """
+        for portID in portIDs:
+            try:
+                port = store.getItemByID(portID)
+            except KeyError:
+                print "%d does not identify an item." % (portID,)
+                raise SystemExit(1)
+            if isinstance(port, (TCPPort, SSLPort)):
+                port.deleteFromStore()
+            else:
+                print "%d does not identify a port." % (portID,)
+                raise SystemExit(1)
+
+
+    def postOptions(self):
+        """
+        Delete the ports specified with the port-identifier option.
+        """
+        if self.portIdentifiers:
+            store = self.parent.parent.getStore()
+            store.transact(self._delete, store, self.portIdentifiers)
+            print "Deleted."
+            raise SystemExit(0)
+        else:
+            self.opt_help()
+
+
+
+class CreateOptions(AxiomaticSubCommand):
+    """
+    I{axiomatic port} subcommand for creating new ports.
+    """
+    name = "create"
+    longdesc = (
+        "Create a new port binding for an existing factory.  If a server is "
+        "currently running using the database in which the port is created, "
+        "the factory will *not* be started on that port until the server is "
+        "restarted.")
+
+    _pemFormatError = ('PEM routines', 'PEM_read_bio', 'no start line')
+    _noSuchFileError = ('system library', 'fopen', 'No such file or directory')
+    _certFileError = ('SSL routines', 'SSL_CTX_use_certificate_file', 'system lib')
+    _keyFileError = ('SSL routines', 'SSL_CTX_use_PrivateKey_file', 'system lib')
+
+    optParameters = [
+        ("strport", None, None,
+         "A Twisted strports description of a port to add."),
+        ("factory-identifier", None, None,
+         "Identifier for a protocol factory to associate with the new port.")]
+
+
+    def postOptions(self):
+        strport = self['strport']
+        factoryIdentifier = self['factory-identifier']
+        if strport is None or factoryIdentifier is None:
+            self.opt_help()
+
+        store = self.parent.parent.getStore()
+        storeID = int(factoryIdentifier)
+        try:
+            factory = store.getItemByID(storeID)
+        except KeyError:
+            print "%d does not identify an item." % (storeID,)
+            raise SystemExit(1)
+        else:
+            if not IProtocolFactoryFactory.providedBy(factory):
+                print "%d does not identify a factory." % (storeID,)
+                raise SystemExit(1)
+            else:
+                try:
+                    kind, args, kwargs = parse(strport, factory)
+                except ValueError:
+                    print "%r is not a valid port description." % (strport,)
+                    raise SystemExit(1)
+                except KeyError:
+                    print "Unrecognized port type."
+                    raise SystemExit(1)
+                except SSL.Error, e:
+                    if self._pemFormatError in e.args[0]:
+                        print 'Certificate file must use PEM format.'
+                        raise SystemExit(1)
+                    elif self._noSuchFileError in e.args[0]:
+                        if self._certFileError in e.args[0]:
+                            print "Specified certificate file does not exist."
+                            raise SystemExit(1)
+                        elif self._keyFileError in e.args[0]:
+                            print "Specified private key file does not exist."
+                            raise SystemExit(1)
+                        else:
+                            # Note, no test coverage.
+                            raise
+                    else:
+                        # Note, no test coverage.
+                        raise
+                else:
+                    try:
+                        method = getattr(self, 'create_' + kind)
+                    except AttributeError:
+                        print "Unsupported port type."
+                        raise SystemExit(1)
+                    else:
+                        port = method(store, *args, **kwargs)
+                        installOn(port, store)
+                        print "Created."
+        raise SystemExit(0)
+
+
+    def create_TCP(self, store, port, factory, backlog, interface):
+        """
+        Create a new L{TCPPort} with the specified parameters.
+        """
+        return TCPPort(
+            store=store, portNumber=port,
+            factory=factory, interface=self.decodeCommandLine(interface))
+
+
+    def create_SSL(self, store, port, factory, context, backlog, interface):
+        """
+        Create a new L{SSLPort} with the specified parameters.
+
+        @type context: L{DefaultOpenSSLContextFactory}
+        """
+        key = context.privateKeyFileName
+        cert = context.certificateFileName
+        if key != cert:
+            print "You must specify the same file for certKey and privateKey."
+            raise SystemExit(1)
+        elif context.sslmethod != SSL.SSLv23_METHOD:
+            print "Only SSLv23_METHOD is supported."
+            raise SystemExit(1)
+        else:
+            port = SSLPort(
+                store=store, portNumber=port, factory=factory,
+                interface=self.decodeCommandLine(interface))
+            targetDir = store.filesdir.child(str(port.storeID))
+            targetDir.makedirs()
+            targetPath = targetDir.child("cert.pem")
+            port.certificatePath = targetPath
+            FilePath(key).copyTo(targetPath)
+            return port
+
+
+
+class PortConfiguration(AxiomaticCommand):
+    """
+    Axiomatic subcommand plugin for inspecting and modifying port
+    configuration.
+    """
+    subCommands = [("list", None, ListOptions, "Show existing ports and factories."),
+                   ("delete", None, DeleteOptions, "Delete existing ports."),
+                   ("create", None, CreateOptions, "Create new ports.")]
+
+    name = "port"
+    description = "Examine, create, and destroy network servers."
+    longdesc = (
+        "This command allows for the inspection and modification of the "
+        "configuration of network services in an Axiom store.")
+
+    def postOptions(self):
+        """
+        If nothing else happens, display usage information.
+        """
+        self.opt_help()
+
+
+
+__all__ = ['TCPPort', 'SSLPort', 'PortConfiguration']

@@ -5,7 +5,6 @@ import sys
 
 from twisted.python import reflect
 from twisted.python.usage import UsageError
-from twisted.python.filepath import FilePath
 
 from axiom import item, attributes
 from axiom.dependency import installOn, onlyInstallPowerups
@@ -14,16 +13,7 @@ from axiom.scripts import axiomatic
 from xmantissa.web import SiteConfiguration
 from xmantissa.website import StaticSite, APIKey
 from xmantissa import ixmantissa, webadmin
-from xmantissa.port import TCPPort, SSLPort
 from xmantissa.plugins.baseoff import baseOffering
-
-
-def decodeCommandLine(cmdline):
-    """Turn a byte string from the command line into a unicode string.
-    """
-    codec = sys.stdin.encoding or sys.getdefaultencoding()
-    return unicode(cmdline, codec)
-
 
 
 class WebConfiguration(axiomatic.AxiomaticCommand):
@@ -31,14 +21,6 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
     description = 'Web.  Yay.'
 
     optParameters = [
-        ('port', 'p', None,
-         'TCP port over which to serve HTTP (empty string to disable)'),
-        ('secure-port', 's', None,
-         'TCP port over which to serve HTTPS (empty string to disable)'),
-        ('pem-file', 'f', None,
-         'Filename containing PEM-format private key and certificate '
-         '(empty string to disable; ignored if --secure-port is not '
-         'specified)'),
         ('http-log', 'h', None,
          'Filename (relative to files directory of the store) to which to log '
          'HTTP requests (empty string to disable)'),
@@ -67,53 +49,6 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
         # It is, we can make some simplifying assumptions.  Specifically,
         # there is exactly one SiteConfiguration installed.
         site = siteStore.findUnique(SiteConfiguration)
-
-        # Get any ports associated with that configuration.  Some of these
-        # will have been created by "axiomatic mantissa", but they may have
-        # been changed by the admin port configuration interface
-        # subsequently.  In the event of multiple ports of a particular
-        # type, only the first will be manipulated.  This should be
-        # superceded by the functionality described in #2515.
-        tcps = list(siteStore.query(TCPPort, TCPPort.factory == site))
-        ssls = list(siteStore.query(SSLPort, SSLPort.factory == site))
-
-        if self['port'] is not None:
-            if self['port']:
-                portNumber = int(self['port'])
-                if tcps:
-                    tcps[0].portNumber = portNumber
-                else:
-                    TCPPort(store=siteStore,
-                            factory=site,
-                            portNumber=portNumber)
-            else:
-                if tcps:
-                    tcps[0].deleteFromStore()
-                else:
-                    raise UsageError("There is no TCP port to delete.")
-
-
-        if self['secure-port'] is not None:
-            if self['secure-port']:
-                portNumber = int(self['secure-port'])
-                if self['pem-file'] is not None:
-                    if self['pem-file']:
-                        certificatePath = FilePath(self['pem-file'])
-                    else:
-                        certificatePath = None
-                if ssls:
-                    ssls[0].portNumber = portNumber
-                    if self['pem-file'] is not None:
-                        ssls[0].certificatePath = certificatePath
-                else:
-                    port = SSLPort(store=siteStore, factory=site, portNumber=portNumber)
-                    if self['pem-file'] is not None:
-                        port.certificatePath = certificatePath
-            else:
-                if ssls:
-                    ssls[0].deleteFromStore()
-                else:
-                    raise UsageError("There is no SSL port to delete.")
 
         if self['http-log'] is not None:
             if self['http-log']:
@@ -151,7 +86,7 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
 
 
     def opt_static(self, pathMapping):
-        webPath, filePath = decodeCommandLine(pathMapping).split(os.pathsep, 1)
+        webPath, filePath = self.decodeCommandLine(pathMapping).split(os.pathsep, 1)
         if webPath.startswith('/'):
             webPath = webPath[1:]
         self.staticPaths.append((webPath, os.path.abspath(filePath)))
@@ -162,10 +97,6 @@ class WebConfiguration(axiomatic.AxiomaticCommand):
         s = self.parent.getStore()
         for ws in s.query(SiteConfiguration):
             print 'The hostname is', ws.hostname
-            for tcp in s.query(TCPPort, TCPPort.factory == ws):
-                print 'Configured to use HTTP port %d.' % (tcp.portNumber,)
-            for ssl in s.query(SSLPort, SSLPort.factory == ws):
-                print 'Configured to use HTTPS port %d with certificate %s' % (ssl.portNumber, ssl.certificatePath.path)
             if ws.httpLog is not None:
                 print 'Logging HTTP requests to', ws.httpLog
             break

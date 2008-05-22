@@ -8,13 +8,12 @@ from twisted.trial.unittest import TestCase
 
 from axiom.plugins import webcmd
 
-from axiom.dependency import installOn
 from axiom.store import Store
 from axiom.test.util import CommandStubMixin
 from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.web import SiteConfiguration
-from xmantissa.website import WebSite, APIKey
+from xmantissa.website import APIKey
 
 def _captureStandardOutput(f, *a, **k):
     """
@@ -84,12 +83,7 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         opt = webcmd.WebConfiguration()
         opt.parent = self
         certFile = self.store.filesdir.child('name')
-        opt.parseOptions([
-                '-p', '8080', '-s', '8443', '-f', certFile.path,
-                '-h', 'http.log', '-H', 'example.com'])
-        self.assertEquals(opt['port'], '8080')
-        self.assertEquals(opt['secure-port'], '8443')
-        self.assertEquals(opt['pem-file'], certFile.path)
+        opt.parseOptions(['-h', 'http.log', '-H', 'example.com'])
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
 
@@ -103,12 +97,8 @@ class ConfigurationTestCase(CommandStubMixin, TestCase):
         opt.parent = self
         certFile = self.store.filesdir.child('name')
         opt.parseOptions([
-                '--port', '8080', '--secure-port', '8443',
-                '--pem-file', certFile.path, '--http-log', 'http.log',
-                '--hostname', 'example.com', '--urchin-key', 'A123'])
-        self.assertEquals(opt['port'], '8080')
-        self.assertEquals(opt['secure-port'], '8443')
-        self.assertEquals(opt['pem-file'], certFile.path)
+                '--http-log', 'http.log', '--hostname', 'example.com',
+                '--urchin-key', 'A123'])
         self.assertEquals(opt['http-log'], 'http.log')
         self.assertEquals(opt['hostname'], 'example.com')
         self.assertEquals(opt['urchin-key'], 'A123')

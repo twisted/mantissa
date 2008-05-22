@@ -13,6 +13,9 @@ from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa import webadmin, publicweb, stats
 from xmantissa.web import SiteConfiguration
 from xmantissa.port import TCPPort, SSLPort
+# PortConfiguration isn't used here, but it's a plugin, so it gets discovered
+# here.
+from xmantissa.port import PortConfiguration
 from xmantissa.plugins.baseoff import baseOffering
 
 from epsilon.asplode import splode
@@ -216,3 +219,9 @@ class RemoteStats(axiomatic.AxiomaticCommand):
     subCommands = [("add", None, RemoteStatsAdd, "Submit Mantissa statistical data to another server"),
                    ("list", None, RemoteStatsList, "List remote targets for stats delivery"),
                    ("remove", None, RemoteStatsRemove, "Remove a remote stats target")]
+
+
+__all__ = [
+    PortConfiguration.__name__, Mantissa.__name__, Generate.__name__,
+    RemoteStats.__name__, RemoteStatsAdd.__name__, RemoteStatsList.__name__,
+    RemoteStatsRemove.__name__]
