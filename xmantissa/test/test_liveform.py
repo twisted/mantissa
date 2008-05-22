@@ -11,6 +11,9 @@ from zope.interface.verify import verifyObject
 from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase
 
+from epsilon.hotfix import require
+require('twisted', 'trial_assertwarns')
+
 from nevow.page import renderer
 from nevow.tags import directive, div, span
 from nevow.loaders import stan
@@ -380,11 +383,11 @@ class OptionTests(TestCase, TagTestingMixin):
     """
     Tests for the view generation code for a single choice, L{OptionView}.
     """
-    simpleOptionTag = stan(div[
+    simpleOptionTag = div[
             div(render=directive('description')),
             div(render=directive('value')),
             div(render=directive('index')),
-            div(render=directive('selected'))])
+            div(render=directive('selected'))]
 
     def setUp(self):
         """
