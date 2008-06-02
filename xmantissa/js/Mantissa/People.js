@@ -66,6 +66,27 @@ Mantissa.People.OrganizerView.methods(
     },
 
     /**
+     * Show the node with the id I{person-widget-throbber}.
+     */
+    function showPersonWidgetThrobber(self) {
+        self.nodeById('person-widget-throbber').style.display = '';
+    },
+
+    /**
+     * Hide the node with the id I{person-widget-throbber}.
+     */
+    function hidePersonWidgetThrobber(self) {
+        self.nodeById('person-widget-throbber').style.display = 'none';
+    },
+
+    /**
+     * Move the scrollbar in the I{person-cell} node to the top.
+     */
+    function unscrollPersonCell(self) {
+        self.nodeById('person-cell').scrollTop = 0;
+    },
+
+    /**
      * Remove any existing detail nodes.
      */
     function clearDetailNodes(self) {
@@ -107,14 +128,14 @@ Mantissa.People.OrganizerView.methods(
      * Show the "cancel form" link.
      */
     function showCancelFormLink(self) {
-        self.nodeById('cancel-form-link').style.visibility = 'visible';
+        self.nodeById('cancel-form-link').style.display = '';
     },
 
     /**
      * Hide the "cancel form" link.
      */
     function hideCancelFormLink(self) {
-        self.nodeById('cancel-form-link').style.visibility = 'hidden';
+        self.nodeById('cancel-form-link').style.display = 'none';
     });
 
 
@@ -452,17 +473,23 @@ Mantissa.People.Organizer.methods(
         self.view.hideEditLink();
         self.view.hideDeleteLink();
         self.view.hideCancelFormLink();
+        self.view.clearDetailNodes();
+        self.view.showPersonWidgetThrobber();
         self.currentlyViewingName = name;
-        var result = self.callRemote('getContactInfoWidget', name);
+        var result = self.callRemote('getPersonPluginWidget', name);
         result.addCallback(
-            function(markup) {
-                self.view.setDetailNode(
-                    Divmod.Runtime.theRuntime.parseXHTMLString(
-                        markup).documentElement);
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.view.hidePersonWidgetThrobber();
+                self.view.setDetailNode(widget.node);
                 self.view.showEditLink();
                 if(name !== self.storeOwnerPersonName) {
                     self.view.showDeleteLink();
                 }
+                self.view.unscrollPersonCell();
             });
     });
 
@@ -815,4 +842,72 @@ Mantissa.People.ImportPeopleForm.methods(
     function submitSuccess(self, result) {
         Mantissa.People.ImportPeopleForm.upcall(self, 'submitSuccess', result);
         self.widgetParent.imported(result);
+    });
+
+
+
+Mantissa.People.PersonPluginView = Nevow.Athena.Widget.subclass(
+    'Mantissa.People.PersonPluginView');
+/**
+ * Widget which controls selection of person plugin widgets.
+ */
+Mantissa.People.PersonPluginView.methods(
+    /**
+     * Add the given plugin widget to the DOM.
+     *
+     * @type widget: L{Nevow.Athena.Widget}
+     */
+    function showPluginWidget(self, widget) {
+        var container = self.nodeById('plugin-widget-container');
+        while(0 < container.childNodes.length) {
+            container.removeChild(container.childNodes[0]);
+        }
+        container.appendChild(widget.node);
+    },
+
+    /**
+     * Get the appropriate plugin widget from the remote C{getPluginWidget}
+     * method.
+     *
+     * @type pluginName: C{String}
+     *
+     * @rtype: L{Divmod.Defer.Deferred}
+     */
+    function getPluginWidget(self, pluginName) {
+        var result = self.callRemote('getPluginWidget', pluginName);
+        result.addCallback(
+            function(widgetInfo) {
+                return self.addChildWidgetFromWidgetInfo(widgetInfo);
+            });
+        result.addCallback(
+            function(widget) {
+                self.showPluginWidget(widget);
+            });
+        return result;
+    },
+
+    /**
+     * Apply the I{nevow-tabbedpane-selected-tab} class to the given node and
+     * remove it from the previously selected tab node.
+     *
+     * @type tabNode: DOM node
+     */
+    function selectPluginTab(self, tabNode) {
+        var containerNode = self.nodeById('plugin-tabs');
+        var previouslySelectedNode = Nevow.Athena.FirstNodeByAttribute(
+            containerNode, 'class', 'nevow-tabbedpane-selected-tab');
+        previouslySelectedNode.setAttribute(
+            'class', 'nevow-tabbedpane-tab');
+        tabNode.setAttribute('class', 'nevow-tabbedpane-selected-tab');
+    },
+
+    /**
+     * DOM event handler which calls L{getPluginWidget}.
+     *
+     * @param node: Plugin link node.
+     */
+    function dom_getPluginWidget(self, node) {
+        self.selectPluginTab(node);
+        self.getPluginWidget(node.childNodes[0].nodeValue);
+        return false;
     });

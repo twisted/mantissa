@@ -1,4 +1,3 @@
-
 """
 Tests for L{xmantissa.people}.
 """
@@ -10,13 +9,12 @@ from string import lowercase
 
 from twisted.python.reflect import qual
 from twisted.python.filepath import FilePath
-from twisted.python.components import registerAdapter
 from twisted.trial import unittest
 
 from nevow.tags import div, slot
 from nevow.flat import flatten
-from nevow.athena import expose
-from nevow.page import renderer
+from nevow.athena import expose, LiveElement
+from nevow.page import renderer, Element
 from nevow.testutil import FakeRequest
 from nevow import context
 
@@ -54,7 +52,9 @@ from xmantissa.people import (
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
     ORGANIZER_VIEW_STATES, MugshotResource, Notes, NotesContactType,
     ReadOnlyNotesView, ContactGroup, AllPeopleFilter, VIPPeopleFilter,
-    TaggedPeopleFilter, MugshotURLColumn)
+    TaggedPeopleFilter, MugshotURLColumn, _objectToName,
+    ContactInfoOrganizerPlugin, PersonPluginView, _ElementWrapper,
+    _organizerPluginName)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -62,8 +62,7 @@ from xmantissa.liveform import (
     ListChanges, CreateObject, EditObject, FormParameter, ChoiceParameter,
     TEXTAREA_INPUT)
 from xmantissa.ixmantissa import (
-    IOrganizerPlugin, IContactType, IWebTranslator, IPersonFragment,
-    IPeopleFilter, IColumn)
+    IOrganizerPlugin, IContactType, IWebTranslator, IPeopleFilter, IColumn)
 from xmantissa.signup import UserInfo
 from xmantissa.test.peopleutil import (
     PeopleFilterTestMixin, StubContactType, StubOrganizerPlugin,
@@ -152,6 +151,27 @@ class TaggedPeopleFilterTests(unittest.TestCase):
         # compare.
         self.assertEqual(
             str(actualComparison), str(expectedComparison))
+
+
+def emptyMantissaSiteStore():
+    """
+    Create and return a site store with the base mantissa offering installed
+    on it.
+    """
+    site = Store()
+    installOffering(site, baseOffering, None)
+    return site
+
+
+def emptyMantissaUserStore():
+    """
+    Create a site store with the base mantissa offering installed on it and
+    return an empty store which has that as its parent.
+    """
+    site = emptyMantissaSiteStore()
+    user = Store()
+    user.parent = site
+    return user
 
 
 
@@ -277,6 +297,26 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
             self.assertEquals(output.format, input.format, cause)
 
 
+    def test_objectToName(self):
+        """
+        L{_objectToName} should be able to figure out a helpful name more
+        readable than the class name of an object.
+        """
+        class MyNeatClass:
+            pass
+        self.assertEqual(_objectToName(MyNeatClass()), u'My Neat Class')
+
+
+    def test_objectToNameObject(self):
+        """
+        Similar to L{test_objectToName}, but for classes derived from
+        C{object}.
+        """
+        class MyNeatClass(object):
+            pass
+        self.assertEqual(_objectToName(MyNeatClass()), u'My Neat Class')
+
+
     def test_descriptiveIdentifier(self):
         """
         Verify that L{_descriptiveIdentifier} returns the result of the
@@ -300,7 +340,8 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
         class MyContactType:
             pass
         self.assertEqual(
-            _descriptiveIdentifier(MyContactType()), u'My Contact Type')
+            _descriptiveIdentifier(MyContactType()),
+            _objectToName(MyContactType()))
         self.assertWarns(
             PendingDeprecationWarning,
             "IContactType now has the 'descriptiveIdentifier'"
@@ -310,27 +351,37 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
             lambda: _descriptiveIdentifier(MyContactType()))
 
 
+    def test_organizerPluginName(self):
+        """
+        L{_organizerPluginName} should return the value of the plugin's
+        I{name} attribute if it is set.
+        """
+        _name = u'organizer plugin name!'
+        class OrganizerPlugin:
+            name = _name
+        self.assertEqual(_organizerPluginName(OrganizerPlugin()), _name)
 
-def emptyMantissaSiteStore():
-    """
-    Create and return a site store with the base mantissa offering installed
-    on it.
-    """
-    site = Store()
-    installOffering(site, baseOffering, None)
-    return site
+
+    def test_noOrganizerPluginName(self):
+        """
+        L{_organizerPluginName} should figure out a reasonable default, and
+        issue a warning if the given plugin doesn't define a I{name}
+        attribute.
+        """
+        class NoOrganizerPluginName:
+            pass
+        self.assertEqual(
+            _organizerPluginName(NoOrganizerPluginName()),
+            _objectToName(NoOrganizerPluginName()))
+        self.assertWarns(
+            PendingDeprecationWarning,
+            "IOrganizerPlugin now has the 'name' attribute and"
+            " xmantissa.test.test_people.NoOrganizerPluginName"
+            " does not define it",
+            people.__file__,
+            lambda: _organizerPluginName(NoOrganizerPluginName()))
 
 
-
-def emptyMantissaUserStore():
-    """
-    Create a site store with the base mantissa offering installed on it and
-    return an empty store which has that as its parent.
-    """
-    site = emptyMantissaSiteStore()
-    user = Store()
-    user.parent = site
-    return user
 
 
 
@@ -1808,8 +1859,10 @@ class PeopleModelTestCase(unittest.TestCase):
         """
         observer = StubOrganizerPlugin(store=self.store)
         self.store.powerUp(observer, IOrganizerPlugin)
-        self.assertEqual(
-            list(self.organizer.getOrganizerPlugins()), [observer])
+        plugins = list(self.organizer.getOrganizerPlugins())
+        self.assertEqual(plugins[:-1], [observer])
+        self.assertTrue(
+            isinstance(plugins[-1], ContactInfoOrganizerPlugin))
 
 
     def test_createContactItemNotifiesPlugins(self):
@@ -2490,15 +2543,13 @@ class OrganizerFragmentTests(unittest.TestCase):
         """
         deletedPeople = []
         contactTypes = []
-        peoplePlugins = []
 
         self.store = Store()
         self.contactTypes = contactTypes
         self.organizer = StubOrganizer(
-            self.store, peoplePlugins, contactTypes, deletedPeople)
+            self.store, contactTypes, deletedPeople)
         self.fragment = OrganizerFragment(self.organizer)
         self.deletedPeople = deletedPeople
-        self.peoplePlugins = peoplePlugins
 
 
     def test_peopleTable(self):
@@ -2591,19 +2642,22 @@ class OrganizerFragmentTests(unittest.TestCase):
         self.assertEqual(self.fragment.organizer.deletedPeople, [person])
 
 
-    def test_getContactInfoWidget(self):
+    def test_getPersonPluginWidget(self):
         """
-        L{OrganizerFragment.getContactInfoWidget} should return a
-        L{ReadOnlyContactInfoView} for the named person.
+        L{OrganizerFragment.getPersonPluginWidget} should return a
+        L{PersonPluginView} for the named person.
         """
         name = u'testuser'
         person = Person()
         self.organizer.people[name] = person
+        self.organizer.organizerPlugins = plugins = [object()]
 
         widget = expose.get(
-            self.fragment, 'getContactInfoWidget')(name)
-        self.assertTrue(isinstance(widget, ReadOnlyContactInfoView))
+            self.fragment, 'getPersonPluginWidget')(name)
+        self.assertTrue(isinstance(widget, PersonPluginView))
+        self.assertEqual(widget.plugins, plugins)
         self.assertIdentical(widget.person, person)
+        self.assertIdentical(widget.fragmentParent, self.fragment)
 
 
     def test_initialArgumentsNoInitialPerson(self):
@@ -2874,40 +2928,6 @@ class ReadOnlyContactInfoViewTestCase(unittest.TestCase):
             contactGroupPattern.slotData['name'], 'One')
         self.assertEqual(
             contactGroupPattern.slotData['views'], readOnlyViews[:1])
-
-
-    def test_peoplePlugins(self):
-        """
-        The I{peoplePlugins} renderer should return the result of adapting
-        each element in L{Organizer.peoplePlugins} to L{IPersonFragment}.
-        """
-        person = StubPerson([])
-        class _SimpleStubOrganizerPlugin:
-            adapted = False
-            personalizedFor = None
-
-            def personalize(self, person):
-                self.personalizedFor = person
-                return self
-
-        def adapter(plugin):
-            plugin.adapted = True
-            return plugin
-
-        registerAdapter(adapter, _SimpleStubOrganizerPlugin, IPersonFragment)
-
-        person.organizer = StubOrganizer(peoplePlugins=[
-            _SimpleStubOrganizerPlugin()])
-        peoplePlugins = renderer.get(
-            ReadOnlyContactInfoView(person),
-            'peoplePlugins',
-            None)
-        fragments = list(peoplePlugins(None, None))
-        self.assertEqual(len(fragments), 1)
-        self.assertTrue(
-            isinstance(fragments[0], _SimpleStubOrganizerPlugin))
-        self.assertIdentical(fragments[0].personalizedFor, person)
-        self.assertTrue(fragments[0].adapted)
 
 
 
@@ -3272,3 +3292,143 @@ class MugshotURLColumnTestCase(unittest.TestCase):
             NotImplementedError,
             MugshotURLColumn(None, None).toComparableValue,
             u'/person/xyz/mugshot/smaller')
+
+
+class ContactInfoOrganizerPluginTestCase(unittest.TestCase):
+    """
+    Tests for L{ContactInfoOrganizerPlugin}.
+    """
+    def test_name(self):
+        """
+        L{ContactInfoOrganizerPlugin.name} should be set.
+        """
+        self.assertEqual(ContactInfoOrganizerPlugin.name, u'Contact')
+
+
+    def test_personalize(self):
+        """
+        L{ContactInfoOrganizerPlugin.personalize} should return a
+        L{ReadOnlyContactInfoView}.
+        """
+        plugin = ContactInfoOrganizerPlugin()
+        person = Person()
+        result = plugin.personalize(person)
+        self.assertTrue(isinstance(result, ReadOnlyContactInfoView))
+        self.assertIdentical(result.person, person)
+
+
+    def test_getContactTypes(self):
+        """
+        L{ContactInfoOrganizerPlugin} shouldn't supply any contact types.
+        """
+        plugin = ContactInfoOrganizerPlugin()
+        self.assertEqual(plugin.getContactTypes(), ())
+
+
+    def test_getPeopleFilters(self):
+        """
+        L{ContactInfoOrganizerPlugin} shouldn't supply any people filters.
+        """
+        plugin = ContactInfoOrganizerPlugin()
+        self.assertEqual(plugin.getPeopleFilters(), ())
+
+
+
+class PersonPluginViewTestCase(unittest.TestCase):
+    """
+    Tests for L{PersonPluginView}.
+    """
+    def test_pluginNames(self):
+        """
+        L{PersonPluginView}'s I{pluginNames} renderer should return a pattern
+        instance for each plugin.
+        """
+        plugins = [StubOrganizerPlugin(name=u'test_pluginNames1'),
+                   StubOrganizerPlugin(name=u'test_pluginNames2')]
+        view = PersonPluginView(plugins, Person())
+        tag = div[
+            div(pattern='active-plugin', thePattern='active-plugin')[slot('name')],
+            div(pattern='plugin', thePattern='plugin')[slot('name')]]
+        pluginNamesRenderer = renderer.get(view, 'pluginNames', None)
+        tags = list(pluginNamesRenderer(None, tag))
+        self.assertEqual(
+            [t.slotData for t in tags],
+            [{'name': p.name} for p in plugins])
+        self.assertEqual(
+            [t.attributes['thePattern'] for t in tags],
+            ['active-plugin', 'plugin'])
+
+
+    def _doGetPluginWidgetTest(self, personalization):
+        """
+        Set up a L{PersonPluginView} and try to request the given personalized
+        view from it using I{getPluginWidget}, returning the result.
+        """
+        person = Person()
+        thePlugin = StubOrganizerPlugin(
+            store=Store(), name=u'test_getPluginWidget2')
+        thePlugin.personalization = personalization
+        plugins = [StubOrganizerPlugin(name=u'test_getPluginWidget1'),
+                   thePlugin]
+        view = PersonPluginView(plugins, person)
+        getPluginWidget = expose.get(view, 'getPluginWidget')
+        result = getPluginWidget('test_getPluginWidget2')
+        self.assertEqual(thePlugin.personalizedPeople, [person])
+        return result
+
+
+    def test_getPluginWidget(self):
+        """
+        L{PersonPluginView}'s I{getPluginWidget} remote method should return
+        the appropriate view.
+        """
+        personalization = LiveElement()
+        self.assertIdentical(
+            self._doGetPluginWidgetTest(personalization),
+            personalization)
+
+
+    def test_getPluginWidgetLegacy(self):
+        """
+        L{PersonPluginView}'s I{getPluginWidget} remote method should wrap the
+        view with L{_ElementWrapper} if it's not a L{LiveElement}.
+        """
+        personalization = Element()
+        result = self._doGetPluginWidgetTest(personalization)
+        self.assertTrue(isinstance(result, _ElementWrapper))
+        self.assertIdentical(result.wrapped, personalization)
+
+
+    def test_plugin(self):
+        """
+        L{PersonPluginView}'s I{plugin} renderer should ask
+        L{PersonPluginView.getPluginWidget} for the correct view.
+        """
+        firstPluginName = u'test_plugin'
+        view = PersonPluginView(
+            [StubOrganizerPlugin(name=firstPluginName),
+             StubOrganizerPlugin(name=u'secondPluginName')],
+            Person())
+        pluginView = object()
+        def getPluginWidget(pluginName):
+            self.assertEqual(pluginName, firstPluginName)
+            return pluginView
+        view.getPluginWidget = getPluginWidget
+        pluginRenderer = renderer.get(view, 'plugin', None)
+        self.assertIdentical(pluginRenderer(None, None), pluginView)
+
+
+
+class ElementWrapperTestCase(unittest.TestCase):
+    """
+    Tests for L{_ElementWrapper}.
+    """
+    def test_element(self):
+        """
+        L{_ElementWrapper}'s I{element} renderer should render the wrapped
+        element.
+        """
+        elem = Element()
+        live = _ElementWrapper(elem)
+        elementRenderer = renderer.get(live, 'element', None)
+        self.assertIdentical(elementRenderer(None, None), elem)

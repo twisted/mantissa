@@ -756,14 +756,15 @@ class IPeopleFilter(Interface):
 
 class IOrganizerPlugin(Interface):
     """
-    Powerup which provides additional functionality to Mantissa
-    People.  Organizer plugins add support for new kinds of person
-    data (for example, one Organizer plugin might add support for
-    contact information: physical addresses, email addresses,
-    telephone numbers, etc.  Another plugin might retrieve and
-    aggregate blog posts, or provide an interface for configuring
+    Powerup which provides additional functionality to Mantissa People.
+    Organizer plugins add support for new kinds of person data (for example,
+    one Organizer plugin might add support for contact information: physical
+    addresses, email addresses, telephone numbers, etc.  Another plugin might
+    retrieve and aggregate blog posts, or provide an interface for configuring
     sharing permissions).
     """
+    name = Attribute('The C{unicode} display name of this plugin.')
+
     def getContactTypes():
         """
         Return an iterator of L{IContactType} providers supplied by this
@@ -819,23 +820,17 @@ class IOrganizerPlugin(Interface):
 
         @param person: A L{xmantissa.person.Person} instance.
 
-        @return: something adaptable to L{IPersonFragment}
+        @return: Something renderable by Nevow.
         """
 
 
 
 class IPersonFragment(Interface):
     """
-    Web facet of a personalized L{IOrganizerPlugin}, e.g.
-    widget that provides web UI for associating RSS feeds
-    with a person, or shows a list of emails recently received
-    from them.
+    Deprecated.  Nothing in Mantissa cares about this interface.
     """
 
-    title = Attribute("""
-    The title of this fragment.  This will be displayed as the title
-    of the tab in the tabbed pane that contains this fragment
-    """)
+
 
 class IOffering(Interface):
     """

@@ -27,6 +27,7 @@ from formless import nameToLabel
 
 from epsilon import extime
 from epsilon.structlike import record
+from epsilon.descriptor import requiredAttribute
 
 from axiom import item, attributes
 from axiom.tags import Tag
@@ -37,12 +38,11 @@ from axiom.upgrade import (
     registerDeletionUpgrader)
 from axiom.userbase import LoginAccount, LoginMethod
 
-from xmantissa.ixmantissa import IPersonFragment, IPeopleFilter
+from xmantissa.ixmantissa import IPeopleFilter
 from xmantissa import ixmantissa, webnav, webtheme, liveform, signup
 from xmantissa.ixmantissa import IOrganizerPlugin, IContactType
 from xmantissa.webapp import PrivateApplication
 from xmantissa.tdbview import TabularDataView, ColumnViewBase
-from xmantissa.tdb import TabularDataModel
 from xmantissa.scrolltable import ScrollingElement, UnsortableColumn
 from xmantissa.fragmentutils import dictFillSlots
 from xmantissa.webtheme import ThemedDocumentFactory
@@ -97,16 +97,13 @@ def _normalizeWhitespace(text):
 
 
 
-def _guessDescriptiveIdentifier(contactType):
+def _objectToName(o):
     """
-    Figure out a possibly-useful default descriptive identifier for
-    C{contactType}.
+    Derive a possibly-useful string type name from C{o}'s class.
 
-    @type contactType: L{IContactType} provider.
-
-    @rtype: C{unicode}
+    @rtype: C{str}
     """
-    return nameToLabel(contactType.__class__.__name__).lstrip()
+    return nameToLabel(o.__class__.__name__).lstrip()
 
 
 
@@ -128,7 +125,27 @@ def _descriptiveIdentifier(contactType):
         "IContactType now has the 'descriptiveIdentifier'"
         " method, %s did not implement it" % (contactType.__class__,),
         category=PendingDeprecationWarning)
-    return _guessDescriptiveIdentifier(contactType)
+    return _objectToName(contactType).decode('ascii')
+
+
+
+def _organizerPluginName(plugin):
+    """
+    Get a name for C{plugin}, taking into account the fact that it might not
+    have defined L{IOrganizerPlugin.name}.
+
+    @type plugin: L{IOrganizerPlugin} provider.
+
+    @rtype: C{unicode}
+    """
+    name = getattr(plugin, 'name', None)
+    if name is not None:
+        return name
+    warn(
+        "IOrganizerPlugin now has the 'name' attribute"
+        " and %s does not define it" % (plugin.__class__,),
+        category=PendingDeprecationWarning)
+    return _objectToName(plugin).decode('ascii')
 
 
 
@@ -621,6 +638,82 @@ class TaggedPeopleFilter(record('filterName')):
 
 
 
+class BaseOrganizerPlugin(object):
+    """
+    Base class for L{IOrganizerPlugin} implementations, which provides null
+    implementations of the interface's callback/notification methods.
+    """
+    name = requiredAttribute('name')
+
+    def personCreated(self, person):
+        """
+        Do nothing.
+
+        @see IOrganizerPlugin.personCreated
+        """
+
+
+    def personNameChanged(self, person, name):
+        """
+        Do nothing.
+
+        @see IOrganizerPlugin.personNameChanged
+        """
+
+
+    def contactItemCreated(self, item):
+        """
+        Do nothing.
+
+        @see IOrganizerPlugin.contactItemCreated
+        """
+
+
+    def contactItemEdited(self, item):
+        """
+        Do nothing.
+
+        @see IOrganizerPlugin.contactItemEdited
+        """
+
+
+
+class ContactInfoOrganizerPlugin(BaseOrganizerPlugin):
+    """
+    Trivial in-memory L{IOrganizerPlugin}.
+    """
+    implements(IOrganizerPlugin)
+
+    name = u'Contact'
+
+    def getContactTypes(self):
+        """
+        No contact types.
+
+        @see IOrganizerPlugin.getContactTypes
+        """
+        return ()
+
+
+    def getPeopleFilters(self):
+        """
+        No people filters.
+
+        @see IOrganizerPlugin.getPeopleFilters
+        """
+        return ()
+
+
+    def personalize(self, person):
+        """
+        Return a L{ReadOnlyContactInfoView} for C{person}.
+
+        @see IOrganizerPlugin.personalize
+        """
+        return ReadOnlyContactInfoView(person)
+
+
+
 class Organizer(item.Item):
     """
     Oversee the creation, location, destruction, and modification of
@@ -680,7 +773,8 @@ class Organizer(item.Item):
         """
         Return an iterator of the installed L{IOrganizerPlugin} powerups.
         """
-        return self.store.powerupsFor(IOrganizerPlugin)
+        return (list(self.store.powerupsFor(IOrganizerPlugin))
+            + [ContactInfoOrganizerPlugin()])
 
 
     def _gatherPluginMethods(self, methodName):
@@ -1043,13 +1137,6 @@ class Organizer(item.Item):
             return email.person
 
 
-    def peoplePlugins(self, person):
-        return (
-            p.personalize(person)
-            for p
-            in self.getOrganizerPlugins())
-
-
     def linkToPerson(self, person):
         """
         @param person: L{Person} instance
@@ -1305,16 +1392,6 @@ class ReadOnlyContactInfoView(Element):
     renderer(contactInfo)
 
 
-    def peoplePlugins(self, request, tag):
-        """
-        Render the result of adapting each item returned from
-        L{Organizer.peoplePlugins} to L{IPersonFragment}.
-        """
-        for peoplePlugin in self.organizer.peoplePlugins(self.person):
-            yield IPersonFragment(peoplePlugin)
-    renderer(peoplePlugins)
-
-
 
 class ORGANIZER_VIEW_STATES:
     """
@@ -1327,6 +1404,109 @@ class ORGANIZER_VIEW_STATES:
     EDIT = u'edit'
 
     ALL_STATES = (EDIT,)
+
+
+
+class _ElementWrapper(LiveElement):
+    """
+    L{LiveElement} which wraps & renders an L{Element}.
+
+    @type wrapped: L{Element}
+    """
+    docFactory = stan(
+        tags.div(render=tags.directive('liveElement'))[
+            tags.directive('element')])
+
+    def __init__(self, wrapped):
+        LiveElement.__init__(self)
+        self.wrapped = wrapped
+
+
+    def element(self, request, tag):
+        """
+        Render L{wrapped}.
+        """
+        return self.wrapped
+    renderer(element)
+
+
+
+class PersonPluginView(LiveElement):
+    """
+    Element which renders UI for selecting between the views of available
+    person plugins.  A tab will be rendered for each L{IOrganizerPlugin} in
+    L{plugins}, with the corresponding personalization being rendered when a
+    tab is selected.
+
+    @ivar plugins: Sequence of L{IOrganizerPlugin} providers.
+    @type plugins: C{list}
+
+    @ivar person: The person we're interested in.
+    @type person: L{Person}
+    """
+    docFactory = ThemedDocumentFactory('person-plugins', 'store')
+    jsClass = u'Mantissa.People.PersonPluginView'
+
+    def __init__(self, plugins, person):
+        LiveElement.__init__(self)
+        self.plugins = plugins
+        self.person = person
+        self.store = person.store
+
+
+    def pluginNames(self, request, tag):
+        """
+        Return an instance of C{tag}'s I{plugin} or I{active-plugin} pattern
+        for each element in L{plugins}, filling the I{name} slot with the
+        appropriate value.
+        """
+        iq = inevow.IQ(tag)
+        yield iq.onePattern('active-plugin').fillSlots(
+            'name', _organizerPluginName(self.plugins[0]))
+        pattern = iq.patternGenerator('plugin')
+        for plugin in self.plugins[1:]:
+            yield pattern.fillSlots('name', _organizerPluginName(plugin))
+    renderer(pluginNames)
+
+
+    def plugin(self, request, tag):
+        """
+        Render the view of the default plugin (first element in L{plugins}).
+        """
+        return self.getPluginWidget(
+            _organizerPluginName(self.plugins[0]))
+    renderer(plugin)
+
+
+    def _toLiveElement(self, element):
+        """
+        Wrap the given element in a L{LiveElement} if it is not already one.
+
+        @rtype: L{LiveElement}
+        """
+        if isinstance(element, LiveElement):
+            return element
+        return _ElementWrapper(element)
+
+
+    def getPluginWidget(self, pluginName):
+        """
+        Return the named plugin's view.
+
+        @type pluginName: C{unicode}
+        @param pluginName: The name of the plugin.
+
+        @rtype: L{LiveElement}
+        """
+        # this will always pick the first plugin with pluginName if there is
+        # more than one.  don't do that.
+        for plugin in self.plugins:
+            if _organizerPluginName(plugin) == pluginName:
+                view = self._toLiveElement(
+                    plugin.personalize(self.person))
+                view.setFragmentParent(self)
+                return view
+    expose(getPluginWidget)
 
 
 
@@ -1488,21 +1668,22 @@ class OrganizerFragment(LiveElement):
     renderer(peopleFilters)
 
 
-    def getContactInfoWidget(self, name):
+    def getPersonPluginWidget(self, name):
         """
-        Return the L{ReadOnlyContactInfoView} for the person named
-        C{name}.
+        Return the L{PersonPluginView} for the named person.
 
         @type name: C{unicode}
         @param name: A value which corresponds to the I{name} attribute of an
         extant L{Person}.
 
-        @type: L{ReadOnlyContactInfoView}
+        @rtype: L{PersonPluginView}
         """
-        fragment = ReadOnlyContactInfoView(
+        fragment = PersonPluginView(
+            self.organizer.getOrganizerPlugins(),
             self.organizer.personByName(name))
+        fragment.setFragmentParent(self)
         return fragment
-    expose(getContactInfoWidget)
+    expose(getPersonPluginWidget)
 
 components.registerAdapter(OrganizerFragment, Organizer, ixmantissa.INavigableFragment)
 
@@ -2561,46 +2742,10 @@ class PersonDetailFragment(athena.LiveFragment, rend.ChildLookupMixin):
     def __init__(self, person):
         athena.LiveFragment.__init__(self, person)
         self.person = person
-        self.organizer = person.organizer
-        self.title = person.getDisplayName()
-        self.email = person.getEmailAddress()
-        if self.email is not None:
-            self.title += ' (%s)' % (self.email,)
-
-        self.personFragments = list(ixmantissa.IPersonFragment(p)
-                                        for p in self.organizer.peoplePlugins(person))
 
 
     def head(self):
         return None
-
-
-    def render_personName(self, ctx, data):
-        return ctx.tag[self.person.getDisplayName()]
-
-
-    def render_extracts(self, ctx, data):
-        tdm = TabularDataModel(
-                self.person.store,
-                ExtractWrapper,
-                (ExtractWrapper.timestamp,),
-                itemsPerPage=10,
-                defaultSortAscending=False)
-
-        f = PersonExtractFragment(tdm, (ExtractWrapperColumnView('extract'),))
-        f.docFactory = webtheme.getLoader(f.fragmentName)
-        f.setFragmentParent(self)
-        return f
-
-
-    def render_organizerPlugins(self, ctx, data):
-        pat = inevow.IQ(self.docFactory).patternGenerator('person-fragment')
-        for f in self.personFragments:
-            if hasattr(f, 'setFragmentParent'):
-                f.setFragmentParent(self)
-            yield dictFillSlots(pat,
-                                dict(title=f.title,
-                                     fragment=f))
 
 
     def _gotMugshotFile(self, ctype, infile):

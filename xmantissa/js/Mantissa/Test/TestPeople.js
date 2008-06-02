@@ -123,9 +123,17 @@ Mantissa.Test.TestPeople.StubOrganizerView = Divmod.UnitTest.TestCase.subclass(
  * L{defaultTagNode}.
  * @type selectedFilterNode: DOM node.
  *
- * @ivar filterThrobberVisible: Whether the filter throbber node isivisible.
+ * @ivar filterThrobberVisible: Whether the filter throbber node is visible.
  * Defaults to C{false}.
  * @type filterThrobberVisible: C{Boolean}
+ *
+ * @ivar unscrolledPersonCell: Whether L{unscrollPersonCell} has been called.
+ * Defaults to C{false}.
+ * @type unscrolledPersonCell: C{Boolean}
+ *
+ * @ivar personWidgetThrobberVisible: Whether the person widget throbber is
+ * currently visible.  Defaults to C{false}
+ * @type personWidgetThrobberVisible: C{Boolean}
  */
 Mantissa.Test.TestPeople.StubOrganizerView.methods(
     function __init__(self) {
@@ -139,6 +147,8 @@ Mantissa.Test.TestPeople.StubOrganizerView.methods(
             'class', 'people-table-selected-tag');
         self.selectedFilterNode = self.defaultTagNode;
         self.filterThrobberVisible = false;
+        self.unscrolledPersonCell = false;
+        self.personWidgetThrobberVisible = false;
     },
 
     /**
@@ -146,6 +156,20 @@ Mantissa.Test.TestPeople.StubOrganizerView.methods(
      */
     function setOrganizerPosition(self) {
         self.organizerPositionSet = true;
+    },
+
+    /**
+     * Set L{personWidgetThrobberVisible} to C{true}.
+     */
+    function showPersonWidgetThrobber(self) {
+        self.personWidgetThrobberVisible = true;
+    },
+
+    /**
+     * Set L{personWidgetThrobberVisible} to C{false}.
+     */
+    function hidePersonWidgetThrobber(self) {
+        self.personWidgetThrobberVisible = false;
     },
 
     /**
@@ -181,6 +205,13 @@ Mantissa.Test.TestPeople.StubOrganizerView.methods(
      */
     function clearDetailNodes(self) {
         self.detailNode = null;
+    },
+
+    /**
+     * Set L{unscrolledPersonCell} to C{true}.
+     */
+    function unscrollPersonCell(self) {
+        self.unscrolledPersonCell = true;
     },
 
     /**
@@ -241,13 +272,17 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
             'class', 'people-table-selected-filter');
         var filterThrobberNode = document.createElement('img');
         filterThrobberNode.style.display = 'none';
+        var personWidgetThrobberNode = document.createElement('img');
+        personWidgetThrobberNode.style.display = 'none';
         self.nodes = {
             'detail': document.createElement('span'),
             'edit-link': document.createElement('a'),
             'delete-link': document.createElement('a'),
             'cancel-form-link': document.createElement('a'),
             'default-filter': defaultFilterNode,
-            'filter-throbber': filterThrobberNode}
+            'filter-throbber': filterThrobberNode,
+            'person-cell': document.createElement('td'),
+            'person-widget-throbber': personWidgetThrobberNode};
         self.view = Mantissa.People.OrganizerView(
             function nodeById(id) {
                 return self.nodes[id];
@@ -279,6 +314,27 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
         self.assertIdentical(queriedNodes.length, 1);
         self.assertIdentical(queriedNodes[0], containerNode);
         self.assertIdentical(organizerNode.style.top, yPosition + 'px');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.showPersonWidgetThrobber} should show
+     * the node with the id I{person-widget-throbber}.
+     */
+    function test_showPersonWidgetThrobber(self) {
+        self.view.showPersonWidgetThrobber();
+        self.assertIdentical(
+            self.nodes['person-widget-throbber'].style.display, '');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.hidePersonWidgetThrobber} should hide
+     * the node with the id I{person-widget-throbber}.
+     */
+    function test_hidePersonWidgetThrobber(self) {
+        self.view.showPersonWidgetThrobber();
+        self.view.hidePersonWidgetThrobber();
+        self.assertIdentical(
+            self.nodes['person-widget-throbber'].style.display, 'none');
     },
 
     /**
@@ -314,6 +370,17 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
         self.assertIdentical(
             self.nodes['default-filter'].getAttribute('class'),
             'people-table-filter');
+    },
+
+    /**
+     * L{Mantissa.People.OrganizerView.unscrollPersonCell} should reset the
+     * node's C{scrollTop} property.
+     */
+    function test_unscrollPersonCell(self) {
+        self.nodes['person-cell'].scrollTop = 99;
+        self.view.unscrollPersonCell();
+        self.assertIdentical(
+            self.nodes['person-cell'].scrollTop, 0);
     },
 
     /**
@@ -393,7 +460,7 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
     function test_hideCancelFormLink(self) {
         self.view.hideCancelFormLink();
         self.assertIdentical(
-            self.nodes['cancel-form-link'].style.visibility, 'hidden');
+            self.nodes['cancel-form-link'].style.display, 'none');
     },
 
     /**
@@ -404,7 +471,7 @@ Mantissa.Test.TestPeople.OrganizerViewTests.methods(
         self.view.hideCancelFormLink();
         self.view.showCancelFormLink();
         self.assertIdentical(
-            self.nodes['cancel-form-link'].style.visibility, 'visible');
+            self.nodes['cancel-form-link'].style.display, '');
     });
 
 
@@ -885,32 +952,31 @@ Mantissa.Test.TestPeople.OrganizerTests.methods(
 
     /**
      * L{Mantissa.People.Organizer.displayPersonInfo} should call
-     * I{getContactInfoWidget} with the nickname it is passed put the
-     * resulting markup in the detail area.
+     * I{getPersonPluginWidget} with the nickname it is passed and put the
+     * resulting widget in the detail area.
      */
     function test_displayPersonInfo(self) {
         var nickname = 'testuser';
         var result = self.organizer.displayPersonInfo(nickname);
 
-        self._assertCalled('getContactInfoWidget', [nickname]);
+        self._assertCalled('getPersonPluginWidget', [nickname]);
+        self.assertIdentical(
+            self.view.personWidgetThrobberVisible, true);
 
-        var resultingFragment = {};
-
-        var parsedStrings = [];
+        var resultingWidgetInfo = {};
+        var widgetInfos = [];
         var returnedNode = document.createElement('span');
-        var parseXHTMLString = Divmod.Runtime.theRuntime.parseXHTMLString;
-        Divmod.Runtime.theRuntime.parseXHTMLString = function(xhtml) {
-            parsedStrings.push(xhtml);
-            return {documentElement: returnedNode};
-        };
-        try {
-            self.calls[0].result.callback(resultingFragment);
-        } finally {
-            Divmod.Runtime.theRuntime.parseXHTMLString = parseXHTMLString;
+        self.organizer.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            widgetInfos.push(widgetInfo);
+            return {node: returnedNode};
         }
+        self.calls[0].result.callback(resultingWidgetInfo);
+        self.assertIdentical(
+            self.view.personWidgetThrobberVisible, false);
         self.assertIdentical(self.view.detailNode, returnedNode);
-        self.assertIdentical(parsedStrings.length, 1);
-        self.assertIdentical(parsedStrings[0], resultingFragment);
+        self.assertIdentical(self.view.unscrolledPersonCell, true);
+        self.assertIdentical(widgetInfos.length, 1);
+        self.assertIdentical(widgetInfos[0], resultingWidgetInfo);
     });
 
 
@@ -1443,4 +1509,124 @@ Mantissa.Test.TestPeople.PersonScrollerTestCase.methods(
         self._verifyNameNode(
             nameContainerNode, storeOwnerPersonName,
             ['/static/mantissa-base/images/me-icon.png']);
+    });
+
+
+Mantissa.Test.TestPeople.PersonPluginViewTestCase = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.PersonPluginViewTestCase');
+/**
+ * Tests for L{Mantissa.People.PersonPluginView}.
+ */
+Mantissa.Test.TestPeople.PersonPluginViewTestCase.methods(
+    /**
+     * L{Mantissa.People.PersonPluginView.showPluginWidget} should put the
+     * supplied widget's node in the right place.
+     */
+    function test_showPluginWidget(self) {
+        var view = Mantissa.People.PersonPluginView(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var containerNode = document.createElement('div');
+        view.nodeById = function(id) {
+            if(id === 'plugin-widget-container') {
+                return containerNode;
+            }
+       }
+       containerNode.appendChild(document.createElement('div'));
+       var widget = {node: document.createElement('div')};
+       view.showPluginWidget(widget);
+       self.assertIdentical(containerNode.childNodes.length, 1);
+       self.assertIdentical(containerNode.childNodes[0], widget.node);
+    },
+
+    /**
+     * L{Mantissa.People.PersonPluginView.getPluginWidget} should request the
+     * correct widget and add its node to the dom.
+     */
+    function test_getPluginWidget(self) {
+        var view = Mantissa.People.PersonPluginView(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var returnedWidgetInfo = {};
+        var returnedWidget = {};
+        var pluginName = 'the plugin!';
+        view.callRemote = function() {
+            self.assertIdentical(arguments.length, 2);
+            self.assertIdentical(arguments[0], 'getPluginWidget');
+            self.assertIdentical(arguments[1], pluginName);
+            return Divmod.Defer.succeed(returnedWidgetInfo);
+        }
+        view.addChildWidgetFromWidgetInfo = function(widgetInfo) {
+            self.assertIdentical(widgetInfo, returnedWidgetInfo);
+            return returnedWidget;
+        }
+        var pluginWidgets = [];
+        view.showPluginWidget = function(widget) {
+            pluginWidgets.push(widget);
+        }
+        view.getPluginWidget(pluginName);
+        self.assertIdentical(pluginWidgets.length, 1);
+        self.assertIdentical(pluginWidgets[0], returnedWidget);
+    },
+
+    /**
+     * L{Mantissa.People.PersonPluginView.dom_getPluginWidget} should call
+     * L{Mantissa.People.PersonPluginView.getPluginWidget}.
+     */
+    function test_dom_getPluginWidget(self) {
+        var view = Mantissa.People.PersonPluginView(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var pluginNames = [];
+        var thePluginName = 'test_dom_getPluginWidget';
+        var selectedPluginTabs = [];
+        view.selectPluginTab = function(tabNode) {
+            selectedPluginTabs.push(tabNode);
+        }
+        view.getPluginWidget = function(pluginName) {
+            pluginNames.push(pluginName);
+        }
+        var node = document.createElement('a');
+        node.appendChild(document.createTextNode(thePluginName));
+        self.assertIdentical(view.dom_getPluginWidget(node), false);
+        self.assertIdentical(pluginNames.length, 1);
+        self.assertIdentical(pluginNames[0], thePluginName);
+        self.assertIdentical(selectedPluginTabs.length, 1);
+        self.assertIdentical(selectedPluginTabs[0], node);
+    },
+
+    /**
+     * L{Mantissa.People.PersonPluginView.selectPluginTab} should select the
+     * given tab and unselect the previously selected one.
+     */
+    function test_selectPluginTab(self) {
+        var view = Mantissa.People.PersonPluginView(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var containerNode = {};
+        view.nodeById = function(id) {
+            if(id === 'plugin-tabs') {
+                return containerNode;
+            }
+        }
+        var previouslySelectedNode = document.createElement('a');
+        previouslySelectedNode.setAttribute(
+            'class', 'nevow-tabbedpane-selected-tab');
+        var tabNode = document.createElement('a');
+
+        var origFNBA = Nevow.Athena.FirstNodeByAttribute;
+        Nevow.Athena.FirstNodeByAttribute = function(root, attr, value) {
+            if(root === containerNode
+                && attr === 'class'
+                && value === 'nevow-tabbedpane-selected-tab') {
+                return previouslySelectedNode;
+            }
+        }
+        try {
+            view.selectPluginTab(tabNode);
+        } finally {
+            Nevow.Athena.FirstNodeByAttribute = origFNBA;
+        }
+        self.assertIdentical(
+            tabNode.getAttribute('class'),
+            'nevow-tabbedpane-selected-tab');
+        self.assertIdentical(
+            previouslySelectedNode.getAttribute('class'),
+            'nevow-tabbedpane-tab');
     });

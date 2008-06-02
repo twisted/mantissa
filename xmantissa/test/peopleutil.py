@@ -151,8 +151,6 @@ class StubOrganizer(object):
     person objects.  These person objects will be returned from appropriate
     calls to L{personByName}.
 
-    @ivar peoplePluginList: a C{list} of L{IOrganizerPlugin}s.
-
     @ivar contactTypes: a C{list} of L{IContactType}s.
 
     @ivar groupedReadOnlyViews: The C{dict} to be returned from
@@ -176,17 +174,18 @@ class StubOrganizer(object):
 
     @ivar peopleFilters: The sequence to return from L{getPeopleFilters}.
     @type peopleFilters: C{list}
+
+    @ivar organizerPlugins: The sequence of return from L{getOrganizerPlugins}.
+    @type organizerPlugins: C{list}
     """
     _webTranslator = StubTranslator(None, None)
 
-    def __init__(self, store=None, peoplePlugins=None, contactTypes=None,
-            deletedPeople=None, editedPeople=None,
-            contactEditorialParameters=None, groupedReadOnlyViews=None,
-            peopleTags=None, peopleFilters=None):
+    def __init__(self, store=None, contactTypes=None, deletedPeople=None,
+            editedPeople=None, contactEditorialParameters=None,
+            groupedReadOnlyViews=None, peopleTags=None, peopleFilters=None,
+            organizerPlugins=None):
         self.store = store
         self.people = {}
-        if peoplePlugins is None:
-            peoplePlugins = []
         if contactTypes is None:
             contactTypes = []
         if deletedPeople is None:
@@ -201,7 +200,8 @@ class StubOrganizer(object):
             peopleTags = []
         if peopleFilters is None:
             peopleFilters = []
-        self.peoplePluginList = peoplePlugins
+        if organizerPlugins is None:
+            organizerPlugins = []
         self.contactTypes = contactTypes
         self.deletedPeople = deletedPeople
         self.editedPeople = editedPeople
@@ -210,10 +210,7 @@ class StubOrganizer(object):
         self.groupedReadOnlyViewPeople = []
         self.peopleTags = peopleTags
         self.peopleFilters = peopleFilters
-
-
-    def peoplePlugins(self, person):
-        return [p.personalize(person) for p in self.peoplePluginList]
+        self.organizerPlugins = organizerPlugins
 
 
     def personByName(self, name):
@@ -266,15 +263,22 @@ class StubOrganizer(object):
         return self.peopleTags
 
 
+    def getOrganizerPlugins(self):
+        """
+        Return L{organizerPlugins}.
+        """
+        return self.organizerPlugins
+
+
 
 class StubOrganizerPlugin(Item):
     """
     Organizer powerup which records which people are created and gives back
     canned responses to method calls.
     """
-    value = text(
+    name = text(
         doc="""
-        Mandatory attribute.
+        @see IOrganizerPlugin.name
         """)
 
     createdPeople = inmemory(
