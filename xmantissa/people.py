@@ -1,4 +1,9 @@
 # -*- test-case-name: xmantissa.test.test_people -*-
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
+
+"""
+Person item and related functionality.
+"""
 
 from warnings import warn
 
@@ -219,6 +224,44 @@ class BaseContactType(object):
 
 
 
+class SimpleReadOnlyView(Element):
+    """
+    Simple read-only contact item view, suitable for returning from an
+    implementation of L{IContactType.getReadOnlyView}.
+
+    @ivar attribute: The contact item attribute which should be rendered.
+    @type attribute: Axiom attribute (e.g. L{attributes.text})
+
+    @ivar contactItem: The contact item.
+    @type contactItem: L{item.Item}
+    """
+    docFactory = ThemedDocumentFactory(
+        'person-contact-read-only-view', 'store')
+
+    def __init__(self, attribute, contactItem):
+        Element.__init__(self)
+        self.attribute = attribute
+        self.contactItem = contactItem
+        self.store = contactItem.store
+
+
+    def attributeName(self, req, tag):
+        """
+        Render the name of L{contactItem}'s class, e.g. "Email Address".
+        """
+        return nameToLabel(self.contactItem.__class__.__name__)
+    renderer(attributeName)
+
+
+    def attributeValue(self, req, tag):
+        """
+        Render the value of L{attribute} on L{contactItem}.
+        """
+        return self.attribute.__get__(self.contactItem)
+    renderer(attributeValue)
+
+
+
 class _PersonVIPStatus:
     """
     Contact item type used by L{VIPPersonContactType}.
@@ -415,34 +458,9 @@ class EmailContactType(BaseContactType):
 
     def getReadOnlyView(self, contact):
         """
-        Return a L{ReadOnlyEmailView} for the given L{EmailAddress}.
+        Return a L{SimpleReadOnlyView} for the given L{EmailAddress}.
         """
-        return ReadOnlyEmailView(contact)
-
-
-
-class ReadOnlyEmailView(Element):
-    """
-    Display an email address.
-
-    @type email: L{EmailAddress}
-    @ivar email: The email address which will be displayed.
-    """
-    docFactory = ThemedDocumentFactory(
-        'person-contact-read-only-email-view', 'store')
-
-    def __init__(self, email):
-        self.email = email
-        self.store = email.store
-
-
-    def address(self, request, tag):
-        """
-        Add the value of the C{address} attribute of the wrapped
-        L{EmailAddress} as a child to the given tag.
-        """
-        return tag[self.email.address]
-    renderer(address)
+        return SimpleReadOnlyView(EmailAddress.address, contact)
 
 
 
@@ -2143,34 +2161,9 @@ class PostalContactType(BaseContactType):
 
     def getReadOnlyView(self, contact):
         """
-        Return a L{ReadOnlyPostalAddressView} for the given L{PostalAddress}.
+        Return a L{SimpleReadOnlyView} for the given L{PostalAddress}.
         """
-        return ReadOnlyPostalAddressView(contact)
-
-
-
-class ReadOnlyPostalAddressView(Element):
-    """
-    Display a postal address.
-
-    @type _address: L{PostalAddress}
-    @ivar _address: The postal address which will be displayed.
-    """
-    docFactory = ThemedDocumentFactory(
-        'person-contact-read-only-postal-address-view', 'store')
-
-    def __init__(self, address):
-        self._address = address
-        self.store = address.store
-
-
-    def address(self, request, tag):
-        """
-        Add the wrapped L{PostalAddress} item's C{address} attribute as a child
-        of the given tag.
-        """
-        return tag[self._address.address]
-    renderer(address)
+        return SimpleReadOnlyView(PostalAddress.address, contact)
 
 
 
@@ -2269,33 +2262,9 @@ class NotesContactType(BaseContactType):
 
     def getReadOnlyView(self, contact):
         """
-        Return a L{ReadOnlyNotesView} for the given L{Notes}.
+        Return a L{SimpleReadOnlyView} for the given L{Notes}.
         """
-        return ReadOnlyNotesView(contact)
-
-
-
-class ReadOnlyNotesView(Element):
-    """
-    Display notes for a person.
-
-    @type _notes: L{Notes}
-    """
-    docFactory = ThemedDocumentFactory(
-        'person-contact-read-only-notes-view', 'store')
-
-    def __init__(self, notes):
-        self._notes = notes
-        self.store = notes.store
-
-
-    def notes(self, request, tag):
-        """
-        Add the value of the I{notes} attribute of the wrapped L{Notes} as a
-        child to the given tag.
-        """
-        return tag[self._notes.notes]
-    renderer(notes)
+        return SimpleReadOnlyView(Notes.notes, contact)
 
 
 

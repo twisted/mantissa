@@ -1,6 +1,9 @@
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
+
 """
 Tests for L{xmantissa.people}.
 """
+
 from __future__ import division
 
 import warnings
@@ -11,6 +14,7 @@ from twisted.python.reflect import qual
 from twisted.python.filepath import FilePath
 from twisted.trial import unittest
 
+from formless import nameToLabel
 from nevow.tags import div, slot
 from nevow.flat import flatten
 from nevow.athena import expose, LiveElement
@@ -47,14 +51,13 @@ from xmantissa.people import (
     ReadOnlyPhoneNumberView, PersonScrollingFragment, OrganizerFragment,
     EditPersonView, BaseContactType, EmailContactType, _normalizeWhitespace,
     PostalAddress, PostalContactType, VIPPersonContactType, _PersonVIPStatus,
-    ReadOnlyEmailView, ReadOnlyPostalAddressView, getPersonURL,
-    _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
+    getPersonURL, _stringifyKeys, makeThumbnail, _descriptiveIdentifier,
     ReadOnlyContactInfoView, PersonSummaryView, MugshotUploadForm,
     ORGANIZER_VIEW_STATES, MugshotResource, Notes, NotesContactType,
-    ReadOnlyNotesView, ContactGroup, AllPeopleFilter, VIPPeopleFilter,
-    TaggedPeopleFilter, MugshotURLColumn, _objectToName,
-    ContactInfoOrganizerPlugin, PersonPluginView, _ElementWrapper,
-    _organizerPluginName)
+    ContactGroup, AllPeopleFilter, VIPPeopleFilter, TaggedPeopleFilter,
+    MugshotURLColumn, _objectToName, ContactInfoOrganizerPlugin,
+    PersonPluginView, _ElementWrapper, _organizerPluginName,
+    SimpleReadOnlyView)
 
 from xmantissa.webapp import PrivateApplication
 from xmantissa.liveform import (
@@ -900,14 +903,13 @@ class EmailContactTests(unittest.TestCase, ContactTestsMixin):
     def test_getReadOnlyView(self):
         """
         L{EmailContactType.getReadOnlyView} should return a
-        L{ReadOnlyEmailView} wrapped around the given contact item.
+        L{SimpleReadOnlyView} wrapped around the given contact item.
         """
-        store = Store()
-        person = Person(store=store)
-        contact = EmailAddress(store=store, person=person, address=u'')
+        contact = EmailAddress(address=u'', person=Person())
         view = self.contactType.getReadOnlyView(contact)
-        self.assertTrue(isinstance(view, ReadOnlyEmailView))
-        self.assertIdentical(view.email, contact)
+        self.assertTrue(isinstance(view, SimpleReadOnlyView))
+        self.assertIdentical(view.attribute, EmailAddress.address)
+        self.assertIdentical(view.contactItem, contact)
 
 
 
@@ -1123,14 +1125,13 @@ class PostalContactTests(unittest.TestCase, ContactTestsMixin):
     def test_getReadOnlyView(self):
         """
         L{PostalContactType.getReadOnlyView} should return a
-        L{ReadOnlyPostalAddressView} wrapped around the given contact item.
+        L{SimpleReadOnlyView} wrapped around the given contact item.
         """
-        store = Store()
-        person = Person(store=store)
-        contact = PostalAddress(store=store, person=person, address=u'')
+        contact = PostalAddress(address=u'', person=Person())
         view = self.contactType.getReadOnlyView(contact)
-        self.assertTrue(isinstance(view, ReadOnlyPostalAddressView))
-        self.assertIdentical(view._address, contact)
+        self.assertTrue(isinstance(view, SimpleReadOnlyView))
+        self.assertIdentical(view.contactItem, contact)
+        self.assertIdentical(view.attribute, PostalAddress.address)
 
 
 
@@ -1416,30 +1417,14 @@ class NotesContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
     def test_getReadOnlyView(self):
         """
         L{NotesContactType.getReadOnlyView} should return a
-        correctly-initialized L{ReadOnlyNotesView}.
+        correctly-initialized L{SimpleReadOnlyView}.
         """
         contactItem = Notes(
             store=self.store, person=self.person, notes=u'notes')
         view = self.contactType.getReadOnlyView(contactItem)
-        self.assertTrue(isinstance(view, ReadOnlyNotesView))
-        self.assertIdentical(view._notes, contactItem)
-
-
-
-class ReadOnlyNotesViewTests(unittest.TestCase, TagTestingMixin):
-    """
-    Tests for L{ReadOnlyNotesView}.
-    """
-    def test_notes(self):
-        """
-        The I{notes} renderer of L{ReadOnlyNotesView} should return
-        the C{notes} attribute of the wrapped L{Notes}.
-        """
-        person = Person()
-        notes = Notes(person=person, notes=u'good notes')
-        view = ReadOnlyNotesView(notes)
-        value = renderer.get(view, 'notes')(None, div)
-        self.assertTag(value, 'div', {}, [notes.notes])
+        self.assertTrue(isinstance(view, SimpleReadOnlyView))
+        self.assertIdentical(view.attribute, Notes.notes)
+        self.assertIdentical(view.contactItem, contactItem)
 
 
 
@@ -1471,40 +1456,6 @@ class ReadOnlyPhoneNumberViewTestCase(unittest.TestCase, TagTestingMixin):
         view = ReadOnlyPhoneNumberView(contactItem)
         value = renderer.get(view, 'label')(None, div)
         self.assertTag(value, 'div', {}, [contactItem.label])
-
-
-
-class ReadOnlyEmailViewTests(unittest.TestCase, TagTestingMixin):
-    """
-    Tests for L{ReadOnlyEmailView}.
-    """
-    def test_address(self):
-        """
-        The I{address} renderer of L{ReadOnlyEmailView} should return the
-        C{address} attribute of the wrapped L{EmailAddress}.
-        """
-        person = Person()
-        email = EmailAddress(person=person, address=u'testuser@example.org')
-        view = ReadOnlyEmailView(email)
-        value = renderer.get(view, 'address')(None, div)
-        self.assertTag(value, 'div', {}, [email.address])
-
-
-
-class ReadOnlyPostalAddressViewTests(unittest.TestCase, TagTestingMixin):
-    """
-    Tests for L{ReadOnlyPostalAddressView}.
-    """
-    def test_address(self):
-        """
-        The I{address} renderer of L{ReadOnlyPostalAddressView} should return
-        the C{address} attribute of the wrapped L{PostalAddress}.
-        """
-        person = Person()
-        address = PostalAddress(person=person, address=u'123 Street')
-        view = ReadOnlyPostalAddressView(address)
-        value = renderer.get(view, 'address')(None, div)
-        self.assertTag(value, 'div', {}, [address.address])
 
 
 
@@ -3432,3 +3383,31 @@ class ElementWrapperTestCase(unittest.TestCase):
         live = _ElementWrapper(elem)
         elementRenderer = renderer.get(live, 'element', None)
         self.assertIdentical(elementRenderer(None, None), elem)
+
+
+
+class SimpleReadOnlyViewTestCase(unittest.TestCase):
+    """
+    Tests for L{SimpleReadOnlyView}.
+    """
+    def test_attributeName(self):
+        """
+        L{SimpleReadOnlyView}'s C{attributeName} renderer should return the
+        correct value.
+        """
+        view = SimpleReadOnlyView(Person.name, Person())
+        attributeNameRenderer = renderer.get(view, 'attributeName')
+        self.assertEqual(
+            attributeNameRenderer(None, None),
+            nameToLabel('Person'))
+
+
+    def test_attributeValue(self):
+        """
+        L{SimpleReadOnlyView}'s C[attributeValue} renderer should return the
+        correct value.
+        """
+        name = u'test_attributeValue'
+        view = SimpleReadOnlyView(Person.name, Person(name=name))
+        attributeValueRenderer = renderer.get(view, 'attributeValue')
+        self.assertEqual(attributeValueRenderer(None, None), name)
