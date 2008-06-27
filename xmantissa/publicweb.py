@@ -816,7 +816,7 @@ class LoginPage(PublicPage):
         @return: A L{LoginPage} and the remaining segments to be processed.
         """
         location = URL.fromRequest(request)
-        segments = location.pathList(unquote=True, copy=False)
+        segments = location.pathList(copy=False)
         segments.append(request.postpath[0])
         return cls(store, segments, request.args)
     fromRequest = classmethod(fromRequest)
