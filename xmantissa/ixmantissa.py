@@ -321,25 +321,6 @@ class ICustomizable(Interface):
         indicated user.
         """
 
-class IPublicPage(Interface):
-    """
-    I am a marker interface designed to segregate the private view (designated
-    using the normal IResource) from the public view (returned from my
-    getResource) of a substore.
-    """
-
-    index = Attribute("""
-    A boolean indicating whether a link to this page will show up on
-    the front index page.
-    """)
-
-    def getResource():
-        """
-        Retrieve an IResource provider meant to serve as the
-        public-facing view.  The retrieved object will provide
-        IResource.
-        """
-
 class ICustomizablePublicPage(Interface):
     """
     Don't use this.  Delete it if you notice it still exists but
@@ -1068,11 +1049,18 @@ class IParameterView(IRenderer):
         """
 
 
+class IPublicPage(Interface):
+    """
+    Only needed for schema compatibility. This interface should be deleted once
+    Axiom gains the ability to remove interfaces from existing stores.
+    """
+
+
 __all__ = [
     'IColumn', 'ITemplateNameResolver', 'IPreferenceAggregator',
     'ISearchProvider', 'ISearchAggregator', 'IFulltextIndexer',
     'IFulltextIndexable', 'IStaticShellContent', 'ISiteRootPlugin',
-    'ISessionlessSiteRootPlugin', 'ICustomizable', 'IPublicPage',
+    'ISessionlessSiteRootPlugin', 'ICustomizable',
     'ICustomizablePublicPage', 'IWebTranslator', 'INavigableElement',
     'INavigableFragment', 'ITab', 'IBenefactor', 'IBenefactorFactory',
     'IQ2QService', 'IPreferenceCollection', 'ITemporalEvent', 'IDateBook',

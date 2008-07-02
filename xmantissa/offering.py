@@ -153,6 +153,10 @@ class OfferingAdapter(object):
                 self._siteStore, ('app', offering.name + '.axiom'))
             ls.addAccount(offering.name, None, None, internal=True,
                           avatars=substoreItem)
+
+            from xmantissa.publicweb import PublicWeb
+            PublicWeb(store=self._siteStore, application=substoreItem,
+                      prefixURL=offering.name)
             ss = substoreItem.open()
             def appSetup():
                 for pup in offering.appPowerups:
@@ -175,6 +179,20 @@ class OfferingAdapter(object):
         return self._siteStore.transact(siteSetup)
 
 registerAdapter(OfferingAdapter, Store, ixmantissa.IOfferingTechnician)
+
+
+
+def isAppStore(s):
+    """
+    Return whether the given store is an application store or not.
+    @param s: A Store.
+    """
+    if s.parent is None:
+        return False
+    substore = s.parent.getItemByID(s.idInParent)
+    return s.parent.query(InstalledOffering,
+                          InstalledOffering.application == substore
+                          ).count() > 0
 
 
 

@@ -6,6 +6,7 @@ from twisted.trial.util import suppress as SUPPRESS
 
 from axiom.store import Store
 from axiom.item import Item
+from axiom.substore import SubStore
 from axiom.attributes import boolean, integer, inmemory
 from axiom.plugins.userbasecmd import Create
 from axiom.plugins.mantissacmd import Mantissa
@@ -27,6 +28,8 @@ from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
 from xmantissa.offering import Offering, InstalledOffering
 from xmantissa.webtheme import theThemeCache
+from xmantissa.sharing import shareItem, getEveryoneRole
+from xmantissa.websharing import getDefaultShareID
 from xmantissa.publicweb import (
     FrontPage, PublicAthenaLivePage, PublicNavAthenaLivePage,
     _OfferingsFragment, PublicFrontPage, getLoader)
@@ -104,6 +107,27 @@ class FakeTemplateNameResolver(object):
 
 
 
+class FakePublicItem(Item):
+    """
+    Some item that is to be shared on an app store.
+    """
+    dummy = integer()
+
+
+
+class FakeApplication(Item):
+    """
+    Fake implementation of an application installed by an offering.
+    """
+    implements(IPublicPage)
+
+    index = boolean(doc="""
+    Flag indicating whether this application wants to be included on the front
+    page.
+    """)
+
+
+
 class TestHonorInstalledThemes(TestCase):
     """
     Various classes should be using template resolvers to determine which theme
@@ -156,55 +180,74 @@ class TestHonorInstalledThemes(TestCase):
             resetPage.fragment, self.correctDocumentFactory)
 
 
-
-class FakeApplication(Item):
-    """
-    Fake implementation of an application installed by an offering.
-    """
-    implements(IPublicPage)
-
-    index = boolean(doc="""
-    Flag indicating whether this application wants to be included on the front
-    page.
-    """)
-
-
-
 class OfferingsFragmentTestCase(TestCase):
     """
     Tests for L{_OfferingsFragment}.
     """
-    def test_offerings(self):
+    def setUp(self):
         """
-        L{_OfferingsFragment.data_offerings} returns a generator of C{dict}
-        mapping C{'name'} to the name of an installed offering with an
-        L{IPublicPage} powerup which requests a place on the public page.
+        Set up stores and an offering.
         """
-        store = Store()
-
-        firstOffering = Offering(u'first offering', None, None, None, None,
+        store = Store(dbdir=self.mktemp())
+        appStore1 = SubStore.createNew(store, ("app", "test1.axiom"))
+        appStore2 = SubStore.createNew(store, ("app", "test2.axiom"))
+        self.firstOffering = Offering(u'first offering', None, None, None, None,
                                  None, None)
         firstInstalledOffering = InstalledOffering(
-            store=store, application=FakeApplication(store=store, index=True),
-            offeringName=firstOffering.name)
+            store=store, application=appStore1,
+            offeringName=self.firstOffering.name)
+        ss1 = appStore1.open()
+        self.installApp(ss1)
         # (bypass Item.__setattr__)
-        object.__setattr__(firstInstalledOffering, 'getOffering',
-                           lambda: firstOffering)
+        object.__setattr__(
+            firstInstalledOffering, 'getOffering',
+            lambda: self.firstOffering)
 
         secondOffering = Offering(u'second offering', None, None, None, None,
                                   None, None)
         secondInstalledOffering = InstalledOffering(
-            store=store, application=FakeApplication(store=store, index=False),
+            store=store, application=appStore2,
             offeringName=secondOffering.name)
         # (bypass Item.__setattr__)
         object.__setattr__(secondInstalledOffering, 'getOffering',
                            lambda: secondOffering)
 
-        fragment = _OfferingsFragment(FrontPage(store=store))
-        self.assertEqual(
-            list(fragment.data_offerings(None, None)),
-            [{'name': firstOffering.name}])
+        self.fragment = _OfferingsFragment(FrontPage(store=store))
 
+
+    def installApp(self, ss1):
+        """
+        Create a public item and share it as the default.
+        """
+        fpi = FakePublicItem(store=ss1)
+        shareItem(fpi, toRole=getEveryoneRole(ss1),
+                  shareID=getDefaultShareID(ss1))
+
+
+    def test_offerings(self):
+        """
+        L{_OfferingsFragment.data_offerings} returns a generator of C{dict}
+        mapping C{'name'} to the name of an installed offering with a
+        shared item that requests a link on the default public page.
+        """
+
+        self.assertEqual(
+            list(self.fragment.data_offerings(None, None)),
+            [{'name': self.firstOffering.name}])
+
+
+
+class OldOfferingsFragmentTestCase(OfferingsFragmentTestCase):
+    """
+    Test for deprecated behaviour of L{_OfferingsFragment}.
+    """
+
+    def installApp(self, ss1):
+        """
+        Install an L{IPublicPage} powerup.
+        """
+        fa = FakeApplication(store=ss1, index=True)
+        ss1.powerUp(fa, IPublicPage)
 
 
 class PublicFrontPageTests(TestCase):

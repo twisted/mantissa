@@ -23,7 +23,8 @@ from xmantissa import ixmantissa, website, offering
 from xmantissa.webtheme import ThemedDocumentFactory, getInstalledThemes
 from xmantissa.ixmantissa import IStaticShellContent
 from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
-from xmantissa.websharing import UserIndexPage
+from xmantissa.websharing import UserIndexPage, SharingIndex, getDefaultShareID
+from xmantissa.sharing import getEveryoneRole, NoSuchShare
 
 
 def getLoader(*a, **kw):
@@ -71,47 +72,8 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
     I implement ISiteRootPlugin and use PrefixURLMixin; see the documentation
     for each of those for a detailed explanation of my usage.
 
-    I adapt another object to IPublicPage, call the public page's
-    createResource() method, and display that resource.
-
-    This is designed to be installed on a user who has some public facing
-    content.  There are two contexts where a public page is useful: at the top
-    level of a site, via a 'system user', and for the public facing view of a
-    user's store who has a private view of that data using
-    L{webapp.PrivateApplication}.
-
-    For the former case, for example to put some dynamic content on the root
-    page of a public site, the convention is to create an avatar (with a
-    substore) to represent the public portion of your application and then wrap
-    a PublicWeb around it as the plugin in the top-level store.  Example::
-
-        siteStore = Store("my-site.axiom")
-        # Install login database
-        ls = LoginSystem(store=siteStore)
-        # Install HTTP server
-        web = SiteConfiguration(store=siteStore)
-        installOn(web, siteStore)
-        port = TCPPort(store=siteStore, factory=web, port=8080)
-        installOn(port, siteStore)
-
-        # Add 'system user' to hold data that will be displayed on the public page.
-        mySiteSystemUser = ls.addAccount('my-site', 'my-site.example.com', None)
-        # Open the substore that was automatically created for us
-        substore = mySiteSystemUser.avatars.open()
-        # Install your custom application public page on the substore, so that
-        # PublicWeb will find the IPublicPage implementor when it adapts
-        substore.powerUp(MySitePublicPage(store=substore),
-                         IPublicPage)
-        # Install the PublicWeb on the top-level store, as a plugin for the
-        # WebSite installed above.
-        installOn(
-            PublicWeb(store=siteStore,
-                      sessionless=True,  # Alternatively, sessioned=True
-                      prefixURL=u'path/to/my-site',
-                      application=mySiteSystemUser), siteStore)
-
-
-    @ivar application: An Item which implements L{ixmantissa.IPublicPage}.
+    I wrap a L{websharing.SharingIndex} around an app store. I am installed in
+    an app store when it is created.
     """
     implements(ixmantissa.ISiteRootPlugin,
                ixmantissa.ISessionlessSiteRootPlugin)
@@ -128,7 +90,7 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
 
     application = attributes.reference(
         doc="""
-        An Item which is adaptable to L{ixmantissa.IPublicPage}.
+        A L{SubStore} for an application store.
         """,
         allowNone=False)
 
@@ -153,9 +115,9 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
 
     def resourceFactory(self, segments):
         """
-        Reserve names which begin with '__' for the framework (such as __login__,
-        __logout__, __session__, etc), but delegate everything else to
-        PrefixURLMixin (and createResource) as usual.
+        Reserve names which begin with '__' for the framework (such as
+        __login__, __logout__, __session__, etc), but delegate everything
+        else to PrefixURLMixin (and createResource) as usual.
         """
         if not segments[0].startswith('__'):
             return super(PublicWeb, self).resourceFactory(segments)
@@ -164,10 +126,17 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
 
     def createResource(self):
         """
-        When invoked by L{PrefixURLMixin}, adapt my application object to
-        L{IPublicPage} and call C{getResource} on it.
+        When invoked by L{PrefixURLMixin}, return a L{websharing.SharingIndex}
+        for my application.
         """
-        return ixmantissa.IPublicPage(self.application).getResource()
+        pp = ixmantissa.IPublicPage(self.application, None)
+        if pp is not None:
+            warn(
+            "Use the sharing system to provide public pages, not IPublicPage",
+            category=DeprecationWarning,
+            stacklevel=2)
+            return pp.getResource()
+        return SharingIndex(self.application.open())
 
 
 def upgradePublicWeb1To2(oldWeb):
@@ -615,9 +584,18 @@ class _OfferingsFragment(rend.Fragment):
         for io in self.original.store.query(offering.InstalledOffering):
             pp = ixmantissa.IPublicPage(io.application, None)
             if pp is not None and getattr(pp, 'index', True):
-                yield {
-                    'name': io.offeringName,
-                    }
+                warn("Use the sharing system to provide public pages,"
+                     " not IPublicPage",
+                     category=DeprecationWarning,
+                     stacklevel=2)
+                yield {'name': io.offeringName}
+            else:
+                s = io.application.open()
+                try:
+                    pp = getEveryoneRole(s).getShare(getDefaultShareID(s))
+                    yield {'name': io.offeringName}
+                except NoSuchShare:
+                    continue
 
 
 
@@ -674,17 +652,22 @@ class PublicFrontPage(PublicPage):
 
     def childFactory(self, ctx, name):
         """
-        Customize child lookup such that all installed offerings on the site store
-        that this page is viewing are given an opportunity to display their own
-        page.
+        Customize child lookup such that all installed offerings on the site
+        store that this page is viewing are given an opportunity to display
+        their own page.
         """
         offer = self.original.store.findFirst(
             offering.InstalledOffering,
             offering.InstalledOffering.offeringName == unicode(name, 'ascii'))
+        pp = ixmantissa.IPublicPage(offer.application, None)
+        if pp is not None:
+            warn("Use the sharing system to provide public pages,"
+                 " not IPublicPage",
+                 category=DeprecationWarning,
+                 stacklevel=2)
+            return pp.getResource()
         if offer is not None:
-            pp = ixmantissa.IPublicPage(offer.application, None)
-            if pp is not None:
-                return pp.getResource()
+            return SharingIndex(offer.application.open(), None)
         return None
 
 

@@ -35,14 +35,6 @@ class TestAppPowerup(item.Item):
     attr = attributes.integer()
 
 
-class TestPublicPagePowerup(item.Item):
-    typeName = 'test_publicpage_powerup'
-    schemaVersion = 1
-    powerupInterfaces = ixmantissa.IPublicPage
-
-    attr = attributes.integer()
-
-
 
 class ITestInterface(Interface):
     """
@@ -162,6 +154,19 @@ class OfferingTest(unittest.TestCase):
         self.assertEquals(offering.getInstalledOfferings(self.store),
                           {baseOffering.name: baseOffering,
                            self.offering.name: self.offering})
+
+
+    def test_isAppStore(self):
+        """
+        isAppStore returns True for stores with offerings installed on them,
+        False otherwise.
+        """
+        conf = self.adminAccount.avatars.open().findUnique(
+            offering.OfferingConfiguration)
+        conf.installOffering(self.offering, None)
+        app = self.userbase.accountByAddress(self.offering.name, None)
+        self.failUnless(offering.isAppStore(app.avatars.open()))
+        self.failIf(offering.isAppStore(self.adminAccount.avatars.open()))
 
 
 

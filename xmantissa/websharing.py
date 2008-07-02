@@ -6,7 +6,26 @@ xmantissa.sharing module.
 
 Users' publicly shared objects are exposed at the url::
 
-    http://your-server/by/<user>@<hostname>/<share-id>
+    http://your-server/users/<user>@<hostname>/<share-id>
+
+Applications' publicly shared objects are exposed at the url::
+
+    http://your-server/<app-name>/<share-id>
+
+where "app-name" is the name of the offering the application was installed
+from.
+
+To share an item publicly, share it with the "everyone" role. To place it at
+the root URL of the share location, call L{addDefaultShareID} with its share
+ID.
+
+Example::
+  sharing.getEveryoneRole(yourItem.store).shareItem(yourItem, shareID=u'bob')
+
+If this is in an app store named 'foo', this object is now shared on the URL
+http://your-server/foo/bob. To share it at the root, as
+http://your-server/foo/, make it the default::
+  websharing.addDefaultShareID(yourItem.store, u'bob', 1)
 
 """
 
@@ -18,6 +37,7 @@ from axiom.attributes import text, integer
 
 from nevow import inevow, url, rend
 
+from xmantissa.offering import isAppStore
 from xmantissa import ixmantissa
 from xmantissa import sharing
 
@@ -44,7 +64,7 @@ def addDefaultShareID(store, shareID, priority):
     Add a default share ID to C{store}, pointing to C{shareID} with a
     priority C{priority}.  The highest-priority share ID identifies the share
     that will be retrieved when a user does not explicitly provide a share ID
-    in their URL (e.g. /host/by/username/).
+    in their URL (e.g. /host/users/username/).
 
     @param shareID: A share ID.
     @type shareID: C{unicode}
@@ -160,16 +180,23 @@ def linkTo(sharedProxyOrItem):
         userStore = sharing.itemFromProxy(sharedProxyOrItem).store
     else:
         userStore = sharedProxyOrItem.store
-    for lm in userbase.getLoginMethods(userStore):
-        if lm.internal:
-            path = ['users', lm.localpart.encode('ascii')]
-            if sharedProxyOrItem.shareID == getDefaultShareID(userStore):
-                shareID = sharedProxyOrItem.shareID
-                path.append('')
-            else:
-                shareID = None
-                path.append(sharedProxyOrItem.shareID)
-            return _ShareURL(shareID, scheme='', netloc='', pathsegs=path)
+    appStore = isAppStore(userStore)
+    if appStore:
+        from xmantissa.publicweb import PublicWeb
+        substore = userStore.parent.getItemByID(userStore.idInParent)
+        pw = userStore.parent.findUnique(PublicWeb, PublicWeb.application == substore)
+        path = [pw.prefixURL.encode('ascii')]
+    else:
+        for lm in userbase.getLoginMethods(userStore):
+            if lm.internal:
+                path = ['users', lm.localpart.encode('ascii')]
+    if (sharedProxyOrItem.shareID == getDefaultShareID(userStore)):
+        shareID = sharedProxyOrItem.shareID
+        path.append('')
+    else:
+        shareID = None
+        path.append(sharedProxyOrItem.shareID)
+    return _ShareURL(shareID, scheme='', netloc='', pathsegs=path)
 
 
 
@@ -198,7 +225,7 @@ def _storeFromUsername(store, username):
 
 class UserIndexPage(object):
     """
-    This is the resource accessible at "/by"
+    This is the resource accessible at "/users"
 
     See L{xmantissa.website.WebSite.child_users} for the integration
     point with the rest of the system.
@@ -230,7 +257,7 @@ class UserIndexPage(object):
     def renderHTTP(self, ctx):
         """
         Return a sarcastic string to the user when they try to list the index of
-        users by hitting '/by' by itself.
+        users by hitting '/users' by itself.
 
         (This should probably do something more helpful.  There might be a very
         large number of users so returning a simple listing is infeasible, but
@@ -270,8 +297,8 @@ class SharingIndex(object):
 
     def renderHTTP(self, ctx):
         """
-        The sharing index is located at '/by/username' - when rendered, it
-        will redirect to '/by/username', i.e. the default shared item or
+        The sharing index is located at '/users/username' - when rendered, it
+        will redirect to '/users/username', i.e. the default shared item or
         the item with the shareID of the empty string.
         """
         return url.URL.fromContext(ctx).child('')

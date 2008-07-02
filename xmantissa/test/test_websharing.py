@@ -55,6 +55,19 @@ class _TemplateNameResolver(Item):
 
 
 
+class TestAppPowerup(Item):
+    attr = integer()
+
+    def installed(self):
+        """
+        Share this item once installed.
+        """
+        sharing.getEveryoneRole(self.store
+                        ).shareItem(self,
+                          shareID=websharing.getDefaultShareID(self.store))
+
+
+
 class WebSharingTestCase(TestCase):
     """
     Tests for L{xmantissa.websharing.linkTo}
@@ -180,6 +193,38 @@ class WebSharingTestCase(TestCase):
         url = websharing.linkTo(share)
         self.assertEqual(str(url), '/users/right/not-the-share-id')
 
+
+    def test_appStoreLinkTo(self):
+        """
+        When L{websharing.linkTo} is called on a shared item in an app store,
+        it returns an URL with a single path segment consisting of the app's
+        name.
+        """
+        s = Store(dbdir=self.mktemp())
+        Mantissa().installSite(s, u"localhost", u"", False)
+        Mantissa().installAdmin(s, u'admin', u'localhost', u'asdf')
+        off = offering.Offering(
+            name=u'test_offering',
+            description=u'Offering for creating a sample app store',
+            siteRequirements=[],
+            appPowerups=[TestAppPowerup],
+            installablePowerups=[],
+            loginInterfaces=[],
+            themes=[],
+            )
+        userbase = s.findUnique(LoginSystem)
+        adminAccount = userbase.accountByAddress(u'admin', u'localhost')
+        conf = adminAccount.avatars.open().findUnique(
+            offering.OfferingConfiguration)
+        conf.installOffering(off, None)
+        ss = userbase.accountByAddress(off.name, None).avatars.open()
+        sharedItem = sharing.getEveryoneRole(ss).getShare(
+            websharing.getDefaultShareID(ss))
+        linkURL = websharing.linkTo(sharedItem)
+        self.failUnless(isinstance(linkURL, url.URL),
+                        "linkTo should return a nevow.url.URL, not %r" %
+                        (type(linkURL)))
+        self.assertEquals(str(linkURL), '/test_offering/')
 
 
 class _UserIdentificationMixin:
