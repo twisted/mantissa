@@ -1,17 +1,9 @@
 <div xmlns:nevow="http://nevow.com/ns/nevow/0.1"
   xmlns:athena="http://divmod.org/ns/athena/0.7"
   nevow:render="liveElement">
-  <ul id="plugin-tabs" class="nevow-tabbedpane-tabs">
-    <nevow:invisible nevow:render="pluginNames">
-      <li nevow:pattern="active-plugin" class="nevow-tabbedpane-selected-tab"
-        ><athena:handler event="onclick"
-          handler="dom_getPluginWidget" /><nevow:slot name="name" /></li>
-      <li nevow:pattern="plugin" class="nevow-tabbedpane-tab"
-        ><athena:handler event="onclick"
-          handler="dom_getPluginWidget" /><nevow:slot name="name" /></li>
-    </nevow:invisible>
-  </ul>
-  <div class="nevow-tabbedpane-selected-pane" id="plugin-widget-container">
-    <nevow:invisible nevow:render="plugin" />
-  </div>
+  <nevow:invisible nevow:render="pluginTabbedPane">
+    <div nevow:pattern="pane-body">
+      <img src="/static/mantissa-base/images/circle-throbber.gif" />
+    </div>
+  </nevow:invisible>
 </div>

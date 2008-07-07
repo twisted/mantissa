@@ -28,6 +28,7 @@ from nevow import rend, athena, inevow, static, tags, url
 from nevow.athena import expose, LiveElement
 from nevow.loaders import stan
 from nevow.page import Element, renderer
+from nevow.taglibrary import tabbedPane
 from formless import nameToLabel
 
 from epsilon import extime
@@ -1472,28 +1473,23 @@ class PersonPluginView(LiveElement):
         self.store = person.store
 
 
-    def pluginNames(self, request, tag):
+    def pluginTabbedPane(self, request, tag):
         """
-        Return an instance of C{tag}'s I{plugin} or I{active-plugin} pattern
-        for each element in L{plugins}, filling the I{name} slot with the
-        appropriate value.
+        Render a L{tabbedPane.TabbedPaneFragment} with an entry for each item
+        in L{plugins}.
         """
         iq = inevow.IQ(tag)
-        yield iq.onePattern('active-plugin').fillSlots(
-            'name', _organizerPluginName(self.plugins[0]))
-        pattern = iq.patternGenerator('plugin')
-        for plugin in self.plugins[1:]:
-            yield pattern.fillSlots('name', _organizerPluginName(plugin))
-    renderer(pluginNames)
-
-
-    def plugin(self, request, tag):
-        """
-        Render the view of the default plugin (first element in L{plugins}).
-        """
-        return self.getPluginWidget(
-            _organizerPluginName(self.plugins[0]))
-    renderer(plugin)
+        tabNames = [
+            _organizerPluginName(p).encode('ascii') # gunk
+                for p in self.plugins]
+        child = tabbedPane.TabbedPaneFragment(
+            zip(tabNames,
+                ([self.getPluginWidget(tabNames[0])]
+                    + [iq.onePattern('pane-body') for _ in tabNames[1:]])))
+        child.jsClass = u'Mantissa.People.PluginTabbedPane'
+        child.setFragmentParent(self)
+        return child
+    renderer(pluginTabbedPane)
 
 
     def _toLiveElement(self, element):
@@ -1600,9 +1596,9 @@ class OrganizerFragment(LiveElement):
 
     def head(self):
         """
-        Do nothing.
+        Return L{tabbedPane.tabbedPaneGlue.inlineCSS}.
         """
-        return None
+        return tabbedPane.tabbedPaneGlue.inlineCSS
 
 
     def getAddPerson(self):

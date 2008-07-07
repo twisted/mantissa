@@ -1,3 +1,4 @@
+// import Nevow.TagLibrary.TabbedPane
 // import Mantissa.LiveForm
 // import Mantissa.ScrollTable
 
@@ -853,19 +854,6 @@ Mantissa.People.PersonPluginView = Nevow.Athena.Widget.subclass(
  */
 Mantissa.People.PersonPluginView.methods(
     /**
-     * Add the given plugin widget to the DOM.
-     *
-     * @type widget: L{Nevow.Athena.Widget}
-     */
-    function showPluginWidget(self, widget) {
-        var container = self.nodeById('plugin-widget-container');
-        while(0 < container.childNodes.length) {
-            container.removeChild(container.childNodes[0]);
-        }
-        container.appendChild(widget.node);
-    },
-
-    /**
      * Get the appropriate plugin widget from the remote C{getPluginWidget}
      * method.
      *
@@ -879,35 +867,36 @@ Mantissa.People.PersonPluginView.methods(
             function(widgetInfo) {
                 return self.addChildWidgetFromWidgetInfo(widgetInfo);
             });
+        return result;
+    });
+
+Mantissa.People.PluginTabbedPane = Nevow.TagLibrary.TabbedPane.TabbedPane.subclass(
+    'Mantissa.People.PluginTabbedPane');
+/**
+ * L{Nevow.TagLibrary.TabbedPane.TabbedPane} subclass which fetches remote
+ * plugin widgets on tab changes.
+ */
+Mantissa.People.PluginTabbedPane.methods(
+    function __init__(self, node, selectedTabName) {
+        Mantissa.People.PluginTabbedPane.upcall(
+            self, '__init__', node, selectedTabName);
+        self._fetchedWidgets = {};
+        self._fetchedWidgets[selectedTabName] = 1;
+    },
+
+    /**
+     * Implement this hook to call C{getPluginWidget} on our parent and
+     * display the resulting widget's node.
+     */
+    function namedTabSelected(self, tabName) {
+        if(self._fetchedWidgets[tabName] !== undefined) {
+            return;
+        }
+        self._fetchedWidgets[tabName] = 1;
+        var result = self.widgetParent.getPluginWidget(tabName);
         result.addCallback(
             function(widget) {
-                self.showPluginWidget(widget);
+                self.view.replaceNamedPaneContent(
+                    tabName, widget.node);
             });
-        return result;
-    },
-
-    /**
-     * Apply the I{nevow-tabbedpane-selected-tab} class to the given node and
-     * remove it from the previously selected tab node.
-     *
-     * @type tabNode: DOM node
-     */
-    function selectPluginTab(self, tabNode) {
-        var containerNode = self.nodeById('plugin-tabs');
-        var previouslySelectedNode = Nevow.Athena.FirstNodeByAttribute(
-            containerNode, 'class', 'nevow-tabbedpane-selected-tab');
-        previouslySelectedNode.setAttribute(
-            'class', 'nevow-tabbedpane-tab');
-        tabNode.setAttribute('class', 'nevow-tabbedpane-selected-tab');
-    },
-
-    /**
-     * DOM event handler which calls L{getPluginWidget}.
-     *
-     * @param node: Plugin link node.
-     */
-    function dom_getPluginWidget(self, node) {
-        self.selectPluginTab(node);
-        self.getPluginWidget(node.childNodes[0].nodeValue);
-        return false;
     });

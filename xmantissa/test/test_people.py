@@ -20,6 +20,7 @@ from nevow.flat import flatten
 from nevow.athena import expose, LiveElement
 from nevow.page import renderer, Element
 from nevow.testutil import FakeRequest
+from nevow.taglibrary import tabbedPane
 from nevow import context
 
 from epsilon import extime
@@ -2503,6 +2504,15 @@ class OrganizerFragmentTests(unittest.TestCase):
         self.deletedPeople = deletedPeople
 
 
+    def test_head(self):
+        """
+        L{OrganizerFragment.head} should return
+        L{tabbedPane.tabbedPaneGlue.inlineCSS}.
+        """
+        self.assertIdentical(
+            self.fragment.head(), tabbedPane.tabbedPaneGlue.inlineCSS)
+
+
     def test_peopleTable(self):
         """
         L{OrganizerFragment}'s I{peopleTable} renderer should return a
@@ -3289,27 +3299,6 @@ class PersonPluginViewTestCase(unittest.TestCase):
     """
     Tests for L{PersonPluginView}.
     """
-    def test_pluginNames(self):
-        """
-        L{PersonPluginView}'s I{pluginNames} renderer should return a pattern
-        instance for each plugin.
-        """
-        plugins = [StubOrganizerPlugin(name=u'test_pluginNames1'),
-                   StubOrganizerPlugin(name=u'test_pluginNames2')]
-        view = PersonPluginView(plugins, Person())
-        tag = div[
-            div(pattern='active-plugin', thePattern='active-plugin')[slot('name')],
-            div(pattern='plugin', thePattern='plugin')[slot('name')]]
-        pluginNamesRenderer = renderer.get(view, 'pluginNames', None)
-        tags = list(pluginNamesRenderer(None, tag))
-        self.assertEqual(
-            [t.slotData for t in tags],
-            [{'name': p.name} for p in plugins])
-        self.assertEqual(
-            [t.attributes['thePattern'] for t in tags],
-            ['active-plugin', 'plugin'])
-
-
     def _doGetPluginWidgetTest(self, personalization):
         """
         Set up a L{PersonPluginView} and try to request the given personalized
@@ -3350,23 +3339,32 @@ class PersonPluginViewTestCase(unittest.TestCase):
         self.assertIdentical(result.wrapped, personalization)
 
 
-    def test_plugin(self):
+    def test_pluginTabbbedPane(self):
         """
-        L{PersonPluginView}'s I{plugin} renderer should ask
-        L{PersonPluginView.getPluginWidget} for the correct view.
+        L{PersonPluginView}'s I{pluginTabbedPane} renderer return a
+        correctly-configured L{tabbedPane.TabbedPaneFragment}.
         """
-        firstPluginName = u'test_plugin'
+        store = Store()
+        pluginNames = [
+            u'test_pluginTabbbedPane1', u'test_pluginTabbbedPane2']
         view = PersonPluginView(
-            [StubOrganizerPlugin(name=firstPluginName),
-             StubOrganizerPlugin(name=u'secondPluginName')],
+            [StubOrganizerPlugin(
+                store=store, name=name) for name in pluginNames],
             Person())
-        pluginView = object()
-        def getPluginWidget(pluginName):
-            self.assertEqual(pluginName, firstPluginName)
-            return pluginView
-        view.getPluginWidget = getPluginWidget
-        pluginRenderer = renderer.get(view, 'plugin', None)
-        self.assertIdentical(pluginRenderer(None, None), pluginView)
+        view.plugins[0].personalization = personalization = LiveElement()
+        pluginTabbedPaneRenderer = renderer.get(
+            view, 'pluginTabbedPane', None)
+        tag = div[div(pattern='pane-body',
+                      secret='test_pluginTabbbedPane')]
+        frag = pluginTabbedPaneRenderer(None, tag)
+        self.assertTrue(isinstance(frag, tabbedPane.TabbedPaneFragment))
+        self.assertEqual(frag.jsClass, u'Mantissa.People.PluginTabbedPane')
+        (tabNames, paneBodies) = zip(*frag.pages)
+        self.assertEqual(list(tabNames), pluginNames)
+        self.assertIdentical(paneBodies[0], personalization)
+        self.assertEqual(
+            paneBodies[1].attributes['secret'],
+            'test_pluginTabbbedPane')
 
 
 

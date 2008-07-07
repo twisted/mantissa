@@ -1519,26 +1519,6 @@ Mantissa.Test.TestPeople.PersonPluginViewTestCase = Divmod.UnitTest.TestCase.sub
  */
 Mantissa.Test.TestPeople.PersonPluginViewTestCase.methods(
     /**
-     * L{Mantissa.People.PersonPluginView.showPluginWidget} should put the
-     * supplied widget's node in the right place.
-     */
-    function test_showPluginWidget(self) {
-        var view = Mantissa.People.PersonPluginView(
-            Nevow.Test.WidgetUtil.makeWidgetNode());
-        var containerNode = document.createElement('div');
-        view.nodeById = function(id) {
-            if(id === 'plugin-widget-container') {
-                return containerNode;
-            }
-       }
-       containerNode.appendChild(document.createElement('div'));
-       var widget = {node: document.createElement('div')};
-       view.showPluginWidget(widget);
-       self.assertIdentical(containerNode.childNodes.length, 1);
-       self.assertIdentical(containerNode.childNodes[0], widget.node);
-    },
-
-    /**
      * L{Mantissa.People.PersonPluginView.getPluginWidget} should request the
      * correct widget and add its node to the dom.
      */
@@ -1558,75 +1538,67 @@ Mantissa.Test.TestPeople.PersonPluginViewTestCase.methods(
             self.assertIdentical(widgetInfo, returnedWidgetInfo);
             return returnedWidget;
         }
-        var pluginWidgets = [];
-        view.showPluginWidget = function(widget) {
-            pluginWidgets.push(widget);
-        }
-        view.getPluginWidget(pluginName);
-        self.assertIdentical(pluginWidgets.length, 1);
-        self.assertIdentical(pluginWidgets[0], returnedWidget);
-    },
-
-    /**
-     * L{Mantissa.People.PersonPluginView.dom_getPluginWidget} should call
-     * L{Mantissa.People.PersonPluginView.getPluginWidget}.
-     */
-    function test_dom_getPluginWidget(self) {
-        var view = Mantissa.People.PersonPluginView(
-            Nevow.Test.WidgetUtil.makeWidgetNode());
-        var pluginNames = [];
-        var thePluginName = 'test_dom_getPluginWidget';
-        var selectedPluginTabs = [];
-        view.selectPluginTab = function(tabNode) {
-            selectedPluginTabs.push(tabNode);
-        }
-        view.getPluginWidget = function(pluginName) {
-            pluginNames.push(pluginName);
-        }
-        var node = document.createElement('a');
-        node.appendChild(document.createTextNode(thePluginName));
-        self.assertIdentical(view.dom_getPluginWidget(node), false);
-        self.assertIdentical(pluginNames.length, 1);
-        self.assertIdentical(pluginNames[0], thePluginName);
-        self.assertIdentical(selectedPluginTabs.length, 1);
-        self.assertIdentical(selectedPluginTabs[0], node);
-    },
-
-    /**
-     * L{Mantissa.People.PersonPluginView.selectPluginTab} should select the
-     * given tab and unselect the previously selected one.
-     */
-    function test_selectPluginTab(self) {
-        var view = Mantissa.People.PersonPluginView(
-            Nevow.Test.WidgetUtil.makeWidgetNode());
-        var containerNode = {};
-        view.nodeById = function(id) {
-            if(id === 'plugin-tabs') {
-                return containerNode;
-            }
-        }
-        var previouslySelectedNode = document.createElement('a');
-        previouslySelectedNode.setAttribute(
-            'class', 'nevow-tabbedpane-selected-tab');
-        var tabNode = document.createElement('a');
-
-        var origFNBA = Nevow.Athena.FirstNodeByAttribute;
-        Nevow.Athena.FirstNodeByAttribute = function(root, attr, value) {
-            if(root === containerNode
-                && attr === 'class'
-                && value === 'nevow-tabbedpane-selected-tab') {
-                return previouslySelectedNode;
-            }
-        }
-        try {
-            view.selectPluginTab(tabNode);
-        } finally {
-            Nevow.Athena.FirstNodeByAttribute = origFNBA;
-        }
-        self.assertIdentical(
-            tabNode.getAttribute('class'),
-            'nevow-tabbedpane-selected-tab');
-        self.assertIdentical(
-            previouslySelectedNode.getAttribute('class'),
-            'nevow-tabbedpane-tab');
+        var widget;
+        view.getPluginWidget(pluginName).addCallback(
+            function(theWidget) {
+                widget = theWidget;
+            });
+        self.assertIdentical(widget, returnedWidget);
     });
+
+
+Mantissa.Test.TestPeople.PluginTabbedPaneTestCase = Divmod.UnitTest.TestCase.subclass(
+    'Mantissa.Test.TestPeople.PluginTabbedPaneTestCase');
+/**
+ * Tests for L{Mantissa.People.PluginTabbedPane}.
+ */
+Mantissa.Test.TestPeople.PluginTabbedPaneTestCase.methods(
+    /**
+     * L{Mantissa.People.PluginTabbedPane.namedTabSelected} should call
+     * C{getPluginWidget} on its parent.
+     */
+    function test_namedTabSelected(self) {
+        var pane = Mantissa.People.PluginTabbedPane(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var pluginWidget = {node: {}};
+        var tabName = 'test_namedTabSelected';
+        var getPluginWidgetCalls = 0;
+        pane.widgetParent = {
+            getPluginWidget: function(theTabName) {
+                getPluginWidgetCalls++;
+                self.assertIdentical(tabName, theTabName);
+                return Divmod.Defer.succeed(pluginWidget);
+            }
+        }
+        var replaceNamedPaneContentCalls = 0;
+        pane.view.replaceNamedPaneContent = function(theTabName, node) {
+            replaceNamedPaneContentCalls++;
+            self.assertIdentical(node, pluginWidget.node);
+            self.assertIdentical(theTabName, tabName);
+        }
+        pane.namedTabSelected(tabName);
+        self.assertIdentical(getPluginWidgetCalls, 1);
+        self.assertIdentical(replaceNamedPaneContentCalls, 1);
+    },
+
+    /**
+     * L{Mantissa.People.PluginTabbedPane.namedTabSelected} shouldn't do
+     * anything if the tab has already been selected.
+     */
+    function test_namedTabSelectedReselect(self) {
+        var pane = Mantissa.People.PluginTabbedPane(
+            Nevow.Test.WidgetUtil.makeWidgetNode());
+        var getPluginWidgetCalls = 0;
+        pane.widgetParent = {
+            getPluginWidget: function() {
+                getPluginWidgetCalls++;
+                return Divmod.Defer.succeed({node: {}});
+            }
+        }
+        pane.view.replaceNamedPaneContent = function() {}
+        pane.namedTabSelected('test_namedTabSelectedReselect');
+        self.assertIdentical(getPluginWidgetCalls, 1);
+        pane.namedTabSelected('test_namedTabSelectedReselect');
+        self.assertIdentical(getPluginWidgetCalls, 1);
+    });
+
