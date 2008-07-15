@@ -19,7 +19,7 @@ from axiom.attributes import integer, reference, text, timestamp, AND
 from axiom.iaxiom import IBeneficiary
 from axiom import userbase, upgrade
 from axiom.userbase import getDomainNames
-from axiom.dependency import installOn, _getPowerupInterfaces
+from axiom.dependency import installOn
 
 from nevow.rend import Page, NotFound
 from nevow.url import URL
@@ -1133,9 +1133,7 @@ class SignupConfiguration(Item):
             emailTemplate=emailTemplate,
             prompt=prompt,
             **signupConf)
-        #XXX hack, there should be framework support for installing multiple instances of a class
-        for iface, priority in _getPowerupInterfaces(signupItem):
-            siteStore.powerUp(signupItem, iface, priority)
+        siteStore.powerUp(signupItem)
         _SignupTracker(store=siteStore,
                        signupItem=signupItem,
                        createdOn=extime.Time(),
