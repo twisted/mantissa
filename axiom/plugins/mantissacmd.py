@@ -1,25 +1,34 @@
 
 import sys, os, struct
 
+from zope.interface import directlyProvides
+
 from twisted.python import util
 from twisted.cred import portal
+from twisted.plugin import IPlugin
 
 from axiom import errors as eaxiom
 from axiom.scripts import axiomatic
 from axiom.attributes import AND
 from axiom.dependency import installOn
+from axiom.iaxiom import IVersion
 
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa import webadmin, publicweb, stats
 from xmantissa.web import SiteConfiguration
 from xmantissa.port import TCPPort, SSLPort
+from xmantissa.plugins.baseoff import baseOffering
+
 # PortConfiguration isn't used here, but it's a plugin, so it gets discovered
 # here.
 from xmantissa.port import PortConfiguration
-from xmantissa.plugins.baseoff import baseOffering
+#version also gets registered as a plugin here.
+from xmantissa import version
 
 from epsilon.asplode import splode
 from epsilon.scripts import certcreate
+
+directlyProvides(version, IPlugin, IVersion)
 
 
 
