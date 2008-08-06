@@ -24,7 +24,7 @@ from axiom.item import Item
 from axiom.attributes import inmemory, integer
 from axiom.dependency import installOn
 from axiom.scripts.axiomatic import Options as AxiomaticOptions
-from axiom.test.util import CommandStub
+from axiom.test.util import CommandStubMixin
 
 from xmantissa.ixmantissa import IProtocolFactoryFactory
 from xmantissa.port import TCPPort, SSLPort
@@ -431,6 +431,25 @@ class SSLPortTests(PortTestsMixin, TestCase):
         certificatePath = self.store.newFilePath('foo', 'bar')
         port = self.port(store=self.store, certificatePath=certificatePath)
         self.assertEqual(port.certificatePath, certificatePath)
+
+
+
+class CommandStub(CommandStubMixin):
+    """
+    Mock for L{axiom.scripts.axiomatic.Options} which is always set as the
+    C{parent} attribute of an I{axiomatic} subcommand.
+    """
+    def __init__(self, store, subCommand):
+        self._store = store
+        self.subCommand = subCommand
+
+
+    def getSynopsis(self):
+        return "Usage: axiomatic [options]"
+
+
+    def getStore(self):
+        return self._store
 
 
 
