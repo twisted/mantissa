@@ -659,14 +659,14 @@ class PublicFrontPage(PublicPage):
         offer = self.original.store.findFirst(
             offering.InstalledOffering,
             offering.InstalledOffering.offeringName == unicode(name, 'ascii'))
-        pp = ixmantissa.IPublicPage(offer.application, None)
-        if pp is not None:
-            warn("Use the sharing system to provide public pages,"
-                 " not IPublicPage",
-                 category=DeprecationWarning,
-                 stacklevel=2)
-            return pp.getResource()
         if offer is not None:
+            pp = ixmantissa.IPublicPage(offer.application, None)
+            if pp is not None:
+                warn("Use the sharing system to provide public pages,"
+                     " not IPublicPage",
+                     category=DeprecationWarning,
+                     stacklevel=2)
+                return pp.getResource()
             return SharingIndex(offer.application.open(), None)
         return None
 

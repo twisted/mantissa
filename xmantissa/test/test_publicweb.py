@@ -296,6 +296,24 @@ class PublicFrontPageTests(TestCase):
         return result
 
 
+    def test_nonExistentChild(self):
+        """
+        L{PublicFrontPage.locateChild} returns L{rend.NotFound} for a child
+        segment which does not exist.
+        """
+        store = Store()
+        frontPage = FrontPage(store=store)
+        resource = PublicFrontPage(frontPage, None, u'alice@example.org')
+
+        request = FakeRequest()
+        ctx = context.WebContext()
+        ctx.remember(request, inevow.IRequest)
+
+        result = resource.locateChild(ctx, ('foo',))
+        self.assertIdentical(result, rend.NotFound)
+
+
+
 class AuthenticatedNavigationTestMixin:
     """
     Mixin defining test methods for the authenticated navigation view.
