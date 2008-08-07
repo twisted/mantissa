@@ -299,7 +299,9 @@ class ListOptions(Options):
             key = factory.storeID
             if key not in factories:
                 factories[key] = (factory, [])
-        for factory, ports in factories.values():
+        def key((factory, ports)):
+            return factory.storeID
+        for factory, ports in sorted(factories.values(), key=key):
             if ports:
                 print '%d) %r listening on:' % (factory.storeID, factory)
                 for port in ports:

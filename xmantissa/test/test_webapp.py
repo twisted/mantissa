@@ -8,7 +8,7 @@ from axiom.item import Item
 from axiom.attributes import integer
 from axiom.substore import SubStore
 from axiom.dependency import installOn
-from axiom.plugins.userbasecmd import Create
+from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
 
 from nevow.athena import LiveFragment

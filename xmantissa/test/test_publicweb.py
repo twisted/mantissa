@@ -8,7 +8,7 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
 from axiom.attributes import boolean, integer, inmemory
-from axiom.plugins.userbasecmd import Create
+from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
 from axiom.dependency import installOn
 

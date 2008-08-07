@@ -39,7 +39,7 @@ from axiom import tags
 
 from axiom.userbase import LoginSystem
 
-from axiom.plugins.userbasecmd import Create
+from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.test.rendertools import renderLiveFragment, TagTestingMixin
