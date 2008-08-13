@@ -1,4 +1,18 @@
+0.6.20 (2008-08-12):
   - Mugshot thumbnail generation:  avoid aliasing paletted and bicolor images.
+  - Better support for IRIs.
+  - Website code refactored, moving some of its functionality into
+    xmantissa.web.SiteConfiguration.
+  - Fixed several bugs in the region-model scrolltable related to text
+    sort-columns.
+  - Support added for name-based virtual hosting for per-user
+    subdomains.
+  - Person mugshots now shown in address book scrolltable.
+  - Person creation and contact info creation are now separate steps.
+  - 'axiomatic port' command added for general listening-port
+    configuration.
+  - IPublicPage is now deprecated, in favor of using the sharing
+    system for providing public pages from app stores. 
 
 0.6.19 (2008-02-19):
   - The Mantissa People mugshot placeholder image has been updated and
