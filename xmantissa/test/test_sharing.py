@@ -9,16 +9,19 @@ from epsilon.hotfix import require
 
 require("twisted", "trial_assertwarns")
 
+from twisted.trial import unittest
+
+from twisted.python.components import registerAdapter
+
+from twisted.protocols.amp import Command, Box, parseString
+
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer, boolean
 from axiom.test.util import QueryCounter
+from axiom.userbase import LoginMethod, LoginAccount
 
 from xmantissa import sharing
-
-from twisted.trial import unittest
-
-from twisted.python.components import registerAdapter
 
 class IPrivateThing(Interface):
     def mutateSomeState():
@@ -358,7 +361,7 @@ class SimpleSharing(unittest.TestCase):
         proxy = sharing.getShare(self.store,
                                  sharing.getPrimaryRole(self.store, u'testshare'),
                                  shared.shareID)
-        self.failIf(IPublicThing(proxy).isMethodAvailable())
+        self.assertFalse(IPublicThing(proxy).isMethodAvailable())
         self.assertRaises(AttributeError, IPublicThing(proxy).callMethod)
 
 
@@ -375,7 +378,7 @@ class SimpleSharing(unittest.TestCase):
                                  sharing.getPrimaryRole(self.store, u'testshare'),
                                  shared.shareID)
         proxy.doExternal()
-        self.assertEquals(privateThing.externalized, True)
+        self.assertTrue(privateThing.externalized)
 
 
     def test_conflictingNamesException(self):
@@ -705,4 +708,179 @@ class AccessibilityQuery(unittest.TestCase):
         self.assertEquals(before, after)
     test_limitEfficiency.todo = (
         'currently gets too many results because we should be using paginate')
+
+
+class HeuristicTestCases(unittest.TestCase):
+    """
+    These are tests for sharing APIs which heuristically determine identifying
+    information about a user's store or a shared item.
+    """
+
+    def setUp(self):
+        """
+        Set up a store for testing.
+        """
+        self.store = Store()
+        self.account = LoginAccount(store=self.store, password=u'1234')
+        self.method = LoginMethod(store=self.store,
+                                  account=self.account,
+                                  localpart=u'username',
+                                  domain=u'domain.example.com',
+                                  internal=True,
+                                  protocol=u'*',
+                                  verified=True)
+
+
+    def test_getSelfRole(self):
+        """
+        The self-role of a store should be determined by its L{LoginMethod}s.
+        """
+        self.assertEquals(list(self.store.query(sharing.Role)), [])
+        me = sharing.getSelfRole(self.store)
+        self.assertEquals(me.externalID, u'username@domain.example.com')
+        self.assertEquals(me.store, self.store)
+        self.assertEquals(list(me.allRoles()),
+                          [me,
+                           sharing.getAuthenticatedRole(self.store),
+                           sharing.getEveryoneRole(self.store)])
+
+
+    def test_identifierFromSharedItem(self):
+        """
+        L{sharing.Identifier.fromSharedItem} should identify a shared Item's shareID.
+        """
+        t = PrivateThing(store=self.store)
+        sharing.getEveryoneRole(self.store).shareItem(t, shareID=u'asdf')
+        sid = sharing.Identifier.fromSharedItem(t)
+        self.assertEquals(sid.shareID, u'asdf')
+        self.assertEquals(sid.localpart, u'username')
+        self.assertEquals(sid.domain, u'domain.example.com')
+
+
+    def test_identifierFromSharedItemMulti(self):
+        """
+        L{sharing.Identifier.fromSharedItem} should identify a shared Item's
+        shareID even if it is shared multiple times.
+        """
+        t = PrivateThing(store=self.store)
+        sharing.getEveryoneRole(self.store).shareItem(t, shareID=u'asdf')
+        sharing.getAuthenticatedRole(self.store).shareItem(t, shareID=u'jkl;')
+        sid = sharing.Identifier.fromSharedItem(t)
+        self.assertIn(sid.shareID, [u'asdf', u'jkl;'])
+        self.assertEquals(sid.localpart, u'username')
+        self.assertEquals(sid.domain, u'domain.example.com')
+
+
+    def test_identifierFromSharedItemNoShares(self):
+        """
+        L{sharing.Identifier.fromSharedItem} should raise L{NoSuchShare} if the given
+        item is not shared.
+        """
+        t = PrivateThing(store=self.store)
+        self.assertRaises(sharing.NoSuchShare, sharing.Identifier.fromSharedItem, t)
+
+
+    def test_identifierFromSharedItemNoMethods(self):
+        """
+        L{sharing.Identifier.fromSharedItem} should raise L{NoSuchShare} if the given
+        item's store contains no L{LoginMethod} objects.
+        """
+        self.method.deleteFromStore()
+        t = PrivateThing(store=self.store)
+        sharing.getEveryoneRole(self.store).shareItem(t, shareID=u'asdf')
+        self.assertRaises(sharing.NoSuchShare, sharing.Identifier.fromSharedItem, t)
+
+
+
+class CommandWithIdentifier(Command):
+    """
+    This command has an Identifier as one of its arguments.
+    """
+    arguments = [('shareIdentTest', sharing.IdentifierArgument())]
+
+
+
+class IdentifierTestCases(unittest.TestCase):
+    """
+    Tests for the behavior of L{xmantissa.sharing.Identifier}
+    """
+
+    def setUp(self):
+        """
+        Create a few identifiers.
+        """
+        self.aliceObject = sharing.Identifier(u'object', u'alice', u'example.com')
+        self.mostlyAlice = sharing.Identifier(u'not-the-object',
+                                      u'alice', u'example.com')
+        self.otherAlice = sharing.Identifier(u'object', u'alice', u'example.com')
+
+
+    def test_equivalence(self):
+        """
+        Two L{sharing.Identifier} objects that identify the same shared item should
+        compare the same.
+        """
+        self.assertEquals(self.aliceObject, self.otherAlice)
+        self.assertFalse(self.aliceObject != self.otherAlice)
+
+
+    def test_nonEquivalence(self):
+        """
+        Two L{sharing.Identifier} objects that identify the same shared item should
+        compare as not equal.
+        """
+        self.assertNotEqual(self.aliceObject, self.mostlyAlice)
+
+
+    def test_otherTypes(self):
+        """
+        Other types should not compare equal to an L{sharing.Identifier}.
+        """
+        self.assertNotEqual(self.aliceObject, object())
+
+
+
+class IdentifierArgumentTests(unittest.TestCase):
+    """
+    Tests for serialization and unserialization of
+    L{xmantissa.sharing.Identifier} using
+    L{xmantissa.sharing.IdentifierArgument}.
+    """
+
+    def setUp(self):
+        """
+        Set up an identifier and its expected serialized form.
+        """
+        self.identifier = sharing.Identifier(
+            u'\u1234object', u'alice', u'example.com')
+        self.expectedData = Box(
+            shareIdentTest=Box(shareID=u'\u1234object'.encode('utf-8'),
+                               localpart=u'alice'.encode('utf-8'),
+                               domain=u'example.com'.encode('utf-8')
+                               ).serialize()
+            ).serialize()
+
+
+    def test_parse(self):
+        """
+        L{sharing.IdentifierArgument} should be able to serialize an
+        L{Identifier} as an AMP argument to a box.
+        """
+        outputBox = CommandWithIdentifier.makeArguments(
+            dict(shareIdentTest=self.identifier),
+            None)
+        outputData = outputBox.serialize()
+        # Assert on the intermediate / serialized state to make sure the
+        # protocol remains stable.
+        self.assertEquals(self.expectedData, outputData)
+
+
+    def test_unparse(self):
+        """
+        L{sharing.IdentifierArgument} should be able to unserialize an
+        L{Identifier} from a serialized box.
+        """
+        argDict = CommandWithIdentifier.parseArguments(
+            parseString(self.expectedData)[0], None)
+        self.assertEquals(argDict, dict(shareIdentTest=self.identifier))
 

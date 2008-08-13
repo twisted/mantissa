@@ -10,6 +10,9 @@ import warnings
 from zope.interface import implementedBy, directlyProvides, Interface
 
 from twisted.python.reflect import qual, namedAny
+from twisted.protocols.amp import Argument, Box, parseString
+
+from epsilon.structlike import record
 
 from axiom import userbase
 from axiom.item import Item
@@ -53,6 +56,92 @@ class RoleRelationship(Item):
         This is a reference to a L{Role} which represents a group that my 'member'
         attribute is a member of.
         """)
+
+
+def _entuple(r):
+    """
+    Convert a L{record} to a tuple.
+    """
+    return tuple(getattr(r, n) for n in r.__names__)
+
+
+
+class Identifier(record('shareID localpart domain')):
+    """
+    A fully-qualified identifier for an entity that can participate in a
+    message either as a sender or a receiver.
+    """
+
+    @classmethod
+    def fromSharedItem(cls, sharedItem):
+        """
+        Return an instance of C{cls} derived from the given L{Item} that has
+        been shared.
+
+        Note that this API does not provide any guarantees of which result it
+        will choose.  If there are are multiple possible return values, it will
+        select and return only one.  Items may be shared under multiple
+        L{shareID}s.  A user may have multiple valid account names.  It is
+        sometimes impossible to tell from context which one is appropriate, so
+        if your application has another way to select a specific shareID you
+        should use that instead.
+
+        @param sharedItem: an L{Item} that should be shared.
+
+        @return: an L{Identifier} describing the C{sharedItem} parameter.
+
+        @raise L{NoSuchShare}: if the given item is not shared or its store
+        does not contain any L{LoginMethod} items which would identify a user.
+        """
+        localpart = None
+        for (localpart, domain) in userbase.getAccountNames(sharedItem.store):
+            break
+        if localpart is None:
+            raise NoSuchShare()
+        for share in sharedItem.store.query(Share,
+                                            Share.sharedItem == sharedItem):
+            break
+        else:
+            raise NoSuchShare()
+        return cls(
+            shareID=share.shareID,
+            localpart=localpart, domain=domain)
+
+
+    def __cmp__(self, other):
+        """
+        Compare this L{Identifier} to another object.
+        """
+        # Note - might be useful to have this usable by arbitrary L{record}
+        # objects.  It can't be the default, but perhaps a mixin?
+        if not isinstance(other, Identifier):
+            return NotImplemented
+        return cmp(_entuple(self), _entuple(other))
+
+
+
+class IdentifierArgument(Argument):
+    """
+    An AMP argument which can serialize and deserialize an L{Identifier}.
+    """
+
+    def toString(self, obj):
+        """
+        Convert the given L{Identifier} to a string.
+        """
+        return Box(shareID=obj.shareID.encode('utf-8'),
+                   localpart=obj.localpart.encode('utf-8'),
+                   domain=obj.domain.encode('utf-8')).serialize()
+
+
+    def fromString(self, inString):
+        """
+        Convert the given string to an L{Identifier}.
+        """
+        box = parseString(inString)[0]
+        return Identifier(shareID=box['shareID'].decode('utf-8'),
+                          localpart=box['localpart'].decode('utf-8'),
+                          domain=box['domain'].decode('utf-8'))
 
 
 

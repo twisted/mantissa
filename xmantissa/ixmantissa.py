@@ -458,6 +458,140 @@ class ITab(Interface):
     concrete representation is xmantissa.webnav.Tab
     """
 
+
+
+class IMessageReceiver(Interface):
+    """
+    An L{IMessageReceiver} is an object that can receive messages via
+    inter-store messaging, L{xmantissa.interstore}.  Share an item with this
+    interface and it will be able to receive messages queued with
+    L{xmantissa.interstore.MessageQueue.queueMessage}.
+    """
+
+    def messageReceived(value, sender, target):
+        """
+        @param value: A value to be sent as the body of the message.
+        @type value: L{xmantissa.interstore.Value}
+
+        @param sender: a L{xmantissa.sharing.Identifier}, identifying the sender
+        of the message being received.
+
+        @param target: a L{xmantissa.sharing.Identifier}, identifying the
+        object receiving the message, i.e. self.
+
+        @return: a value for the response.
+        @rtype: L{xmantissa.interstore.Value}
+        """
+
+
+
+class IDeliveryConsequence(Interface):
+    """
+    A provider of L{IDeliveryConsequence} can receive notifications of messages
+    being successfully handled by a remote store via
+    L{IMessageReceiver.messageReceived}.
+
+    Providers of this interface must also be L{Item}s in Axiom stores so that
+    they can persist between process invocations along with the queued message
+    it is waiting for a response to.
+    """
+
+    def answerReceived(value, originalValue, originalSender, originalTarget):
+        """
+        An answer was received to a message sent via
+        L{xmantissa.messaging.MessageQueue.queueMessage} with this
+        L{IDeliveryConsequence} provider as its consequence.
+
+        @param value: the value of the answer.
+        @type value: L{xmantissa.interstore.Value}
+
+        @param originalValue: the C{value} argument passed to the
+        original L{IMessageReceiver.messageReceived} that this is a response
+        to.
+        @type originalData: L{xmantissa.interstore.Value}
+
+        @param originalSender: the C{sender} argument passed to the original
+        L{IMessageReceiver.messageReceived} that this is a response to.
+
+        @param originalTarget: the C{target} argument passed to the original
+        L{IMessageReceiver.messageReceived} that this is a response to.
+        """
+
+
+
+class IMessageRouter(Interface):
+    """
+    An L{IMessageRouter} is an object that can route messages between different
+    users.  No guarantees are provided; all message routing is potentially
+    unreliable.
+
+    The suggested API for applications is
+    L{xmantissa.interstore.AMPMessenger.messageRemote}.  Applications with
+    specialized serialization needs might use the medium-level
+    L{xmantissa.messaging.MessageQueue.queueMessage} instead.
+
+    It is unlikely that you will want to use this interface unless you are
+    implementing your own routing mechanism.  Any user of this interface should
+    take care to test the failure cases, since most transports which implement
+    this interface will, in practice, be (statistically speaking) extremely
+    reliable and fail only in the most obscure cases.
+
+    Application code should always be using something higher level, since this
+    interface provides no mechanism for transactionality guarantees, and
+    different providers may only know how to route to a subset of all possible
+    destinations.  For example, the implementation installed on a user store
+    will only know how to route to that user.
+    """
+
+    def routeMessage(sender, target, value, messageID):
+        """
+        Route a message to the given target.
+
+        @param sender: The description of the shared item that is the sender of
+        the message.
+        @type sender: L{xmantissa.sharing.Identifier}
+
+        @param target: The description of the shared item that is the target
+        of the message.
+        @type target: L{xmantissa.sharing.Identifier}
+
+        @param messageID: An identifier for the message, unique to a given
+        sender.
+        @type messageID: L{int}
+
+        @param value: The value of the message to be delivered.
+        @type value: L{xmantissa.interstore.Value}
+        """
+
+
+    def routeAnswer(originalSender, originalTarget, value, messageID):
+        """
+        Route an answer to a message previously queued to a particular user.
+
+        @param originalSender: The original sender of the message; in this
+        case, the target of the answer.
+        @type originalSender: L{xmantissa.sharing.Identifier}
+
+        @param originalTarget: The original target of the message; in this
+        case; the target of the answer.
+        @type originalTarget: L{xmantissa.sharing.Identifier}
+
+        @param messageID: The unique identifier for the message, as passed to
+        L{IMessageRouter.routeMessage}.
+        @type messageID: L{int}
+
+        @param value: The value of the answer to be delivered.  This is not the
+        value of the original message, but a separate value describing the
+        result of processing the message.
+        @type value: L{xmantissa.interstore.Value}
+
+        @return: a L{Deferred} which fires with None if the message is
+        successfully delivered, or fails with L{MessageTransportError} if the
+        message could not be delivered.
+        """
+
+
+
 class IBenefactor(Interface):
     """
     Make accounts for users and give them things to use.

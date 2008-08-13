@@ -1,5 +1,5 @@
 Python 2.4
-Twisted 2.4.0
+Twisted 8.0.1
 Nevow 0.9.5
 Axiom 0.5.7
 Vertex 0.2.0
