@@ -209,12 +209,11 @@ class BaseContactType(object):
         return kw
 
 
-    def getEditorialForm(self, contact):
+    def getEditFormForPerson(self, person):
         """
-        Create a L{liveform.LiveForm} for editing an instance of this kind of
-        contact item using the parameters returned by L{getParameters}.
+        Return C{None}.
         """
-        return liveform.LiveForm(self.coerce, self.getParameters(contact))
+        return None
 
 
     def getContactGroup(self, contactItem):
@@ -820,6 +819,28 @@ class Organizer(item.Item):
                     category=PendingDeprecationWarning)
 
 
+    def _checkContactType(self, contactType):
+        """
+        Possibly emit some warnings about C{contactType}'s implementation of
+        L{IContactType}.
+
+        @type contactType: L{IContactType} provider
+        """
+        if getattr(contactType, 'getEditFormForPerson', None) is None:
+            warn(
+                "IContactType now has the 'getEditFormForPerson'"
+                " method, but %s did not implement it." % (
+                    contactType.__class__,),
+                category=PendingDeprecationWarning)
+
+        if getattr(contactType, 'getEditorialForm', None) is not None:
+            warn(
+                "The IContactType %s defines the 'getEditorialForm'"
+                " method, which is deprecated.  'getEditFormForPerson'"
+                " does something vaguely similar." % (contactType.__class__,),
+                category=DeprecationWarning)
+
+
     def getContactTypes(self):
         """
         Return an iterator of L{IContactType} providers available to this
@@ -832,6 +853,7 @@ class Organizer(item.Item):
         yield NotesContactType()
         for getContactTypes in self._gatherPluginMethods('getContactTypes'):
             for contactType in getContactTypes():
+                self._checkContactType(contactType)
                 yield contactType
 
 
@@ -943,6 +965,42 @@ class Organizer(item.Item):
         return defaults
 
 
+    def toContactEditorialParameter(self, contactType, person):
+        """
+        Convert the given contact type into a L{liveform.LiveForm} parameter.
+
+        @type contactType: L{IContactType} provider.
+
+        @type person: L{Person}
+
+        @rtype: L{liveform.Parameter} or similar.
+        """
+        contactItems = list(contactType.getContactItems(person))
+        if contactType.allowMultipleContactItems:
+            defaults = []
+            modelObjects = []
+            for contactItem in contactItems:
+                defaultedParameters = contactType.getParameters(contactItem)
+                if defaultedParameters is None:
+                    continue
+                defaults.append(self._parametersToDefaults(
+                    defaultedParameters))
+                modelObjects.append(contactItem)
+            descriptiveIdentifier = _descriptiveIdentifier(contactType)
+            return liveform.ListChangeParameter(
+                contactType.uniqueIdentifier(),
+                contactType.getParameters(None),
+                defaults=defaults,
+                modelObjects=modelObjects,
+                modelObjectDescription=descriptiveIdentifier)
+        (contactItem,) = contactItems
+        return liveform.FormParameter(
+            contactType.uniqueIdentifier(),
+            liveform.LiveForm(
+                lambda **k: k,
+                contactType.getParameters(contactItem)))
+
+
     def getContactEditorialParameters(self, person):
         """
         Yield L{LiveForm} parameters to edit each contact item of each contact
@@ -954,32 +1012,9 @@ class Organizer(item.Item):
             is the L{LiveForm} parameter object for that contact item.
         """
         for contactType in self.getContactTypes():
-            contactItems = list(contactType.getContactItems(person))
-            if contactType.allowMultipleContactItems:
-                defaults = []
-                modelObjects = []
-                for contactItem in contactItems:
-                    defaultedParameters = contactType.getParameters(contactItem)
-                    if defaultedParameters is None:
-                        continue
-                    defaults.append(self._parametersToDefaults(
-                        defaultedParameters))
-                    modelObjects.append(contactItem)
-                descriptiveIdentifier = _descriptiveIdentifier(contactType)
-                param = liveform.ListChangeParameter(
-                    contactType.uniqueIdentifier(),
-                    contactType.getParameters(None),
-                    defaults=defaults,
-                    modelObjects=modelObjects,
-                    modelObjectDescription=descriptiveIdentifier)
-            else:
-                (contactItem,) = contactItems
-                param = liveform.FormParameter(
-                    contactType.uniqueIdentifier(),
-                    liveform.LiveForm(
-                        lambda **k: k,
-                        contactType.getParameters(contactItem)))
-            yield (contactType, param)
+            yield (
+                contactType,
+                self.toContactEditorialParameter(contactType, person))
 
 
     _NO_VIP = object()
@@ -1745,26 +1780,34 @@ class EditPersonView(LiveElement):
             self.person, nickname, submissions)
 
 
-    def makeEditorialLiveForm(self):
+    def makeEditorialLiveForms(self):
         """
-        Make a L{LiveForm} for editing the contact information of the wrapped
-        L{Person}.
+        Make some L{liveform.LiveForm} instances for editing the contact
+        information of the wrapped L{Person}.
         """
         parameters = [
             liveform.Parameter(
                 'nickname', liveform.TEXT_INPUT,
                 _normalizeWhitespace, 'Name',
                 default=self.person.name)]
-        for contact in self.organizer.getContactEditorialParameters(self.person):
-            type, param = contact
+        separateForms = []
+        for contactType in self.organizer.getContactTypes():
+            if getattr(contactType, 'getEditFormForPerson', None):
+                editForm = contactType.getEditFormForPerson(self.person)
+                if editForm is not None:
+                    editForm.setFragmentParent(self)
+                    separateForms.append(editForm)
+                    continue
+            param = self.organizer.toContactEditorialParameter(
+                contactType, self.person)
             parameters.append(param)
-            self.contactTypes[param.name] = type
+            self.contactTypes[param.name] = contactType
         form = liveform.LiveForm(
             self.editContactItems, parameters, u'Save')
         form.compact()
         form.jsClass = u'Mantissa.People.EditPersonForm'
         form.setFragmentParent(self)
-        return form
+        return [form] + separateForms
 
 
     def mugshotFormURL(self, request, tag):
@@ -1777,10 +1820,9 @@ class EditPersonView(LiveElement):
 
     def editorialContactForms(self, request, tag):
         """
-        Add a L{LiveForm} for editing the contact information of the wrapped
-        L{Person} to the given tag and return it.
+        Put the result of L{makeEditorialLiveForms} in C{tag}.
         """
-        return tag[self.makeEditorialLiveForm()]
+        return tag[self.makeEditorialLiveForms()]
     renderer(editorialContactForms)
 
 

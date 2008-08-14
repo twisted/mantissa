@@ -649,25 +649,14 @@ class BaseContactTests(unittest.TestCase):
         self.assertEqual(identifier, __name__ + '.' + Dummy.__name__)
 
 
-    def test_getEditorialForm(self):
+    def test_getEditFormForPerson(self):
         """
-        L{BaseContactType.getEditorialForm} should return an L{LiveForm} with
-        the parameters specified by L{getParameters}.
+        L{BaseContactType.getEditFormForPerson} should return C{None}.
         """
-        contact = object()
-        contacts = []
-        params = object()
         class Stub(BaseContactType):
-            def getParameters(self, contact):
-                contacts.append(contact)
-                return params
-        form = Stub().getEditorialForm(contact)
-        self.assertTrue(isinstance(form, LiveForm))
-        self.assertEqual(contacts, [contact])
-        self.assertIdentical(form.parameters, params)
-
-        params = dict(a='b', c='d')
-        self.assertEqual(form.callable(**params), params)
+            def getParameters(self, person):
+                return [object()]
+        self.assertIdentical(Stub().getEditFormForPerson(Person()), None)
 
 
     def test_getContactGroup(self):
@@ -1926,6 +1915,49 @@ class PeopleModelTestCase(unittest.TestCase):
             firstContactTypes + secondContactTypes)
 
 
+    def test_getContactTypesOldMethod(self):
+        """
+        L{Organizer.getContactTypes} should emit a warning if it encounters an
+        implementation which defines the C{getEditorialForm} method.
+        """
+        contactType = StubContactType([], None, [])
+        contactType.getEditorialForm = lambda _: None
+
+        powerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=[contactType])
+        self.store.powerUp(powerup, IOrganizerPlugin)
+
+        self.assertWarns(
+            DeprecationWarning,
+                "The IContactType %s defines the 'getEditorialForm'"
+                " method, which is deprecated.  'getEditFormForPerson'"
+                " does something vaguely similar." % (StubContactType,),
+            people.__file__,
+            lambda: list(self.organizer.getContactTypes()))
+
+
+    def test_getContactTypesNewMethod(self):
+        """
+        L{Organizer.getContactTypes} should emit a warning if it encounters an
+        implementation which doesn't define the C{getEditFormForPerson}
+        method.
+        """
+        contactType = StubContactType([], None, [])
+        contactType.getEditFormForPerson = None
+        
+        powerup = StubOrganizerPlugin(
+            store=self.store, contactTypes=[contactType])
+        self.store.powerUp(powerup, IOrganizerPlugin)
+
+        self.assertWarns(
+            PendingDeprecationWarning,
+                "IContactType now has the 'getEditFormForPerson'"
+                " method, but %s did not implement it." % (
+                    StubContactType,),
+            people.__file__,
+            lambda: list(self.organizer.getContactTypes()))
+
+
     def test_groupReadOnlyViews(self):
         """
         L{Organizer.groupReadOnlyViews} should correctly group the read-only
@@ -2988,7 +3020,8 @@ class EditPersonViewTests(unittest.TestCase):
             u'blah', [], [], modelObjects=[])
 
         self.person = StubPerson(None)
-        self.person.organizer = StubOrganizer(
+        self.person.organizer = self.organizer = StubOrganizer(
+            contactTypes=[self.contactType],
             contactEditorialParameters={self.person: [
                 (self.contactType, self.contactParameter)]})
         self.view = EditPersonView(self.person)
@@ -3082,12 +3115,15 @@ class EditPersonViewTests(unittest.TestCase):
         self.assertIn(self.view.jsClass, markup)
 
 
-    def test_makeEditorialLiveForm(self):
+    def test_makeEditorialLiveForms(self):
         """
-        L{EditPersonView.makeEditorialLiveForm} should make a liveform with the
-        correct parameters.
+        L{EditPersonView.makeEditorialLiveForms} should make a single liveform
+        with the correct parameters if no contact types specify custom edit
+        forms.
         """
-        liveForm = self.view.makeEditorialLiveForm()
+        liveForms = self.view.makeEditorialLiveForms()
+        self.assertEqual(len(liveForms), 1)
+        liveForm = liveForms[0]
         self.assertEqual(len(liveForm.parameters), 2)
 
         nameParam = liveForm.parameters[0]
@@ -3097,6 +3133,32 @@ class EditPersonViewTests(unittest.TestCase):
 
         contactParam = liveForm.parameters[1]
         self.assertIdentical(contactParam, self.contactParameter)
+
+
+    def test_makeEditorialLiveFormsCustom(self):
+        """
+        Contact types with custom forms should have their forms included in
+        the result of L{EditPersonView.makeEditorialLiveForms}.
+        """
+        theEditorialForm = LiveForm(lambda: None, ())
+        self.contactType.editorialForm = theEditorialForm
+
+        liveForms = self.view.makeEditorialLiveForms()
+        self.assertEqual(len(liveForms), 2)
+        liveForm = liveForms[1]
+        self.assertIdentical(liveForm, theEditorialForm)
+        self.assertEqual(self.contactType.editedContacts, [self.person])
+
+
+    def test_makeEditorialLiveFormsNoMethod(self):
+        """
+        L{EditPersonView.makeEditorialLiveForms} should work with contact
+        types which don't define a C{getEditFormForPerson}.
+        """
+        self.contactType.getEditFormForPerson = None
+        (form,) = self.view.makeEditorialLiveForms()
+        self.assertIdentical(
+            form.parameters[1], self.contactParameter)
 
 
 

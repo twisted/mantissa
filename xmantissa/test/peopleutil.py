@@ -229,6 +229,12 @@ class StubOrganizer(object):
         self.editedPeople.append((person, name, edits))
 
 
+    def toContactEditorialParameter(self, contactType, person):
+        for (_contactType, param) in self.contactEditorialParameters[person]:
+            if _contactType == contactType:
+                return param
+
+
     def getContactEditorialParameters(self, person):
         return self.contactEditorialParameters[person]
 
@@ -415,9 +421,9 @@ class StubContactType(object):
     @ivar createdContacts: A list of tuples of the arguments passed to
         C{createContactItem}.
     @ivar editorialForm: The object which will be returned from
-        L{getEditorialForm}.
+        L{getEditFormForPerson}.
     @ivar editedContacts: A list of the contact items passed to
-        L{getEditorialForm}.
+        L{getEditFormForPerson}.
     @ivar contactItems: The list of objects which will be returned from
         L{getContactItems}.
     @ivar queriedPeople: A list of the person items passed to
@@ -470,7 +476,7 @@ class StubContactType(object):
         return self.theDescriptiveIdentifier
 
 
-    def getEditorialForm(self, contact):
+    def getEditFormForPerson(self, contact):
         """
         Return an object which is supposed to be a form for editing an existing
         instance of this contact type and record the contact object which was
@@ -521,6 +527,3 @@ class StubContactType(object):
         @rtype: L{StubReadOnlyView}
         """
         return StubReadOnlyView(contact, self)
-
-
-

@@ -808,15 +808,14 @@ class IContactType(Interface):
         """
 
 
-    def getEditorialForm(contact):
+    def getEditFormForPerson(person):
         """
-        Return a L{LiveForm} which will allow the given contact item to be
-        edited.
+        Return a L{LiveForm} which will allow the given person's contact items
+        to be edited.
 
-        @param contact: An L{Item} previously returned by this provider's
-            C{createContactItem} method for which a form should be returned.
+        @type person: L{xmantissa.people.Person}
 
-        @rtype: L{LiveForm}
+        @rtype: L{xmantissa.liveform.LiveForm}
         """
 
 
@@ -825,7 +824,7 @@ class IContactType(Interface):
         Update the given contact item to reflect the new parameters.
 
         @param **parameters: The form input key/value pairs, as produced by the
-            L{LiveForm} returned by L{getEditorialForm}.
+            L{LiveForm} returned by L{getEditFormForPerson}.
         """
 
 
