@@ -53,18 +53,25 @@ class _TemplateNameResolver(Item):
             return self.magicDocFactoryValue
         return default
 
-
+class ITest(Interface):
+    """
+    Interface for L{TestAppPowerup} to be shared on.
+    """
+    store = Attribute("expose 'store' for testing")
 
 class TestAppPowerup(Item):
+    implements(ITest)
     attr = integer()
 
     def installed(self):
         """
         Share this item once installed.
         """
+        shareid = u'test'
         sharing.getEveryoneRole(self.store
                         ).shareItem(self,
-                          shareID=websharing.getDefaultShareID(self.store))
+                          shareID=shareid)
+        websharing.addDefaultShareID(self.store, shareid, 0)
 
 
 

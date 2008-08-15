@@ -1,5 +1,5 @@
 # -*- test-case-name: xmantissa.test -*-
-
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
 """
 Public interfaces used in Mantissa.
 """
@@ -450,7 +450,14 @@ class INavigableFragment(Interface):
         return rend.NotFound exactly, not a Deferred which fires it.)
         """
 
+    def setFragmentParent(fragmentParent):
+        """
+        Sets the L{LiveFragment} (or L{LivePage}) which is the logical parent
+        of this fragment.
 
+        See L{nevow.athena._LiveMixin.setFragmentParent}'s docstring for more
+        information.
+        """
 
 class ITab(Interface):
     """
@@ -1032,6 +1039,8 @@ class IOfferingTechnician(Interface):
 
         @raise L{xmantissa.offering.OfferingAlreadyInstalled}: If an offering
             with the same name as C{offering} is already installed.
+
+        @return: The C{InstalledOffering} item created.
         """
 
 

@@ -1,4 +1,3 @@
-
 """
 Tests for xmantissa.offering.
 """
@@ -107,7 +106,12 @@ class OfferingTest(unittest.TestCase):
         """
         conf = self.adminAccount.avatars.open().findUnique(
             offering.OfferingConfiguration)
-        conf.installOffering(self.offering, None)
+        io = conf.installOffering(self.offering, None)
+
+        # InstalledOffering should be returned, and installed on the site store
+        foundIO = self.store.findUnique(offering.InstalledOffering,
+                  offering.InstalledOffering.offeringName == self.offering.name)
+        self.assertIdentical(io, foundIO)
 
         # Site store requirements should be on the site store
         tsr = self.store.findUnique(TestSiteRequirement)

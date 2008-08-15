@@ -1,5 +1,5 @@
 # -*- test-case-name: xmantissa.test.test_publicweb -*-
-
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
 """
 This module contains code for the publicly-visible areas of a Mantissa
 server's web interface.
@@ -673,10 +673,15 @@ class PublicFrontPage(PublicPage):
 
     def child_(self, ctx):
         """
-        Return 'self' if the index is requested, since this page can render a
+        if the root resource is requested, return the primary
+        application's front page, if a primary application has been
+        chosen.  Otherwise return 'self', since this page can render a
         simple index.
         """
-        return self
+        if self.original.defaultApplication is None:
+            return self
+        else:
+            return SharingIndex(self.original.defaultApplication.open(), None).locateChild(ctx, [''])[0]
 
 
     def customizeFor(self, forUser):
@@ -811,7 +816,7 @@ class FrontPage(item.Item, website.PrefixURLMixin):
     """
     implements(ixmantissa.ISiteRootPlugin)
     typeName = 'mantissa_front_page'
-    schemaVersion = 1
+    schemaVersion = 2
 
     sessioned = True
 
@@ -836,6 +841,13 @@ class FrontPage(item.Item, website.PrefixURLMixin):
         default=u'',
         allowNone=False)
 
+    defaultApplication = attributes.reference(
+        doc="""
+        An application L{SubStore} whose default shared item should be
+        displayed on the root web resource. If None, the default index
+        of applications will be displayed.
+        """,
+        allowNone=True)
 
     def createResource(self):
         """
@@ -843,6 +855,14 @@ class FrontPage(item.Item, website.PrefixURLMixin):
         """
         return PublicFrontPage(self, None)
 
+item.declareLegacyItem(
+    FrontPage.typeName,
+    1,
+    dict(publicViews = attributes.integer(),
+         privateViews = attributes.integer(),
+         prefixURL = attributes.text(allowNone=False)))
+
+upgrade.registerAttributeCopyingUpgrader(FrontPage, 1, 2)
 
 
 class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):

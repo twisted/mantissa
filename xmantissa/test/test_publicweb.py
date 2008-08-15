@@ -1,8 +1,11 @@
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
 
 from zope.interface import implements
 
 from twisted.trial.unittest import TestCase
 from twisted.trial.util import suppress as SUPPRESS
+from twisted.python.usage import UsageError
+from twisted.python.components import registerAdapter
 
 from axiom.store import Store
 from axiom.item import Item
@@ -10,9 +13,13 @@ from axiom.substore import SubStore
 from axiom.attributes import boolean, integer, inmemory
 from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
+from axiom.plugins.offeringcmd import SetFrontPage
 from axiom.dependency import installOn
+from axiom.userbase import LoginSystem
+from axiom.test.util import CommandStubMixin
 
 from nevow import rend, context, inevow
+from nevow.page import Element
 from nevow.flat import flatten
 from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
@@ -20,22 +27,33 @@ from nevow.loaders import stan
 
 from xmantissa.ixmantissa import (
     IPublicPage, ITemplateNameResolver, INavigableElement, ISiteURLGenerator,
-    IOfferingTechnician)
+    IOfferingTechnician, INavigableFragment)
 from xmantissa import signup
 from xmantissa.website import APIKey
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
-from xmantissa.offering import Offering, InstalledOffering
+from xmantissa.offering import Offering, InstalledOffering, OfferingConfiguration, installOffering
 from xmantissa.webtheme import theThemeCache
 from xmantissa.sharing import shareItem, getEveryoneRole
-from xmantissa.websharing import getDefaultShareID
+from xmantissa.websharing import getDefaultShareID, SharingIndex
 from xmantissa.publicweb import (
     FrontPage, PublicAthenaLivePage, PublicNavAthenaLivePage,
     _OfferingsFragment, PublicFrontPage, getLoader)
 from xmantissa import publicweb
 from xmantissa.signup import PasswordResetResource
 from xmantissa.test.test_offering import FakeOfferingTechnician
+from xmantissa.test.test_websharing import TestAppPowerup, ITest
+
+class TestAppElement(Element):
+    """
+    View class for TestAppPowerup.
+    """
+    def __init__(self, original):
+        self.original = original
+        Element.__init__(self)
+
+registerAdapter(TestAppElement, ITest, INavigableFragment)
 
 
 class FakeTheme(object):
@@ -250,9 +268,9 @@ class OldOfferingsFragmentTestCase(OfferingsFragmentTestCase):
         ss1.powerUp(fa, IPublicPage)
 
 
-class PublicFrontPageTests(TestCase):
+class PublicFrontPageRenderingTests(TestCase):
     """
-    Tests for L{PublicFrontPage}.
+    Tests for L{PublicFrontPage}'s rendering behaviour.
     """
     def test_anonymousRenderHTTP(self):
         """
@@ -295,6 +313,31 @@ class PublicFrontPageTests(TestCase):
         result.addCallback(rendered)
         return result
 
+class PublicFrontPageTests(TestCase, CommandStubMixin):
+    """
+    Tests for Mantissa's top-level web resource.
+    """
+    def setUp(self):
+        """
+        Set up a store with an installed offering.
+        """
+        self.store = Store(dbdir=self.mktemp())
+        Mantissa().installSite(self.store, u"localhost", u"", False)
+        off = Offering(
+            name=u'test_offering',
+            description=u'Offering for creating a sample app store',
+            siteRequirements=[],
+            appPowerups=[TestAppPowerup],
+            installablePowerups=[],
+            loginInterfaces=[],
+            themes=[],
+            )
+        self.installedOffering = installOffering(self.store, off, None)
+        self.app = self.installedOffering.application
+        self.substore = self.app.open()
+        sharedItem = getEveryoneRole(self.substore).getShare(
+            getDefaultShareID(self.substore))
+        self.frontPage = self.store.findUnique(FrontPage)
 
     def test_nonExistentChild(self):
         """
@@ -313,6 +356,58 @@ class PublicFrontPageTests(TestCase):
         self.assertIdentical(result, rend.NotFound)
 
 
+
+    def test_noPrimaryApp(self):
+        """
+        When no primary application has been selected, L{PublicFrontPage}
+        provides the root web resource itself.
+        """
+        resource = self.frontPage.createResource()
+        self.assertIdentical(resource.child_(None), resource)
+
+    def test_primaryApp(self):
+        """
+        The root resource provided by L{PublicFrontPage} when a primary
+        application has been selected is that application's L{SharingIndex}.
+        """
+        resource = self.frontPage.createResource()
+        self.frontPage.defaultApplication = self.app
+        result = resource.child_(None)
+        self.assertIsInstance(result, PublicAthenaLivePage)
+        self.assertIsInstance(result.fragment, TestAppElement)
+
+    def test_switchFrontPage(self):
+        """
+        'axiomatic frontpage <offeringName>' switches the primary application
+        (i.e., the one whose front page will be displayed on the site's root
+        resource) to the one belonging to the named offering.
+        """
+        off2 = Offering(
+            name=u'test_offering2',
+            description=u'Offering for creating a sample app store',
+            siteRequirements=[],
+            appPowerups=[TestAppPowerup],
+            installablePowerups=[],
+            loginInterfaces=[],
+            themes=[])
+        installedOffering2 = installOffering(self.store, off2, None)
+        sfp = SetFrontPage()
+        sfp.parent = self
+        sfp.parseOptions(["test_offering"])
+        resource = self.frontPage.createResource()
+        result, segs = resource.locateChild(None, [''])
+        self.assertIdentical(result.fragment.original.store,
+                             self.substore)
+        self.assertEqual(segs, [])
+        sfp.parseOptions(["test_offering2"])
+        resource = self.frontPage.createResource()
+        result, segs = resource.locateChild(None, [''])
+        self.assertEqual(segs, [])
+        self.assertIdentical(result.fragment.original.store,
+                             installedOffering2.application.open())
+
+        self.assertRaises(UsageError, sfp.parseOptions, [])
+        self.assertRaises(UsageError, sfp.parseOptions, ["nonexistent"])
 
 class AuthenticatedNavigationTestMixin:
     """

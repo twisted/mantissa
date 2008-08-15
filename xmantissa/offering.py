@@ -1,4 +1,9 @@
 # -*- test-case-name: xmantissa.test.test_offering -*-
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
+"""
+Implemenation of Offerings, Mantissa's unit of installable application
+functionality.
+"""
 
 from zope.interface import implements
 
@@ -129,6 +134,8 @@ class OfferingAdapter(object):
 
         @type offering: L{IOffering}
         @param offering: The offering to install.
+
+        @return: The C{InstalledOffering} item created.
         """
         for off in self._siteStore.query(
             InstalledOffering,
@@ -218,11 +225,12 @@ def getInstalledOfferings(s):
 
 def installOffering(s, offering, configuration):
     """
-    Create an app store for an Offering, possibly installing some powerups on
-    it, after checking that the site store has the requisite powerups installed
-    on it. Also create an InstalledOffering item referring to the app store.
+    Create an app store for an L{Offering}, possibly installing some powerups
+    on it, after checking that the site store has the requisite powerups
+    installed on it. Also create an L{InstalledOffering} item referring to the
+    app store and return it.
     """
-    ixmantissa.IOfferingTechnician(s).installOffering(offering)
+    return ixmantissa.IOfferingTechnician(s).installOffering(offering)
 
 
 class OfferingConfiguration(item.Item):
@@ -238,9 +246,14 @@ class OfferingConfiguration(item.Item):
     powerupInterfaces = (ixmantissa.INavigableElement,)
 
     def installOffering(self, offering, configuration):
+        """
+        Create an app store for an L{Offering} and install its
+        dependencies. Also create an L{InstalledOffering} in the site store,
+        and return it.
+        """
         s = self.store.parent
         self.installedOfferingCount += 1
-        installOffering(s, offering, configuration)
+        return installOffering(s, offering, configuration)
 
 
     def getTabs(self):

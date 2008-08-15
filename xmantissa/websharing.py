@@ -1,5 +1,5 @@
 # -*- test-case-name: xmantissa.test.test_websharing -*-
-
+# Copyright 2008 Divmod, Inc. See LICENSE file for details
 """
 This module provides web-based access to objects shared with the
 xmantissa.sharing module.
@@ -297,9 +297,8 @@ class SharingIndex(object):
 
     def renderHTTP(self, ctx):
         """
-        The sharing index is located at '/users/username' - when rendered, it
-        will redirect to '/users/username', i.e. the default shared item or
-        the item with the shareID of the empty string.
+        When this resource itself is rendered, redirect to the default shared
+        item.
         """
         return url.URL.fromContext(ctx).child('')
 
