@@ -1,7 +1,13 @@
+# Copyright (c) 2008 Divmod.  See LICENSE for details.
+
+"""
+Tests for I{axiomatic mantissa} and other functionality provided by
+L{axiom.plugins.mantissacmd}.
+"""
+
 from twisted.trial.unittest import TestCase
 from twisted.python.filepath import FilePath
-
-from epsilon.sslverify import Certificate
+from twisted.internet.ssl import Certificate
 
 from axiom.store import Store
 from axiom.plugins.mantissacmd import genSerial, Mantissa
