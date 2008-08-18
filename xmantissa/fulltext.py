@@ -723,9 +723,11 @@ class NaiveIndexer(RemoteIndexer, item.Item):
         Remove all indexed data from this substore and reset our reliable
         listeners.
         """
-        self.store.query(Word).deleteFromStore()
-        self.store.query(Document).deleteFromStore()
-        self.store.query(KeywordValue).deleteFromStore()
+        store = self.indexStore.open()
+        store.query(Word).deleteFromStore()
+        store.query(Document).deleteFromStore()
+        store.query(KeywordValue).deleteFromStore()
+        self.indexCount = 0
         for src in self.getSources():
             src.removeReliableListener(self)
             src.addReliableListener(self, style=iaxiom.REMOTE)
@@ -793,26 +795,25 @@ class _NaiveIndex(object):
                             KeywordValue.value == v)).getColumn('storeID')
                 if docSet is None:
                     docSet = set(docs)
-                    constraint.append(Document.storeID.oneOf(docSet))
                 else:
                     docSet.intersection_update(set(docs))
         if len(term) > 0:
             for w in re.split(SEPARATOR, term):
+                constraint = [Word.doc == Document.storeID,
+                              Word.text == w]
+                if docSet is not None:
+                    constraint.append(Document.storeID.oneOf(docSet))
                 docs = self.store.query(
                     Document,
-                    attributes.AND(
-                            Word.doc == Document.storeID,
-                            Word.text == w,
-                            *constraint)).getColumn('storeID')
+                    attributes.AND(*constraint)).getColumn('storeID')
                 if docSet is None:
                     docSet = set(docs)
-                    constraint.append(Document.storeID.oneOf(docSet))
                 else:
                     docSet.intersection_update(set(docs))
-        if len(constraint) > 0:
+        if docSet:
             return list(self.store.query(
                     Document,
-                    attributes.AND(*constraint),
+                    Document.storeID.oneOf(docSet),
                     sort=sortThingy).distinct())
         else:
             return []

@@ -709,7 +709,7 @@ class IndexerAPISearchTestsMixin(IndexerTestsMixin):
             ).addCallback(testResults)
 
     def test_unicodeSearch(self):
- 
+
         return self.indexer.search(u'\N{WHITE SMILING FACE}')
 
 
@@ -933,3 +933,44 @@ class NaiveIndexerAPISearchTestCase(NaiveIndexerTestsMixin, IndexerAPISearchTest
     """
     Tests for searching documents indexed with the naive indexer.
     """
+
+class MoreNaiveIndexerTests(NaiveIndexerTestsMixin, IndexerTestsMixin,
+                            unittest.TestCase):
+
+    def test_termOrdering(self):
+        """
+        Search results are unaffected by order of terms in the search string.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='7',
+                _textParts=[u'apple', u'a thing with foo'],
+                _keywordParts={}))
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='8',
+                _textParts=[u'apple', u'another item containing baz'],
+                _keywordParts={}))
+        writer.close()
+        reader = self.openReadIndex()
+        self.assertEquals(
+            identifiersFrom(reader.search(u'bar foo')), [])
+        self.assertEquals(
+            identifiersFrom(reader.search(u'foo bar')), [])
+
+    def test_reset(self):
+        """
+        Resetting the index removes all data.
+        """
+        writer = self.openWriteIndex()
+        writer.add(IndexableThing(
+                _documentType=u'thing',
+                _uniqueIdentifier='7',
+                _textParts=[u'apple', u'a thing with foo'],
+                _keywordParts={}))
+        writer.close()
+        self.indexer.reset()
+        reader = self.openReadIndex()
+        self.assertEquals(
+            identifiersFrom(reader.search(u'foo')), [])
