@@ -920,8 +920,7 @@ class XapianIndexerAPISearchTestCase(XapianTestsMixin, IndexerAPISearchTestsMixi
 
 class NaiveIndexerTestsMixin:
     def createIndexer(self):
-        ss = SubStore.createNew(self.store, ['indexer'])
-        return fulltext.NaiveIndexer(store=self.store, indexStore=ss)
+        return fulltext.NaiveIndexer(store=self.store)
 
 
 class NaiveIndexerFulltextTestCase(NaiveIndexerTestsMixin, FulltextTestsMixin, unittest.TestCase):

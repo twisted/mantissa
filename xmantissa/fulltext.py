@@ -14,7 +14,7 @@ from twisted.internet import defer
 from epsilon.structlike import record
 from epsilon.view import SlicedView
 
-from axiom import item, attributes, iaxiom, batch
+from axiom import item, attributes, iaxiom, batch, substore
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 from xmantissa import ixmantissa
@@ -710,6 +710,11 @@ class NaiveIndexer(RemoteIndexer, item.Item):
     _index = attributes.inmemory(
         doc="A _NaiveIndex instance, when this indexer is open.")
 
+    def __init__(self, *a, **kw):
+        ss = substore.SubStore.createNew(kw['store'], ['indexer'])
+        kw['indexStore'] = ss
+        item.Item.__init__(self, *a, **kw)
+
     def openReadIndex(self):
         """
         Open the substore used for indexing.
@@ -750,7 +755,7 @@ class _NaiveIndex(object):
                                       sortKey=message.sortKey())
         doctype = message.documentType()
         keywords = message.keywordParts()
-        keywords[u"documentType"] = doctype
+        keywords[u"documentType"] = doctype.decode('ascii')
         for part in message.textParts():
             words = re.split(SEPARATOR, part)
             for word in words:
@@ -812,9 +817,9 @@ class _NaiveIndex(object):
                     docSet.intersection_update(set(docs))
         if docSet:
             return list(self.store.query(
-                    Document,
-                    Document.storeID.oneOf(docSet),
-                    sort=sortThingy).distinct())
+                            Document,
+                            Document.storeID.oneOf(docSet),
+                            sort=sortThingy).distinct())
         else:
             return []
 
