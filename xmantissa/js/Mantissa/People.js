@@ -767,9 +767,10 @@ Mantissa.People.AddPerson.methods(
         /* .focus() is a no-op unless we wait, even though we can get a handle
          * on the node */
         self.callLater(
+            0,
             function() {
                 self.focusNicknameInput();
-            }, 0);
+            });
     });
 
 

@@ -1067,7 +1067,7 @@ Mantissa.Test.TestPeople.AddPersonTests.methods(
         var widget = Mantissa.People.AddPerson(
             Nevow.Test.WidgetUtil.makeWidgetNode());
         var callLaters = [];
-        widget.callLater = function(callable, seconds) {
+        widget.callLater = function(seconds, callable) {
             callLaters.push([callable, seconds]);
         }
         var focuses = 0;
