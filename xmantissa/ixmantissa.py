@@ -979,8 +979,10 @@ class IOffering(Interface):
     case, none will be created).
     """)
 
-    benefactorFactories = Attribute("""
-    A list of IBenefactorFactory providers
+    installablePowerups = Attribute("""
+    A C{list} of three-tuples each of which gives the name, description, and
+    powerup item class for a unit of functionality which this offering provides
+    for installation on a user store.
     """)
 
     loginInterfaces = Attribute("""

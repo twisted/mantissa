@@ -16,7 +16,6 @@ from axiom.dependency import installedOn
 
 from xmantissa import ixmantissa, offering
 
-from xmantissa.web import SiteConfiguration
 from xmantissa.plugins.baseoff import baseOffering
 from xmantissa.plugins.offerings import peopleOffering
 
@@ -335,6 +334,13 @@ class BaseOfferingTests(unittest.TestCase):
     Tests for the base Mantissa offering,
     L{xmantissa.plugins.baseoff.baseOffering}.
     """
+    def test_interface(self):
+        """
+        C{baseOffering} provides L{IOffering}.
+        """
+        self.assertTrue(verifyObject(ixmantissa.IOffering, baseOffering))
+
+
     def test_staticContentPath(self):
         """
         C{baseOffering.staticContentPath} gives the location of a directory
