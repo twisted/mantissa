@@ -2,7 +2,8 @@
 Tests for xmantissa.offering.
 """
 
-from zope.interface import Interface, implements
+from zope.interface import Interface, implements, classProvides
+from zope.interface.interfaces import IInterface
 from zope.interface.verify import verifyClass, verifyObject
 
 from twisted.trial import unittest
@@ -26,6 +27,8 @@ class TestSiteRequirement(item.Item):
 
     attr = attributes.integer()
 
+
+
 class TestAppPowerup(item.Item):
     typeName = 'test_app_powerup'
     schemaVersion = 1
@@ -39,6 +42,98 @@ class ITestInterface(Interface):
     An interface to which no object can be adapted.  Used to ensure failed
     adaption causes a powerup to be installed.
     """
+
+
+
+class FakeNewStyleOffering(item.Item):
+    """
+    An offering used by the tests for the offering system which is defined in
+    the preferred way, as an L{Item} subclass instead of as an L{Offering}
+    instance.
+    """
+    powerupInterfaces = (ixmantissa.IOffering,)
+    classProvides(*powerupInterfaces)
+
+    name = u"Fake New Style Offering"
+    description = None
+
+    siteRequirements = [(None, TestSiteRequirement)]
+    appPowerups = [TestAppPowerup]
+
+    installablePowerups = None
+    loginInterfaces = None
+    themes = None
+    staticContentPath = None
+    version = None
+
+    dummy = attributes.integer()
+
+
+
+class NewStyleOfferingTestsMixin:
+    """
+    A TestCase mixin defining tests which all new-style L{IOffering} providers
+    are required to pass in order to function properly when installed on a
+    Mantissa instance.
+    """
+    def getOffering(self):
+        raise NotImplemented(
+            "%r did not implement getOffering" % (self.__class__,))
+
+
+    def test_interface(self):
+        """
+        Offerings must provide L{IOffering}.
+        """
+        self.assertTrue(verifyObject(ixmantissa.IOffering, self.getOffering()))
+
+
+    def test_powerup(self):
+        """
+        An instance of the offering is a powerup for L{IOffering}.
+        """
+        store = Store()
+        offering = self.getOffering()(store=store)
+        store.powerUp(offering)
+        self.assertEqual(
+            list(store.powerupsFor(ixmantissa.IOffering)), [offering])
+
+
+    def test_siteRequirements(self):
+        """
+        The C{siteRequirements} attribute of an offering is a list of
+        two-tuples (or any other type which is iterable containing iterables of
+        length two) where the first element of the tuple is C{None} or an
+        interface and the second element is an L{Item} subclass.
+        """
+        for (iface, powerup) in self.getOffering().siteRequirements:
+            self.assertTrue(iface is None or IInterface.providedBy(iface))
+            self.assertTrue(issubclass(powerup, item.Item))
+
+
+    def test_appPowerups(self):
+        """
+        The C{appPowerups} attribute of an offering is a list (or any other
+        type which is iterable) of L{Item} subclasses.
+        """
+        for powerup in self.getOffering().appPowerups:
+            self.assertTrue(issubclass(powerup, item.Item))
+
+
+    def test_name(self):
+        """
+        The C{name} attribute of an offering is a C{unicode} instance.
+        """
+        self.assertIsInstance(self.getOffering().name, unicode)
+
+
+
+class FakeNewStyleOfferingTests(NewStyleOfferingTestsMixin, unittest.TestCase):
+    """
+    L{IOffering}-conformance tests for L{FakeNewStyleOffering}.
+    """
+    def getOffering(self):
+        return FakeNewStyleOffering
 
 
 
@@ -79,6 +174,10 @@ class OfferingTest(unittest.TestCase):
             themes=[],
             )
         self.offering = off
+
+        self.conf = self.adminAccount.avatars.open().findUnique(
+            offering.OfferingConfiguration)
+
         # Add this somewhere that the plugin system is going to see it.
         self._originalGetOfferings = offering.getOfferings
         offering.getOfferings = self.fakeGetOfferings
@@ -98,26 +197,13 @@ class OfferingTest(unittest.TestCase):
         offering.getOfferings = self._originalGetOfferings
 
 
-    def test_installOffering(self):
-        """
-        L{OfferingConfiguration.installOffering} should install the given
-        offering on the Mantissa server.
-        """
-        conf = self.adminAccount.avatars.open().findUnique(
-            offering.OfferingConfiguration)
-        io = conf.installOffering(self.offering, None)
-
-        # InstalledOffering should be returned, and installed on the site store
-        foundIO = self.store.findUnique(offering.InstalledOffering,
-                  offering.InstalledOffering.offeringName == self.offering.name)
-        self.assertIdentical(io, foundIO)
-
+    def _installOfferingTest(self, theOffering):
         # Site store requirements should be on the site store
         tsr = self.store.findUnique(TestSiteRequirement)
         self.failUnless(installedOn(tsr), self.store)
 
         # App store should have been created
-        appStore = self.userbase.accountByAddress(self.offering.name, None)
+        appStore = self.userbase.accountByAddress(theOffering.name, None)
         self.assertNotEqual(appStore, None)
 
         # App store requirements should be on the app store
@@ -126,7 +212,45 @@ class OfferingTest(unittest.TestCase):
         self.failUnless(installedOn(tap), ss)
 
         self.assertRaises(offering.OfferingAlreadyInstalled,
-                          conf.installOffering, self.offering, None)
+                          self.conf.installOffering, theOffering, None)
+
+
+    def test_installOffering(self):
+        """
+        If L{OfferingConfiguration.installOffering} is passed an L{Offering}
+        instance, an L{InstalledOffering} corresponding to that L{Offering} is
+        created and the C{siteRequirements} and C{appPowerups} defined by the
+        L{Offering} are installed on the site and app stores, respectively.  If
+        L{OfferingConfiguration.installOffering} is passed an L{Offering} with
+        a name for which there is already an L{InstalledOffering},
+        L{Offeringalreadyinstalled} is raised.
+        """
+        io = self.conf.installOffering(self.offering, None)
+
+        # InstalledOffering should be returned, and installed on the site store
+        foundIO = self.store.findUnique(offering.InstalledOffering,
+                  offering.InstalledOffering.offeringName == self.offering.name)
+        self.assertIdentical(io, foundIO)
+
+        self._installOfferingTest(self.offering)
+
+
+    def test_installNewStyleOffering(self):
+        """
+        If L{OfferingConfiguration.installOffering} is passed an L{IOffering}
+        provider which is an L{Item} subclass, an instance of that type is
+        created in the site store and the site store is powered up for
+        L{IOffering} with it.  The C{siteRequirements} it indicates are
+        installed on the site store and the C{appRequirements} it indicates are
+        installed on the app store.
+        """
+        result = self.conf.installOffering(FakeNewStyleOffering, None)
+
+        self.assertIsInstance(result, FakeNewStyleOffering)
+        self.assertIn(
+            result, list(self.store.powerupsFor(ixmantissa.IOffering)))
+
+        self._installOfferingTest(FakeNewStyleOffering)
 
 
     def test_getInstalledOfferingNames(self):
@@ -164,9 +288,7 @@ class OfferingTest(unittest.TestCase):
         isAppStore returns True for stores with offerings installed on them,
         False otherwise.
         """
-        conf = self.adminAccount.avatars.open().findUnique(
-            offering.OfferingConfiguration)
-        conf.installOffering(self.offering, None)
+        self.conf.installOffering(self.offering, None)
         app = self.userbase.accountByAddress(self.offering.name, None)
         self.failUnless(offering.isAppStore(app.avatars.open()))
         self.failIf(offering.isAppStore(self.adminAccount.avatars.open()))
@@ -218,7 +340,8 @@ class OfferingTechnicianTestMixin:
     """
     offerings = [
         offering.Offering(u'an offering', None, [], [], [], [], []),
-        offering.Offering(u'another offering', None, [], [], [], [], [])]
+        offering.Offering(u'another offering', None, [], [], [], [], []),
+        FakeNewStyleOffering]
 
     def createTechnician(self):
         """

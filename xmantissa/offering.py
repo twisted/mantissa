@@ -100,8 +100,14 @@ class OfferingAdapter(object):
         Get the I{offeringName} attribute of each L{InstalledOffering} in
         C{self._siteStore}.
         """
-        return list(
-            self._siteStore.query(InstalledOffering).getColumn("offeringName"))
+        names = []
+        installedOfferings = self._siteStore.query(InstalledOffering)
+        for name in installedOfferings.getColumn("offeringName"):
+            names.append(name)
+        offeringPowerups = self._siteStore.powerupsFor(ixmantissa.IOffering)
+        for powerup in offeringPowerups:
+            names.append(powerup.name)
+        return names
 
 
     def getInstalledOfferings(self):
@@ -137,10 +143,8 @@ class OfferingAdapter(object):
 
         @return: The C{InstalledOffering} item created.
         """
-        for off in self._siteStore.query(
-            InstalledOffering,
-            InstalledOffering.offeringName == offering.name):
-            raise OfferingAlreadyInstalled(off)
+        if offering.name in self.getInstalledOfferingNames():
+            raise OfferingAlreadyInstalled()
 
         def siteSetup():
             for (requiredInterface, requiredPowerup) in offering.siteRequirements:
@@ -170,10 +174,15 @@ class OfferingAdapter(object):
                     installOn(pup(store=ss), ss)
 
             ss.transact(appSetup)
+
             # Woops, we need atomic cross-store transactions.
-            io = InstalledOffering(
-                store=self._siteStore, offeringName=offering.name,
-                application=substoreItem)
+            if isinstance(offering, item.MetaItem):
+                io = offering(store=self._siteStore)
+                self._siteStore.powerUp(io)
+            else:
+                io = InstalledOffering(
+                    store=self._siteStore, offeringName=offering.name,
+                    application=substoreItem)
 
             #Some new themes may be available now. Clear the theme cache
             #so they can show up.
