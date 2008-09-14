@@ -100,14 +100,7 @@ class OfferingAdapter(object):
         Get the I{offeringName} attribute of each L{InstalledOffering} in
         C{self._siteStore}.
         """
-        names = []
-        installedOfferings = self._siteStore.query(InstalledOffering)
-        for name in installedOfferings.getColumn("offeringName"):
-            names.append(name)
-        offeringPowerups = self._siteStore.powerupsFor(ixmantissa.IOffering)
-        for powerup in offeringPowerups:
-            names.append(powerup.name)
-        return names
+        return self.getInstalledOfferings().keys()
 
 
     def getInstalledOfferings(self):
@@ -121,6 +114,9 @@ class OfferingAdapter(object):
             offering = installation.getOffering()
             if offering is not None:
                 d[offering.name] = offering
+        offeringPowerups = self._siteStore.powerupsFor(ixmantissa.IOffering)
+        for powerup in offeringPowerups:
+            d[powerup.name] = powerup
         return d
 
 

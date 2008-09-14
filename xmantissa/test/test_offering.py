@@ -304,7 +304,8 @@ class FakeOfferingTechnician(object):
     """
     implements(ixmantissa.IOfferingTechnician)
 
-    def __init__(self):
+    def __init__(self, store):
+        self.store = store
         self.installedOfferings = {}
 
 
@@ -312,6 +313,8 @@ class FakeOfferingTechnician(object):
         """
         Add the given L{IOffering} provider to the list of installed offerings.
         """
+        if isinstance(offering, item.MetaItem):
+            offering = offering(store=self.store)
         self.installedOfferings[offering.name] = offering
 
 
@@ -338,12 +341,13 @@ class OfferingTechnicianTestMixin:
     @ivar offerings: A C{list} of L{Offering} instances which will be installed
         by the tests this mixin defines.
     """
-    offerings = [
+    offeringPlugins = [
         offering.Offering(u'an offering', None, [], [], [], [], []),
-        offering.Offering(u'another offering', None, [], [], [], [], []),
-        FakeNewStyleOffering]
+        offering.Offering(u'another offering', None, [], [], [], [], [])]
 
-    def createTechnician(self):
+    offeringPowerups = [FakeNewStyleOffering]
+
+    def createTechnician(self, store):
         """
         @return: An L{IOfferingTechnician} provider which will be tested.
         """
@@ -357,7 +361,7 @@ class OfferingTechnicianTestMixin:
         it implements L{IOfferingTechnician} and has all of the methods and
         attributes defined by the interface.
         """
-        technician = self.createTechnician()
+        technician = self.createTechnician(Store())
         technicianType = type(technician)
         self.assertTrue(
             ixmantissa.IOfferingTechnician.implementedBy(technicianType))
@@ -373,11 +377,11 @@ class OfferingTechnicianTestMixin:
         implementation returns a C{list} of C{unicode} strings, each element
         giving the name of an offering which has been installed.
         """
-        offer = self.createTechnician()
+        offer = self.createTechnician(Store())
         self.assertEqual(offer.getInstalledOfferingNames(), [])
 
         expected = []
-        for dummyOffering in self.offerings:
+        for dummyOffering in self.offeringPlugins + self.offeringPowerups:
             offer.installOffering(dummyOffering)
             expected.append(dummyOffering.name)
             expected.sort()
@@ -392,13 +396,18 @@ class OfferingTechnicianTestMixin:
         implementation returns a C{dict} mapping C{unicode} offering names to
         the corresponding L{IOffering} providers.
         """
-        offer = self.createTechnician()
+        store = Store()
+        offer = self.createTechnician(store)
         self.assertEqual(offer.getInstalledOfferings(), {})
 
         expected = {}
-        for dummyOffering in self.offerings:
+        for dummyOffering in self.offeringPlugins:
             offer.installOffering(dummyOffering)
             expected[dummyOffering.name] = dummyOffering
+            self.assertEqual(offer.getInstalledOfferings(), expected)
+        for offeringPowerup in self.offeringPowerups:
+            offer.installOffering(offeringPowerup)
+            expected[offeringPowerup.name] = store.findUnique(offeringPowerup)
             self.assertEqual(offer.getInstalledOfferings(), expected)
 
 
@@ -425,18 +434,17 @@ class OfferingAdapterTests(unittest.TestCase, OfferingTechnicianTestMixin):
 
     def getOfferings(self):
         """
-        Return some dummy offerings, as defined by C{self.offerings}.
+        Return some dummy offerings, as defined by C{self.offeringPlugins} and
+        C{self.offeringPowerups}.
         """
-        return self.offerings
+        return self.offeringPlugins + self.offeringPowerups
 
 
-    def createTechnician(self):
+    def createTechnician(self, store):
         """
         Create an L{offering.OfferingAdapter}.
         """
-        store = Store()
-        technician = offering.OfferingAdapter(store)
-        return technician
+        return offering.OfferingAdapter(store)
 
 
 
@@ -444,11 +452,11 @@ class FakeOfferingTechnicianTests(unittest.TestCase, OfferingTechnicianTestMixin
     """
     Tests (ie, verification) for L{FakeOfferingTechnician}.
     """
-    def createTechnician(self):
+    def createTechnician(self, store):
         """
         Create a L{FakeOfferingTechnician}.
         """
-        return FakeOfferingTechnician()
+        return FakeOfferingTechnician(store)
 
 
 
