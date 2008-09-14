@@ -2,6 +2,8 @@
 Tests for xmantissa.offering.
 """
 
+import warnings
+
 from zope.interface import Interface, implements, classProvides
 from zope.interface.interfaces import IInterface
 from zope.interface.verify import verifyClass, verifyObject
@@ -274,6 +276,19 @@ class OfferingTest(unittest.TestCase):
         self._installOfferingTest(result, FakeNewStyleOffering)
 
 
+    def test_deprecatedOldStyleInstallOffering(self):
+        """
+        L{OfferingAdapter.installOffering} emits a L{DeprecationWarning} if it
+        is passed a non-L{Item} L{IOffering} provider.
+        """
+        self.assertWarns(
+            DeprecationWarning,
+            "Old-style offering %r should be updated to be an Item." % (
+                self.offering.name,),
+            warnings.__file__,
+            lambda: self.conf.installOffering(self.offering, None))
+
+
     def test_getInstalledOfferingNames(self):
         """
         L{getInstalledOfferingNames} should list the names of offerings
@@ -491,6 +506,48 @@ class OfferingAdapterTests(unittest.TestCase, OfferingTechnicianTestMixin):
         return offering.OfferingAdapter(store)
 
 
+    def test_installedOfferingUpgrade(self):
+        """
+        L{offering.OfferingAdapter.getInstalledOfferings} deletes any
+        L{InstalledOffering} items it finds which correspond to L{IOffering}
+        plugins which have been updated to the new style of offering definition
+        and creates in their place an instance of the L{Item} L{IOffering}
+        provider.
+        """
+        store = Store()
+        offer = self.createTechnician(store)
+
+        # Create offering installation state which corresponds to a
+        # hypothetical Offering which was upgraded to FakeNewStyleOffering.
+        installed = offer.installOffering(
+            offering.Offering(
+                FakeNewStyleOffering.name, None, [], [], [], [], []))
+
+        # Save this attribute for later
+        application = installed.application
+
+        # Now force an upgrade to happen.  An offering with the right name will
+        # be found due to the overridden getOfferings method which returns a
+        # list including FakeNewStyleOffering.
+        result = offer.getInstalledOfferings()
+
+        # There should be an instance of FakeNewStyleOffering now.
+        newOffering = store.findUnique(FakeNewStyleOffering)
+
+        # It should have been in the result
+        self.assertEqual(result, {FakeNewStyleOffering.name: newOffering})
+
+        # The rest of the state should be as if it were installed normally,
+        # referring to the existing InstalledOffering item's state.
+        self.assertIdentical(newOffering.store, store)
+        self.assertIdentical(newOffering.application, application)
+        self.assertIn(
+            newOffering, list(store.powerupsFor(ixmantissa.IOffering)))
+
+        # The InstalledOffering should be gone.
+        self.assertRaises(KeyError, store.getItemByID, installed.storeID)
+
+
 
 class FakeOfferingTechnicianTests(unittest.TestCase, OfferingTechnicianTestMixin):
     """
@@ -539,4 +596,3 @@ class BaseOfferingTests(unittest.TestCase):
             ixmantissa.ISiteURLGenerator.providedBy(
                 ixmantissa.ISiteURLGenerator(store)),
             "ISiteURLGenerator powerup does not provide ISiteURLGenerator.")
-

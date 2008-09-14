@@ -5,6 +5,8 @@ Implemenation of Offerings, Mantissa's unit of installable application
 functionality.
 """
 
+import warnings
+
 from zope.interface import implements
 
 from twisted import plugin
@@ -113,6 +115,12 @@ class OfferingAdapter(object):
         for installation in installed:
             offering = installation.getOffering()
             if offering is not None:
+                # If it's new-style, upgrade this thing.
+                if isinstance(offering, item.MetaItem):
+                    offering = offering(store=self._siteStore,
+                                        application=installation.application)
+                    self._siteStore.powerUp(offering)
+                    installation.deleteFromStore()
                 d[offering.name] = offering
         offeringPowerups = self._siteStore.powerupsFor(ixmantissa.IOffering)
         for powerup in offeringPowerups:
@@ -177,6 +185,11 @@ class OfferingAdapter(object):
                               application=substoreItem)
                 self._siteStore.powerUp(io)
             else:
+                warnings.warn(
+                    "Old-style offering %r should be updated to be an "
+                    "Item." % (offering.name,),
+                    category=DeprecationWarning,
+                    stacklevel=0)
                 io = InstalledOffering(
                     store=self._siteStore, offeringName=offering.name,
                     application=substoreItem)
