@@ -173,7 +173,8 @@ class OfferingAdapter(object):
 
             # Woops, we need atomic cross-store transactions.
             if isinstance(offering, item.MetaItem):
-                io = offering(store=self._siteStore)
+                io = offering(store=self._siteStore,
+                              application=substoreItem)
                 self._siteStore.powerUp(io)
             else:
                 io = InstalledOffering(
@@ -202,9 +203,15 @@ def isAppStore(s):
     if s.parent is None:
         return False
     substore = s.parent.getItemByID(s.idInParent)
-    return s.parent.query(InstalledOffering,
-                          InstalledOffering.application == substore
-                          ).count() > 0
+    for offering in s.parent.query(InstalledOffering, InstalledOffering.application == substore):
+        return True
+    tech = ixmantissa.IOfferingTechnician(s.parent)
+    offerings = tech.getInstalledOfferings()
+    for powerup in offerings.itervalues():
+        if isinstance(powerup, item.Item):
+            if powerup.application == substore:
+                return True
+    return False
 
 
 

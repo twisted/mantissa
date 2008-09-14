@@ -9,6 +9,7 @@ from zope.interface.verify import verifyClass, verifyObject
 from twisted.trial import unittest
 
 from axiom.store import Store
+from axiom.substore import SubStore
 from axiom import item, attributes, userbase
 
 from axiom.plugins.mantissacmd import Mantissa
@@ -66,7 +67,9 @@ class FakeNewStyleOffering(item.Item):
     staticContentPath = None
     version = None
 
-    dummy = attributes.integer()
+    application = attributes.reference(
+        reftype=SubStore,
+        doc="A reference to the Application SubStore for this offering.")
 
 
 
@@ -125,6 +128,19 @@ class NewStyleOfferingTestsMixin:
         The C{name} attribute of an offering is a C{unicode} instance.
         """
         self.assertIsInstance(self.getOffering().name, unicode)
+
+
+    def test_application(self):
+        """
+        An L{Item} subclass L{IOffering} powerup must accept a C{application}
+        keyword argument to its initializer and have a C{application} Axiom
+        C{reference} attribute which is set to the L{SubStore} passed for that
+        parameter.
+        """
+        store = Store()
+        substore = SubStore.createNew(store, ['foo', 'bar'])
+        offering = self.getOffering()(store=store, application=substore)
+        self.assertIdentical(offering.application, substore)
 
 
 
@@ -197,7 +213,12 @@ class OfferingTest(unittest.TestCase):
         offering.getOfferings = self._originalGetOfferings
 
 
-    def _installOfferingTest(self, theOffering):
+    def _installOfferingTest(self, installedOffering, theOffering):
+
+        # The application attribute should be set to the SubStore created for
+        # the application.
+        self.assertIsInstance(installedOffering.application, SubStore)
+
         # Site store requirements should be on the site store
         tsr = self.store.findUnique(TestSiteRequirement)
         self.failUnless(installedOn(tsr), self.store)
@@ -232,7 +253,7 @@ class OfferingTest(unittest.TestCase):
                   offering.InstalledOffering.offeringName == self.offering.name)
         self.assertIdentical(io, foundIO)
 
-        self._installOfferingTest(self.offering)
+        self._installOfferingTest(io, self.offering)
 
 
     def test_installNewStyleOffering(self):
@@ -250,7 +271,7 @@ class OfferingTest(unittest.TestCase):
         self.assertIn(
             result, list(self.store.powerupsFor(ixmantissa.IOffering)))
 
-        self._installOfferingTest(FakeNewStyleOffering)
+        self._installOfferingTest(result, FakeNewStyleOffering)
 
 
     def test_getInstalledOfferingNames(self):
@@ -283,15 +304,35 @@ class OfferingTest(unittest.TestCase):
                            self.offering.name: self.offering})
 
 
+    def test_notAppStore(self):
+        """
+        L{isAppStore} returns C{False} for a Store which was not created as an
+        I{app store} for an L{Offering} or a new-style offering.
+        """
+        self.assertFalse(offering.isAppStore(self.store))
+        self.assertFalse(offering.isAppStore(self.adminAccount.avatars.open()))
+
+
+    def _isAppStoreTest(self, theOffering):
+        self.conf.installOffering(theOffering, None)
+        app = self.userbase.accountByAddress(theOffering.name, None)
+        self.assertTrue(offering.isAppStore(app.avatars.open()))
+
+
     def test_isAppStore(self):
         """
-        isAppStore returns True for stores with offerings installed on them,
-        False otherwise.
+        L{isAppStore} returns C{True} for a Store which was created as an I{app
+        stores} for an L{Offering}.
         """
-        self.conf.installOffering(self.offering, None)
-        app = self.userbase.accountByAddress(self.offering.name, None)
-        self.failUnless(offering.isAppStore(app.avatars.open()))
-        self.failIf(offering.isAppStore(self.adminAccount.avatars.open()))
+        self._isAppStoreTest(self.offering)
+
+
+    def test_isAppStoreNewStyle(self):
+        """
+        L{isAppStore} returns C{True} for a Store which was created as an I{app
+        stores} for a new-style offering.
+        """
+        self._isAppStoreTest(FakeNewStyleOffering)
 
 
 
@@ -301,10 +342,13 @@ class FakeOfferingTechnician(object):
 
     @ivar installedOfferings: A mapping from offering names to corresponding
         L{IOffering} providers which have been passed to C{installOffering}.
+
+    @ivar store: A L{Store} on which new-style offerings will be installed, or
+        C{None} to install them no-where.
     """
     implements(ixmantissa.IOfferingTechnician)
 
-    def __init__(self, store):
+    def __init__(self, store=None):
         self.store = store
         self.installedOfferings = {}
 
