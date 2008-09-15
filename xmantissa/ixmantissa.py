@@ -1032,6 +1032,13 @@ class IOfferingTechnician(Interface):
         """
 
 
+    def getApplications():
+        """
+        Return a set containing a L{SubStore} for each installed offering
+        referencing that offering's application store.
+        """
+
+
     def installOffering(offering):
         """
         Install the given offering plugin using the given configuration.

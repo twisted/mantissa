@@ -319,6 +319,7 @@ class OfferingTest(unittest.TestCase):
                            self.offering.name: self.offering})
 
 
+
     def test_notAppStore(self):
         """
         L{isAppStore} returns C{False} for a Store which was not created as an
@@ -390,6 +391,14 @@ class FakeOfferingTechnician(object):
         """
         return self.installedOfferings.keys()
 
+
+    def getApplications(self):
+        """
+        This technician doesn't really install offerings, so it has no
+        application objects to give back.
+        """
+        raise NotImplementedError(
+            "FakeOfferingTechnician does not have applications")
 
 
 class OfferingTechnicianTestMixin:
@@ -504,6 +513,24 @@ class OfferingAdapterTests(unittest.TestCase, OfferingTechnicianTestMixin):
         Create an L{offering.OfferingAdapter}.
         """
         return offering.OfferingAdapter(store)
+
+
+    def test_getApplications(self):
+        """
+        L{offering.OfferingAdapter.getApplications} returns a set of two-tuples
+        of L{IOffering} providers and L{SubStore} items which represent the
+        corresponding application store.
+        """
+        store = Store()
+        offer = self.createTechnician(store)
+        self.assertEqual(offer.getApplications(), set([]))
+        first = offer.installOffering(FakeNewStyleOffering)
+        self.assertEqual(offer.getApplications(),
+                         set([(first, first.application)]))
+        second = offer.installOffering(self.offeringPlugins[0])
+        self.assertEqual(offer.getApplications(),
+                         set([(first, first.application),
+                              (self.offeringPlugins[0], second.application)]))
 
 
     def test_installedOfferingUpgrade(self):

@@ -581,19 +581,20 @@ class _OfferingsFragment(rend.Fragment):
         @return: a generator of dictionaries mapping 'name' to the name of an
         offering installed on the store.
         """
-        for io in self.original.store.query(offering.InstalledOffering):
-            pp = ixmantissa.IPublicPage(io.application, None)
+        tech = ixmantissa.IOfferingTechnician(self.original.store)
+        for (offering, application) in tech.getApplications():
+            pp = ixmantissa.IPublicPage(application, None)
             if pp is not None and getattr(pp, 'index', True):
                 warn("Use the sharing system to provide public pages,"
                      " not IPublicPage",
                      category=DeprecationWarning,
                      stacklevel=2)
-                yield {'name': io.offeringName}
+                yield {'name': offering.name}
             else:
-                s = io.application.open()
+                s = application.open()
                 try:
                     pp = getEveryoneRole(s).getShare(getDefaultShareID(s))
-                    yield {'name': io.offeringName}
+                    yield {'name': offering.name}
                 except NoSuchShare:
                     continue
 

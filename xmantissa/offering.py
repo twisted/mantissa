@@ -128,6 +128,22 @@ class OfferingAdapter(object):
         return d
 
 
+    def getApplications(self):
+        """
+        Get the applications from all L{InstalledOffering} instances and
+        L{IOffering} powerups.
+
+        @see IOfferingTechnician.getApplications
+        """
+        return set(
+            [(off.getOffering(), off.application)
+             for off
+             in self._siteStore.query(InstalledOffering)] +
+            [(off, off.application)
+             for off
+             in self._siteStore.powerupsFor(ixmantissa.IOffering)])
+
+
     def installOffering(self, offering):
         """
         Install the given offering::

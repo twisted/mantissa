@@ -33,6 +33,7 @@ from xmantissa.website import APIKey
 from xmantissa.webapp import PrivateApplication
 from xmantissa.prefs import PreferenceAggregator
 from xmantissa.webnav import Tab
+from xmantissa import offering
 from xmantissa.offering import Offering, InstalledOffering, OfferingConfiguration, installOffering
 from xmantissa.webtheme import theThemeCache
 from xmantissa.sharing import shareItem, getEveryoneRole
@@ -42,8 +43,9 @@ from xmantissa.publicweb import (
     _OfferingsFragment, PublicFrontPage, getLoader)
 from xmantissa import publicweb
 from xmantissa.signup import PasswordResetResource
-from xmantissa.test.test_offering import FakeOfferingTechnician
+from xmantissa.test.test_offering import FakeOfferingTechnician, FakeNewStyleOffering
 from xmantissa.test.test_websharing import TestAppPowerup, ITest
+
 
 class TestAppElement(Element):
     """
@@ -202,35 +204,14 @@ class OfferingsFragmentTestCase(TestCase):
     """
     Tests for L{_OfferingsFragment}.
     """
-    def setUp(self):
-        """
-        Set up stores and an offering.
-        """
-        store = Store(dbdir=self.mktemp())
-        appStore1 = SubStore.createNew(store, ("app", "test1.axiom"))
-        appStore2 = SubStore.createNew(store, ("app", "test2.axiom"))
-        self.firstOffering = Offering(u'first offering', None, None, None, None,
-                                 None, None)
-        firstInstalledOffering = InstalledOffering(
-            store=store, application=appStore1,
-            offeringName=self.firstOffering.name)
-        ss1 = appStore1.open()
-        self.installApp(ss1)
-        # (bypass Item.__setattr__)
-        object.__setattr__(
-            firstInstalledOffering, 'getOffering',
-            lambda: self.firstOffering)
+    firstOffering = Offering(u'first offering', None, [], [], [], [], [])
+    secondOffering = Offering(u'second offering', None, [], [], [], [], [])
+    thirdOffering = FakeNewStyleOffering
 
-        secondOffering = Offering(u'second offering', None, None, None, None,
-                                  None, None)
-        secondInstalledOffering = InstalledOffering(
-            store=store, application=appStore2,
-            offeringName=secondOffering.name)
-        # (bypass Item.__setattr__)
-        object.__setattr__(secondInstalledOffering, 'getOffering',
-                           lambda: secondOffering)
 
-        self.fragment = _OfferingsFragment(FrontPage(store=store))
+    def getOfferings(self):
+        return [self.firstOffering, self.secondOffering, self.thirdOffering]
+
 
 
     def installApp(self, ss1):
@@ -248,10 +229,22 @@ class OfferingsFragmentTestCase(TestCase):
         mapping C{'name'} to the name of an installed offering with a
         shared item that requests a link on the default public page.
         """
+        self.patch(offering, 'getOfferings', self.getOfferings)
+
+        store = Store(dbdir=self.mktemp())
+        tech = IOfferingTechnician(store)
+        first = tech.installOffering(self.firstOffering)
+        third = tech.installOffering(self.thirdOffering)
+
+        self.installApp(first.application.open())
+        self.installApp(third.application.open())
+
+        fragment = _OfferingsFragment(FrontPage(store=store))
 
         self.assertEqual(
-            list(self.fragment.data_offerings(None, None)),
-            [{'name': self.firstOffering.name}])
+            sorted(fragment.data_offerings(None, None)),
+            sorted([{'name': self.firstOffering.name},
+                    {'name': self.thirdOffering.name}]))
 
 
 
