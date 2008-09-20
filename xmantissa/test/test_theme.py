@@ -1,7 +1,6 @@
 from zope.interface import implements
 from zope.interface import classProvides
 
-from twisted.web import microdom
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 from twisted.python.util import sibpath
@@ -10,12 +9,12 @@ from twisted.python.filepath import FilePath, InsecurePath
 from nevow.athena import LivePage
 from nevow.loaders import stan, xmlstr
 from nevow.tags import (
-    html, head, body, img, script, link, invisible, directive)
+    html, head, body, invisible, directive)
 from nevow.context import WovenContext
 from nevow.testutil import FakeRequest
 from nevow.flat import flatten
 from nevow.inevow import IRequest
-from nevow.page import renderer
+
 from nevow.athena import LiveFragment
 
 from axiom.item import Item
@@ -27,18 +26,18 @@ from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.ixmantissa import (
     ITemplateNameResolver, IOfferingTechnician, ISiteURLGenerator)
-from xmantissa.port import TCPPort
+
 from xmantissa import webtheme
 from xmantissa.webtheme import (
     getInstalledThemes, MantissaTheme, ThemedFragment,
-    ThemedElement, _ThemedMixin, ThemedDocumentFactory,
+    ThemedElement, ThemedDocumentFactory,
     SiteTemplateResolver, XHTMLDirectoryTheme)
-from xmantissa.website import WebSite
+
 from xmantissa.offering import Offering, installOffering
 from xmantissa.plugins.baseoff import baseOffering
 
 from xmantissa.publicweb import PublicAthenaLivePage
-from xmantissa.webapp import GenericNavigationAthenaPage, _PageComponents, PrivateApplication
+from xmantissa.webapp import GenericNavigationAthenaPage, _PageComponents
 
 from xmantissa.test.test_offering import FakeOfferingTechnician
 from xmantissa.test.validation import XHTMLDirectoryThemeTestsMixin

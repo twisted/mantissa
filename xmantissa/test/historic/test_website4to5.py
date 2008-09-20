@@ -17,6 +17,7 @@ from xmantissa.port import TCPPort, SSLPort
 from xmantissa.web import SiteConfiguration
 from xmantissa.website import WebSite
 from xmantissa.publicweb import AnonymousSite
+from xmantissa.ixmantissa import IMantissaSite, IWebViewer
 
 from xmantissa.test.historic.stub_website4to5 import cert
 
@@ -74,7 +75,8 @@ class WebSiteUpgradeTests(StubbedTest):
         An L{AnonymousSite} is created and installed on the site store.
         """
         resource = self.store.findUnique(AnonymousSite)
-        self.assertEqual(list(self.store.interfacesFor(resource)), [IResource])
+        self.assertEqual(list(self.store.interfacesFor(resource)),
+                         [IResource, IMantissaSite, IWebViewer])
         self.assertIdentical(installedOn(resource), self.store)
         self.assertIdentical(resource.loginSystem, IRealm(self.store))
 

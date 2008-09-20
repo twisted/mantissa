@@ -13,32 +13,34 @@ from zope.interface import implements
 
 from epsilon.structlike import record
 
+from axiom.iaxiom import IPowerupIndirector
 from axiom.item import Item, declareLegacyItem
 from axiom.attributes import text, integer, reference
 from axiom import upgrade
 from axiom.dependency import dependsOn
 from axiom.userbase import getAccountNames
 
-from nevow.rend import Page, NotFound
+from nevow.rend import Page
 from nevow import livepage, athena
-from nevow.inevow import IRequest, IResource
+from nevow.inevow import IRequest
 from nevow import tags as t
 from nevow import url
 
 from xmantissa.publicweb import CustomizedPublicPage, renderShortUsername
 
+from xmantissa.ixmantissa import (
+    INavigableElement, ISiteRootPlugin, IWebTranslator, IStaticShellContent,
+    ITemplateNameResolver, ISiteURLGenerator, IWebViewer)
+
 from xmantissa.website import PrefixURLMixin, JUST_SLASH, WebSite, APIKey
 from xmantissa.website import MantissaLivePage
 from xmantissa.webtheme import getInstalledThemes
 from xmantissa.webnav import getTabs, startMenu, settingsLink, applicationNavigation
+from xmantissa.sharing import getPrimaryRole
 
 from xmantissa._webidgen import genkey, storeIDToWebID, webIDToStoreID
+from xmantissa._webutil import MantissaViewHelper, WebViewerHelper
 from xmantissa.offering import getInstalledOfferings
-
-from xmantissa.ixmantissa import (INavigableFragment, INavigableElement,
-                                  ISiteRootPlugin, IWebTranslator,
-                                  IStaticShellContent, ITemplateNameResolver,
-                                  ISiteURLGenerator)
 
 from xmantissa.webgestalt import AuthenticationApplication
 from xmantissa.prefs import PreferenceAggregator, DefaultPreferenceCollection
@@ -61,6 +63,56 @@ class _WebIDFormatException(TypeError):
     """
     An inbound web ID was not formatted as expected.
     """
+
+
+
+class _AuthenticatedWebViewer(WebViewerHelper):
+    """
+    Implementation of L{IWebViewer} for authenticated users.
+
+    @ivar _privateApplication: the L{PrivateApplication} for the authenticated
+    user that this view is rendering.
+    """
+    implements(IWebViewer)
+
+    def __init__(self, privateApp):
+        """
+        @param privateApp: Probably something abstract but really it's just a
+        L{PrivateApplication}.
+        """
+        WebViewerHelper.__init__(
+            self, privateApp.getDocFactory, privateApp._preferredThemes)
+        self._privateApplication = privateApp
+
+
+    # IWebViewer
+    def roleIn(self, userStore):
+        """
+        Get the authenticated role for the user represented by this view in the
+        given user store.
+        """
+        return getPrimaryRole(userStore, self._privateApplication._getUsername())
+
+
+    # Complete WebViewerHelper implementation
+    def _wrapNavFrag(self, frag, useAthena):
+        """
+        Wrap the given L{INavigableFragment} in an appropriate
+        L{_FragmentWrapperMixin} subclass.
+        """
+        username = self._privateApplication._getUsername()
+        cf = getattr(frag, 'customizeFor', None)
+        if cf is not None:
+            frag = cf(username)
+        if useAthena:
+            pageClass = GenericNavigationAthenaPage
+        else:
+            pageClass = GenericNavigationPage
+        return pageClass(self._privateApplication, frag,
+                         self._privateApplication.getPageComponents(),
+                         username)
+
+
 
 class _ShellRenderingMixin(object):
     """
@@ -224,7 +276,7 @@ class _ShellRenderingMixin(object):
 
 INSPECTROFY = os.environ.get('MANTISSA_DEV')
 
-class FragmentWrapperMixin:
+class _FragmentWrapperMixin(MantissaViewHelper):
     def __init__(self, fragment, pageComponents):
         self.fragment = fragment
         fragment.page = self
@@ -254,10 +306,13 @@ class FragmentWrapperMixin:
             extra = theme.head(req, site)
             if extra is not None:
                 extras.append(extra)
-        extra = self.fragment.head()
-        if extra is not None:
-            extras.append(extra)
+        headMethod = getattr(self.fragment, 'head', None)
+        if headMethod is not None:
+            extra = headMethod()
+            if extra is not None:
+                extras.append(extra)
         return ctx.tag[extras]
+
 
     def render_title(self, ctx, data):
         """
@@ -269,23 +324,23 @@ class FragmentWrapperMixin:
     def render_content(self, ctx, data):
         return ctx.tag[self.fragment]
 
-class GenericNavigationPage(FragmentWrapperMixin, Page, _ShellRenderingMixin):
+class GenericNavigationPage(_FragmentWrapperMixin, Page, _ShellRenderingMixin):
     def __init__(self, webapp, fragment, pageComponents, username):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
-        FragmentWrapperMixin.__init__(self, fragment, pageComponents)
+        _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
 
-class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, _ShellRenderingMixin):
+class GenericNavigationLivePage(_FragmentWrapperMixin, livepage.LivePage, _ShellRenderingMixin):
     def __init__(self, webapp, fragment, pageComponents, username):
         livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
         _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
-        FragmentWrapperMixin.__init__(self, fragment, pageComponents)
+        _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
     # XXX TODO: support live nav, live fragments somehow
     def render_head(self, ctx, data):
         ctx.tag[t.invisible(render=t.directive("liveglue"))]
-        return FragmentWrapperMixin.render_head(self, ctx, data)
+        return _FragmentWrapperMixin.render_head(self, ctx, data)
 
     def goingLive(self, ctx, client):
         getattr(self.fragment, 'goingLive', lambda x, y: None)(ctx, client)
@@ -300,8 +355,8 @@ class GenericNavigationLivePage(FragmentWrapperMixin, livepage.LivePage, _ShellR
 
 
 
-class GenericNavigationAthenaPage(MantissaLivePage,
-                                  FragmentWrapperMixin,
+class GenericNavigationAthenaPage(_FragmentWrapperMixin,
+                                  MantissaLivePage,
                                   _ShellRenderingMixin):
     """
     This class provides the generic navigation elements for surrounding all
@@ -332,7 +387,7 @@ class GenericNavigationAthenaPage(MantissaLivePage,
             jsModuleRoot=None,
             docFactory=webapp.getDocFactory('shell'))
         _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
-        FragmentWrapperMixin.__init__(self, fragment, pageComponents)
+        _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
         self.unsupportedBrowserLoader = (webapp
                                          .getDocFactory("athena-unsupported"))
 
@@ -340,15 +395,15 @@ class GenericNavigationAthenaPage(MantissaLivePage,
     def beforeRender(self, ctx):
         """
         Call the C{beforeRender} implementations on L{MantissaLivePage} and
-        L{FragmentWrapperMixin}.
+        L{_FragmentWrapperMixin}.
         """
         MantissaLivePage.beforeRender(self, ctx)
-        return FragmentWrapperMixin.beforeRender(self, ctx)
+        return _FragmentWrapperMixin.beforeRender(self, ctx)
 
 
     def render_head(self, ctx, data):
         ctx.tag[t.invisible(render=t.directive("liveglue"))]
-        return FragmentWrapperMixin.render_head(self, ctx, data)
+        return _FragmentWrapperMixin.render_head(self, ctx, data)
 
 
     def render_introspectionWidget(self, ctx, data):
@@ -360,40 +415,20 @@ class GenericNavigationAthenaPage(MantissaLivePage,
             return ''
 
 
-    def locateChild(self, ctx, segments):
-        res = NotFound
 
-        if hasattr(self.fragment, 'locateChild'):
-            res = self.fragment.locateChild(ctx, segments)
-
-        if res is NotFound:
-            try:
-                self.webapp.fromWebID(segments[0])
-            except TypeError:
-                pass
-            else:
-                res = (self.webapp.createResource(), segments)
-
-        if res is NotFound:
-            res = super(GenericNavigationAthenaPage, self).locateChild(ctx, segments)
-
-        return res
-
-
-
-
-class PrivateRootPage(Page, _ShellRenderingMixin):
+class _PrivateRootPage(Page, _ShellRenderingMixin):
     """
-    L{PrivateRootPage} is the resource present for logged-in users at
+    L{_PrivateRootPage} is the resource present for logged-in users at
     "/private", providing a direct interface to the objects located in the
     user's personal user-store.
 
-    It is created by L{PrivateApplication.createResource}.
+    It is created by L{PrivateApplication.createResourceWith}.
     """
     addSlash = True
 
-    def __init__(self, webapp, pageComponents, username):
+    def __init__(self, webapp, pageComponents, username, webViewer):
         self.username = username
+        self.webViewer = webViewer
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
 
@@ -417,31 +452,18 @@ class PrivateRootPage(Page, _ShellRenderingMixin):
 
 
     def childFactory(self, ctx, name):
+        """
+        Return a shell page wrapped around the Item model described by the
+        webID, or return None if no such item can be found.
+        """
         try:
             o = self.webapp.fromWebID(name)
         except _WebIDFormatException:
             return None
         if o is None:
             return None
-        res = IResource(o, None)
-        if res is not None:
-            return res
-        fragment = INavigableFragment(o, None)
-        if fragment is None:
-            return None
-        if fragment.fragmentName is not None:
-            fragDocFactory = self.webapp.getDocFactory(fragment.fragmentName, None)
-            if fragDocFactory is not None:
-                fragment.docFactory = fragDocFactory
-        if fragment.docFactory is None:
-            raise RuntimeError("%r (fragment name %r) has no docFactory" % (fragment, fragment.fragmentName))
+        return self.webViewer.wrapModel(o)
 
-        if isinstance(fragment, (athena.LiveFragment, athena.LiveElement)):
-            pageClass = GenericNavigationAthenaPage
-        else:
-            pageClass = {False: GenericNavigationPage,
-                         True: GenericNavigationLivePage}.get(fragment.live)
-        return pageClass(self.webapp, fragment, self.pageComponents, self.username)
 
 
 class _PageComponents(record('navigation searchAggregator staticShellContent settings themes')):
@@ -473,8 +495,6 @@ class PrivateApplication(Item, PrefixURLMixin):
     this application.  Templates and suchlike will be looked up for this theme
     first.
 
-    @ivar hitCount: Number of page loads of this application.
-
     @ivar privateKey: A random integer used to deterministically but
     unpredictably perturb link generation to avoid being the target of XSS
     attacks.
@@ -484,15 +504,15 @@ class PrivateApplication(Item, PrefixURLMixin):
     'root' page, /private/.
     """
 
-    implements(ISiteRootPlugin, IWebTranslator, ITemplateNameResolver)
+    implements(ISiteRootPlugin, IWebTranslator, ITemplateNameResolver,
+               IPowerupIndirector)
 
-    powerupInterfaces = (IWebTranslator, ITemplateNameResolver)
+    powerupInterfaces = (IWebTranslator, ITemplateNameResolver, IWebViewer)
 
     typeName = 'private_web_application'
-    schemaVersion = 4
+    schemaVersion = 5
 
     preferredTheme = text()
-    hitCount = integer(default=0)
     privateKey = integer(defaultFactory=genkey)
 
     website = dependsOn(WebSite)
@@ -533,16 +553,18 @@ class PrivateApplication(Item, PrefixURLMixin):
             return l + u'@' + d
 
 
-    def createResource(self):
-        return PrivateRootPage(self, self.getPageComponents(), self._getUsername())
+    def createResourceWith(self, webViewer):
+        return _PrivateRootPage(self, self.getPageComponents(),
+                                self._getUsername(), webViewer)
 
 
     # ISiteRootPlugin
-    def resourceFactory(self, segments):
+    def produceResource(self, req, segments, webViewer):
         if segments == JUST_SLASH:
-            return self.createResource(), JUST_SLASH
+            return self.createResourceWith(webViewer), JUST_SLASH
         else:
-            return super(PrivateApplication, self).resourceFactory(segments)
+            return super(PrivateApplication, self).produceResource(
+                req, segments, webViewer)
 
 
     # IWebTranslator
@@ -574,6 +596,17 @@ class PrivateApplication(Item, PrefixURLMixin):
     def toWebID(self, item):
         return storeIDToWebID(self.privateKey, item.storeID)
 
+
+    def _preferredThemes(self):
+        """
+        Return a list of themes in the order of preference that this user has
+        selected via L{PrivateApplication.preferredTheme}.
+        """
+        themes = getInstalledThemes(self.store.parent)
+        _reorderForPreference(themes, self.preferredTheme)
+        return themes
+
+
     #ITemplateNameResolver
     def getDocFactory(self, fragmentName, default=None):
         """
@@ -584,13 +617,25 @@ class PrivateApplication(Item, PrefixURLMixin):
         @param default: value to be returned if the named template is not
         found.
         """
-        themes = getInstalledThemes(self.store.parent)
-        _reorderForPreference(themes, self.preferredTheme)
+        themes = self._preferredThemes()
         for t in themes:
             fact = t.getDocFactory(fragmentName, None)
             if fact is not None:
                 return fact
         return default
+
+
+    # IPowerupIndirector
+    def indirect(self, interface):
+        """
+        Indirect the implementation of L{IWebViewer} to
+        L{_AuthenticatedWebViewer}.
+        """
+        if interface == IWebViewer:
+            return _AuthenticatedWebViewer(self)
+        return self
+
+
 
 declareLegacyItem(PrivateApplication.typeName, 2, dict(
     installedOn = reference(),
@@ -618,7 +663,6 @@ def upgradePrivateApplication1To2(oldApp):
         'private_web_application', 1, 2,
         installedOn=oldApp.installedOn,
         preferredTheme=oldApp.preferredTheme,
-        hitCount=oldApp.hitCount,
         privateKey=oldApp.privateKey,
         privateIndexPage=oldApp.privateIndexPage)
     newApp.store.powerup(newApp.store.findOrCreate(
@@ -630,7 +674,6 @@ upgrade.registerUpgrader(upgradePrivateApplication1To2, 'private_web_application
 def _upgradePrivateApplication2to3(old):
     pa = old.upgradeVersion(PrivateApplication.typeName, 2, 3,
         preferredTheme=old.preferredTheme,
-        hitCount=old.hitCount,
         privateKey=old.privateKey,
         privateIndexPage=old.privateIndexPage)
     pa.customizedPublicPage = old.store.findOrCreate(CustomizedPublicPage)
@@ -654,7 +697,6 @@ def upgradePrivateApplication3to4(old):
     new = old.upgradeVersion(
         PrivateApplication.typeName, 3, 4,
         preferredTheme=old.preferredTheme,
-        hitCount=old.hitCount,
         privateKey=old.privateKey,
         website=old.website,
         customizedPublicPage=old.customizedPublicPage,
@@ -673,3 +715,36 @@ def upgradePrivateApplication3to4(old):
     return new
 
 upgrade.registerUpgrader(upgradePrivateApplication3to4, PrivateApplication.typeName, 3, 4)
+
+PrivateApplicationV4 = declareLegacyItem(
+    'private_web_application', 4,
+    dict(authenticationApplication=reference(),
+         customizedPublicPage=reference(),
+         defaultPreferenceCollection=reference(),
+         hitCount=integer(),
+         preferenceAggregator=reference(),
+         preferredTheme=text(),
+         privateIndexPage=reference(),
+         privateKey=integer(),
+         searchAggregator=reference(),
+         website=reference()))
+
+def upgradePrivateApplication4to5(old):
+    """
+    Install the newly required powerup.
+    """
+    new = old.upgradeVersion(
+        PrivateApplication.typeName, 4, 5,
+        preferredTheme=old.preferredTheme,
+        privateKey=old.privateKey,
+        website=old.website,
+        customizedPublicPage=old.customizedPublicPage,
+        authenticationApplication=old.authenticationApplication,
+        preferenceAggregator=old.preferenceAggregator,
+        defaultPreferenceCollection=old.defaultPreferenceCollection,
+        searchAggregator=old.searchAggregator)
+    new.store.powerUp(new, IWebViewer)
+    return new
+
+
+upgrade.registerUpgrader(upgradePrivateApplication4to5, PrivateApplication.typeName, 4, 5)

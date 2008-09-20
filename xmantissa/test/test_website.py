@@ -9,12 +9,14 @@ from zope.interface.verify import verifyObject
 
 try:
     from cssutils import CSSParser
+    CSSParser
 except ImportError:
     CSSParser = None
 
 from twisted.python.components import registerAdapter
 from twisted.internet.address import IPv4Address
-from twisted.trial import unittest, util
+from twisted.trial.unittest import TestCase
+from twisted.trial import util
 from twisted.python.filepath import FilePath
 
 from nevow.flat import flatten
@@ -27,22 +29,27 @@ from nevow.athena import LivePage
 from nevow.guard import LOGIN_AVATAR
 
 from axiom import userbase
+from axiom.userbase import LoginSystem
 from axiom.store import Store
 from axiom.dependency import installOn
 from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.ixmantissa import (
-    IProtocolFactoryFactory, ISiteURLGenerator, ISiteRootPlugin)
+    IProtocolFactoryFactory, ISiteURLGenerator, ISiteRootPlugin, IWebViewer,
+    ISessionlessSiteRootPlugin)
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa import website, publicweb
-from xmantissa.websharing import UserIndexPage
-from xmantissa.signup import PasswordResetResource
+from xmantissa._webutil import VirtualHostWrapper
+
 from xmantissa.publicweb import LoginPage
 from xmantissa.offering import installOffering
 from xmantissa.plugins.baseoff import baseOffering
 from xmantissa.cachejs import theHashModuleProvider
+from xmantissa.website import WebSite
+from xmantissa.webapp import PrivateApplication
+from xmantissa.websharing import SharingIndex
 
-from xmantissa.website import MantissaLivePage, APIKey
+from xmantissa.website import MantissaLivePage, APIKey, PrefixURLMixin
 from xmantissa.web import SecuringWrapper, _SecureWrapper, StaticContent, UnguardedWrapper, SiteConfiguration
 
 
@@ -54,7 +61,7 @@ maybeEncryptedRootSuppression = util.suppress(
 
 
 
-class SiteConfigurationTests(unittest.TestCase):
+class SiteConfigurationTests(TestCase):
     """
     L{xmantissa.web.Site} defines how to create an HTTP server.
     """
@@ -321,7 +328,7 @@ class SiteConfigurationTests(unittest.TestCase):
 
 
 
-class StylesheetRewritingRequestWrapperTests(unittest.TestCase):
+class StylesheetRewritingRequestWrapperTests(TestCase):
     """
     Tests for L{StylesheetRewritingRequestWrapper}.
     """
@@ -431,7 +438,7 @@ class StylesheetRewritingRequestWrapperTests(unittest.TestCase):
 
 
 
-class LoginPageTests(unittest.TestCase):
+class LoginPageTests(TestCase):
     """
     Tests for functionality related to login.
     """
@@ -554,7 +561,7 @@ class LoginPageTests(unittest.TestCase):
 
 
 
-class UnguardedWrapperTests(unittest.TestCase):
+class UnguardedWrapperTests(TestCase):
     """
     Tests for L{UnguardedWrapper}.
     """
@@ -606,85 +613,111 @@ class UnguardedWrapperTests(unittest.TestCase):
             {baseOffering.name: baseOffering.staticContentPath})
 
 
+    def test_sessionlessPlugin(self):
+        """
+        L{UnguardedWrapper.locateChild} looks up L{ISessionlessSiteRootPlugin}
+        powerups on its store, and invokes their C{sessionlessProduceResource}
+        methods to discover resources.
+        """
+        wrapper = UnguardedWrapper(self.store, None)
+        req = FakeRequest()
+        segments = ('foo', 'bar')
+        calledWith = []
+        result = object()
+        class SiteRootPlugin(object):
+            def sessionlessProduceResource(self, request, segments):
+                calledWith.append((request, segments))
+                return result
+        self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
 
-class AnonymousSiteTests(unittest.TestCase):
+        resource = wrapper.locateChild(req, segments)
+        self.assertEqual(calledWith, [(req, ("foo", "bar"))])
+
+
+    def test_sessionlessLegacyPlugin(self):
+        """
+        L{UnguardedWrapper.locateChild} honors old-style
+        L{ISessionlessSiteRootPlugin} providers that only implement a
+        C{resourceFactory} method.
+        """
+        wrapper = UnguardedWrapper(self.store, None)
+        req = FakeRequest()
+        segments = ('foo', 'bar')
+        calledWith = []
+        result = object()
+        class SiteRootPlugin(object):
+            def resourceFactory(self, segments):
+                calledWith.append(segments)
+                return result
+        self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
+
+        resource = wrapper.locateChild(req, segments)
+        self.assertEqual(calledWith, [segments])
+
+
+    def test_confusedNewPlugin(self):
+        """
+        If L{UnguardedWrapper.locateChild} discovers a plugin that implements
+        both C{sessionlessProduceResource} and C{resourceFactory}, it should
+        prefer the new C{sessionlessProduceResource} method and return that
+        resource.
+        """
+        wrapper = UnguardedWrapper(self.store, None)
+        req = FakeRequest()
+        test = self
+        segments = ('foo', 'bar')
+        result = object()
+        calledWith = []
+        class SiteRootPlugin(object):
+            def resourceFactory(self, segments):
+                test.fail("Don't call this.")
+            def sessionlessProduceResource(self, request, segments):
+                calledWith.append((request, segments))
+                return result, segments[1:]
+        self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
+
+        resource, resultSegments = wrapper.locateChild(req, segments)
+        self.assertEqual(calledWith, [(req, segments)])
+        self.assertIdentical(resource, result)
+        self.assertEqual(resultSegments, ('bar',))
+
+
+
+class SiteTestsMixin(object):
+    """
+    Tests that apply to both subclasses of L{SiteRootMixin}, L{WebSite} and
+    L{AnonymousSite}.
+
+    @ivar store: a store containing something that inherits from L{SiteRootMixin}.
+
+    @ivar resource: the result of adapting the given L{SiteRootMixin} item to
+    L{IResource}.
+    """
+
     def setUp(self):
         """
-        Set up a store with a valid offering to test against.
+        Set up a site store with the base offering installed.
         """
-        self.store = Store()
-        installOffering(self.store, baseOffering, {})
-        self.site = ISiteURLGenerator(self.store)
-        self.resource = IResource(self.store)
+        self.siteStore = Store()
+        installOffering(self.siteStore, baseOffering, {})
 
 
-    def test_login(self):
+    def addUser(self, username=u'nobody', domain=u'nowhere'):
         """
-        L{AnonymousSite} has a I{login} child which returns a L{LoginPage}
-        instance.
+        Add a user to the site store, and install a L{PrivateApplication}.
+
+        @return: the user store of the added user.
         """
-        host = 'example.org'
-        port = 1234
-        netloc = '%s:%d' % (host, port)
-
-        request = FakeRequest(
-            headers={'host': netloc},
-            uri='/login/foo',
-            currentSegments=[],
-            isSecure=False)
-
-        self.site.hostname = host.decode('ascii')
-        SSLPort(store=self.store, portNumber=port, factory=self.site)
-
-        resource, segments = self.resource.locateChild(request, ("login",))
-        self.assertTrue(isinstance(resource, LoginPage))
-        self.assertIdentical(resource.store, self.store)
-        self.assertEqual(resource.segments, ())
-        self.assertEqual(resource.arguments, {})
-        self.assertEqual(segments, ())
+        userStore = self.siteStore.findUnique(LoginSystem).addAccount(
+            username, domain, u'asdf', internal=True).avatars.open()
+        installOn(PrivateApplication(store=userStore), userStore)
+        return userStore
 
 
-    def test_resetPassword(self):
+    def test_crummyOldSiteRootPlugin(self):
         """
-        L{AnonymousSite} has a I{resetPassword} child which returns a
-        L{PasswordResetResource} instance.
-        """
-        resource, segments = self.resource.locateChild(
-            FakeRequest(headers={"host": "example.com"}),
-            ("resetPassword",))
-        self.assertTrue(isinstance(resource, PasswordResetResource))
-        self.assertIdentical(resource.store, self.store)
-        self.assertEqual(segments, ())
-
-
-    def test_users(self):
-        """
-        L{AnonymousSite} has a I{users} child which returns a L{UserIndexPage}
-        instance.
-        """
-        resource, segments = self.resource.locateChild(
-            FakeRequest(headers={"host": "example.com"}), ("users",))
-        self.assertTrue(isinstance(resource, UserIndexPage))
-        self.assertIdentical(
-            resource.loginSystem, self.store.findUnique(userbase.LoginSystem))
-        self.assertEqual(segments, ())
-
-
-    def test_notFound(self):
-        """
-        L{AnonymousSite.locateChild} returns L{NotFound} for requests it cannot
-        find another response for.
-        """
-        result = self.resource.locateChild(
-            FakeRequest(headers={"host": "example.com"}),
-            ("foo", "bar"))
-        self.assertIdentical(result, NotFound)
-
-
-    def test_siteRootPlugin(self):
-        """
-        L{AnonymousSite.locateChild} queries for L{ISiteRootPlugin} providers
-        and returns the result of their I{resourceFactory} method if it is not
+        L{SiteRootMixin.locateChild} queries for L{ISiteRootPlugin} providers
+        and returns the result of their C{resourceFactory} method if it is not
         C{None}.
         """
         result = object()
@@ -701,6 +734,158 @@ class AnonymousSiteTests(unittest.TestCase):
                 ("foo", "bar")),
             result)
         self.assertEqual(calledWith, [("foo", "bar")])
+
+
+    def test_shinyNewSiteRootPlugin(self):
+        """
+        L{SiteRootMixin.locateChild} queries for L{ISiteRootPlugin} providers
+        and returns the result of their C{produceResource} methods.
+        """
+        navthing = object()
+        result = object()
+        calledWith = []
+        class GoodSiteRootPlugin(object):
+            implements(ISiteRootPlugin)
+            def produceResource(self, req, segs, webViewer):
+                calledWith.append((req, segs, webViewer))
+                return result
+
+        self.store.inMemoryPowerUp(GoodSiteRootPlugin(), ISiteRootPlugin)
+        self.store.inMemoryPowerUp(navthing, IWebViewer)
+        req = FakeRequest(headers={
+                'host': 'localhost'})
+        self.resource.locateChild(req, ("foo", "bar"))
+        self.assertEqual(calledWith, [(req, ("foo", "bar"), navthing)])
+
+
+    def test_confusedNewPlugin(self):
+        """
+        When L{SiteRootMixin.locateChild} finds a L{ISiteRootPlugin} that
+        implements both C{produceResource} and C{resourceFactory}, it should
+        prefer the new-style C{produceResource} method.
+        """
+        navthing = object()
+        result = object()
+        calledWith = []
+        test = self
+        class ConfusedSiteRootPlugin(object):
+            implements(ISiteRootPlugin)
+            def produceResource(self, req, segs, webViewer):
+                calledWith.append((req, segs, webViewer))
+                return result
+            def resourceFactory(self, segs):
+                test.fail("resourceFactory called.")
+
+        self.store.inMemoryPowerUp(ConfusedSiteRootPlugin(), ISiteRootPlugin)
+        self.store.inMemoryPowerUp(navthing, IWebViewer)
+        req = FakeRequest(headers={
+                'host': 'localhost'})
+        self.resource.locateChild(req, ("foo", "bar"))
+        self.assertEqual(calledWith, [(req, ("foo", "bar"), navthing)])
+
+
+    def test_virtualHosts(self):
+        """
+        When a virtual host of the form (x.y) is requested from a site root
+        resource where 'y' is a known domain for that server, a L{SharingIndex}
+        for the user identified as 'x@y' should be returned.
+        """
+        # Let's make sure we're looking at the correct store for our list of
+        # domains first...
+        self.assertIdentical(self.resource.siteStore,
+                             self.siteStore)
+        somebody = self.addUser(u'somebody', u'example.com')
+        req = FakeRequest(headers={'host': 'somebody.example.com'})
+        res, segs = self.resource.locateChild(req, ('',))
+        self.assertIsInstance(res, SharingIndex) # :(
+        self.assertIdentical(res.userStore, somebody)
+
+
+
+class WebSiteTests(SiteTestsMixin, TestCase):
+    """
+    Isn't this class like four years late?
+    """
+
+    def setUp(self):
+        """
+        Set up a store with a valid offering to test against.
+        """
+        SiteTestsMixin.setUp(self)
+        userStore = self.addUser()
+        ws = userStore.findUnique(WebSite)
+        self.store = ws.store
+        self.resource = IResource(self.store)
+
+
+
+class PrefixURLMixinTests(TestCase):
+    """
+    Tests for L{PrefixURLMixin}.
+    """
+
+    def test_createResource(self):
+        """
+        L{PrefixURLMixin} subclasses that implement C{createResource} have that
+        method called upon resource lookup with no arguments.
+        """
+        target = object()
+        class PrefixUser(PrefixURLMixin):
+            prefixURL= u'foo'
+            def createResource(self):
+                return target
+
+        p = PrefixUser()
+        req = FakeRequest(headers={"host": "example.com"})
+        rsrc, resultSegments = p.produceResource(req, ('foo', 'bar'), None)
+        self.assertEqual(resultSegments, ('bar',))
+        self.assertIdentical(rsrc, target)
+
+
+    def test_createResourceWith(self):
+        """
+        L{PrefixURLMixin} subclasses that implement C{createResourceWith} have
+        that method called upon resource lookup with the shell factory.
+        """
+        calledWith = []
+        target = object()
+        webViewer = object()
+        class PrefixUser(PrefixURLMixin):
+            prefixURL= u'foo'
+            def createResourceWith(self, webViewer):
+                calledWith.append(webViewer)
+                return target
+
+        p = PrefixUser()
+        req = FakeRequest(headers={"host": "example.com"})
+        rsrc, resultSegments = p.produceResource(req, ('foo', 'bar'),
+                                                 webViewer)
+        self.assertEqual(resultSegments, ('bar',))
+        self.assertIdentical(rsrc, target)
+        self.assertIdentical(webViewer, calledWith[0])
+
+
+    def test_sessionlessResource(self):
+        """
+        L{PrefixURLMixin.sessionlessProduceResource} will produce the resource
+        described by the L{createResource} for appropriate lists of segments.
+        """
+        target = object()
+        class SessionlessPrefixThing(PrefixURLMixin):
+            implements(ISessionlessSiteRootPlugin)
+            prefixURL = u'foo'
+            def createResource(self):
+                return target
+
+        p = SessionlessPrefixThing()
+        verifyObject(ISessionlessSiteRootPlugin, p)
+        req = FakeRequest(headers={"host": "example.com"})
+        rsrc, segments = p.sessionlessProduceResource(req, ('foo', 'bar'))
+        self.assertIdentical(rsrc, target)
+        self.assertEqual(segments, ('bar',))
+
+        result = p.sessionlessProduceResource(req, ('baz', 'boz'))
+        self.assertIdentical(result, None)
 
 
 
@@ -755,7 +940,7 @@ registerAdapter(NotResourceAdapter, NotResource, IResource)
 
 
 
-class SecuringWrapperTests(unittest.TestCase):
+class SecuringWrapperTests(TestCase):
     """
     L{SecuringWrapper} makes sure that any resource which is eventually
     retrieved from a wrapped resource and then rendered is rendered over HTTPS
@@ -902,7 +1087,7 @@ class SecuringWrapperTests(unittest.TestCase):
 
 
 
-class AthenaResourcesTestCase(unittest.TestCase):
+class AthenaResourcesTestCase(TestCase):
     """
     Test aspects of L{GenericNavigationAthenaPage}.
     """
@@ -989,7 +1174,7 @@ class AthenaResourcesTestCase(unittest.TestCase):
 
 
 
-class APIKeyTestCase(unittest.TestCase):
+class APIKeyTestCase(TestCase):
     """
     Tests for L{APIKey}.
     """
@@ -1057,17 +1242,20 @@ class APIKeyTestCase(unittest.TestCase):
 
 
 
-class VirtualHostWrapperTests(unittest.TestCase):
+class VirtualHostWrapperTests(TestCase):
     """
     Tests for L{VirtualHostWrapper}.
     """
+    # XXX only integration tests cover L{VirtualHostWrapper.locateChild}.  That
+    # is important functionality, it should be covered here.
+
     def test_nonSubdomain(self):
         """
         L{VirtualHostWrapper.subdomain} returns C{None} when passed a hostname
         which is not a subdomain of a domain of the site.
         """
         site = Store()
-        wrapper = website.VirtualHostWrapper(site, None, None)
+        wrapper = VirtualHostWrapper(site, None, None)
         self.assertIdentical(wrapper.subdomain("example.com"), None)
 
 
@@ -1078,7 +1266,7 @@ class VirtualHostWrapperTests(unittest.TestCase):
         domain.
         """
         site = Store()
-        wrapper = website.VirtualHostWrapper(site, None, None)
+        wrapper = VirtualHostWrapper(site, None, None)
         userbase.LoginMethod(
             store=site,
             account=site,
@@ -1098,7 +1286,7 @@ class VirtualHostWrapperTests(unittest.TestCase):
         which is the I{www} subdomain of a domain of the site.
         """
         site = Store()
-        wrapper = website.VirtualHostWrapper(site, None, None)
+        wrapper = VirtualHostWrapper(site, None, None)
         userbase.LoginMethod(
             store=site,
             account=site,
@@ -1116,7 +1304,7 @@ class VirtualHostWrapperTests(unittest.TestCase):
         as if they did not have a port component.
         """
         site = Store()
-        wrapper = website.VirtualHostWrapper(site, None, None)
+        wrapper = VirtualHostWrapper(site, None, None)
         userbase.LoginMethod(
             store=site,
             account=site,

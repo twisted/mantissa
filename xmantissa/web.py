@@ -268,8 +268,13 @@ class UnguardedWrapper(record('siteStore guardedRoot')):
             if res is not None:
                 return res, segments[1:]
 
+        req = IRequest(context)
         for plg in self.siteStore.powerupsFor(ISessionlessSiteRootPlugin):
-            childAndSegments = plg.resourceFactory(segments)
+            spr = getattr(plg, 'sessionlessProduceResource', None)
+            if spr is not None:
+                childAndSegments = spr(req, segments)
+            else:
+                childAndSegments = plg.resourceFactory(segments)
             if childAndSegments is not None:
                 return childAndSegments
 
@@ -320,7 +325,7 @@ class SecuringWrapper(record('urlGenerator wrappedResource')):
 
 
 
-class _SecureWrapper(object):
+class _SecureWrapper(record('urlGenerator wrappedResource')):
     """
     Helper class for L{SecuringWrapper} which preserves wrapping to the
     ultimate resource and which implements HTTPS redirect logic if necessary.
@@ -332,9 +337,9 @@ class _SecureWrapper(object):
     """
     implements(IResource)
 
-    def __init__(self, urlGenerator, wrappedResource):
-        self.urlGenerator = urlGenerator
-        self.wrappedResource = IResource(wrappedResource)
+    def __init__(self, *a, **k):
+        super(_SecureWrapper, self).__init__(*a, **k)
+        self.wrappedResource = IResource(self.wrappedResource)
 
 
     def locateChild(self, context, segments):

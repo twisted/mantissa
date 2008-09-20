@@ -276,6 +276,37 @@ class IStaticShellContent(Interface):
         if no footer is desired.
         """
 
+
+
+class IWebViewer(Interface):
+    """
+    An object that provides navigation bits for web content produced by
+    Mantissa applications.
+    """
+
+    def wrapModel(model):
+        """
+        Converts application-provided model objects to L{IResource} providers.
+
+        @param model: An L{Item} or L{SharedProxy}.
+        """
+
+
+    def roleIn(userStore):
+        """
+        Retrieve a L{xmantissa.sharing.Role} object for the user that this
+        web viewer represents in the provided user-store.
+
+        @param userStore: a store that contains some sharing roles.
+
+        @type userStore: L{axiom.store.Store}
+
+        @rtype: L{xmantissa.sharing.Role}
+        """
+
+
+
+
 class ISiteRootPlugin(Interface):
     """
     Plugin Interface for functionality provided at the root of the website.
@@ -288,7 +319,10 @@ class ISiteRootPlugin(Interface):
     """
 
     def resourceFactory(segments):
-        """Get an object that provides IResource
+        """
+        This is deprecated; implement L{produceResource} instead.
+
+        Get an object that provides IResource.
 
         @type segments: list of str, representing decoded requested URL
         segments
@@ -296,12 +330,79 @@ class ISiteRootPlugin(Interface):
         @return: None or a two-tuple of the IResource provider and the segments
         to pass to its locateChild.
         """
+    del resourceFactory         # It's deprecated, so when we verifyObject, we
+                                # don't want to check for this.
+
+
+    def produceResource(request, segments, webViewer):
+        """
+        Get an object that provides IResource.
+
+        @param request: An L{IRequest}.
+
+        @type segments: list of str, representing decoded requested URL
+        segments
+
+        @param webViewer: An L{IWebViewer}.
+
+        @return: None or a two-tuple of the IResource provider and the segments
+        to pass to its locateChild.
+        """
+
+
+class IMantissaSite(Interface):
+    # XXX this documentation is terrible, rephrase to describe something
+    # abstract.
+    """
+    This is different from ISiteRootPlugin because it is invoked in a different
+    context.  ISiteRootPlugin is a plugin powerup interface that lots of
+    different things can provide.  This is an interface that only the site
+    needs to provide, for L{CustomizedPublicPage} to do stuff with.
+    """
+
+    def siteProduceResource(request, segments, webViewer):
+        """
+        Give me a resource based on a bunch of ISiteRootPlugin powerups.
+        """
+
+
 
 class ISessionlessSiteRootPlugin(Interface):
     """
-    Extremely similar to ISiteRootPlugin except access is not mediated by
-    nevow.guard.
+    L{ISessionlessSiteRootPlugin} powerups installed on a site store are
+    powerups which can produce a resource to respond to a particular request,
+    even if the browser in question has no session.
+
+    This powerup interface exists mainly to allow applications to provide
+    resources which are not subject to the redirect that L{nevow.guard}
+    introduces.  This can be important for interacting with limited user-agents
+    that do not support cookies or redirects.
+
+    However, this is a temporary workaround, as L{nevow.guard} should have this
+    redirect requirement removed.  See ticket #2494 for details.
     """
+
+    def sessionlessProduceResource(request, segments):
+        """
+        Return a 2-tuple of C{(resource, segments)} if a resource can be found
+        to match this request and its segments, or None.
+        """
+
+
+    def resourceFactory(segments):
+        """
+        This is deprecated; implement L{sessionlessProduceResource} instead.
+
+        Get an object that provides IResource.
+
+        @type segments: list of str, representing decoded requested URL
+        segments
+
+        @return: None or a two-tuple of the IResource provider and the segments
+        to pass to its locateChild.
+        """
+    del resourceFactory         # It's deprecated, so when we verifyObject, we
+                                # don't want to check for this.
 
 
 class ICustomizable(Interface):
@@ -404,24 +505,29 @@ class INavigableFragment(Interface):
     subclass L{nevow.page.Element}.
     """
 
-    live = Attribute("""
-    A boolean, telling us whether or not this fragment requires a LivePage to
-    function properly.
-    """)
+    title = Attribute(
+        """
+        The title of this fragment, which will be used in the <title> tag of
+        the page displaying it, or otherwise outside the content area of the
+        fragment but associated with it.
+        """)
 
-    fragmentName = Attribute("""
-    The name of this fragment; a string used to look up the template from the
-    current theme(s).
+    fragmentName = Attribute(
+        """
+        The name of this fragment; a string used to look up the template from
+        the current theme(s).  This is done by implementors of
+        L{IWebViewer.wrapModel}.
 
-    For quick-and-dirty development, this may be set to None and instead you
-    can set a docFactory.  While this will work, it's not generally
-    recommended, because then your application's visual style will be
-    inextricably welded to its front-end code.
-    """)
+        This attribute may be set to None or left unset if you do not want this
+        type of customization.  However, if you do not set it, you must set a
+        docFactory yourself, and your docFactory will not be changed to
+        accommodate the user's preferred theme.
+        """)
 
-    docFactory = Attribute("""
-    Nevow-style docFactory object.  Must be set if fragmentName is not.
-    """)
+    docFactory = Attribute(
+        """
+        Nevow-style docFactory object.  Must be set if fragmentName is not.
+        """)
 
 
     def head():
@@ -430,6 +536,9 @@ class INavigableFragment(Interface):
         section of the page when this fragment is being rendered.
 
         May return None if nothing needs to be added there.
+
+        This method is optional.  If not implemented, nothing will be added to
+        the head.
         """
 
 
@@ -450,6 +559,7 @@ class INavigableFragment(Interface):
         return rend.NotFound exactly, not a Deferred which fires it.)
         """
 
+
     def setFragmentParent(fragmentParent):
         """
         Sets the L{LiveFragment} (or L{LivePage}) which is the logical parent
@@ -458,6 +568,28 @@ class INavigableFragment(Interface):
         See L{nevow.athena._LiveMixin.setFragmentParent}'s docstring for more
         information.
         """
+
+
+    def customizeFor(userID):
+        """
+        This method is optional.  If not provided, it is the same as returning
+        'self'.
+
+        When a logged-in user is viewing an L{INavigableFragment} provider,
+        this method will be invoked with that user's ID, and the returned
+        navigable fragment will be presented to the user instead.
+
+        @param userID: a user@host formatted string, indicating what user is
+        viewing this.
+
+        @type userID: L{unicode}
+
+        @return: a fragment customized for the provided user-ID.
+
+        @rtype: L{INavigableFragment}
+        """
+
+
 
 class ITab(Interface):
     """

@@ -1196,8 +1196,7 @@ class Organizer(item.Item):
         @param person: L{Person} instance
         @return: string url at which C{person} will be rendered
         """
-        return (self._webTranslator.linkTo(self.storeID) +
-                '/' + self._webTranslator.toWebID(person))
+        return self._webTranslator.linkTo(person.storeID)
 
 
     def urlForViewState(self, person, viewState):

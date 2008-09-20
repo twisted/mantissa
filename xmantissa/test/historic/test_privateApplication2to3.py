@@ -1,4 +1,7 @@
+
 from axiom.test.historic import stubloader
+
+from xmantissa.ixmantissa import IWebViewer
 from xmantissa.publicweb import CustomizedPublicPage
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite
@@ -40,3 +43,11 @@ class PATestCase(stubloader.StubbedTest):
         self.assertEqual(oldPA.privateKey, pa.privateKey)
 
 
+    def test_webViewer(self):
+        """
+        At version 5, L{PrivateApplication} should be an
+        L{IWebViewer} powerup on its store.
+        """
+        application = self.store.findUnique(PrivateApplication)
+        interfaces = list(application.store.interfacesFor(application))
+        self.assertIn(IWebViewer, interfaces)

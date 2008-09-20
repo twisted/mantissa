@@ -3,6 +3,8 @@ from zope.interface import implements
 from twisted.trial.unittest import TestCase
 from twisted.internet import defer
 
+from epsilon.structlike import record
+
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer
@@ -11,24 +13,136 @@ from axiom.dependency import installOn
 from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
 
-from nevow.athena import LiveFragment
+from nevow.athena import LiveElement
 from nevow import rend
 from nevow.rend import WovenContext
 from nevow.testutil import FakeRequest
 from nevow.inevow import IRequest, IResource
 
-from xmantissa.ixmantissa import ITemplateNameResolver, ISiteURLGenerator
-from xmantissa.offering import InstalledOffering, installOffering
+from xmantissa.ixmantissa import (
+    ITemplateNameResolver, ISiteURLGenerator, IWebViewer, INavigableElement)
+
+from xmantissa.offering import InstalledOffering
 from xmantissa.webtheme import theThemeCache
-from xmantissa import website, webapp
+from xmantissa.webnav import Tab
+from xmantissa.sharing import (getSelfRole, getAuthenticatedRole,
+                               getPrimaryRole)
+
+from xmantissa.webapp import (
+    PrivateApplication, _AuthenticatedWebViewer, _PrivateRootPage,
+    GenericNavigationAthenaPage)
+
 from xmantissa.test.test_publicweb import AuthenticatedNavigationTestMixin
-from xmantissa.plugins.baseoff import baseOffering
+
+from xmantissa.test.fakes import (
+    FakeTheme, FakeCustomizableElementModel, FakeLoader,
+    ElementViewForFakeModelWithTheme, FakeElementModelWithTheme)
+
+from xmantissa.test.test_webshell import WebViewerTestMixin
+
+
+class AuthenticatedWebViewerTests(WebViewerTestMixin, TestCase):
+    """
+    Tests for L{_AuthenticatedWebViewer}.
+    """
+
+    def setupPageFactory(self):
+        """
+        Create the page factory used by the tests.
+        """
+        self.privapp = self.adminStore.findUnique(PrivateApplication)
+        self.pageFactory = _AuthenticatedWebViewer(self.privapp)
+
+
+    def assertPage(self, page):
+        """
+        Fail if the given object is not a nevow L{rend.Page} (or if it is an
+        L{LivePage}). Also fail if the username is wrong.
+        """
+        WebViewerTestMixin.assertPage(self, page)
+        self.assertEqual(page.username, u'admin@localhost')
+
+
+    def assertLivePage(self, page):
+        """
+        Fail if the given object is not a L{MantissaLivePage}, or if the
+        username is wrong.
+        """
+        WebViewerTestMixin.assertLivePage(self, page)
+        self.assertEqual(page.username, u'admin@localhost')
+
+
+
+    def test_docFactoryFromFragmentNameWithPreference(self):
+        """
+        When an L{INavigableFragment} provider provides a C{fragmentName}
+        attribute, the theme to load it should be discovered according to the
+        user's preference.
+        """
+        preferredDocFactory = FakeLoader('good')
+        otherDocFactory = FakeLoader('bad')
+        fn = ElementViewForFakeModelWithTheme.fragmentName
+        self.stubThemeList(
+            [FakeTheme(u'alpha', {fn: otherDocFactory}),
+             FakeTheme(u'beta', {fn: preferredDocFactory})])
+        self.privapp.preferredTheme = u'beta'
+        elementable = FakeElementModelWithTheme()
+        result = self.pageFactory.wrapModel(elementable)
+        self.assertEqual(result.fragment.docFactory, preferredDocFactory)
+
+
+    def test_customizableCustomizeFor(self):
+        """
+        L{INavigableFragment} providers who have a 'customizeFor' method will
+        have it called with a username when they are wrapped for authenticated
+        rendering.
+        """
+        elementable = FakeCustomizableElementModel()
+        result = self.pageFactory.wrapModel(elementable)
+        self.assertEqual(elementable.username, u'admin@localhost')
+
+
+    def test_roleInMyStore(self):
+        """
+        L{_AuthenticatedWebViewer} should always return the 'self' role for
+        users looking at their own stores.
+        """
+        role = getSelfRole(self.adminStore)
+        self.assertIdentical(self.pageFactory.roleIn(self.adminStore),
+                             role)
+
+
+    def test_roleInSomebodyElsesStoreWhoDoesntKnowMe(self):
+        """
+        L{_AuthenticatedWebViewer} should return the authenticated role for
+        users with no specific role to map.
+        """
+        someStore = self.loginSystem.addAccount(
+            u'someguy', u'localhost', u'asdf').avatars.open()
+        role = getAuthenticatedRole(someStore)
+        self.assertIdentical(self.pageFactory.roleIn(someStore),
+                             role)
+
+
+    def test_roleInSomebodyElsesStoreDoesKnowMe(self):
+        """
+        L{_AuthenticatedWebViewer} should return the authenticated role for
+        users with no specific role to map.
+        """
+        someStore = self.loginSystem.addAccount(
+            u'someguy', u'localhost', u'asdf').avatars.open()
+        role = getPrimaryRole(someStore, u'admin@localhost', True)
+        self.assertIdentical(self.pageFactory.roleIn(someStore),
+                             role)
+
 
 
 class FakeResourceItem(Item):
     unused = integer()
     implements(IResource)
 
+class FakeModelItem(Item):
+    unused = integer()
 
 
 class WebIDLocationTest(TestCase):
@@ -36,9 +150,9 @@ class WebIDLocationTest(TestCase):
     def setUp(self):
         store = Store()
         ss = SubStore.createNew(store, ['test']).open()
-        self.pa = webapp.PrivateApplication(store=ss)
+        self.pa = PrivateApplication(store=ss)
         installOn(self.pa, ss)
-
+        self.webViewer = IWebViewer(ss)
 
     def test_powersUpTemplateNameResolver(self):
         """
@@ -57,7 +171,8 @@ class WebIDLocationTest(TestCase):
         i = FakeResourceItem(store=self.pa.store)
         wid = self.pa.toWebID(i)
         ctx = FakeRequest()
-        self.assertEqual(self.pa.createResource().locateChild(ctx, [wid]),
+        res = self.pa.createResourceWith(self.webViewer)
+        self.assertEqual(res.locateChild(ctx, [wid]),
                          (i, []))
 
 
@@ -73,11 +188,34 @@ class WebIDLocationTest(TestCase):
             ["nothing-here"],
             # more than one segment
             ["two", "segments"]]:
-            self.assertEqual(self.pa.createResource().locateChild(ctx, segments),
+            res = self.pa.createResourceWith(self.webViewer)
+            self.assertEqual(res.locateChild(ctx, segments),
                              rend.NotFound)
 
 
-class TestFragment(LiveFragment):
+    def test_webIDForFragment(self):
+        """
+        Retrieving a webID that specifies a fragment gives the correct
+        resource.
+        """
+        class FakeView(record("model")):
+            "A fake view that wraps a FakeModelItem."
+
+        class FakeWebViewer(object):
+            def wrapModel(self, model):
+                return FakeView(model)
+
+        i = FakeModelItem(store=self.pa.store)
+        wid = self.pa.toWebID(i)
+        ctx = FakeRequest()
+        res = self.pa.createResourceWith(FakeWebViewer())
+        child, segs = res.locateChild(ctx, [wid])
+        self.assertIsInstance(child, FakeView)
+        self.assertIdentical(child.model, i)
+
+
+
+class TestElement(LiveElement):
     def head(self):
         pass
 
@@ -127,7 +265,7 @@ class GenericNavigationAthenaPageTests(TestCase,
         self.siteStore.transact(siteStoreTxn)
 
         def userStoreTxn():
-            self.privateApp = webapp.PrivateApplication(store=self.userStore)
+            self.privateApp = PrivateApplication(store=self.userStore)
             installOn(self.privateApp, self.userStore)
 
             self.navpage = self.createPage(None)
@@ -136,11 +274,11 @@ class GenericNavigationAthenaPageTests(TestCase,
 
     def createPage(self, username):
         """
-        Create a L{webapp.GenericNavigationAthenaPage} for the given user.
+        Create a L{GenericNavigationAthenaPage} for the given user.
         """
-        return webapp.GenericNavigationAthenaPage(
+        return GenericNavigationAthenaPage(
             self.privateApp,
-            TestFragment(),
+            TestElement(),
             self.privateApp.getPageComponents(),
             username)
 
@@ -205,7 +343,7 @@ class GenericNavigationAthenaPageTests(TestCase,
 
 class PrivateApplicationTestCase(TestCase):
     """
-    Tests for L{webapp.PrivateApplication}.
+    Tests for L{PrivateApplication}.
     """
     def setUp(self):
         self.siteStore = Store(filesdir=self.mktemp())
@@ -215,26 +353,27 @@ class PrivateApplicationTestCase(TestCase):
             self.siteStore, u'testuser', u'example.com', u'password')
         self.userStore = self.userAccount.avatars.open()
 
-        self.webapp = webapp.PrivateApplication(store=self.userStore)
-        installOn(self.webapp, self.userStore)
+        self.privapp = PrivateApplication(store=self.userStore)
+        installOn(self.privapp, self.userStore)
+        self.webViewer = IWebViewer(self.userStore)
 
 
     def test_createResourceUsername(self):
         """
-        L{webapp.PrivateApplication.createResource} should figure out the
-        right username and pass it to L{webapp.PrivateRootPage}.
+        L{PrivateApplication.createResourceWith} should figure out the
+        right username and pass it to L{_PrivateRootPage}.
         """
-        rootPage = self.webapp.createResource()
+        rootPage = self.privapp.createResourceWith(self.webViewer)
         self.assertEqual(rootPage.username, u'testuser@example.com')
 
 
     def test_getDocFactory(self):
         """
-        L{webapp.PrivateApplication.getDocFactory} finds a document factory for
+        L{PrivateApplication.getDocFactory} finds a document factory for
         the specified template name from among the installed themes.
         """
         # Get something from the Mantissa theme
-        self.assertNotIdentical(self.webapp.getDocFactory('shell'), None)
+        self.assertNotIdentical(self.privapp.getDocFactory('shell'), None)
 
         # Get rid of the Mantissa offering and make sure the template is no
         # longer found.
@@ -243,4 +382,80 @@ class PrivateApplicationTestCase(TestCase):
         # And flush the cache. :/ -exarkun
         theThemeCache.emptyCache()
 
-        self.assertIdentical(self.webapp.getDocFactory('shell'), None)
+        self.assertIdentical(self.privapp.getDocFactory('shell'), None)
+
+
+    def test_powersUpWebViewer(self):
+        """
+        L{PrivateApplication} should provide an indirected L{IWebViewer}
+        powerup, and its indirected powerup should be the default provider of
+        that interface.
+        """
+        webViewer = IWebViewer(self.privapp.store)
+        self.assertIsInstance(webViewer, _AuthenticatedWebViewer)
+        self.assertIdentical(webViewer._privateApplication, self.privapp)
+
+
+    def test_producePrivateRoot(self):
+        """
+        L{PrivateApplication.produceResource} should return a
+        L{_PrivateRootPage} when asked for '/private'.
+        """
+        rsrc, segments = self.privapp.produceResource(FakeRequest(),
+                                                     tuple(['private']), None)
+        self.assertIsInstance(rsrc, _PrivateRootPage)
+        self.assertEqual(segments, ())
+
+
+    def test_produceRedirect(self):
+        """
+        L{_PrivateRootPage.produceResource} should return a redirect to
+        '/private/<default-private-id>' when asked for '/'.
+
+        This is a bad way to do it, because it isn't optional; all logged-in
+        users are instantly redirected to their private page, even if the
+        application has something interesting to display. See ticket #2708 for
+        details.
+        """
+        item = FakeModelItem(store=self.userStore)
+        class TabThingy(object):
+            implements(INavigableElement)
+            def getTabs(self):
+                return [Tab("supertab", item.storeID, 1.0)]
+        tt = TabThingy()
+        self.userStore.inMemoryPowerUp(tt, INavigableElement)
+        rsrc, segments = self.privapp.produceResource(
+            FakeRequest(), tuple(['']), None)
+        self.assertIsInstance(rsrc, _PrivateRootPage)
+        self.assertEqual(segments, tuple(['']))
+        url, newSegs = rsrc.locateChild(FakeRequest(), ('',))
+        self.assertEqual(newSegs, ())
+        req = FakeRequest()
+        target = self.privapp.linkTo(item.storeID)
+        self.assertEqual('/'+url.path, target)
+
+
+    def test_produceNothing(self):
+        """
+        L{_PrivateRootPage.produceResource} should return None when asked for a
+        resources other than '/' and '/private'.
+        """
+        self.assertIdentical(
+            self.privapp.produceResource(FakeRequest(),
+                                        tuple(['hello', 'world']),
+                                        None),
+            None)
+
+
+    def test_privateRootHasWebViewer(self):
+        """
+        The L{_PrivateRootPage} returned from
+        L{PrivateApplication.produceResource} should refer to an
+        L{IWebViewer}.
+        """
+        webViewer = object()
+        rsrc, segments = self.privapp.produceResource(
+            FakeRequest(),
+            tuple(['private']), webViewer)
+        self.assertIdentical(webViewer,
+                             rsrc.webViewer)

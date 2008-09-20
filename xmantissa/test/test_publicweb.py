@@ -10,45 +10,54 @@ from twisted.python.components import registerAdapter
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
+from axiom.userbase import LoginSystem
 from axiom.attributes import boolean, integer, inmemory
 from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
 from axiom.plugins.offeringcmd import SetFrontPage
 from axiom.dependency import installOn
-from axiom.userbase import LoginSystem
+
 from axiom.test.util import CommandStubMixin
 
 from nevow import rend, context, inevow
+from nevow.inevow import IResource
 from nevow.page import Element
+from nevow.rend import NotFound
 from nevow.flat import flatten
 from nevow.tags import title, div, span, h1, h2
 from nevow.testutil import FakeRequest
-from nevow.loaders import stan
 
 from xmantissa.ixmantissa import (
     IPublicPage, ITemplateNameResolver, INavigableElement, ISiteURLGenerator,
-    IOfferingTechnician, INavigableFragment)
+    IOfferingTechnician, INavigableFragment, ISiteRootPlugin, IWebViewer)
 from xmantissa import signup
-from xmantissa.website import APIKey
-from xmantissa.webapp import PrivateApplication
+from xmantissa.website import APIKey, WebSite
+from xmantissa.webapp import (PrivateApplication,
+                              _AuthenticatedWebViewer)
 from xmantissa.prefs import PreferenceAggregator
+from xmantissa.port import SSLPort
 from xmantissa.webnav import Tab
-from xmantissa.offering import Offering, InstalledOffering, OfferingConfiguration, installOffering
+from xmantissa.offering import Offering, InstalledOffering, installOffering
 from xmantissa.webtheme import theThemeCache
 from xmantissa.sharing import shareItem, getEveryoneRole
-from xmantissa.websharing import getDefaultShareID, SharingIndex
+from xmantissa.websharing import getDefaultShareID, UserIndexPage
 from xmantissa.publicweb import (
-    FrontPage, PublicAthenaLivePage, PublicNavAthenaLivePage,
-    _OfferingsFragment, PublicFrontPage, getLoader)
-from xmantissa import publicweb
+    _AnonymousWebViewer, FrontPage, PublicAthenaLivePage,
+    PublicNavAthenaLivePage, _PublicFrontPage, getLoader, AnonymousSite,
+    _OfferingsFragment, _CustomizingResource, PublicPage, LoginPage)
+
 from xmantissa.signup import PasswordResetResource
 from xmantissa.test.test_offering import FakeOfferingTechnician
 from xmantissa.test.test_websharing import TestAppPowerup, ITest
+from xmantissa.test.test_webshell import WebViewerTestMixin
+from xmantissa.test.test_website import SiteTestsMixin
 
 class TestAppElement(Element):
     """
     View class for TestAppPowerup.
     """
+    docFactory = object()       # masquerade as a valid Element, for the
+                                # purposes of theme lookup.
     def __init__(self, original):
         self.original = original
         Element.__init__(self)
@@ -73,6 +82,30 @@ class FakeTheme(object):
         the given name is unknown.
         """
         return self.docFactories.get(fragmentName, default)
+
+
+
+class AnonymousWebViewerTests(WebViewerTestMixin, TestCase):
+    """
+    Tests for L{_AnonymousWebViewer}.
+    """
+
+    def setupPageFactory(self):
+        """
+        Create the page factory used by the tests.
+        """
+        self.pageFactory = _AnonymousWebViewer(self.siteStore)
+
+
+    def test_roleIn(self):
+        """
+        L{_AnonymousWebViewer} should provide the Everyone role in the store it
+        is asked about.
+        """
+        theRole = getEveryoneRole(self.adminStore)
+        self.assertIdentical(
+            self.pageFactory.roleIn(self.adminStore),
+            theRole)
 
 
 
@@ -182,7 +215,7 @@ class TestHonorInstalledThemes(TestCase):
         ITemplateNameResolver.
         """
         self.fakeResolver.correctName = 'login'
-        page = publicweb.LoginPage(self.store)
+        page = LoginPage(self.store)
         self.assertIdentical(
             page.fragment, self.correctDocumentFactory)
 
@@ -210,7 +243,7 @@ class OfferingsFragmentTestCase(TestCase):
         appStore1 = SubStore.createNew(store, ("app", "test1.axiom"))
         appStore2 = SubStore.createNew(store, ("app", "test2.axiom"))
         self.firstOffering = Offering(u'first offering', None, None, None, None,
-                                 None, None)
+                                      None, [])
         firstInstalledOffering = InstalledOffering(
             store=store, application=appStore1,
             offeringName=self.firstOffering.name)
@@ -222,7 +255,7 @@ class OfferingsFragmentTestCase(TestCase):
             lambda: self.firstOffering)
 
         secondOffering = Offering(u'second offering', None, None, None, None,
-                                  None, None)
+                                  None, [])
         secondInstalledOffering = InstalledOffering(
             store=store, application=appStore2,
             offeringName=secondOffering.name)
@@ -268,50 +301,17 @@ class OldOfferingsFragmentTestCase(OfferingsFragmentTestCase):
         ss1.powerUp(fa, IPublicPage)
 
 
-class PublicFrontPageRenderingTests(TestCase):
-    """
-    Tests for L{PublicFrontPage}'s rendering behaviour.
-    """
-    def test_anonymousRenderHTTP(self):
+    def test_offerings(self):
         """
-        Without a username, L{PublicFrontPage.renderHTTP} increments the
-        wrapped L{FrontPage}'s public view counter and invokes the base
-        I{renderHTTP} implementation.
+        Test the deprecated case for rendering the offering list.
         """
-        store = Store()
-        frontPage = FrontPage(store=store)
-        resource = PublicFrontPage(frontPage, None)
-        resource.docFactory = stan('document')
-        request = FakeRequest()
-        ctx = context.WebContext()
-        ctx.remember(request, inevow.IRequest)
-        result = resource.renderHTTP(ctx)
-        def rendered(ignored):
-            self.assertEqual(request.accumulator, 'document')
-            self.assertEqual(frontPage.publicViews, 1)
-        result.addCallback(rendered)
-        return result
+        self.assertWarns(
+            DeprecationWarning,
+            "Use the sharing system to provide public pages, not IPublicPage",
+            __file__,
+            OfferingsFragmentTestCase.test_offerings, self)
 
 
-    def test_authenticatedRenderHTTP(self):
-        """
-        With a username, L{PublicFrontPage.renderHTTP} increments the wrapped
-        L{FrontPage}'s private view counter and invokes the base I{renderHTTP}
-        implementation.
-        """
-        store = Store()
-        frontPage = FrontPage(store=store)
-        resource = PublicFrontPage(frontPage, None, u'alice@example.org')
-        resource.docFactory = stan('document')
-        request = FakeRequest()
-        ctx = context.WebContext()
-        ctx.remember(request, inevow.IRequest)
-        result = resource.renderHTTP(ctx)
-        def rendered(ignored):
-            self.assertEqual(request.accumulator, 'document')
-            self.assertEqual(frontPage.privateViews, 1)
-        result.addCallback(rendered)
-        return result
 
 class PublicFrontPageTests(TestCase, CommandStubMixin):
     """
@@ -321,8 +321,8 @@ class PublicFrontPageTests(TestCase, CommandStubMixin):
         """
         Set up a store with an installed offering.
         """
-        self.store = Store(dbdir=self.mktemp())
-        Mantissa().installSite(self.store, u"localhost", u"", False)
+        self.siteStore = Store(dbdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, u"localhost", u"", False)
         off = Offering(
             name=u'test_offering',
             description=u'Offering for creating a sample app store',
@@ -332,21 +332,36 @@ class PublicFrontPageTests(TestCase, CommandStubMixin):
             loginInterfaces=[],
             themes=[],
             )
-        self.installedOffering = installOffering(self.store, off, None)
+        self.installedOffering = installOffering(self.siteStore, off, None)
         self.app = self.installedOffering.application
         self.substore = self.app.open()
         sharedItem = getEveryoneRole(self.substore).getShare(
             getDefaultShareID(self.substore))
-        self.frontPage = self.store.findUnique(FrontPage)
+        self.frontPage = self.siteStore.findUnique(FrontPage)
+        self.webViewer = IWebViewer(self.siteStore)
+
+
+    def test_offeringChild(self):
+        """
+        Installing an offering makes its shared items accessible under a child
+        of L{_PublicFrontPage} with the offering's name.
+        """
+        frontPage = FrontPage(store=self.siteStore)
+        resource = _PublicFrontPage(frontPage, self.webViewer)
+        request = FakeRequest()
+        result, segments = resource.locateChild(request, ('test_offering',))
+        self.assertIdentical(result.userStore, self.substore)
+        self.assertTrue(IWebViewer.providedBy(result.webViewer))
+
 
     def test_nonExistentChild(self):
         """
-        L{PublicFrontPage.locateChild} returns L{rend.NotFound} for a child
+        L{_PublicFrontPage.locateChild} returns L{rend.NotFound} for a child
         segment which does not exist.
         """
         store = Store()
         frontPage = FrontPage(store=store)
-        resource = PublicFrontPage(frontPage, None, u'alice@example.org')
+        resource = _PublicFrontPage(frontPage, IWebViewer(self.siteStore))
 
         request = FakeRequest()
         ctx = context.WebContext()
@@ -356,25 +371,39 @@ class PublicFrontPageTests(TestCase, CommandStubMixin):
         self.assertIdentical(result, rend.NotFound)
 
 
+    def test_rootChild(self):
+        """
+        When no default offering has been selected,
+        L{PublicFrontPage.locateChild} returns an L{_OfferingsFragment} wrapped by
+        the L{IWebViewer}.
+        """
+        frontPage = FrontPage(store=self.siteStore)
+        resource = _PublicFrontPage(frontPage, self.webViewer)
+        request = FakeRequest()
+        ctx = context.WebContext()
+        ctx.remember(request, inevow.IRequest)
+        result, segments = resource.locateChild(ctx, ('',))
+        self.assertIsInstance(result, PublicPage)
+        self.assertIsInstance(result.fragment, _OfferingsFragment)
 
-    def test_noPrimaryApp(self):
-        """
-        When no primary application has been selected, L{PublicFrontPage}
-        provides the root web resource itself.
-        """
-        resource = self.frontPage.createResource()
-        self.assertIdentical(resource.child_(None), resource)
 
-    def test_primaryApp(self):
+    def test_rootChildWithDefaultApp(self):
         """
-        The root resource provided by L{PublicFrontPage} when a primary
+        The root resource provided by L{_PublicFrontPage} when a primary
         application has been selected is that application's L{SharingIndex}.
         """
-        resource = self.frontPage.createResource()
+        resource, segments = self.frontPage.produceResource(
+            None, ('',), IWebViewer(self.siteStore))
+        self.assertEqual(segments, ('',))
         self.frontPage.defaultApplication = self.app
-        result = resource.child_(None)
-        self.assertIsInstance(result, PublicAthenaLivePage)
+        result, segments = resource.locateChild(None, ('',))
+        self.assertIsInstance(result, PublicPage)
         self.assertIsInstance(result.fragment, TestAppElement)
+
+
+    def getStore(self):
+        return self.siteStore
+
 
     def test_switchFrontPage(self):
         """
@@ -390,17 +419,19 @@ class PublicFrontPageTests(TestCase, CommandStubMixin):
             installablePowerups=[],
             loginInterfaces=[],
             themes=[])
-        installedOffering2 = installOffering(self.store, off2, None)
+        installedOffering2 = installOffering(self.siteStore, off2, None)
         sfp = SetFrontPage()
         sfp.parent = self
         sfp.parseOptions(["test_offering"])
-        resource = self.frontPage.createResource()
+        resource, segments = self.frontPage.produceResource(
+            None, ('',), self.webViewer)
         result, segs = resource.locateChild(None, [''])
         self.assertIdentical(result.fragment.original.store,
                              self.substore)
         self.assertEqual(segs, [])
         sfp.parseOptions(["test_offering2"])
-        resource = self.frontPage.createResource()
+        resource, moreSegs = self.frontPage.produceResource(None, ('',),
+                                                            self.webViewer)
         result, segs = resource.locateChild(None, [''])
         self.assertEqual(segs, [])
         self.assertIdentical(result.fragment.original.store,
@@ -422,7 +453,7 @@ class AuthenticatedNavigationTestMixin:
 
     def createPage(self):
         """
-        Create a subclass of L{PublicPageMixin} to be used by tests.
+        Create a subclass of L{_PublicPageMixin} to be used by tests.
         """
         raise NotImplementedError("%r did not implement createPage" % (self,))
 
@@ -479,7 +510,7 @@ class AuthenticatedNavigationTestMixin:
     def test_authenticatedAuthenticateLinks(self):
         """
         The I{authenticateLinks} renderer should remove the tag it is passed
-        from the output if it is called on a L{PublicPageMixin} being rendered
+        from the output if it is called on a L{_PublicPageMixin} being rendered
         for an authenticated user.
         """
         page = self.createPage(self.username)
@@ -492,7 +523,7 @@ class AuthenticatedNavigationTestMixin:
     def test_authenticatedStartmenu(self):
         """
         The I{startmenu} renderer should add navigation elements to the tag it
-        is passed if it is called on a L{PublicPageMixin} being rendered for an
+        is passed if it is called on a L{_PublicPageMixin} being rendered for an
         authenticated user.
         """
         navigable = FakeNavigableElement(store=self.userStore)
@@ -534,7 +565,7 @@ class AuthenticatedNavigationTestMixin:
     def test_authenticatedSettingsLink(self):
         """
         The I{settingsLink} renderer should add the URL of the settings item to
-        the tag it is passed if it is called on a L{PublicPageMixin} being
+        the tag it is passed if it is called on a L{_PublicPageMixin} being
         rendered for an authenticated user.
         """
         page = self.createPage(self.username)
@@ -552,7 +583,7 @@ class AuthenticatedNavigationTestMixin:
     def test_authenticatedLogout(self):
         """
         The I{logout} renderer should return the tag it is passed if it is
-        called on a L{PublicPageMixin} being rendered for an authenticated
+        called on a L{_PublicPageMixin} being rendered for an authenticated
         user.
         """
         page = self.createPage(self.username)
@@ -566,7 +597,7 @@ class AuthenticatedNavigationTestMixin:
         """
         The I{applicationNavigation} renderer should add primary navigation
         elements to the tag it is passed if it is called on a
-        L{PublicPageMixin} being rendered for an authenticated user.
+        L{_PublicPageMixin} being rendered for an authenticated user.
         """
         navigable = FakeNavigableElement(store=self.userStore)
         installOn(navigable, self.userStore)
@@ -721,7 +752,7 @@ class AuthenticatedNavigationTestMixin:
 class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     """
     Mixin which defines test methods which exercise functionality provided by
-    the various L{xmantissa.publicweb.PublicPageMixin} subclasses, like
+    the various L{xmantissa.publicweb._PublicPageMixin} subclasses, like
     L{PublicAthenaLivePage} and L{PublicNavAthenaLivePage}.
     """
     signupURL = u'sign/up'
@@ -760,7 +791,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     def test_unauthenticatedAuthenticateLinks(self):
         """
         The I{authenticateLinks} renderer should add login and signup links to
-        the tag it is passed, if it is called on a L{PublicPageMixin} being
+        the tag it is passed, if it is called on a L{_PublicPageMixin} being
         rendered for an unauthenticated user.
         """
         page = self.createPage(None)
@@ -779,7 +810,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     def test_unauthenticatedStartmenu(self):
         """
         The I{startmenu} renderer should remove the tag it is passed from the
-        output if it is called on a L{PublicPageMixin} being rendered for an
+        output if it is called on a L{_PublicPageMixin} being rendered for an
         unauthenticated user.
         """
         page = self.createPage(None)
@@ -792,7 +823,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     def test_unauthenticatedSettingsLink(self):
         """
         The I{settingsLink} renderer should remove the tag it is passed from
-        the output if it is called on a L{PublicPageMixin} being rendered for
+        the output if it is called on a L{_PublicPageMixin} being rendered for
         an unauthenticated user.
         """
         page = self.createPage(None)
@@ -805,7 +836,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     def test_unauthenticatedLogout(self):
         """
         The I{logout} renderer should remove the tag it is passed from the
-        output if it is called on a L{PublicPageMixin} being rendered for an
+        output if it is called on a L{_PublicPageMixin} being rendered for an
         authenticated user.
         """
         page = self.createPage(None)
@@ -818,7 +849,7 @@ class _PublicAthenaLivePageTestMixin(AuthenticatedNavigationTestMixin):
     def test_unauthenticatedApplicationNavigation(self):
         """
         The I{applicationNavigation} renderer should remove the tag it is
-        passed from the output if it is called on a L{PublicPageMixin} being
+        passed from the output if it is called on a L{_PublicPageMixin} being
         rendered for an unauthenticated user.
         """
         page = self.createPage(None)
@@ -871,3 +902,178 @@ class GetLoaderTests(TestCase):
             "getDocFactory.",
             __file__,
             lambda: getLoader("shell"))
+
+
+
+class CustomizedPublicPageTests(TestCase):
+    """
+    Tests for L{CustomizedPublicPage}.
+
+    Let's say you've got a normal Mantissa database.  There's an
+    L{AnonymousSite} in the site store, powering it up for L{IResource}.
+    There's a user, that has a user store, which has a L{WebSite} as their
+    L{IResource} avatar, plus a L{PrivateApplication} and a
+    L{CustomizedPublicPage} as L{ISiteRootPlugin}s.
+
+    L{CustomizedPublicPage}'s purpose is to make sure that when the user views
+    the public site, their L{IWebViewer} is propagated to children of
+    the global L{AnonymousSite}.
+    """
+
+
+    def setUp(self):
+        """
+        Create a store as described in the test case docstring.
+        """
+        site = Store(self.mktemp())
+        Mantissa().installSite(site, u"example.com", u"", False)
+        Mantissa().installAdmin(site, u'admin', u'example.com', u'asdf')
+        anonsite = site.findUnique(AnonymousSite)
+        user = site.findUnique(LoginSystem).accountByAddress(
+            u"admin",u"example.com").avatars.open()
+        self.website = user.findUnique(WebSite)
+        self.privapp = user.findUnique(PrivateApplication)
+        self.site = site
+
+
+    def test_propagateNavigationToSlashUsers(self):
+        """
+        When the 'users' child is requested through a CustomizedPublicPage,
+        L{AnonymousSite.rootChild_users} method should be invoked to produce a
+        L{UserIndexPage} for the given user's L{PrivateApplication}.
+        """
+        wrapper, resultSegs = self.website.locateChild(
+            FakeRequest(headers={"host": "example.com"}),
+            ('users',))
+        self.assertIsInstance(wrapper, _CustomizingResource)
+        self.assertIsInstance(wrapper.currentResource, UserIndexPage)
+        self.assertIsInstance(wrapper.currentResource.webViewer,
+                              _AuthenticatedWebViewer)
+        self.assertIdentical(wrapper.currentResource.webViewer._privateApplication,
+                             self.privapp)
+
+
+    def test_propagateNavigationToPlugins(self):
+        """
+        The site store has an L{ISiteRootPlugin} which provides some other
+        application-defined resource - we'll call that 'AppSitePlugin'.
+
+        L{CustomizedPublicPage}'s whole purpose is to make sure that when
+        'AppSitePlugin' wants to return a resource, that resource is
+        appropriately decorated so that its shell template will appear
+        appropriate to the logged-in user.  In order to do that,
+        'AppSitePlugin' must receive as its C{webViewer} argument the same
+        one that L{CustomizedPublicPage} does.
+        """
+        # Stock configuration now set up, let's introduce a site plugin...
+
+        result = object()
+        calledWith = []
+        class AppSitePlugin(object):
+            implements(ISiteRootPlugin)
+            def produceResource(self, request, segments, webViewer):
+                calledWith.append([request, segments, webViewer])
+                return result, ()
+
+        self.site.inMemoryPowerUp(AppSitePlugin(), ISiteRootPlugin)
+        req = FakeRequest(headers={"host": "example.com"})
+        wrapper, resultSegs = self.website.locateChild(req, ("foo", "bar"))
+
+        [(inreq, segs, webViewer)] = calledWith
+        self.assertIdentical(inreq, req)
+        self.assertEqual(segs, ('foo', 'bar'))
+        self.assertIsInstance(webViewer, _AuthenticatedWebViewer)
+        self.assertEqual(webViewer._privateApplication, self.privapp)
+
+        self.assertIsInstance(wrapper, _CustomizingResource)
+        self.assertIdentical(wrapper.currentResource, result)
+        self.assertIdentical(resultSegs, ())
+
+
+
+class AnonymousSiteTests(SiteTestsMixin, TestCase):
+    """
+    Tests for L{AnonymousSite}.
+    """
+    def setUp(self):
+        """
+        Set up a store with a valid offering to test against.
+        """
+        SiteTestsMixin.setUp(self)
+        self.store = self.siteStore
+        self.site = ISiteURLGenerator(self.store)
+        self.resource = IResource(self.store)
+
+
+    def test_powersUpWebViewer(self):
+        """
+        L{AnonymousSite} provides an indirected L{IWebViewer}
+        powerup, and its indirected powerup should be the default provider of
+        that interface.
+        """
+        webViewer = IWebViewer(self.store)
+        self.assertIsInstance(webViewer, _AnonymousWebViewer)
+        self.assertIdentical(webViewer._siteStore, self.store)
+
+
+    def test_login(self):
+        """
+        L{AnonymousSite} has a I{login} child which returns a L{LoginPage}
+        instance.
+        """
+        host = 'example.org'
+        port = 1234
+        netloc = '%s:%d' % (host, port)
+
+        request = FakeRequest(
+            headers={'host': netloc},
+            uri='/login/foo',
+            currentSegments=[],
+            isSecure=False)
+
+        self.site.hostname = host.decode('ascii')
+        SSLPort(store=self.store, portNumber=port, factory=self.site)
+
+        resource, segments = self.resource.locateChild(request, ("login",))
+        self.assertTrue(isinstance(resource, LoginPage))
+        self.assertIdentical(resource.store, self.store)
+        self.assertEqual(resource.segments, ())
+        self.assertEqual(resource.arguments, {})
+        self.assertEqual(segments, ())
+
+
+    def test_resetPassword(self):
+        """
+        L{AnonymousSite} has a I{resetPassword} child which returns a
+        L{PasswordResetResource} instance.
+        """
+        resource, segments = self.resource.locateChild(
+            FakeRequest(headers={"host": "example.com"}),
+            ("resetPassword",))
+        self.assertTrue(isinstance(resource, PasswordResetResource))
+        self.assertIdentical(resource.store, self.store)
+        self.assertEqual(segments, ())
+
+
+    def test_users(self):
+        """
+        L{AnonymousSite} has a I{users} child which returns a L{UserIndexPage}
+        instance.
+        """
+        resource, segments = self.resource.locateChild(
+            FakeRequest(headers={"host": "example.com"}), ("users",))
+        self.assertTrue(isinstance(resource, UserIndexPage))
+        self.assertIdentical(
+            resource.loginSystem, self.store.findUnique(LoginSystem))
+        self.assertEqual(segments, ())
+
+
+    def test_notFound(self):
+        """
+        L{AnonymousSite.locateChild} returns L{NotFound} for requests it cannot
+        find another response for.
+        """
+        result = self.resource.locateChild(
+            FakeRequest(headers={"host": "example.com"}),
+            ("foo", "bar"))
+        self.assertIdentical(result, NotFound)

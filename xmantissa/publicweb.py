@@ -17,11 +17,16 @@ from nevow.url import URL
 
 from axiom.iaxiom import IPowerupIndirector
 from axiom import item, attributes, upgrade, userbase
-from axiom.dependency import dependsOn
+from axiom.dependency import dependsOn, requiresFromSite
 
 from xmantissa import ixmantissa, website, offering
-from xmantissa.webtheme import ThemedDocumentFactory, getInstalledThemes
-from xmantissa.ixmantissa import IStaticShellContent
+from xmantissa._webutil import (MantissaViewHelper, SiteRootMixin,
+                                WebViewerHelper)
+from xmantissa.webtheme import (ThemedDocumentFactory, getInstalledThemes,
+                                SiteTemplateResolver)
+from xmantissa.ixmantissa import (
+    IStaticShellContent, ISiteRootPlugin, IMantissaSite, IWebViewer,
+    INavigableFragment)
 from xmantissa.webnav import startMenu, settingsLink, applicationNavigation
 from xmantissa.websharing import UserIndexPage, SharingIndex, getDefaultShareID
 from xmantissa.sharing import getEveryoneRole, NoSuchShare
@@ -75,7 +80,7 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
     I wrap a L{websharing.SharingIndex} around an app store. I am installed in
     an app store when it is created.
     """
-    implements(ixmantissa.ISiteRootPlugin,
+    implements(ISiteRootPlugin,
                ixmantissa.ISessionlessSiteRootPlugin)
 
     typeName = 'mantissa_public_web'
@@ -111,17 +116,6 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
         session?  Defaults to False.
         """,
         default=False)
-
-
-    def resourceFactory(self, segments):
-        """
-        Reserve names which begin with '__' for the framework (such as
-        __login__, __logout__, __session__, etc), but delegate everything
-        else to PrefixURLMixin (and createResource) as usual.
-        """
-        if not segments[0].startswith('__'):
-            return super(PublicWeb, self).resourceFactory(segments)
-        return None
 
 
     def createResource(self):
@@ -164,6 +158,51 @@ def upgradePublicWeb2To3(oldWeb):
     newWeb.installOn(other)
     return newWeb
 upgrade.registerUpgrader(upgradePublicWeb2To3, 'mantissa_public_web', 2, 3)
+
+
+
+class _AnonymousWebViewer(WebViewerHelper):
+    """
+    An implementation of L{IWebViewer} for anonymous users.
+
+    @ivar _siteStore: A site store that contains an L{AnonymousSite} and
+        L{SiteConfiguration}.
+
+    @ivar _getDocFactory: the L{SiteTemplateResolver.getDocFactory} method that
+        will resolve themes for my site store.
+    """
+    implements(IWebViewer)
+
+    def __init__(self, siteStore):
+        """
+        Create an L{_AnonymousWebViewer} for browsing a given site store.
+        """
+        WebViewerHelper.__init__(
+            self,
+            SiteTemplateResolver(siteStore).getDocFactory,
+            lambda : getInstalledThemes(siteStore))
+        self._siteStore = siteStore
+
+
+    # IWebViewer
+    def roleIn(self, userStore):
+        """
+        Return only the 'everyone' role in the given user- or app-store, since
+        the user represented by this object is anonymous.
+        """
+        return getEveryoneRole(userStore)
+
+
+    # Complete WebViewerHelper implementation
+    def _wrapNavFrag(self, frag, useAthena):
+        """
+        Wrap the given L{INavigableFragment} in the appropriate type of
+        L{_PublicPageMixin}.
+        """
+        if useAthena:
+            return PublicAthenaLivePage(self._siteStore, frag)
+        else:
+            return PublicPage(None, self._siteStore, frag, None, None)
 
 
 
@@ -231,21 +270,13 @@ class _CustomizingResource(object):
 
 class CustomizedPublicPage(item.Item):
     """
-    A CustomizedPublicPage is a powerup for users which is installed on their
-    stores at the URL '/'.  It finds the real site's public-page and asks it to
-    customize itself for the user that its store belongs to.
-
-    This works because when users are logged in, their top level resource is
-    their own store, and so this powerup has a chance to intercept any hit to
-    any URL on the entire site before it is actually rendered to the user.
-
-    While this technique for logging in requires a user store, the only
-    information it communicates to other stores is a string via the
-    C{customizeFor} method, so other implementations of this technique could
-    simply be drawing that string from a cookie, from OpenID, etc.  Those
-    interested in implementing distributed security mechanisms for mantissa
-    should familiarize themselves with this code.
+    L{CustomizedPublicPage} is what allows logged-in users to see dynamic
+    resources present in the site store.  Although static resources (under
+    http://your-domain.example.com/static) are available to everyone, any user
+    who should be able to see content such as http://yoursite/users/some-user/
+    when they are logged in must have this installed.
     """
+    implements(ISiteRootPlugin)
 
     typeName = 'mantissa_public_customized'
     schemaVersion = 2
@@ -256,28 +287,44 @@ class CustomizedPublicPage(item.Item):
         page.
         """)
 
-    powerupInterfaces = [(ixmantissa.ISiteRootPlugin, -257)]
+    powerupInterfaces = [(ISiteRootPlugin, -257)]
 
-    def resourceFactory(self, segments):
+    publicSiteRoot = requiresFromSite(IMantissaSite, lambda ignored: None)
+
+    def produceResource(self, request, segments, webViewer):
         """
-        Implementation of L{ixmantissa.ISiteRootPlugin.resourceFactory}.
+        Produce a resource that traverses site-wide content, passing down the
+        given webViewer.  This delegates to the site store's
+        L{IMantissaSite} adapter, to avoid a conflict with the
+        L{ISiteRootPlugin} interface.
 
-        This will look in this powerup's store to discover the currently active
-        username, look for the parent store's top-level resource (the top-level
-        resource of the site) and then return a L{_CustomizingResource} which
-        wraps that resource and customizes any of the customizable children.
+        This method will typically be given an L{_AuthenticatedWebViewer}, which
+        can build an appropriate resource for an authenticated shell page,
+        whereas the site store's L{IWebViewer} adapter would show an anonymous
+        page.
 
-        @return: a 2-tuple of a customizing resource and the given list of
-        segments, or, if no resource is provided by the site store, None.
+        The result of this method will be a L{_CustomizingResource}, to provide
+        support for resources which may provide L{ICustomizable}.  Note that
+        Mantissa itself no longer implements L{ICustomizable} anywhere, though.
+        All application code should phase out inspecting the string passed to
+        ICustomizable in favor of getting more structured information from the
+        L{IWebViewer}.  However, it has not been deprecated yet because
+        the interface which allows application code to easily access the
+        L{IWebViewer} from view code has not yet been developed; it is
+        forthcoming.
+
+        See ticket #2707 for progress on this.
         """
-        topResource = inevow.IResource(self.store.parent, None)
-        if topResource is not None:
+        mantissaSite = self.publicSiteRoot
+        if mantissaSite is not None:
             for resource, domain in userbase.getAccountNames(self.store):
                 username = '%s@%s' % (resource, domain)
                 break
             else:
                 username = None
-            return (_CustomizingResource(topResource, username), segments)
+            bottomResource, newSegments = mantissaSite.siteProduceResource(
+                request, segments, webViewer)
+            return (_CustomizingResource(bottomResource, username), newSegments)
         return None
 
 
@@ -286,14 +333,14 @@ def customizedPublicPage1To2(oldPage):
     newPage = oldPage.upgradeVersion(
         'mantissa_public_customized', 1, 2,
         installedOn=oldPage.installedOn)
-    newPage.installedOn.powerDown(newPage, ixmantissa.ISiteRootPlugin)
-    newPage.installedOn.powerUp(newPage, ixmantissa.ISiteRootPlugin, -257)
+    newPage.installedOn.powerDown(newPage, ISiteRootPlugin)
+    newPage.installedOn.powerUp(newPage, ISiteRootPlugin, -257)
     return newPage
 upgrade.registerUpgrader(customizedPublicPage1To2, 'mantissa_public_customized', 1, 2)
 
 
 
-class PublicPageMixin(object):
+class _PublicPageMixin(MantissaViewHelper):
     """
     Mixin for use by C{Page} or C{LivePage} subclasses that are visible to
     unauthenticated clients.
@@ -305,6 +352,26 @@ class PublicPageMixin(object):
 
 
     def _getViewerPrivateApplication(self):
+        """
+        Get the L{PrivateApplication} object for the logged-in user who is
+        viewing this resource, as indicated by its C{username} attribute.
+
+        This is highly problematic because it precludes the possibility of
+        separating the stores of the viewer and the viewee into separate
+        processes, and it is only here until we can get rid of it.  The reason
+        it remains is that some application code still imports things which
+        subclass L{PublicAthenaLivePage} and L{PublicPage} and uses them with
+        usernames specified.  See ticket #2702 for progress on this goal.
+
+        However, Mantissa itself will no longer set this class's username
+        attribute to anything other than None, because authenticated users'
+        pages will be generated using
+        L{xmantissa.webapp._AuthenticatedWebViewer}.  This method is used only
+        to render content in the shell template, and those classes have a direct
+        reference to the requisite object.
+
+        @rtype: L{PrivateApplication}
+        """
         ls = self.store.findUnique(userbase.LoginSystem)
         substore = ls.accountByAddress(*self.username.split('@')).avatars.open()
         from xmantissa.webapp import PrivateApplication
@@ -478,14 +545,6 @@ class PublicPageMixin(object):
         return ctx.tag[self.fragment]
 
 
-    def head(self):
-        """
-        Override this method to insert additional content into the header.  By
-        default, does nothing.
-        """
-        return None
-
-
     def getHeadContent(self, req):
         """
         Retrieve a list of header content from all installed themes on the site
@@ -502,11 +561,17 @@ class PublicPageMixin(object):
         values from L{getHeadContent} and the overridden L{head} method.
         """
         req = inevow.IRequest(ctx)
-        return ctx.tag[filter(None, list(self.getHeadContent(req)) + [self.head()])]
+        more = getattr(self.fragment, 'head', None)
+        if more is not None:
+            fragmentHead = more()
+        else:
+            fragmentHead = None
+        return ctx.tag[filter(None, list(self.getHeadContent(req)) +
+                              [fragmentHead])]
 
 
 
-class PublicPage(PublicPageMixin, rend.Page):
+class PublicPage(_PublicPageMixin, rend.Page):
     """
     PublicPage is a utility superclass for implementing static pages which have
     theme support and authentication trimmings.
@@ -554,6 +619,7 @@ class _OfferingsFragment(rend.Fragment):
     @ivar templateResolver: An L{ITemplateNameResolver} which will be used
         to load the document factory.
     """
+    implements(INavigableFragment)
     docFactory = ThemedDocumentFactory('front-page', 'templateResolver')
 
     def __init__(self, original, templateResolver=None):
@@ -599,28 +665,26 @@ class _OfferingsFragment(rend.Fragment):
 
 
 
-class PublicFrontPage(PublicPage):
+class _PublicFrontPage(object):
     """
     This is the implementation of the default Mantissa front page.  It renders
     a list of offering names, displays the user's name, and lists signup
     mechanisms.  It also provides various top-level URLs.
     """
-    implements(ixmantissa.ICustomizable)
+    implements(IResource)
 
-    def __init__(self, original, staticContent, forUser=None):
+    def __init__(self, frontPageItem, webViewer):
         """
-        Create a PublicFrontPage.
+        Create a _PublicFrontPage.
 
-        @param original: a L{FrontPage} item, which we use primarily to get at a Store.
+        @param frontPageItem: a L{FrontPage} item, which we use primarily to
+        get at a Store.
 
-        @param staticContent: additional data to embed in the header.
-
-        @param forUser: an external ID of the logged in user, or None, if the
-        user viewing this page is browsing anonymously.
+        @param webViewer: an L{IWebViewer} that represents the
+        user viewing this front page.
         """
-        PublicPage.__init__(
-            self, original, original.store, _OfferingsFragment(original),
-            staticContent, forUser)
+        self.frontPageItem = frontPageItem
+        self.webViewer = webViewer
 
 
     def locateChild(self, ctx, segments):
@@ -629,14 +693,16 @@ class PublicFrontPage(PublicPage):
         authenticated user if they support the L{ICustomizable} interface.  If
         the user is attempting to access a private URL, redirect them.
         """
-        result = super(PublicFrontPage, self).locateChild(ctx, segments)
-        if result is not rend.NotFound:
-            child, segments = result
-            if self.username is not None:
-                cust = ixmantissa.ICustomizable(child, None)
-                if cust is not None:
-                    return cust.customizeFor(self.username), segments
+        result = self._getAppStoreResource(ctx, segments[0])
+        if result is not None:
+            child, segments = result, segments[1:]
             return child, segments
+
+        if segments[0] == '':
+            result = self.child_(ctx)
+            if result is not None:
+                child, segments = result, segments[1:]
+                return child, segments
 
         # If the user is trying to access /private/*, then his session has
         # expired or he is otherwise not logged in. Redirect him to /login,
@@ -650,13 +716,13 @@ class PublicFrontPage(PublicPage):
         return rend.NotFound
 
 
-    def childFactory(self, ctx, name):
+    def _getAppStoreResource(self, ctx, name):
         """
         Customize child lookup such that all installed offerings on the site
         store that this page is viewing are given an opportunity to display
         their own page.
         """
-        offer = self.original.store.findFirst(
+        offer = self.frontPageItem.store.findFirst(
             offering.InstalledOffering,
             offering.InstalledOffering.offeringName == unicode(name, 'ascii'))
         if offer is not None:
@@ -667,41 +733,24 @@ class PublicFrontPage(PublicPage):
                      category=DeprecationWarning,
                      stacklevel=2)
                 return pp.getResource()
-            return SharingIndex(offer.application.open(), None)
+            return SharingIndex(offer.application.open(),
+                                self.webViewer)
         return None
 
 
     def child_(self, ctx):
         """
-        if the root resource is requested, return the primary
+        If the root resource is requested, return the primary
         application's front page, if a primary application has been
         chosen.  Otherwise return 'self', since this page can render a
         simple index.
         """
-        if self.original.defaultApplication is None:
-            return self
+        if self.frontPageItem.defaultApplication is None:
+            return self.webViewer.wrapModel(
+                _OfferingsFragment(self.frontPageItem))
         else:
-            return SharingIndex(self.original.defaultApplication.open(), None).locateChild(ctx, [''])[0]
-
-
-    def customizeFor(self, forUser):
-        """
-        Return a customized version of this page for a particular user.
-
-        @param forUser: the external ID of a user.
-        """
-        return PublicFrontPage(self.original, self.staticContent, forUser)
-
-
-    def renderHTTP(self, ctx):
-        """
-        Increment a view counter and fall back to the base behavior.
-        """
-        if self.username:
-            self.original.privateViews += 1
-        else:
-            self.original.publicViews += 1
-        return PublicPage.renderHTTP(self, ctx)
+            return SharingIndex(self.frontPageItem.defaultApplication.open(),
+                                self.webViewer).locateChild(ctx, [''])[0]
 
 
 
@@ -810,11 +859,12 @@ class LoginPage(PublicPage):
     fromRequest = classmethod(fromRequest)
 
 
+
 class FrontPage(item.Item, website.PrefixURLMixin):
     """
-    I am a factory for the dynamic resource L{PublicFrontPage}
+    I am a factory for the dynamic resource L{_PublicFrontPage}.
     """
-    implements(ixmantissa.ISiteRootPlugin)
+    implements(ISiteRootPlugin)
     typeName = 'mantissa_front_page'
     schemaVersion = 2
 
@@ -849,11 +899,11 @@ class FrontPage(item.Item, website.PrefixURLMixin):
         """,
         allowNone=True)
 
-    def createResource(self):
+    def createResourceWith(self, crud):
         """
-        Create a L{PublicFrontPage} resource wrapping this object.
+        Create a L{_PublicFrontPage} resource wrapping this object.
         """
-        return PublicFrontPage(self, None)
+        return _PublicFrontPage(self, crud)
 
 item.declareLegacyItem(
     FrontPage.typeName,
@@ -865,7 +915,8 @@ item.declareLegacyItem(
 upgrade.registerAttributeCopyingUpgrader(FrontPage, 1, 2)
 
 
-class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
+
+class PublicAthenaLivePage(_PublicPageMixin, website.MantissaLivePage):
     """
     PublicAthenaLivePage is a publicly viewable Athena-enabled page which slots
     a single fragment into the center of the page.
@@ -882,14 +933,16 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         """
         Create a PublicAthenaLivePage.
 
-        @param store: a site store containing a L{WebSite}.
+        @param store: a site store containing an L{AnonymousSite} and
+            L{SiteConfiguration}.
+
         @type store: L{axiom.store.Store}.
 
         @param fragment: The L{INavigableFragment} provider which will be
-        displayed on this page.
+            displayed on this page.
 
         @param templateResolver: a template resolver instance that will return
-        the appropriate doc factory.
+            the appropriate doc factory.
 
         This page draws its HTML from the 'shell' template in the active theme.
         If loaded in a browser that does not support Athena, the page provided
@@ -918,23 +971,7 @@ class PublicAthenaLivePage(PublicPageMixin, website.MantissaLivePage):
         otherwise delegate to my parent's renderer for <head>.
         """
         ctx.tag[tags.invisible(render=tags.directive('liveglue'))]
-        return PublicPageMixin.render_head(self, ctx, data)
-
-
-    def locateChild(self, ctx, segments):
-        """
-        Delegate locateChild to my fragment.  Wrap the resulting fragment object in
-        a new PublicAthenaLivePage and return it.
-        """
-        res = rend.NotFound
-
-        if hasattr(self.fragment, 'locateChild'):
-            res = self.fragment.locateChild(ctx, segments)
-
-        if res is rend.NotFound:
-            res = super(PublicAthenaLivePage, self).locateChild(ctx, segments)
-
-        return res
+        return _PublicPageMixin.render_head(self, ctx, data)
 
 
 
@@ -953,19 +990,23 @@ class PublicNavAthenaLivePage(PublicAthenaLivePage):
             stacklevel=2)
 
 
-class AnonymousSite(item.Item):
+
+class AnonymousSite(item.Item, SiteRootMixin):
     """
     Root IResource implementation for unauthenticated users.
 
     This resource allows users to login, reset their passwords, or access
     content provided by any site root plugins.
     """
-    powerupInterfaces = (IResource,)
+    powerupInterfaces = (IResource, IMantissaSite, IWebViewer)
     implements(*powerupInterfaces + (IPowerupIndirector,))
+
+    schemaVersion = 2
 
     loginSystem = dependsOn(userbase.LoginSystem)
 
-    def child_resetPassword(self, ctx):
+
+    def rootChild_resetPassword(self, req, webViewer):
         """
         Return a page which will allow the user to re-set their password.
         """
@@ -973,14 +1014,14 @@ class AnonymousSite(item.Item):
         return PasswordResetResource(self.store)
 
 
-    def child_login(self, ctx):
+    def rootChild_login(self, req, webViewer):
         """
         Return a login page.
         """
         return LoginPage(self.store)
 
 
-    def child_users(self, ctx):
+    def rootChild_users(self, req, webViewer):
         """
         Return a child resource to provide access to items shared by users.
 
@@ -989,34 +1030,39 @@ class AnonymousSite(item.Item):
 
         @rtype L{xmantissa.websharing.UserIndexPage}
         """
-        return UserIndexPage(self.loginSystem)
+        return UserIndexPage(self.loginSystem, webViewer)
 
 
-    def locateChild(self, context, segments):
+    def _getUsername(self):
         """
-        Return a statically defined child or a child defined by a site root
-        plugin or an avatar from guard.
+        Inform L{VirtualHostWrapper} that it's being accessed anonymously.
         """
-        shortcut = getattr(self, 'child_' + segments[0], None)
-        if shortcut:
-            res = shortcut(context)
-            if res is not None:
-                return res, segments[1:]
+        return None
 
-        for plg in self.store.powerupsFor(ixmantissa.ISiteRootPlugin):
-            childAndSegments = plg.resourceFactory(segments)
-            if childAndSegments is not None:
-                return childAndSegments
-
-        return rend.NotFound
 
     # IPowerupIndirector
     def indirect(self, interface):
         """
-        Create a L{VirtualHostWrapper} so it can have the first chance to
-        handle web requests.
+        Indirect the implementation of L{IWebViewer} to L{_AnonymousWebViewer}.
         """
-        return website.VirtualHostWrapper(
-            self.store,
-            None,
-            self)
+        if interface == IWebViewer:
+            return _AnonymousWebViewer(self.store)
+        return super(AnonymousSite, self).indirect(interface)
+
+
+
+AnonymousSite1 = item.declareLegacyItem(
+    'xmantissa_publicweb_anonymoussite', 1,
+    dict(
+        loginSystem=attributes.reference(),
+    ))
+
+
+def _installV2Powerups(anonymousSite):
+    """
+    Install the given L{AnonymousSite} for the powerup interfaces it was given
+    in version 2.
+    """
+    anonymousSite.store.powerUp(anonymousSite, IWebViewer)
+    anonymousSite.store.powerUp(anonymousSite, IMantissaSite)
+upgrade.registerAttributeCopyingUpgrader(AnonymousSite, 1, 2, _installV2Powerups)

@@ -2360,15 +2360,13 @@ class PeopleTests(unittest.TestCase):
 
     def test_linkToPerson(self):
         """
-        Verify that L{Organizer.linkToPerson} generates the correct URL, with
-        the web ID of the person item appended to the organizer's url.
+        L{Organizer.linkToPerson} generates an URL that is the same as linking
+        to the private person item.
         """
         privapp = self.user.findUnique(PrivateApplication)
         p = Person(store=self.user)
         self.assertEqual(self.organizer.linkToPerson(p),
-                         (privapp.linkTo(self.organizer.storeID)
-                          + '/'
-                          + privapp.toWebID(p)))
+                         privapp.linkTo(p.storeID))
 
 
     def test_urlForViewState(self):

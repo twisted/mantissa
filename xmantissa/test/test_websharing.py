@@ -7,11 +7,10 @@ from twisted.python.components import registerAdapter
 
 from twisted.trial.unittest import TestCase
 
-from nevow import inevow, rend, url
-from nevow.context import WovenContext
+from nevow import rend, url
 from nevow.athena import LiveElement
-from nevow.testutil import FakeRequest
 
+from epsilon.structlike import record
 
 from axiom.item import Item
 from axiom.attributes import integer, text
@@ -20,8 +19,8 @@ from axiom.userbase import LoginSystem
 from axiom.dependency import installOn
 from axiom.plugins.mantissacmd import Mantissa
 
-from xmantissa import (websharing, sharing, signup, offering, product,
-                       ixmantissa, website)
+from xmantissa import (
+    websharing, sharing, signup, offering, product, ixmantissa)
 
 
 
@@ -311,7 +310,6 @@ class Shareable(Item):
     implements(IShareable)
 
     magicValue = integer()
-    fragmentName = text()
 
 
 
@@ -325,6 +323,7 @@ class ShareableView(LiveElement):
                ixmantissa.ICustomizable)
 
     customizedFor = None
+    fragmentName = 'bogus'
 
     def __init__(self, shareable):
         """
@@ -332,7 +331,6 @@ class ShareableView(LiveElement):
         """
         super(ShareableView, self).__init__()
         self.shareable = shareable
-        self.fragmentName = self.shareable.fragmentName
 
 
     def showMagicValue(self):
@@ -361,6 +359,36 @@ registerAdapter(ShareableView, IShareable,
                 ixmantissa.INavigableFragment)
 
 
+class FakePage(record('wrappedFragment')):
+    """
+    A fake page that simply contains a wrapped fragment; analagous to the
+    various shell page classes in the tests which use it.
+    """
+
+
+
+class FakeShellFactory(record('username')):
+    """
+    An L{IWebViewer} which returns a fake shell page and maps a role
+    directly to its given username.
+    """
+
+    def wrapModel(self, model):
+        """
+        Adapt the given model to L{INavigableFragment} and then wrap it in a
+        L{FakePage}.
+        """
+        return FakePage(ixmantissa.INavigableFragment(model))
+
+
+    def roleIn(self, userStore):
+        """
+        Return the primary role for the username passed to me.
+        """
+        return sharing.getPrimaryRole(userStore, self.username)
+
+
+
 class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
     """
     Tests for L{xmantissa.websharing.UserIndexPage}
@@ -385,6 +413,15 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         self.share = sharing.shareItem(self.shareable, shareID=self.shareID)
 
 
+    def makeSharingIndex(self, username):
+        """
+        Create a L{SharingIndex}.
+        """
+        return websharing.SharingIndex(
+            self.userStore,
+            webViewer=FakeShellFactory(username))
+
+
     def test_locateChild(self):
         """
         L{websharing.UserIndexPage.locateChild} should return the named user's
@@ -395,7 +432,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         self.signup.createUser(
             u'Andr\xe9', u'andr\xe9', u'localhost', u'', u'andr\xe9@internet')
         userStore2 = websharing._storeFromUsername(self.siteStore, u'andr\xe9')
-        index = websharing.UserIndexPage(self.loginSystem)
+        index = websharing.UserIndexPage(self.loginSystem, FakeShellFactory(None))
 
         for _username, _store in [(self.username, self.userStore),
                                   (u'andr\xe9', userStore2)]:
@@ -426,7 +463,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         L{websharing.SharingIndex.locateChild} if there is no default share ID
         and we access the empty child.
         """
-        sharingIndex = websharing.SharingIndex(self.userStore)
+        sharingIndex = self.makeSharingIndex(None)
         result = sharingIndex.locateChild(None, ('',))
         self.assertIdentical(result, rend.NotFound)
 
@@ -438,11 +475,11 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         and we access the empty child.
         """
         websharing.addDefaultShareID(self.userStore, u'ashare', 0)
-        sharingIndex = websharing.SharingIndex(self.userStore)
+        sharingIndex = self.makeSharingIndex(None)
         SEGMENTS = ('', 'foo', 'bar')
         (res, segments) = sharingIndex.locateChild(None, SEGMENTS)
         self.assertEqual(
-            res.fragment.showMagicValue(), self.magicValue)
+            res.wrappedFragment.showMagicValue(), self.magicValue)
         self.assertEqual(segments, SEGMENTS[1:])
 
 
@@ -452,7 +489,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         L{websharing.SharingIndex.locateChild} if there is no default share ID
         and we access an invalid segment.
         """
-        sharingIndex = websharing.SharingIndex(self.userStore)
+        sharingIndex = self.makeSharingIndex(None)
         result = sharingIndex.locateChild(None, ('foo',))
         self.assertIdentical(result, rend.NotFound)
 
@@ -469,158 +506,12 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
 
         for _shareID in [u'foo', u'f\xf6\xf6']:
             otherShare = sharing.shareItem(otherShareable, shareID=_shareID)
-
-            sharingIndex = websharing.SharingIndex(self.userStore)
+            sharingIndex = self.makeSharingIndex(None)
             SEGMENTS = (_shareID.encode('utf-8'), 'bar')
             (res, segments) = sharingIndex.locateChild(None, SEGMENTS)
             self.assertEqual(
-                res.fragment.showMagicValue(), self.magicValue + 3)
+                res.wrappedFragment.showMagicValue(), self.magicValue + 3)
             self.assertEqual(segments, SEGMENTS[1:])
-
-
-    def test_shareFragmentType(self):
-        """
-        Verify that the wrapped fragment returned from
-        L{websharing.SharingIndex._makeShareResource} is of the same type as
-        the L{ixmantissa.INavigableFragment} adapter for the share it is
-        passed.
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore)
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.failUnless(isinstance(res.fragment, ShareableView))
-
-
-    def test_customizedShareFragment(self):
-        """
-        Verify that the wrapped fragment returned from
-        L{websharing.SharingIndex._makeShareResource} has been customized for
-        the avatar name the sharing index was passed.
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.assertEqual(res.fragment.customizedFor, u'bill@net')
-
-
-    def test_uncustomizableSharedFragment(self):
-        """
-        L{websharing.SharingIndex._makeShareResource} does not customize
-        fragments which do not support customization.
-        """
-        class UncustomizableFragment(object):
-            pass
-
-        fragment = UncustomizableFragment()
-        self.shareable.inMemoryPowerUp(fragment, ixmantissa.INavigableFragment)
-
-        sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
-        page = sharingIndex._makeShareResource(self.shareable)
-        self.assertIdentical(page.fragment, fragment)
-
-
-    def test_jsModuleURLs(self):
-        """
-        Public pages should use the same JS module URL structure that private
-        pages do, rooted at /__jsmodule__/, so that they can be cached by the
-        browser intelligently.
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
-        res = sharingIndex._makeShareResource(self.shareable)
-        ctx = WovenContext()
-        req = FakeRequest()
-        ctx.remember(req, inevow.IRequest)
-        res.beforeRender(ctx)
-        urlObj = res.getJSModuleURL('Mantissa')
-        self.assertEqual(urlObj.pathList()[0], '__jsmodule__')
-
-
-    def test_shareResourceStore(self):
-        """
-        Verify that the resource returned from
-        L{websharing.SharingIndex._makeShareResource} is passed the site
-        store.
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore)
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.assertIdentical(res.store, self.siteStore)
-
-
-    def test_shareResourceUsername(self):
-        """
-        Verify that the resource returned from
-        L{websharing.SharingIndex._makeShareResource} is passed the same
-        username that was passed to the L{websharing.SharingIndex}
-        constructor.
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore, u'bill@net')
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.assertEqual(res.username, u'bill@net')
-
-
-    def test_shareResourceNoUsername(self):
-        """
-        Verify that the resource returned from
-        L{websharing.SharingIndex._makeShareResource} is passed C{None} when
-        C{None} was the username passed to the L{websharing.SharingIndex}
-        constructor.
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore, None)
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.assertIdentical(res.username, None)
-
-
-    def test_shareFragmentDocFactory(self):
-        """
-        Verify that L{websharing.SharingIndex._makeShareResource} calls
-        L{ITemplateNameResolver.getDocFactory} with the C{fragmentName}
-        attribute of the share's fragment and assigns the result to the
-        C{docFactory} attribute.
-
-        XXX: PrivateApplication is not an ITemplateNameResolver, but is an
-        IWebTranslator, and it implements getDocFactory.  Because of that, we
-        will get looked up under IWebTranslator, which is why we power it up.
-        This is a bug.
-        """
-        MAGIC_TEMPLATE_NAME = u'magic-template'
-        MAGIC_DOC_FACTORY = u'magic-doc-factory'
-        tnr = _TemplateNameResolver(
-            store=self.userStore,
-            magicTemplateName=MAGIC_TEMPLATE_NAME,
-            magicDocFactoryValue=MAGIC_DOC_FACTORY)
-        installOn(tnr, self.userStore)
-        self.userStore.powerUp(tnr, ixmantissa.IWebTranslator)
-
-        self.shareable.fragmentName = MAGIC_TEMPLATE_NAME
-        sharingIndex = websharing.SharingIndex(self.userStore, None)
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.assertEqual(res.fragment.docFactory, MAGIC_DOC_FACTORY)
-
-
-    def test_shareFragmentNoDocFactory(self):
-        """
-        Verify that L{websharing.SharingIndex._makeShareResource} does not set
-        a C{docFactory} attribute on the share's fragment if the
-        C{fragmentName} attribute is None
-        """
-        sharingIndex = websharing.SharingIndex(self.userStore, None)
-        res = sharingIndex._makeShareResource(self.shareable)
-        self.assertIdentical(res.fragment.docFactory, None)
-
-
-    def test_shareFragmentNoFragmentName(self):
-        """
-        L{websharing.SharingIndex._makeShareResource} does not set a
-        C{docFactory} attribute on the share's fragment if the fragment has no
-        C{fragmentName} attribute.
-        """
-        expectedDocFactory = object()
-        class FragmentWithoutName(object):
-            docFactory = expectedDocFactory
-
-        fragment = FragmentWithoutName()
-        self.shareable.inMemoryPowerUp(fragment, ixmantissa.INavigableFragment)
-        sharingIndex = websharing.SharingIndex(self.userStore, None)
-        page = sharingIndex._makeShareResource(self.shareable)
-        self.assertIdentical(page.fragment.docFactory, expectedDocFactory)
 
 
 

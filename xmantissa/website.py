@@ -15,15 +15,16 @@ from zope.interface import implements
 
 try:
     from cssutils import CSSParser
+    CSSParser
 except ImportError:
     CSSParser = None
 
-from twisted.cred.portal import IRealm
+
 
 from epsilon.structlike import record
 
 from nevow.inevow import IRequest, IResource
-from nevow.rend import NotFound, Page, Fragment
+from nevow.rend import Page, Fragment
 from nevow import inevow
 from nevow.static import File
 from nevow.url import URL
@@ -34,7 +35,7 @@ from axiom.iaxiom import IPowerupIndirector
 from axiom import upgrade
 from axiom.item import Item, _PowerupConnector, declareLegacyItem
 from axiom.attributes import AND, integer, text, reference, bytes, boolean
-from axiom.userbase import LoginSystem, getDomainNames, getAccountNames
+from axiom.userbase import LoginSystem, getAccountNames
 from axiom.dependency import installOn, uninstallFrom, installedOn
 
 from xmantissa.ixmantissa import (
@@ -43,7 +44,7 @@ from xmantissa.ixmantissa import (
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.web import SiteConfiguration
 from xmantissa.cachejs import theHashModuleProvider
-from xmantissa.websharing import UserIndexPage
+from xmantissa._webutil import SiteRootMixin
 
 
 class MantissaLivePage(athena.LivePage):
@@ -117,79 +118,6 @@ class MantissaLivePage(athena.LivePage):
 
 
 
-class SiteRootMixin(object):
-    """
-    Mixin class providing useful methods for the very top of the Mantissa site
-    hierarchy, both private and public.
-
-    Any page which provides a resource for "/" on a Mantissa server should
-    inherit from this, since many other Mantissa features depend upon resources
-    provided as children of this one.
-
-    Subclasses are expected to provide various instance attributes.
-
-    @ivar hitCount: The number of times this SiteRootMixin provider has had one
-    of its pages retrieved.
-
-    @ivar hashCache: a refererence to a L{HashedJSModuleProvider} which will
-    provide javascript cacheability for this site.
-
-    @ivar powerupInterface: The interface to search for powerups by.
-
-    @ivar store: the store to query for powerups in.
-    """
-    implements(inevow.IResource)
-
-    powerupInterface = ISiteRootPlugin
-
-    hitCount = 0
-
-    def renderHTTP(self, ctx):
-        """
-        This page is not renderable, because it is the very root of the server.
-
-        @raise NotImplementedError: Always.
-        """
-        raise NotImplementedError(
-            "This _must_ be installed at the root of a server.")
-
-
-    def locateChild(self, ctx, segments):
-        """
-        Locate a page on a Mantissa site.
-
-        First, look up child_ methods as normal.
-
-        Then, look for all powerups for the interface described by the
-        L{powerupInterface} attribute and call their L{resourceFactory}
-        methods.
-
-        If neither of these techniques yields a result, return L{NotFound}.
-
-        This will increment hitCount, except for child_ methods explicitly
-        annotated with a 'countHits = False' attribute.
-        """
-        shortcut = getattr(self, 'child_'+segments[0], None)
-        if shortcut:
-            # what is it, like the 80th implementation of this?
-            res = shortcut(ctx)
-            if getattr(shortcut, 'countHits', True):
-                self.hitCount += 1
-            if res is not None:
-                return res, segments[1:]
-        s = self.store
-        P = self.powerupInterface
-        for plg in s.powerupsFor(P):
-            childAndSegments = plg.resourceFactory(segments)
-            if childAndSegments is not None:
-                child, segments = childAndSegments # sanity
-                                                   # check/documentation; feel
-                                                   # free to remove
-                return child, segments
-        return NotFound
-
-
-
 JUST_SLASH = ('',)
 
 class PrefixURLMixin(object):
@@ -218,22 +146,61 @@ class PrefixURLMixin(object):
     def __str__(self):
         return '/%s => item(%s)' % (self.prefixURL, self.__class__.__name__)
 
-    def createResource(self):
+
+    def createResourceWith(self, webViewer):
         """
         Create and return an IResource.  This will only be invoked if
         the request matches the prefixURL specified on this object.
         May also return None to indicate that this object does not
         actually want to handle this request.
+
+        Note that this will only be invoked for L{ISiteRootPlugin} powerups;
+        L{ISessionlessSiteRootPlugin} powerups will only have C{createResource}
+        invoked.
         """
         raise NotImplementedError(
-            "PrefixURLMixin.createResource() should be "
+            "PrefixURLMixin.createResourceWith(webViewer) should be "
             "implemented by subclasses (%r didn't)" % (
                 self.__class__.__name__,))
 
-    def resourceFactory(self, segments):
-        """Return a C{(resource, subsegments)} tuple or None, depending on whether I
-        wish to return an IResource provider for the given set of segments or
-        not.
+
+    # ISiteRootPlugin
+    def produceResource(self, request, segments, webViewer):
+        """
+        Return a C{(resource, subsegments)} tuple or None, depending on whether
+        I wish to return an L{IResource} provider for the given set of segments
+        or not.
+        """
+        def thunk():
+            cr = getattr(self, 'createResource', None)
+            if cr is not None:
+                return cr()
+            else:
+                return self.createResourceWith(webViewer)
+        return self._produceIt(segments, thunk)
+
+
+    # ISessionlessSiteRootPlugin
+    def sessionlessProduceResource(self, request, segments):
+        """
+        Return a C{(resource, subsegments)} tuple or None, depending on whether
+        I wish to return an L{IResource} provider for the given set of segments
+        or not.
+        """
+        return self._produceIt(segments, self.createResource)
+
+
+    def _produceIt(self, segments, thunk):
+        """
+        Underlying implmeentation of L{PrefixURLMixin.produceResource} and
+        L{PrefixURLMixin.sessionlessProduceResource}.
+
+        @param segments: the URL segments to dispatch.
+
+        @param thunk: a 0-argument callable which returns an L{IResource}
+        provider, or None.
+
+        @return: a 2-tuple of C{(resource, remainingSegments)}, or L{None}.
         """
         if not self.prefixURL:
             needle = ()
@@ -246,13 +213,14 @@ class PrefixURLMixin(object):
                 subsegments = segments
             else:
                 subsegments = segments[S:]
-            res = self.createResource()
+            res = thunk()
             # Even though the URL matched up, sometimes we might still
             # decide to not handle this request (eg, some prerequisite
             # for our function is not met by the store).  Allow None
             # to be returned by createResource to indicate this case.
             if res is not None:
                 return res, subsegments
+
 
     def __getPowerupInterfaces__(self, powerups):
         """
@@ -613,7 +581,7 @@ class WebSite(Item, SiteRootMixin):
         return generator.rootURL(request)
 
 
-    def child_resetPassword(self, ctx):
+    def rootChild_resetPassword(self, req, webViewer):
         """
         Redirect authenticated users to their settings page (hopefully they
         have one) when they try to reset their password.
@@ -643,16 +611,12 @@ class WebSite(Item, SiteRootMixin):
         return self.store.findUnique(SiteConfiguration).getFactory()
 
 
-    # IPowerupIndirector
-    def indirect(self, interface):
+    def _getUsername(self):
         """
-        Create a L{VirtualHostWrapper} so it can have the first chance to
-        handle web requests.
+        Return a username, suitable for creating a L{VirtualHostWrapper} with.
         """
-        return VirtualHostWrapper(
-            self.store.parent,
-            u'@'.join(getAccountNames(self.store).next()),
-            self)
+        return u'@'.join(getAccountNames(self.store).next())
+
 
 
 
@@ -865,62 +829,3 @@ def upgradeWebsite5to6(oldSite):
     """
     return _makeSiteConfiguration(5, oldSite, True)
 upgrade.registerUpgrader(upgradeWebsite5to6, WebSite.typeName, 5, 6)
-
-
-
-class VirtualHostWrapper(record('siteStore forWhom wrapped')):
-    """
-    Resource wrapper which implements per-user virtual subdomains.  This should
-    be wrapped around any resource which sits at the root of the hierarchy.  It
-    will examine requests for their hostname and, when appropriate, redirect
-    handling of the query to the appropriate sharing resource.
-
-    @type siteStore: L{Store}
-    @ivar siteStore: The site store which will be queried to determine which
-        hostnames are associated with this server.
-
-    @type forWhom: C{unicode}
-    @ivar forWhom: The username of a viewer for whom to customize the resulting
-        resource, or C{None} if the viewer has no account.
-
-    @type wrapped: L{IResource} provider
-    @ivar wrapped: A resource to which traversal will be delegated if the
-        request is not for a user subdomain.
-    """
-    implements(IResource)
-
-    def subdomain(self, hostname):
-        """
-        Determine of which known domain the given hostname is a subdomain.
-
-        @return: A two-tuple giving the subdomain part and the domain part or
-            C{None} if the domain is not a subdomain of any known domain.
-        """
-        hostname = hostname.split(":")[0]
-        for domain in getDomainNames(self.siteStore):
-            if hostname.endswith("." + domain):
-                username = hostname[:-len(domain) - 1]
-                if username != "www":
-                    return username, domain
-        return None
-
-
-    def locateChild(self, context, segments):
-        """
-        Delegate dispatch to a sharing resource if the request is for a user
-        subdomain, otherwise fall back to the wrapped resource's C{locateChild}
-        implementation.
-        """
-        request = IRequest(context)
-        hostname = request.getHeader('host')
-
-        info = self.subdomain(hostname)
-        if info is not None:
-            username, domain = info
-            index = UserIndexPage(IRealm(self.siteStore))
-            resource = index.locateChild(None, [username])[0]
-            if self.forWhom is not None:
-                resource = resource.customizeFor(self.forWhom)
-            return resource, segments
-
-        return self.wrapped.locateChild(context, segments)

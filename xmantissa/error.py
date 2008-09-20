@@ -4,6 +4,8 @@
 Exception definitions for Mantissa.
 """
 
+from nevow.errors import MissingDocumentFactory
+
 
 class ArgumentError(Exception):
     """
@@ -109,3 +111,30 @@ class RevertAndRespond(Exception):
         self.value = value
 
 
+
+class CouldNotLoadFromThemes(MissingDocumentFactory):
+    """
+    An L{INavigableFragment} didn't have a C{docFactory}, and also didn't have
+    a C{fragmentName} that could be used to load one from a theme.  This
+    exception should help developers with debugging when they forget to give a
+    docFactory or a fragmentName to an element.
+    """
+
+    def __init__(self, element, themes):
+        """
+        @param element: The L{INavigableFragment} that was being rendered.
+
+        @param themes: A list of L{ITemplateNameResolver}s.
+        """
+        MissingDocumentFactory.__init__(self, element)
+        self.themes = themes
+
+
+    def __repr__(self):
+        """
+        A string representation including helpful information about the themes
+        that were searched and the element which could not be themed.
+        """
+        return ("%s: %r (fragment name %r) has no docFactory. Searched these themes: %r"
+                % (self.__class__.__name__, self.element,
+                   self.element.fragmentName, self.themes))

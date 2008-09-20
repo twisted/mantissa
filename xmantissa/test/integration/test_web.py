@@ -16,7 +16,9 @@ from nevow.inevow import ICurrentSegments, IRemainingSegments
 from nevow.context import RequestContext
 from nevow.url import URL
 from nevow.testutil import renderPage, FakeRequest
-from nevow.page import Element
+from nevow.page import Element, renderer
+from nevow.loaders import stan
+from nevow.tags import directive
 from nevow.guard import SESSION_KEY, GuardSession
 from nevow import athena
 
@@ -159,12 +161,13 @@ class DummyView(Element):
     """
     View for any L{IDummy}.
     """
+    docFactory = stan(directive('display'))
     def __init__(self, dummy):
         Element.__init__(self)
         self.dummy = dummy
 
-
-    def rend(self, ctx, data):
+    @renderer
+    def display(self, request, tag):
         return self.dummy.markup.encode('ascii')
 
 registerAdapter(DummyView, IDummy, INavigableFragment)

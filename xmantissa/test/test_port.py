@@ -6,6 +6,7 @@ Tests for L{xmantissa.port}.
 """
 
 import sys
+import os
 from StringIO import StringIO
 
 from zope.interface import implements
@@ -443,6 +444,8 @@ class PortConfigurationCommandTests(TestCase):
         Override C{sys.stdout} to capture anything written by the port
         subcommand.
         """
+        self.oldColumns = os.environ.get('COLUMNS')
+        os.environ['COLUMNS'] = '80'
         self.stdout = sys.stdout
         sys.stdout = StringIO()
 
@@ -452,7 +455,8 @@ class PortConfigurationCommandTests(TestCase):
         Restore the original value of C{sys.stdout}.
         """
         sys.stdout = self.stdout
-
+        if self.oldColumns is not None:
+            os.environ['COLUMNS'] = self.oldColumns
 
     def _makeConfig(self, store):
         """

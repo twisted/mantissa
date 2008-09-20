@@ -29,6 +29,8 @@ class PrefixTester(Item, PrefixURLMixin):
 
     implements(ISiteRootPlugin)
 
+    sessioned = True
+
     typeName = 'test_prefix_widget'
     schemaVersion = 1
 

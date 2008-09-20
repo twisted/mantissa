@@ -38,7 +38,7 @@ from axiom.attributes import text, integer
 from nevow import inevow, url, rend
 
 from xmantissa.offering import isAppStore
-from xmantissa import ixmantissa
+
 from xmantissa import sharing
 
 class _DefaultShareID(Item):
@@ -55,7 +55,6 @@ class _DefaultShareID(Item):
     priority = integer(doc="""
     The priority of this default.  Higher means more important.
     """)
-
 
 
 
@@ -182,6 +181,7 @@ def linkTo(sharedProxyOrItem):
         userStore = sharedProxyOrItem.store
     appStore = isAppStore(userStore)
     if appStore:
+        # This code-path should be fixed by #2703; PublicWeb is deprecated.
         from xmantissa.publicweb import PublicWeb
         substore = userStore.parent.getItemByID(userStore.idInParent)
         pw = userStore.parent.findUnique(PublicWeb, PublicWeb.application == substore)
@@ -227,12 +227,12 @@ class UserIndexPage(object):
     """
     This is the resource accessible at "/users"
 
-    See L{xmantissa.website.WebSite.child_users} for the integration
+    See L{xmantissa.publicweb.AnonymousSite.child_users} for the integration
     point with the rest of the system.
     """
     implements(inevow.IResource)
 
-    def __init__(self, loginSystem):
+    def __init__(self, loginSystem, webViewer):
         """
         Create a UserIndexPage which draws users from a given
         L{userbase.LoginSystem}.
@@ -241,6 +241,7 @@ class UserIndexPage(object):
         @type loginSystem: L{userbase.LoginSystem}
         """
         self.loginSystem = loginSystem
+        self.webViewer = webViewer
 
 
     def locateChild(self, ctx, segments):
@@ -251,7 +252,7 @@ class UserIndexPage(object):
             self.loginSystem.store, segments[0].decode('utf-8'))
         if store is None:
             return rend.NotFound
-        return (SharingIndex(store), segments[1:])
+        return (SharingIndex(store, self.webViewer), segments[1:])
 
 
     def renderHTTP(self, ctx):
@@ -272,27 +273,19 @@ class SharingIndex(object):
     A SharingIndex is an http resource which provides a view onto a user's
     store, for another user.
     """
-    implements(inevow.IResource, ixmantissa.ICustomizable)
+    implements(inevow.IResource)
 
-    def __init__(self, userStore, avatarName=None):
+    def __init__(self, userStore, webViewer):
         """
         Create a SharingIndex.
 
         @param userStore: an L{axiom.store.Store} to be viewed.
 
-        @param avatarName: the external identifier of the viewer.
+        @param webViewer: an L{IWebViewer} which represents the
+        viewer.
         """
         self.userStore = userStore
-        self.avatarName = avatarName
-
-
-    def customizeFor(self, avatarName):
-        """
-        @param avatarName: the external identifier of the new viewer.
-
-        @return: a version of this sharing index as viewed by a different role.
-        """
-        return SharingIndex(self.userStore, avatarName)
+        self.webViewer = webViewer
 
 
     def renderHTTP(self, ctx):
@@ -301,33 +294,6 @@ class SharingIndex(object):
         item.
         """
         return url.URL.fromContext(ctx).child('')
-
-
-    def _makeShareResource(self, sharedItem):
-        """
-        Construct a resource around the L{ixmantissa.INavigableFragment}
-        adapter of C{sharedItem}.
-
-        @type sharedItem: L{sharing.SharedProxy}.
-        @rtype: L{xmantissa.publicweb.PublicAthenaLivePage}
-        """
-        fragment = ixmantissa.INavigableFragment(sharedItem)
-
-        # The ways in which views are customized for viewers are manifold. 
-        # It would be ideal if there were only one place which handled
-        # customization. See #2047.
-        customizeFor = getattr(fragment, 'customizeFor', None)
-        if customizeFor is not None:
-            fragment = customizeFor(self.avatarName)
-        if getattr(fragment, 'fragmentName', None) is not None:
-            fragDocFactory = ixmantissa.IWebTranslator(
-                self.userStore).getDocFactory(fragment.fragmentName, None)
-            if fragDocFactory is not None:
-                fragment.docFactory = fragDocFactory
-        # inner import due to websharing->publicweb->website circularity
-        from xmantissa.publicweb import PublicAthenaLivePage
-        return PublicAthenaLivePage(
-            self.userStore.parent, fragment, forUser=self.avatarName)
 
 
     def locateChild(self, ctx, segments):
@@ -351,7 +317,7 @@ class SharingIndex(object):
         """
         shareID = segments[0].decode('utf-8')
 
-        role = sharing.getPrimaryRole(self.userStore, self.avatarName)
+        role = self.webViewer.roleIn(self.userStore)
 
         # if there is an empty segment
         if shareID == u'':
@@ -359,17 +325,17 @@ class SharingIndex(object):
             # let's use that
             defaultShareID = getDefaultShareID(self.userStore)
             try:
-                sharedItem = sharing.getShare(
-                    self.userStore, role, defaultShareID)
+                sharedItem = role.getShare(defaultShareID)
             except sharing.NoSuchShare:
                 return rend.NotFound
         # otherwise the user is trying to access some other share
         else:
             # let's see if it's a real share
             try:
-                sharedItem = sharing.getShare(self.userStore, role, shareID)
+                sharedItem = role.getShare(shareID)
             # oops it's not
             except sharing.NoSuchShare:
                 return rend.NotFound
 
-        return (self._makeShareResource(sharedItem), segments[1:])
+        return (self.webViewer.wrapModel(sharedItem),
+                segments[1:])
