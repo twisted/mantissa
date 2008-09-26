@@ -16,7 +16,9 @@ from axiom.dependency import installedOn
 
 from xmantissa import ixmantissa, offering
 
-from xmantissa.plugins.baseoff import baseOffering
+from xmantissa.web import SiteConfiguration
+from xmantissa.ampserver import AMPConfiguration
+from xmantissa.plugins.baseoff import baseOffering, ampOffering
 from xmantissa.plugins.offerings import peopleOffering
 
 
@@ -55,7 +57,7 @@ class OfferingPluginTest(unittest.TestCase):
         the plugins that should be there, are.
         """
         foundOfferings = list(offering.getOfferings())
-        allExpectedOfferings = [baseOffering, peopleOffering]
+        allExpectedOfferings = [baseOffering, ampOffering, peopleOffering]
         for expected in allExpectedOfferings:
             self.assertIn(expected, foundOfferings)
 
@@ -350,18 +352,33 @@ class BaseOfferingTests(unittest.TestCase):
             baseOffering.staticContentPath.child('mantissa.css').exists())
 
 
-    def test_siteConfiguration(self):
+    def _siteRequirementTest(self, offering, cls):
         """
-        Installing L{baseOffering} on a store results in the store being
-        powered up for L{ISiteURLGenerator}.
+        Verify that installing C{offering} results in an instance of the given
+        Item subclass being installed as a powerup for IProtocolFactoryFactory.
         """
         store = Store()
-        ixmantissa.IOfferingTechnician(store).installOffering(baseOffering)
+        ixmantissa.IOfferingTechnician(store).installOffering(offering)
 
-        # Really I just want the adaption to succeed with a good object.  The
-        # providedBy assertion is the best I can think of. -exarkun
-        self.assertTrue(
-            ixmantissa.ISiteURLGenerator.providedBy(
-                ixmantissa.ISiteURLGenerator(store)),
-            "ISiteURLGenerator powerup does not provide ISiteURLGenerator.")
+        factories = list(store.powerupsFor(ixmantissa.IProtocolFactoryFactory))
+        for factory in factories:
+            if isinstance(factory, cls):
+                break
+        else:
+            self.fail("No instance of %r in %r" % (cls, factories))
 
+
+    def test_siteConfiguration(self):
+        """
+        L{SiteConfiguration} powers up a store for L{IProtocolFactoryFactory}
+        when L{baseOffering} is installed on that store.
+        """
+        self._siteRequirementTest(baseOffering, SiteConfiguration)
+
+
+    def test_ampConfiguration(self):
+        """
+        L{AMPConfiguration} powers up a store for L{IProtocolFactoryFactory}
+        when L{ampOffering} is installed on that store.
+        """
+        self._siteRequirementTest(ampOffering, AMPConfiguration)

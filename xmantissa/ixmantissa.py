@@ -1216,6 +1216,32 @@ class IProtocolFactoryFactory(Interface):
         """
 
 
+class IBoxReceiverFactory(Interface):
+    """
+    Powerup interface for Items which can create L{IBoxReceiver} providers to
+    be made accessible via the standard Mantissa AMP server.
+    """
+    protocol = Attribute(
+        """
+        A short string describing the commands (ie, the protocol) provided by
+        the L{IBoxReceiver} this implementation can create.
+
+        It is B{strongly} recommended that this be a versioned, URI-style
+        identifier, after the fashion of XML namespace specifiers.  For
+        example, the first version of a Divmod, Inc.-provided chat protocol
+        might use I{https://divmod.com/ns/funny-chat}.  As no format
+        describing AMP command sets (or other protocols built on AMP) is yet
+        defined, there is no requirement that this URI be resolvable to an
+        actual resource.  Its purpose at this time is merely to be unique.
+        """)
+
+    def getBoxReceiver():
+        """
+        Return an L{IBoxReceiver} which will be hooked up to an AMP connection
+        and have messages sent to it.
+        """
+
+
 
 class IParameter(Interface):
     """
