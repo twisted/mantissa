@@ -582,17 +582,6 @@ class HypeFulltextTestCase(HypeTestsMixin, FulltextTestsMixin, unittest.TestCase
 
 
 
-class XapianTestsMixin:
-    def createIndexer(self):
-        return fulltext.XapianIndexer(store=self.store, indexDirectory=self.path)
-
-
-
-class XapianFulltextTestCase(XapianTestsMixin, FulltextTestsMixin, unittest.TestCase):
-    skip = "These tests don't actually pass - and I don't even care."
-
-
-
 class PyLuceneTestsMixin:
     def createIndexer(self):
         return fulltext.PyLuceneIndexer(store=self.store, indexDirectory=self.path)
@@ -884,9 +873,4 @@ class PyLuceneIndexerAPISearchTestCase(PyLuceneTestsMixin, IndexerAPISearchTests
 
 
 class  HypeIndexerAPISearchTestCase(HypeTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
-    skip = "These tests don't actually pass - and I don't even care."
-
-
-
-class XapianIndexerAPISearchTestCase(XapianTestsMixin, IndexerAPISearchTestsMixin, unittest.TestCase):
     skip = "These tests don't actually pass - and I don't even care."

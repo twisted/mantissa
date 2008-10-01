@@ -328,46 +328,13 @@ class HypeIndexer(RemoteIndexer, item.Item):
             return _HypeIndex(hype.Database(hypedir.path, hype.ESTDBWRITER | hype.ESTDBCREAT))
 
 
-try:
-    import xapwrap.index, xapwrap.document
-except ImportError:
-    xapwrap = None
-
-class _XapianIndex(object):
-    def __init__(self, smartIndex):
-        self.smartIndex = smartIndex
-        self.close = smartIndex.close
-
-
-    def add(self, message):
-        textFields = []
-        for part in message.textParts():
-            textFields.append(xapwrap.document.TextField(part.encode('utf-8')))
-
-        values = [
-            xapwrap.document.Value(k, v.encode('utf-8'))
-            for (k, v)
-            in message.valueParts()
-            ]
-
-        keywords = [
-            xapwrap.document.Keyword(k, v.encode('utf-8'))
-            for (k, v)
-            in message.keywordParts()]
-
-        self.smartIndex.index(
-            xapwrap.document.Document(textFields=textFields,
-                                      values=values,
-                                      keywords=keywords,
-                                      uid=message.uniqueIdentifier()))
-
-
-    def search(self, term, keywords=None, sortAscending=True):
-        return [d['uid'] for d in self.smartIndex.search(term.encode('utf-8'))]
-
-
-
 class XapianIndexer(RemoteIndexer, item.Item):
+    """
+    The remnants of an indexer based on Xapian (by way of Xapwrap).  This
+    indexing back end is no longer supported.  This item remains defined for
+    schema compatibility only.  It should be upgraded out of existence
+    eventually and then the class deleted.
+    """
 
     schemaVersion = 3
 
@@ -377,23 +344,12 @@ class XapianIndexer(RemoteIndexer, item.Item):
 
     _index = attributes.inmemory()
 
-    if xapwrap is None:
-        def openReadIndex(self):
-            raise NotImplementedError("xapian is unavailable")
+    def openReadIndex(self):
+        raise NotImplementedError("xapian is no longer supported")
 
 
-        def openWriteIndex(self):
-            raise NotImplementedError("xapian is unavailable")
-    else:
-        def openReadIndex(self):
-            xapDir = self.store.newDirectory(self.indexDirectory)
-            if not xapDir.exists():
-                self.openWriteIndex().close()
-            return _XapianIndex(xapwrap.index.SmartReadOnlyIndex(str(xapDir.path)))
-
-        def openWriteIndex(self):
-            xapDir = self.store.newDirectory(self.indexDirectory)
-            return _XapianIndex(xapwrap.index.SmartIndex(str(xapDir.path), True))
+    def openWriteIndex(self):
+        raise NotImplementedError("xapian is no longer supported")
 
 
 
