@@ -1,3 +1,17 @@
+0.6.21 (2008-10-02):
+  - Contact types can now have their edit forms rendered as siblings
+    of the giant Mantissa edit form.
+  - The root resource can now be configured to display the toplevel
+    public page shared by a given offering.
+  - Fixed argument ordering bug in "add person" javascript.
+  - Fixed the definition of IOffering to match the actual offering
+    interface.
+  - Comprehensive reworking of how URLs are managed by Mantissa, with
+    the introduction of the new IWebViewer interface. Shared items may
+    now provide non-live adapters and IResource adapters.
+  - Pluggable AMP server added based on the AMP routing facilities in
+    Epsilon. 
+  
 0.6.20 (2008-08-12):
   - Mugshot thumbnail generation:  avoid aliasing paletted and bicolor images.
   - Better support for IRIs.
