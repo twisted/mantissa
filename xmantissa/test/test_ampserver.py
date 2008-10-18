@@ -4,18 +4,21 @@
 Tests for L{xmantissa.ampserver}.
 """
 
-from zope.interface import Interface, implements
+from zope.interface import Interface
 from zope.interface.verify import verifyObject
 
 from twisted.python.failure import Failure
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import ServerFactory
+from twisted.internet.task import Clock
+from twisted.internet import reactor
 from twisted.cred.credentials import UsernamePassword
-from twisted.protocols.amp import IBoxReceiver, IBoxSender
+from twisted.protocols.amp import ASK, COMMAND, IBoxReceiver
 from twisted.trial.unittest import TestCase
 
 from epsilon.ampauth import CredReceiver
 from epsilon.amprouter import _ROUTE
+from epsilon.test.test_amprouter import SomeReceiver, CollectingSender
 
 from axiom.item import Item
 from axiom.store import Store
@@ -110,62 +113,6 @@ class AMPConfigurationTests(TestCase):
 
 
 
-class CollectingSender:
-    """
-    An L{IBoxSender} which collects and saves boxes and errors sent to it.
-    """
-    implements(IBoxSender)
-
-    def __init__(self):
-        self.boxes = []
-        self.errors = []
-
-
-    def sendBox(self, box):
-        """
-        Reject boxes with non-string keys or values; save all the rest in
-        C{self.boxes}.
-        """
-        for k, v in box.iteritems():
-            if not (isinstance(k, str) and isinstance(v, str)):
-                raise TypeError("Cannot send boxes containing non-strings")
-        self.boxes.append(box)
-
-
-    def unhandledError(self, failure):
-        self.errors.append(failure.getErrorMessage())
-
-
-
-class SomeReceiver:
-    sender = None
-    reason = None
-    started = False
-    stopped = False
-
-    def __init__(self):
-        self.boxes = []
-
-
-    def startReceivingBoxes(self, sender):
-        self.started = True
-        self.sender = sender
-
-
-    def ampBoxReceived(self, box):
-        if self.started and not self.stopped:
-            self.boxes.append(box)
-
-
-    def stopReceivingBoxes(self, reason):
-        self.stopped = True
-        self.reason = reason
-
-
-
-
-
-
 class StubBoxReceiverFactory(Item):
     """
     L{IBoxReceiverFactory}
@@ -173,13 +120,14 @@ class StubBoxReceiverFactory(Item):
     protocol = text()
 
     receivers = inmemory()
+    receiverFactory = SomeReceiver
 
     def activate(self):
         self.receivers = []
 
 
     def getBoxReceiver(self):
-        receiver = SomeReceiver()
+        receiver = self.receiverFactory()
         self.receivers.append(receiver)
         return receiver
 
@@ -225,6 +173,15 @@ class AMPAvatarTests(TestCase):
         self.assertTrue(receiver.started)
 
 
+    def test_reactor(self):
+        """
+        L{AMPAvatar.connectorFactory} returns a L{_RouteConnector} constructed
+        using the global reactor.
+        """
+        connector = self.avatar.connectorFactory(object())
+        self.assertIdentical(connector.reactor, reactor)
+
+
 
 class RouteConnectorTests(TestCase):
     """
@@ -234,15 +191,16 @@ class RouteConnectorTests(TestCase):
         """
         Create a L{Store} with an L{AMPAvatar} installed on it.
         """
+        self.clock = Clock()
         self.store = Store()
         self.factory = StubBoxReceiverFactory(
             store=self.store, protocol=u"bar")
         self.store.powerUp(self.factory, IBoxReceiverFactory)
         self.router = Router()
         self.sender = CollectingSender()
-        self.connector = _RouteConnector(self.store, self.router)
+        self.connector = _RouteConnector(self.clock, self.store, self.router)
         self.router.startReceivingBoxes(self.sender)
-        self.router.bindRoute(self.connector, None)
+        self.router.bindRoute(self.connector, None).connectTo(None)
 
 
     def test_accept(self):
@@ -258,6 +216,7 @@ class RouteConnectorTests(TestCase):
         secondIdentifier = self.connector.accept(
             "second origin", u"bar")['route']
         secondReceiver = self.factory.receivers.pop()
+        self.clock.advance(0)
 
         self.router.ampBoxReceived(
             {_ROUTE: firstIdentifier, 'foo': 'bar'})
@@ -266,6 +225,32 @@ class RouteConnectorTests(TestCase):
 
         self.assertEqual(firstReceiver.boxes, [{'foo': 'bar'}])
         self.assertEqual(secondReceiver.boxes, [{'baz': 'quux'}])
+
+
+    def test_acceptResponseBeforeApplicationBox(self):
+        """
+        If the protocol L{_RouteConnector.accept} binds to a new route sends a
+        box in its C{startReceivingBoxes} method, that box is sent to the
+        network after the I{Connect} response is sent.
+        """
+        earlyBox = {'foo': 'bar'}
+
+        class EarlyReceiver:
+            def startReceivingBoxes(self, sender):
+                sender.sendBox(earlyBox)
+
+        object.__setattr__(self.factory, 'receiverFactory', EarlyReceiver)
+        self.connector.ampBoxReceived({
+                COMMAND: Connect.commandName,
+                ASK: 'unique-identifier',
+                'origin': 'an origin',
+                'protocol': 'bar'})
+        self.clock.advance(0)
+        self.assertEqual(len(self.sender.boxes), 2)
+        route, app = self.sender.boxes
+        expectedBox = earlyBox.copy()
+        expectedBox[_ROUTE] = 'an origin'
+        self.assertEqual(app, expectedBox)
 
 
     def test_unknownProtocol(self):
@@ -285,6 +270,7 @@ class RouteConnectorTests(TestCase):
         """
         origin = u'origin route'
         self.connector.accept(origin, u'bar')
+        self.clock.advance(0)
 
         [bar] = self.factory.receivers
         self.assertTrue(bar.started)

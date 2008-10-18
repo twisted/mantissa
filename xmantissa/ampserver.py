@@ -12,6 +12,7 @@ receivers over a single AMP connection.
 from zope.interface import implements
 
 from twisted.internet.protocol import ServerFactory
+from twisted.internet import reactor
 from twisted.cred.portal import Portal
 from twisted.protocols.amp import IBoxReceiver, Unicode
 from twisted.protocols.amp import BoxDispatcher, CommandLocator, Command
@@ -70,7 +71,6 @@ class Connect(Command):
     arguments = [('origin', Unicode()), ('protocol', Unicode())]
     response = [('route', Unicode())]
 
-    # XXX Untested
     errors = {ProtocolUnknown: 'PROTOCOL_UNKNOWN'}
 
 
@@ -81,12 +81,24 @@ class _RouteConnector(BoxDispatcher, CommandLocator):
     used as the avatar.  There is one L{_RouteConnector} instance per
     connection.
 
+    @ivar reactor: An L{IReactorTime} provider which will be used to schedule
+        the actual route connection.  This is a workaround for a missing AMP
+        API: the ability to indicate a response without returning a value from
+        a responder.  The application L{IBoxReceiver} being associated with a
+        new route cannot be allowed to send any boxes before the I{Connect}
+        response box is sent.  The simplest way to do this is to schedule a
+        timed call to do the route connection so that it happens after the
+        responder returns.
+
     @ivar store: The L{Store} which contained the L{AMPRouter} which created
         this object and which will be used to find L{IBoxReceiverFactory}
         powerups.
+
+    @ivar router: The L{Router} which will be used to create new routes.
     """
-    def __init__(self, store, router):
+    def __init__(self, reactor, store, router):
         BoxDispatcher.__init__(self, self)
+        self.reactor = reactor
         self.store = store
         self.router = router
 
@@ -117,9 +129,9 @@ class _RouteConnector(BoxDispatcher, CommandLocator):
             if factory.protocol == protocol:
                 receiver = factory.getBoxReceiver()
                 route = self.router.bindRoute(receiver)
-                # XXX This might want to happen later, after we have sent the
-                # response to the Connect command.
-                route.connectTo(origin)
+                # This might be better implemented using a hook on the box.
+                # See Twisted ticket #3479.
+                self.reactor.callLater(0, route.connectTo, origin)
                 return {'route': route.localRouteName}
         raise ProtocolUnknown()
 
@@ -145,7 +157,7 @@ class AMPAvatar(Item):
         Create the default receiver to use with the L{Router} returned
         by C{indirect}.
         """
-        return _RouteConnector(self.store, router)
+        return _RouteConnector(reactor, self.store, router)
 
 
     def indirect(self, interface):
