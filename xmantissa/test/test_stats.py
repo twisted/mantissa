@@ -1,93 +1,126 @@
+# Copyright 2008 Divmod, Inc.  See LICENSE for details.
+
 """
 Tests for L{xmantissa.stats}.
 """
 
-from twisted.python import log
-from twisted.internet import defer
+from twisted.python import log, failure
 from twisted.trial import unittest
-from twisted.application.service import IService
+from twisted.protocols.amp import ASK, COMMAND, Command, parseString
 
-from epsilon.extime import Time
-from epsilon import juice
+from axiom.iaxiom import IStatEvent
 
-from axiom.store import Store
-from axiom.scheduler import Scheduler
-from axiom import attributes, iaxiom
-from axiom.dependency import installOn
-
-from xmantissa import stats
-from xmantissa.stats import StatsService
+from xmantissa.stats import RemoteStatsCollectorFactory, RemoteStatsCollector
+from xmantissa.test.test_ampserver import (
+    BoxReceiverFactoryPowerupTestMixin, CollectingSender)
 
 
-class StatCollectorTest(unittest.TestCase):
+
+class RemoteStatsCollectorTest(BoxReceiverFactoryPowerupTestMixin, unittest.TestCase):
     """
-    Tests for L{xmantissa.stats.StatsService}.
+    Tests for L{RemoteStatsCollectorFactory} and L{RemoteStatsCollector}.
     """
+    factoryClass = RemoteStatsCollectorFactory
+    protocolClass = RemoteStatsCollector
+
     def setUp(self):
         """
-        Create a store with a scheduler and a stats service and start the
-        store's service.
+        Create and start a L{RemoteStatsCollector}.
         """
-        self.store = Store()
-        # should this break something? it should break something.
-        self.store.parent = self.store
+        self.receiver = RemoteStatsCollectorFactory().getBoxReceiver()
+        self.sender = CollectingSender()
+        self.receiver.startReceivingBoxes(self.sender)
 
-        self.scheduler = Scheduler(store=self.store)
-        installOn(self.scheduler, self.store)
-
-        self.statService = StatsService(store=self.store)
-        installOn(self.statService, self.store)
-
-        IService(self.store).startService()
-
-
-    def tearDown(self):
+    def test_deliverStatEvents(self):
         """
-        Stop the store's service.
+        When a L{RemoteStatsCollector} is active, it sends AMP boxes
+        to its client when L{IStatEvent}s are logged.
         """
-        return IService(self.store).stopService()
-    
+        log.msg(interface=IStatEvent, foo="bar", baz=12, quux=u'\N{SNOWMAN}')
+        self.assertEqual(len(self.sender.boxes), 1)
+        stat = self.sender.boxes[0]
+        self.assertNotIn(ASK, stat)
+        self.assertEqual(stat[COMMAND], 'StatUpdate')
+        # Skip testing the timestamp, another test which can control its value
+        # will do that.
+        data = set([
+                (d['key'], d['value'])
+                for d in parseString(stat['data'])
+                if d['key'] != 'time'])
+        self.assertEqual(
+            data,
+            set([('foo', 'bar'), ('baz', '12'),
+                 ('quux', u'\N{SNOWMAN}'.encode('utf-8'))]))
 
-    def test_statCollectionAndRecording(self):
+
+    def test_ignoreOtherEvents(self):
         """
-        Logging an L{iaxiom.IStatEvent} should result in the creation of a
-        L{stats.StatBucket} with minute resolution and a type corresponding
-        to the C{stat_} key in the log event dictionary.
+        L{RemoteStatsCollection} does not send any boxes for events which don't
+        have L{IStatEvent} as the value for their C{'interface'} key.
         """
-        log.msg(interface=iaxiom.IStatEvent, stat_foo=17)
-        self.store.findUnique(stats.StatSampler).run()
-        minutebucket = list(
-            self.store.query(
-                stats.StatBucket,
-                attributes.AND(stats.StatBucket.type == u"foo",
-                               stats.StatBucket.interval == u"minute")))
-        self.assertEquals(len(minutebucket), 1)
-        self.assertEquals(minutebucket[0].value, 17)
+        log.msg(interface="test log event")
+        self.assertEqual(self.sender.boxes, [])
 
 
+    def test_deliveryStopsAfterDisconnect(self):
+        """
+        After L{RemoteStatsCollection.stopReceivingBoxes} is called, it no
+        longer observes L{IStatEvent} log messages.
+        """
+        self.receiver.stopReceivingBoxes(
+            failure.Failure(Exception("test exception")))
+        log.msg(interface=IStatEvent, foo="bar")
+        self.assertEqual(self.sender.boxes, [])
 
-class FakeProtocol(juice.Juice):
-    sent = False
-    def sendBoxCommand(self, command, box, requiresAnswer=True):
-        self.sent = True
-class RemoteStatCollectorTest(unittest.TestCase):
 
-    def testUpdates(self):
-        r = stats.RemoteStatsObserver(hostname="fred", port=1)
-        r.protocol = FakeProtocol(False)
-        r.statUpdate(Time(), [("candy bars", 17), ("enchiladas", 2)])
-        self.assertEquals(r.protocol.sent, True)
+    def test_disconnectFailsOutgoing(self):
+        """
+        L{RemoteStatsCollection.stopReceivingBoxes} causes the L{Deferred}
+        associated with any outstanding command to fail with the reason given.
+        """
+        class DummyCommand(Command):
+            pass
 
-    def testConnecting(self):
-        self.connected = False
+        d = self.receiver.callRemote(DummyCommand)
+        self.receiver.stopReceivingBoxes(RuntimeError("test exception"))
+        return self.assertFailure(d, RuntimeError)
 
-        def win(_):
-            self.connected = True
-            return defer.Deferred()
-        f = stats.RemoteStatsObserver._connectToStatsServer
-        stats.RemoteStatsObserver._connectToStatsServer = win
-        r = stats.RemoteStatsObserver (hostname="fred", port=1)
-        r.activate()
-        r.statUpdate(Time(), [("candy bars", 17), ("enchiladas", 2)])
-        self.assertEquals(self.connected, True)
-        stats.RemoteStatsObserver._connectToStatsServer = f
+
+    def test_timestamp(self):
+        """
+        L{RemoteStatsCollector._emit} sends a I{StatUpdate} command with a
+        timestamp taken from the log event passed to it.
+        """
+        self.receiver._emit({
+                'time': 123456789.0,
+                'interface': IStatEvent})
+        self.assertEqual(len(self.sender.boxes), 1)
+        timestamp = [
+            d['value']
+            for d in parseString(self.sender.boxes[0]['data'])
+            if d['key'] == 'time']
+        self.assertEqual(timestamp, ['123456789.0'])
+
+
+    def test_athena(self):
+        """
+        L{RemoteStatsCollector._emit} sends a I{StatUpdate} command with Athena
+        transport data for Athena message send and receive events.
+        """
+        self.receiver._emit({
+                'athena_send_messages': True,
+                'count': 17})
+        self.receiver._emit({
+                'athena_received_messages': True,
+                'count': 12})
+        self.assertEqual(len(self.sender.boxes), 2)
+        send = set([(d['key'], d['value'])
+                    for d in parseString(self.sender.boxes[0]['data'])])
+        self.assertEqual(
+            send,
+            set([('count', '17'), ('athena_send_messages', 'True')]))
+        received = set([(d['key'], d['value'])
+                        for d in parseString(self.sender.boxes[1]['data'])])
+        self.assertEqual(
+            received,
+            set([('count', '12'), ('athena_received_messages', 'True')]))

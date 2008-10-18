@@ -344,24 +344,27 @@ class ConnectRouteTests(TestCase):
 
 
 
-class EchoTests(TestCase):
+class BoxReceiverFactoryPowerupTestMixin:
     """
-    Tests for L{EchoFactory} and L{EchoReceiver}, classes which provide a
-    simple AMP echo protocol for a Mantissa AMP server.
+    Common tests for implementors of L{IBoxReceiverFactory}.
+
+    @ivar factoryClass: the L{IBoxReceiverFactory} implementor.
+    @ivar protocolClass: An L{IBoxReceiver} implementor.
     """
+
     def test_factoryInterfaces(self):
         """
-        L{EchoFactory} instances provide L{IBoxReceiverFactory}.
+        C{self.factoryClass} instances provide L{IBoxReceiverFactory}.
         """
-        self.assertTrue(verifyObject(IBoxReceiverFactory, EchoFactory()))
+        self.assertTrue(verifyObject(IBoxReceiverFactory, self.factoryClass()))
 
 
     def test_factoryPowerup(self):
         """
-        When installed, L{EchoFactory} is a powerup for L{IBoxReceiverFactory}.
+        When installed, C{self.factoryClass} is a powerup for L{IBoxReceiverFactory}.
         """
         store = Store()
-        factory = EchoFactory(store=store)
+        factory = self.factoryClass(store=store)
         installOn(factory, store)
         self.assertEqual(
             list(store.powerupsFor(IBoxReceiverFactory)),
@@ -370,18 +373,28 @@ class EchoTests(TestCase):
 
     def test_getBoxReceiver(self):
         """
-        L{EchoFactory.getBoxReceiver} returns an instance of L{EchoReceiver}.
+        C{self.factoryClass.getBoxReceiver} returns an instance of C{self.protocolClass}.
         """
-        receiver = EchoFactory().getBoxReceiver()
-        self.assertTrue(isinstance(receiver, EchoReceiver))
+        receiver = self.factoryClass().getBoxReceiver()
+        self.assertTrue(isinstance(receiver, self.protocolClass))
 
 
     def test_receiverInterfaces(self):
         """
-        L{EchoReceiver} instances provide L{IBoxReceiver}.
+        C{self.protocolClass} instances provide L{IBoxReceiver}.
         """
-        self.assertTrue(verifyObject(IBoxReceiver, EchoReceiver()))
+        self.assertTrue(verifyObject(IBoxReceiver, self.protocolClass()))
 
+
+
+class EchoTests(BoxReceiverFactoryPowerupTestMixin, TestCase):
+    """
+    Tests for L{EchoFactory} and L{EchoReceiver}, classes which provide a
+    simple AMP echo protocol for a Mantissa AMP server.
+    """
+
+    factoryClass = EchoFactory
+    protocolClass = EchoReceiver
 
     def test_ampBoxReceived(self):
         """
@@ -394,5 +407,3 @@ class EchoTests(TestCase):
         receiver.ampBoxReceived({'foo': 'bar'})
         self.assertEqual(sender.boxes, [{'foo': 'bar'}])
         receiver.stopReceivingBoxes(Failure(Exception("test exception")))
-
-

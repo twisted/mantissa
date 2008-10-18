@@ -1,7 +1,7 @@
 
-from axiom import iaxiom, scheduler
+from axiom import scheduler
 
-from xmantissa import webadmin, offering, stats
+from xmantissa import offering, stats
 from xmantissa.webadmin import (TracebackViewer, LocalUserBrowser,
                                 DeveloperApplication, BatchManholePowerup,
                                 PortConfiguration)
@@ -18,6 +18,9 @@ adminOffering = offering.Offering(
                            ("Local User Browser", "A page listing all users existing in this site's store.", LocalUserBrowser),
                            ("Admin REPL", "An interactive python prompt.", DeveloperApplication),
                            ("Batch Manhole", "Enables ssh login to the batch-process manhole", BatchManholePowerup),
-                           ("Offering Configuration", "Allows installation of Offerings on this site", offering.OfferingConfiguration)],
+                           ("Offering Configuration", "Allows installation of Offerings on this site", offering.OfferingConfiguration),
+                           ("Stats Observation", "Allows remote observation via AMP of gathered performance-related stats",
+                            stats.RemoteStatsCollectorFactory),
+                           ],
     loginInterfaces=(),
     themes = ())

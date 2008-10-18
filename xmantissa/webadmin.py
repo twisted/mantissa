@@ -1,6 +1,6 @@
 # -*- test-case-name: xmantissa.test.test_admin -*-
 
-import operator, random, string, time
+import random, string
 
 from zope.interface import implements
 
@@ -18,7 +18,7 @@ from nevow.athena import expose
 from epsilon import extime
 
 from axiom.attributes import (integer, boolean, timestamp, bytes, reference,
-    inmemory, AND, OR)
+    inmemory, AND)
 from axiom.item import Item, declareLegacyItem
 from axiom import userbase
 from axiom.batch import BatchManholePowerup
@@ -27,7 +27,7 @@ from axiom.upgrade import registerUpgrader
 
 from xmantissa.liveform import LiveForm, Parameter, ChoiceParameter
 from xmantissa.liveform import TEXT_INPUT ,CHECKBOX_INPUT
-from xmantissa import webtheme, liveform, webnav, offering, signup, stats
+from xmantissa import webtheme, liveform, webnav, offering, signup
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.product import ProductConfiguration, Product, Installation
 from xmantissa.suspension import suspendJustTabProviders, unsuspendTabProviders
@@ -38,8 +38,6 @@ from xmantissa.website import WebSite, PrefixURLMixin
 from xmantissa.ixmantissa import (
     INavigableElement, INavigableFragment, ISessionlessSiteRootPlugin,
     IProtocolFactoryFactory)
-
-from xmantissa.plugins.baseoff import baseOffering
 
 from nevow import rend, athena, static, tags as T
 
@@ -57,7 +55,8 @@ class DeveloperSite(Item, PrefixURLMixin):
 
     prefixURL = 'static/webadmin'
 
-    # Counts of each kind of user
+    # Counts of each kind of user.  These are not maintained, they should be
+    # upgraded away at some point.  -exarkun
     developers = integer(default=0)
     administrators = integer(default=0)
 
@@ -66,53 +65,21 @@ class DeveloperSite(Item, PrefixURLMixin):
 
 
 
-class ParentCounterMixin:
-    def _getDevSite(self):
-        # Developer site is required.  Make one if there isn't one.
-        # Make sure site-wide dependency is available
-        for devsite in self.store.parent.query(DeveloperSite):
-            break
-        else:
-            devsite = DeveloperSite(store=self.store.parent)
-            installOn(devsite, self.store.parent)
-        return devsite
-
-    # XXX WAaah.  self.store.parent is None sometimes, depending on
-    # how we got opened :/
-    def increment(self):
-#         devsite = self._getDevSite()
-#         setattr(devsite, self.counterAttribute, getattr(devsite, self.counterAttribute) + 1)
-        pass
-
-    def decrement(self):
-#         devsite = self._getDevSite()
-#         setattr(devsite, self.counterAttribute, getattr(devsite, self.counterAttribute) - 1)
-        pass
-
-class AdminStatsApplication(Item, ParentCounterMixin):
+class AdminStatsApplication(Item):
     """
+    Obsolete.  Only present for schema compatibility.  Do not use.
     """
+    powerupInterfaces = (INavigableElement,)
     implements(INavigableElement)
 
     schemaVersion = 2
     typeName = 'administrator_application'
 
-    counterAttribute = 'administrators'
-
     updateInterval = integer(default=5)
     privateApplication = dependsOn(PrivateApplication)
-    powerupInterfaces = (INavigableElement,)
-
-    def deletedFromStore(self, *a, **kw):
-        self.decrement()
-        return super(AdminStatsApplication, self).deletedFromStore(*a, **kw)
 
     def getTabs(self):
         return []
-        # See ticket #2332.  restore this navigation element when that's fixed.
-        # return [webnav.Tab('Admin', self.storeID, 0.0,
-        #                    [webnav.Tab('Stats', self.storeID, 0.1)],
-        #                    authoritative=False)]
 
 declareLegacyItem(AdminStatsApplication, 1,
                   dict(updateInterval=integer(default=5)))
@@ -394,210 +361,12 @@ class UnsuspendFragment(SuspendFragment):
                                                  None)]
         self.desc = "Unsuspend"
 
-class AdminStatsFragment(athena.LiveElement):
-    implements(INavigableFragment)
-
-    live = 'athena'
-    jsClass = u'Mantissa.StatGraph.StatGraph'
-    fragmentName = 'admin-stats'
-
-    def __init__(self, *a, **kw):
-        athena.LiveElement.__init__(self, *a, **kw)
-        self.svc = None
-        self.piePeriod = 60
-        self.activeStats = []
-        self.queryStats = None
-    def _initializeObserver(self):
-        "Look up the StatsService and registers to receive notifications of recorded stats."
-
-        if self.svc:
-            return
-        m = IRealm(self.original.store.parent).accountByAddress(u"mantissa", None)
-        if m:
-            s = m.avatars.open()
-            self.svc = s.findUnique(stats.StatsService)
-            self.svc.addStatsObserver(self)
-        else:
-            self.svc = None
-        self._seenStats = []
-        self.page.notifyOnDisconnect().addCallback(
-            lambda x: self.svc.removeStatsObserver(self))
-
-    def fetchLastHour(self, name):
-        """Retrieve the last 60 minutes of data points for the named stat."""
-        end = self.svc.currentMinuteBucket
-        beginning = end - 60
-        if beginning < 0:
-            beginning += stats.MAX_MINUTES
-            # this is a round-robin list, so make sure to get
-            # the part recorded before the wraparound:
-            bs = self.svc.store.query(stats.StatBucket,
-                                       AND(stats.StatBucket.type==unicode(name),
-                                           stats.StatBucket.interval== u"minute",
-                                           OR(stats.StatBucket.index >= beginning,
-                                              stats.StatBucket.index <= end)))
-
-        else:
-            bs = self.svc.store.query(stats.StatBucket,
-                                      AND(stats.StatBucket.type==unicode(name),
-                                          stats.StatBucket.interval== u"minute",
-                                          stats.StatBucket.index >= beginning,
-                                          stats.StatBucket.index <= end))
-        return zip(*[(unicode(b.time and b.time.asHumanly() or ''), b.value) for b in bs]) or [(), ()]
 
 
-
-    def getGraphNames(self):
-        self._initializeObserver()
-        if not self.svc:
-            return []
-        return [(unicode(name), unicode(stats.statDescriptions[name])) for name in self.svc.statTypes]
-    expose(getGraphNames)
-
-
-    def addStat(self, name):
-        data = self.fetchLastHour(name)
-        self.activeStats.append(name)
-        return data
-    expose(addStat)
-
-
-    def removeStat(self, name):
-        self.activeStats.remove(name)
-    expose(removeStat)
-
-
-    def setPiePeriod(self, period):
-        "Set how much time the query-time pie chart should cover."
-        self.piePeriod = int(period)
-    expose(setPiePeriod)
-
-
-    def buildPie(self):
-        "Called from javascript to produce the initial state of the query-time pie chart."
-        self._initializeObserver()
-        if not self.svc:
-            return []
-
-        data = []
-        end = self.svc.currentMinuteBucket
-        beginning = end - self.piePeriod
-        if beginning < 0:
-            beginning += stats.MAX_MINUTES
-            # this is a round-robin list, so make sure to get
-            # the part recorded before the wraparound:
-            bs = self.svc.store.query(stats.QueryStatBucket, AND(
-                                           stats.QueryStatBucket.interval== u"minute",
-                                           OR(stats.QueryStatBucket.index >= beginning,
-                                              stats.QueryStatBucket.index <= end)))
-
-        else:
-            bs = self.svc.store.query(stats.QueryStatBucket, AND(
-                                          stats.QueryStatBucket.interval== u"minute",
-                                          stats.QueryStatBucket.index >= beginning,
-                                          stats.QueryStatBucket.index <= end))
-        slices = {}
-        start = time.time()
-        for bucket in bs:
-            slices.setdefault(bucket.type, []).append(bucket.value)
-        log.msg("Query-stats query time: %s Items: %s" % (time.time() - start, bs.count()))
-        for k, v in slices.items():
-            tot =  sum(v)
-            if tot:
-                slices[k] = tot
-            else:
-                del slices[k]
-
-        self.queryStats = slices
-        return self.pieSlices()
-    expose(buildPie)
-
-    def pieSlices(self):
-        data = self.queryStats.items()
-        data.sort(key=operator.itemgetter(1), reverse=True)
-        return zip(*data)
-
-    def queryStatUpdate(self, time, updates):
-        if self.queryStats is None:
-            return
-        for k, delta in updates:
-            val = self.queryStats.get(k, 0)
-            self.queryStats[k] = val + delta
-        pie = self.pieSlices()
-        self.callRemote('updatePie', pie).addErrback(log.err)
-
-    def statUpdate(self, time, updates):
-        "Update the graphs with the new data point."
-        data = []
-        for name, value in updates:
-            if name.startswith('_'):
-                #not a directly graphable stat
-                continue
-            if name in self.activeStats:
-                data.append((unicode(name), value))
-        self.callRemote('update', unicode(time.asHumanly()), dict(data))
-
-
-
-    def head(self):
-        # XXX TODO - There is a race condition loading new dependencies after
-        # the initial page render.  Work around this by forcing all these
-        # dependencies to load at startup.
-        return [
-            T.script(type='text/javascript', src='/private/jsmodule/PlotKit.' + x)
-            for x in ['Base', 'Canvas', 'Layout', 'SVGRenderer', 'SweetSVG', 'Canvas', 'SweetCanvas']]
-
-    def _query(self, *a, **kw):
-        return self.original.store.parent.query(*a, **kw)
-
-    def loginCount(self, request, tag):
-        for ls in self._query(userbase.LoginSystem):
-            return ls.loginCount
-    renderer(loginCount)
-
-
-    def failedLoginCount(self, request, tag):
-        for ls in self._query(userbase.LoginSystem):
-            return ls.failedLogins
-    renderer(failedLoginCount)
-
-
-    def userCount(self, request, tag):
-        count = 0
-        for la in self._query(userbase.LoginAccount):
-            count += 1
-        return count
-    renderer(userCount)
-
-
-    def disabledUserCount(self, request, tag):
-        count = 0
-        for la in self._query(userbase.LoginAccount, userbase.LoginAccount.disabled != 0):
-            count += 1
-        return count
-    renderer(disabledUserCount)
-
-
-    def developerCount(self, request, tag):
-        for ds in self._query(DeveloperSite):
-            return ds.developers
-    renderer(developerCount)
-
-
-    def administratorCount(self, request, tag):
-        for ds in self._query(DeveloperSite):
-            return ds.administrators
-    renderer(administratorCount)
-
-registerAdapter(AdminStatsFragment, AdminStatsApplication, INavigableFragment)
-
-
-class DeveloperApplication(Item, ParentCounterMixin):
+class DeveloperApplication(Item):
     """
     """
     implements(INavigableElement)
-
-    counterAttribute = 'developers'
 
     schemaVersion = 2
     typeName = 'developer_application'
@@ -1046,11 +815,9 @@ def endowAdminPowerups(userStore):
             # PrivateAppShell)
             PrivateApplication,
 
-            # These are plugins *for* the PrivateApplication; they
-            # publish objects via the tab-based navigation: a
-            # statistics page and a Python interactive interpreter,
-            # respectively.
-            AdminStatsApplication,
+            # This is a plugin *for* the PrivateApplication; it publishes
+            # objects via the tab-based navigation (a Python interactive
+            # interpreter).
             DeveloperApplication,
 
             #ProductConfiguration lets admins collect powerups into
