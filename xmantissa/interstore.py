@@ -203,7 +203,7 @@ class _FailedAnswer(Item, WithRecordAttributes):
         A provider of L{IDeliveryConsequence} which will be invoked when this
         _FailedAnswer is redelivered.
         """,
-        allowNone=False)
+        allowNone=False, whenDeleted=reference.CASCADE)
 
     messageType = text(
         """

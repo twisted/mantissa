@@ -947,11 +947,11 @@ class Ticket(Item):
     schemaVersion = 2
     typeName = 'ticket'
 
-    issuer = reference(allowNone=False)
-    booth = reference(allowNone=False)
+    issuer = reference(allowNone=False, whenDeleted=reference.CASCADE)
+    booth = reference(allowNone=False, whenDeleted=reference.CASCADE)
     avatar = reference()
     claimed = integer(default=0)
-    product = reference(allowNone=False)
+    product = reference(allowNone=False, whenDeleted=reference.CASCADE)
 
     email = text()
     nonce = text()
@@ -1012,8 +1012,8 @@ class _DelegatedBenefactor(Item):
     typeName = 'mantissa_delegated_benefactor'
     schemaVersion = 1
 
-    benefactor = reference(allowNone=False)
-    multifactor = reference(allowNone=False)
+    benefactor = reference(allowNone=False, whenDeleted=reference.CASCADE)
+    multifactor = reference(allowNone=False, whenDeleted=reference.CASCADE)
     order = integer(allowNone=False, indexed=True)
 
 

@@ -97,7 +97,7 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
         doc="""
         A L{SubStore} for an application store.
         """,
-        allowNone=False)
+        allowNone=False, whenDeleted=attributes.reference.CASCADE)
 
     installedOn = attributes.reference(
         doc="""

@@ -1887,7 +1887,9 @@ registerUpgrader(emailAddress1to2,
 
 item.declareLegacyItem(EmailAddress.typeName, 2, dict(
                   address = attributes.text(allowNone=False),
-                  person = attributes.reference(allowNone=False)))
+                  person = attributes.reference(
+                      allowNone=False,
+                      whenDeleted=attributes.reference.CASCADE)))
 
 registerAttributeCopyingUpgrader(EmailAddress, 2, 3)
 
@@ -1904,7 +1906,8 @@ class PhoneNumber(item.Item):
     schemaVersion = 3
 
     number = attributes.text(allowNone=False)
-    person = attributes.reference(allowNone=False)
+    person = attributes.reference(allowNone=False,
+                                  whenDeleted=attributes.reference.CASCADE)
     label = attributes.text(
         """
         This is a label for the role of the phone number.
@@ -1959,7 +1962,9 @@ def phoneNumber1to2(old):
 
 item.declareLegacyItem(PhoneNumber.typeName, 2, dict(
                   number = attributes.text(allowNone=False),
-                  person = attributes.reference(allowNone=False)))
+                  person = attributes.reference(
+                      allowNone=False,
+                      whenDeleted=attributes.reference.CASCADE)))
 
 registerUpgrader(phoneNumber1to2,
                  'mantissa_organizer_addressbook_phonenumber',
@@ -2208,7 +2213,8 @@ class Notes(item.Item):
     typeName = 'mantissa_organizer_addressbook_notes'
 
     notes = attributes.text(allowNone=False)
-    person = attributes.reference(allowNone=False)
+    person = attributes.reference(allowNone=False,
+                                  whenDeleted=attributes.reference.CASCADE)
 
 
 
@@ -2551,7 +2557,7 @@ class Mugshot(item.Item):
 
     person = attributes.reference(doc="""
     L{Person} this mugshot is of
-    """, allowNone=False)
+    """, allowNone=False, whenDeleted=attributes.reference.CASCADE)
 
     size = 120
     smallerSize = 60
