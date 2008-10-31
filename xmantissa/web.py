@@ -6,12 +6,14 @@
 Mantissa web presence.
 """
 
+import time
 from zope.interface import implements
 
 from twisted.python.filepath import FilePath
 from twisted.internet.defer import maybeDeferred
 from twisted.cred.portal import Portal
 from twisted.cred.checkers import AllowAnonymousAccess
+from twisted.python import log
 
 from nevow.inevow import IRequest, IResource
 from nevow.url import URL
@@ -22,6 +24,7 @@ from nevow.athena import LivePage
 
 from epsilon.structlike import record
 
+from axiom.iaxiom import IStatEvent
 from axiom.item import Item
 from axiom.attributes import path, text
 from axiom.dependency import dependsOn
@@ -34,12 +37,43 @@ from xmantissa.websession import PersistentSessionWrapper
 
 
 class AxiomRequest(NevowRequest):
+    """
+    A request class that runs request processing in an Axiom transaction.
+
+    @ivar responseSize: A running total of the amount of data being sent in the
+    response to this request.
+    @ivar startTime: When this request began processing.
+    """
     def __init__(self, store, *a, **kw):
         NevowRequest.__init__(self, *a, **kw)
         self.store = store
+        self.responseSize = 0
+        self.startTime = None
 
     def process(self, *a, **kw):
+        self.startTime = time.time()
         return self.store.transact(NevowRequest.process, self, *a, **kw)
+
+
+    def write(self, data):
+        """
+        Record response size, and write the response data.
+        """
+        self.responseSize += len(data)
+        return NevowRequest.write(self, data)
+
+
+    def finishRequest(self, success):
+        """
+        Log statistics about response size.
+        """
+        renderTime = time.time() - self.startTime
+        log.msg(interface=IStatEvent,
+                http_request_path=self.path,
+                http_request_responsesize=self.responseSize,
+                http_request_sessionkey=self.getSession().uid,
+                http_request_renderingtime=renderTime)
+        return NevowRequest.finishRequest(self, success)
 
 
 
@@ -321,8 +355,9 @@ class SecuringWrapper(record('urlGenerator wrappedResource')):
             renderer = self.wrappedResource
         else:
             renderer = _SecureWrapper(self.urlGenerator, self.wrappedResource)
-        return renderer.renderHTTP(context)
-
+        result = renderer.renderHTTP(context)
+        
+        return result
 
 
 class _SecureWrapper(record('urlGenerator wrappedResource')):

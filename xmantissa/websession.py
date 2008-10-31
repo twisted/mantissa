@@ -261,6 +261,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                 cookieValue = session.uid
                 if request.args.get('rememberMe'):
                     self.createSessionForKey(cookieValue, creds.username)
+                    #log.msg(interface=IStatEvent, login_username=user,
+                    #        login_sessionkey=cookieValue)
                     self.savorSessionCookie(request)
             return input
 

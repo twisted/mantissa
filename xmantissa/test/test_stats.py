@@ -9,10 +9,13 @@ from twisted.trial import unittest
 from twisted.protocols.amp import ASK, COMMAND, Command, parseString
 
 from axiom.iaxiom import IStatEvent
+from axiom.store import Store
+from axiom.plugins.mantissacmd import Mantissa
 
 from xmantissa.stats import RemoteStatsCollectorFactory, RemoteStatsCollector
 from xmantissa.test.test_ampserver import (
     BoxReceiverFactoryPowerupTestMixin, CollectingSender)
+from xmantissa.web import SiteConfiguration
 
 
 
@@ -124,3 +127,23 @@ class RemoteStatsCollectorTest(BoxReceiverFactoryPowerupTestMixin, unittest.Test
         self.assertEqual(
             received,
             set([('count', '12'), ('athena_received_messages', 'True')]))
+
+
+class HTTPStatsEmitterTest(unittest.TestCase):
+    """
+    Tests for the production of HTTP stats.
+    """
+
+    def test_request(self):
+        """
+        When a response to an HTTP request is sent, the path, session key,
+        response body size, and rendering time are reported.
+        """
+
+        self.siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, 'localhost', u"", False)
+        self.site = self.siteStore.findUnique(SiteConfiguration)
+
+        f = self.site.getFactory()
+
+        
