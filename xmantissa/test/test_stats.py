@@ -3,10 +3,14 @@
 """
 Tests for L{xmantissa.stats}.
 """
+from zope.interface import implements
 
+from twisted.internet import reactor
 from twisted.python import log, failure
 from twisted.trial import unittest
 from twisted.protocols.amp import ASK, COMMAND, Command, parseString
+
+from nevow.inevow import IRequest, IResource
 
 from axiom.iaxiom import IStatEvent
 from axiom.store import Store
@@ -16,7 +20,6 @@ from xmantissa.stats import RemoteStatsCollectorFactory, RemoteStatsCollector
 from xmantissa.test.test_ampserver import (
     BoxReceiverFactoryPowerupTestMixin, CollectingSender)
 from xmantissa.web import SiteConfiguration
-
 
 
 class RemoteStatsCollectorTest(BoxReceiverFactoryPowerupTestMixin, unittest.TestCase):
@@ -146,24 +149,37 @@ class HTTPStatsEmitterTest(unittest.TestCase):
         self.site = self.siteStore.findUnique(SiteConfiguration)
 
         testdata = "some response data"
-        testpath = "http://localhost/test/path"
+        testpath = "/test/path"
         logMessages = []
         log.addObserver(logMessages.append)
         f = self.site.getFactory()
+        class StubResource(object):
+            implements(IResource)
+            def locateChild(self, context, segs):
+                return self, []
+            def renderHTTP(self, context):
+                request = IRequest(context)
+                request._getTime = lambda: 2
+                return testdata
+        f.resource = StubResource()
+
         class FakeChannel(object):
             site = f
+        self.patch(reactor, 'callLater', lambda t, c: None)
         req = f.requestFactory(FakeChannel(), True)
         req.setHost('localhost', 80)
         req.args = {}
         req.path = testpath
         req._getTime = lambda: 1
-        req.process()
+        def finish(_):
+            log.removeObserver(logMessages.append)
+            http_messages = [msg for msg in logMessages
+                             if 'http_request_path' in msg]
+            self.assertEqual(len(http_messages), 1)
+            msg = http_messages[0]
+            self.assertEqual(msg['http_request_responsesize'],
+                             len(testdata))
+            self.assertEqual(msg['http_request_renderingtime'], 1)
+            self.assertEqual(msg['http_request_path'], testpath)
 
-        req.write(testdata)
-        req._getTime = lambda: 2
-
-        req.finishRequest(True)
-
-        log.removeObserver(logMessages.append)
-
-        self.assertEqual(len(logMessages), 2)
+        return req.process().addCallback(finish)
