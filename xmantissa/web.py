@@ -50,8 +50,19 @@ class AxiomRequest(NevowRequest):
         self.responseSize = 0
         self.startTime = None
 
+
+    def _getTime(self):
+        """
+        Method overridable in tests for measuring request processing time.
+        """
+        return time.time()
+
+
     def process(self, *a, **kw):
-        self.startTime = time.time()
+        """
+        Process this request in a transaction.
+        """
+        self.startTime = self._getTime()
         return self.store.transact(NevowRequest.process, self, *a, **kw)
 
 
@@ -67,7 +78,7 @@ class AxiomRequest(NevowRequest):
         """
         Log statistics about response size.
         """
-        renderTime = time.time() - self.startTime
+        renderTime = self._getTime() - self.startTime
         log.msg(interface=IStatEvent,
                 http_request_path=self.path,
                 http_request_responsesize=self.responseSize,

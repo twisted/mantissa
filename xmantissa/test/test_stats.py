@@ -140,10 +140,30 @@ class HTTPStatsEmitterTest(unittest.TestCase):
         response body size, and rendering time are reported.
         """
 
+
         self.siteStore = Store(filesdir=self.mktemp())
-        Mantissa().installSite(self.siteStore, 'localhost', u"", False)
+        Mantissa().installSite(self.siteStore, u'localhost', u"", False)
         self.site = self.siteStore.findUnique(SiteConfiguration)
 
+        testdata = "some response data"
+        testpath = "http://localhost/test/path"
+        logMessages = []
+        log.addObserver(logMessages.append)
         f = self.site.getFactory()
+        class FakeChannel(object):
+            site = f
+        req = f.requestFactory(FakeChannel(), True)
+        req.setHost('localhost', 80)
+        req.args = {}
+        req.path = testpath
+        req._getTime = lambda: 1
+        req.process()
 
-        
+        req.write(testdata)
+        req._getTime = lambda: 2
+
+        req.finishRequest(True)
+
+        log.removeObserver(logMessages.append)
+
+        self.assertEqual(len(logMessages), 2)
