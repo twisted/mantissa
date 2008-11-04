@@ -6,6 +6,7 @@ Tests for L{xmantissa.stats}.
 from zope.interface import implements
 
 from twisted.internet import reactor
+from twisted.cred.portal import IRealm
 from twisted.python import log, failure
 from twisted.trial import unittest
 from twisted.protocols.amp import ASK, COMMAND, Command, parseString
@@ -15,11 +16,13 @@ from nevow.inevow import IRequest, IResource
 from axiom.iaxiom import IStatEvent
 from axiom.store import Store
 from axiom.plugins.mantissacmd import Mantissa
+from axiom.userbase import Preauthenticated
 
 from xmantissa.stats import RemoteStatsCollectorFactory, RemoteStatsCollector
 from xmantissa.test.test_ampserver import (
     BoxReceiverFactoryPowerupTestMixin, CollectingSender)
 from xmantissa.web import SiteConfiguration
+from xmantissa.test.fakes import FakeModel
 
 
 class RemoteStatsCollectorTest(BoxReceiverFactoryPowerupTestMixin, unittest.TestCase):
@@ -137,39 +140,46 @@ class HTTPStatsEmitterTest(unittest.TestCase):
     Tests for the production of HTTP stats.
     """
 
+    def setUp(self):
+        """
+        Create a Mantissa server and get at its web resource factory.
+        """
+
+        self.siteStore = Store(filesdir=self.mktemp())
+        Mantissa().installSite(self.siteStore, u'localhost', u"", False)
+        self.site = self.siteStore.findUnique(SiteConfiguration)
+        self.testdata = "some response data"
+        self.testpath = "/test/path"
+        self.siteFactory = self.site.getFactory()
+        class FakeDelayedCall(object):
+            def active(self):
+                return False
+        self.patch(reactor, 'callLater',
+                   lambda t, c, d=None: FakeDelayedCall())
+        class FakeChannel(object):
+            site = self.siteFactory
+        self.request = self.siteFactory.requestFactory(FakeChannel(), True)
+
     def test_request(self):
         """
         When a response to an HTTP request is sent, the path, session key,
         response body size, and rendering time are reported.
         """
-
-
-        self.siteStore = Store(filesdir=self.mktemp())
-        Mantissa().installSite(self.siteStore, u'localhost', u"", False)
-        self.site = self.siteStore.findUnique(SiteConfiguration)
-
-        testdata = "some response data"
-        testpath = "/test/path"
         logMessages = []
         log.addObserver(logMessages.append)
-        f = self.site.getFactory()
         class StubResource(object):
             implements(IResource)
-            def locateChild(self, context, segs):
-                return self, []
-            def renderHTTP(self, context):
+            def locateChild(sr, context, segs):
+                return sr, []
+            def renderHTTP(sr, context):
                 request = IRequest(context)
                 request._getTime = lambda: 2
-                return testdata
-        f.resource = StubResource()
-
-        class FakeChannel(object):
-            site = f
-        self.patch(reactor, 'callLater', lambda t, c: None)
-        req = f.requestFactory(FakeChannel(), True)
+                return self.testdata
+        self.siteFactory.resource = StubResource()
+        req = self.request
         req.setHost('localhost', 80)
         req.args = {}
-        req.path = testpath
+        req.path = self.testpath
         req._getTime = lambda: 1
         def finish(_):
             log.removeObserver(logMessages.append)
@@ -178,8 +188,44 @@ class HTTPStatsEmitterTest(unittest.TestCase):
             self.assertEqual(len(http_messages), 1)
             msg = http_messages[0]
             self.assertEqual(msg['http_request_responsesize'],
-                             len(testdata))
+                             len(self.testdata))
             self.assertEqual(msg['http_request_renderingtime'], 1)
-            self.assertEqual(msg['http_request_path'], testpath)
+            self.assertEqual(msg['http_request_path'], self.testpath)
 
         return req.process().addCallback(finish)
+
+    def test_session(self):
+        """
+        """
+        logMessages = []
+        log.addObserver(logMessages.append)
+        r = IRealm(self.siteStore)
+        acc = r.addAccount('testaccount', 'localhost', 'passwd',
+                           internal=True, verified=True)
+        userStore = acc.avatars.open()
+        userStore.inMemoryPowerUp(FakeModel(), IResource)
+        guardedroot = self.siteFactory.resource.wrappedResource.guardedRoot
+        self.request.path = self.testpath
+        self.request.prepath = []
+        self.request.args = {'username': 'testaccount'}
+        self.request.setHost('localhost', 80)
+        self.request.site = self.siteFactory
+        guardedroot.createSession(self.request, [])
+        session = guardedroot.sessions._transientSessions.values()[0]
+        def finish(_):
+            guardedroot.login(self.request, session,
+                              Preauthenticated('testaccount@localhost'),
+                              [])
+            log.removeObserver(logMessages.append)
+            login_messages = [msg for msg in logMessages
+                              if 'login_sessionkey' in msg]
+            self.assertEqual(len(login_messages), 1)
+
+            http_messages = [msg for msg in logMessages
+                             if 'http_request_path' in msg]
+            self.assertEqual(len(http_messages), 1)
+
+            self.assertEqual(login_messages[0]['login_sessionkey'],
+                             http_messages[0]['http_request_sessionkey'])
+
+        return self.request.process().addCallback(finish)

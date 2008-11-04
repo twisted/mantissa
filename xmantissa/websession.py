@@ -13,11 +13,13 @@ PersistentSessionWrapper constructor: sessionCleanFrequency, persistentSessionLi
 and transientSessionLifetime.
 """
 
+from twisted.python import log
 from twisted.cred import credentials
 
 from epsilon import extime
 
 from axiom import attributes, item, userbase
+from axiom.iaxiom import IStatEvent
 
 from nevow import guard
 
@@ -261,9 +263,9 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                 cookieValue = session.uid
                 if request.args.get('rememberMe'):
                     self.createSessionForKey(cookieValue, creds.username)
-                    #log.msg(interface=IStatEvent, login_username=user,
-                    #        login_sessionkey=cookieValue)
                     self.savorSessionCookie(request)
+                log.msg(interface=IStatEvent, login_username=user,
+                        login_sessionkey=cookieValue)
             return input
 
         return guard.SessionWrapper.login(self, request, session, creds, segments
