@@ -13,6 +13,8 @@ PersistentSessionWrapper constructor: sessionCleanFrequency, persistentSessionLi
 and transientSessionLifetime.
 """
 
+import sha
+
 from twisted.python import log
 from twisted.cred import credentials
 
@@ -228,7 +230,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
     def savorSessionCookie(self, request):
         """
-        Make the session cookie last as long as the persistant session.
+        Make the session cookie last as long as the persistent session.
 
         @param request: The HTTP request object for the guard login URL.
         """
@@ -264,8 +266,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                 if request.args.get('rememberMe'):
                     self.createSessionForKey(cookieValue, creds.username)
                     self.savorSessionCookie(request)
-                log.msg(interface=IStatEvent, login_username=user,
-                        login_sessionkey=cookieValue)
+                log.msg(interface=IStatEvent, login_username=user[0],
+                        login_sessionkey=sha.sha(cookieValue).hexdigest())
             return input
 
         return guard.SessionWrapper.login(self, request, session, creds, segments

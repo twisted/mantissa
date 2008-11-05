@@ -5,8 +5,16 @@
 Tests for L{xmantissa.websession}.
 """
 
+import sha
+
+from twisted.python import log
 from twisted.trial.unittest import TestCase
+from twisted.cred.checkers import InMemoryUsernamePasswordDatabaseDontUse
+from twisted.cred.portal import Portal
+
 from nevow.testutil import FakeRequest
+
+from axiom.userbase import Preauthenticated
 
 from xmantissa.websession import PersistentSessionWrapper, usernameFromRequest
 
@@ -150,3 +158,40 @@ class TestPersistentSessionWrapper(TestCase):
         """
         self._cookieTest('alice.example.com:8080', '.example.com',
                          domains=['example.com'], enableSubdomains=True)
+
+
+    def test_statsLogged(self):
+        """
+        Successful calls to L{PersistentSessionWrapper.login} generate
+        stats events with the key for the session associated with the
+        logged-in user.
+        """
+        logMessages = []
+        log.addObserver(logMessages.append)
+        self.addCleanup(log.removeObserver, logMessages.append)
+
+        key = 'abcdefghi'
+        hashedKey = sha.sha(key).hexdigest()
+
+        class Realm:
+            def requestAvatar(self, avatarId, mind, *interfaces):
+                return (interfaces[0], avatarId, lambda: None)
+
+        portal = Portal(Realm(), [
+                InMemoryUsernamePasswordDatabaseDontUse(**{
+                                'testaccount@localhost': None})])
+
+        request = FakeRequest(
+            args={'username': ['testaccount@localhost']},
+            headers={'host': 'example.com'})
+        resource = PersistentSessionWrapper(None, portal,
+                                            domains=['example.com'])
+        session = resource.sessionFactory(resource, key)
+        resource.login(request, session, 
+                       Preauthenticated('testaccount@localhost'),
+                       [])
+        login_messages = [msg for msg in logMessages
+                          if 'login_sessionkey' in msg]
+        self.assertEqual(len(login_messages), 1)
+        self.assertEqual(login_messages[0]['login_sessionkey'], hashedKey)
+        self.assertEqual(login_messages[0]['login_username'], 'testaccount@localhost')

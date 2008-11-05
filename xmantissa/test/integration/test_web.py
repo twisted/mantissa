@@ -7,10 +7,12 @@ from zope.interface import Interface, Attribute, implements
 
 from twisted.python.reflect import qual
 from twisted.python.filepath import FilePath
+from twisted.python import log
 from twisted.python.components import registerAdapter
 from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase
 from twisted.web import http
+
 
 from nevow.inevow import ICurrentSegments, IRemainingSegments
 from nevow.context import RequestContext

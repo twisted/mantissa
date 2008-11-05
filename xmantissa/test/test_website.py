@@ -3,6 +3,7 @@ from epsilon import hotfix
 hotfix.require('twisted', 'trial_assertwarns')
 
 import sha
+import StringIO
 
 from zope.interface import implements
 from zope.interface.verify import verifyObject
@@ -13,21 +14,27 @@ try:
 except ImportError:
     CSSParser = None
 
+from twisted.python import log
 from twisted.python.components import registerAdapter
 from twisted.internet.address import IPv4Address
+from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase
 from twisted.trial import util
 from twisted.python.filepath import FilePath
+from twisted.web.server import Session
+from twisted.test.proto_helpers import StringTransport
 
 from nevow.flat import flatten
 from nevow.context import WebContext
 from nevow.testutil import FakeRequest
 from nevow.url import URL
 from nevow.inevow import IResource, IRequest
-from nevow.rend import WovenContext, NotFound
+from nevow.rend import WovenContext, NotFound, Page
 from nevow.athena import LivePage
 from nevow.guard import LOGIN_AVATAR
+from nevow.testutil import FakeChannel
 
+from axiom.iaxiom import IStatEvent
 from axiom import userbase
 from axiom.userbase import LoginSystem
 from axiom.store import Store
@@ -51,6 +58,7 @@ from xmantissa.websharing import SharingIndex
 
 from xmantissa.website import MantissaLivePage, APIKey, PrefixURLMixin
 from xmantissa.web import SecuringWrapper, _SecureWrapper, StaticContent, UnguardedWrapper, SiteConfiguration
+from xmantissa.web import AxiomSite, AxiomRequest
 
 
 maybeEncryptedRootWarningMessage = (
@@ -1316,3 +1324,51 @@ class VirtualHostWrapperTests(TestCase):
         self.assertEqual(
             wrapper.subdomain("bob.example.com:8080"),
             ("bob", "example.com"))
+
+
+
+class AxiomRequestTests(TestCase):
+    """
+    Tests for L{AxiomRequest}.
+    """
+    def test_statsLogged(self):
+        """
+        When an L{AxiomRequest} is finished, it logs a stat event with
+        details about itself.
+        """
+        logMessages = []
+        log.addObserver(logMessages.append)
+        self.addCleanup(log.removeObserver, logMessages.append)
+        
+        uid = 'abc123xyz'
+
+        renderDeferred = Deferred()
+        class StubResource(object):
+            implements(IResource)
+            def locateChild(self, context, segs):
+                raise NotImplementedError("Should never be invoked")
+
+            def renderHTTP(self, context):
+                return renderDeferred
+
+        root = Page()
+        root.putChild('foo', StubResource())
+        site = AxiomSite(Store(), root)
+        channel = FakeChannel(site)
+        channel.transport = StringTransport()
+        request = AxiomRequest(site.store, channel, True)
+        request.content = StringIO.StringIO()
+        request.session = Session(None, uid)
+        request._getTime = lambda: 10
+        request.requestReceived('GET', '/foo', 'HTTP/1.1')
+        request.write('foo')
+        request.write('bar')
+        request._getTime = lambda: 20
+        renderDeferred.callback('')
+        [requestLogEvent] = [msg for msg in logMessages if 'http_request_path' in msg]
+        self.assertEqual(requestLogEvent['interface'], IStatEvent)
+        self.assertEqual(requestLogEvent['http_request_path'], '/foo')
+        self.assertEqual(requestLogEvent['http_request_responsesize'], 6)
+        self.assertEqual(requestLogEvent['http_request_sessionkey'], uid)
+        self.assertEqual(requestLogEvent['http_request_renderingtime'], 10)
+        
