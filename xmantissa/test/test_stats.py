@@ -31,6 +31,18 @@ class RemoteStatsCollectorTest(BoxReceiverFactoryPowerupTestMixin, unittest.Test
         self.sender = CollectingSender()
         self.receiver.startReceivingBoxes(self.sender)
 
+
+    def tearDown(self):
+        """
+        Ensure the log observer added by L{setUp} is removed.
+        """
+        try:
+            log.removeObserver(self.receiver._emit)
+        except ValueError:
+            # The test removed it already.
+            pass
+
+
     def test_deliverStatEvents(self):
         """
         When a L{RemoteStatsCollector} is active, it sends AMP boxes
