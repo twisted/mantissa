@@ -702,12 +702,12 @@ class MessageQueue(Item):
         L{MessageQueue} implementing L{IDeliveryConsequence}.
         """
         self.messageCounter += 1
-        qm = _QueuedMessage.create(store=self.store,
-                                   sender=sender,
-                                   target=target,
-                                   value=value,
-                                   messageID=self.messageCounter,
-                                   consequence=consequence)
+        _QueuedMessage.create(store=self.store,
+                              sender=sender,
+                              target=target,
+                              value=value,
+                              messageID=self.messageCounter,
+                              consequence=consequence)
         self._scheduleMePlease()
 
 

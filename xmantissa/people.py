@@ -1226,7 +1226,6 @@ class Organizer(item.Item):
         Implement L{INavigableElement.getTabs} to return a single tab,
         'People', that points to this item.
         """
-        ourURL = self._webTranslator.linkTo(self.storeID)
         return [webnav.Tab('People', self.storeID, 0.5, authoritative=True)]
 
 
@@ -2380,7 +2379,7 @@ class AddPersonFragment(athena.LiveFragment):
         raises a L{ValueError}.
         """
         try:
-            person = self.organizer.createPerson(nickname)
+            self.organizer.createPerson(nickname)
         except ValueError, e:
             raise liveform.InputError(unicode(e))
     expose(addPerson)

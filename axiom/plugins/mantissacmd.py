@@ -192,7 +192,7 @@ class RemoteStatsAdd(axiomatic.AxiomaticSubCommand):
     def installCollector(self, s, host, port):
         ss = portal.IRealm(s).accountByAddress(u'mantissa',
                                                None).avatars.open()
-        obs = stats.RemoteStatsObserver(store=ss, hostname=host, port=port)
+        stats.RemoteStatsObserver(store=ss, hostname=host, port=port)
 
 
 

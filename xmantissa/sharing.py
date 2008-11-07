@@ -460,7 +460,6 @@ class SharedProxy(object):
 
         @return: None
         """
-        rself = _really(self)
         if name in ALLOWED_ON_PROXY:
             self.__dict__[name] = value
         else:

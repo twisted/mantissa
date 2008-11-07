@@ -144,7 +144,6 @@ class TabularDataModel:
 
     def _updateResults(self, primaryColumnStart=None, equalToStart=False,
                        backwards=False, refresh=False):
-        previousResults = self._currentResults
         results = self._performQuery(primaryColumnStart,
                                      equalToStart,
                                      backwards)
