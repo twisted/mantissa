@@ -1358,6 +1358,21 @@ class IPublicPage(Interface):
     """
 
 
+class IOneTimePadGenerator(Interface):
+    """
+    An object which can generate single-use pads for authentication purposes.
+    """
+    def generateOneTimePad(userStore):
+        """
+        Generate a one-time pad for the user who lives in the given store.
+
+        @param userStore: A user's store.
+        @type userStore: L{axiom.store.Store}
+
+        @rtype: C{str}
+        """
+
+
 __all__ = [
     'IColumn', 'ITemplateNameResolver', 'IPreferenceAggregator',
     'ISearchProvider', 'ISearchAggregator', 'IFulltextIndexer',
@@ -1367,5 +1382,5 @@ __all__ = [
     'INavigableFragment', 'ITab', 'IBenefactor', 'IBenefactorFactory',
     'IQ2QService', 'IPreferenceCollection', 'ITemporalEvent', 'IDateBook',
     'IOrganizerPlugin', 'IPersonFragment', 'IOffering', 'ISignupMechanism',
-    'IProtocolFactoryFactory', 'IParameterView',
+    'IProtocolFactoryFactory', 'IParameterView', 'IOneTimePadGenerator'
     ]

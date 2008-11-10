@@ -4,7 +4,7 @@
 Tests for L{xmantissa.ampserver}.
 """
 
-from zope.interface import Interface
+from zope.interface import Interface, implements
 from zope.interface.verify import verifyObject
 
 from twisted.python.failure import Failure
@@ -19,6 +19,7 @@ from twisted.trial.unittest import TestCase
 from epsilon.ampauth import CredReceiver
 from epsilon.amprouter import _ROUTE
 from epsilon.test.test_amprouter import SomeReceiver, CollectingSender
+from epsilon.iepsilon import IOneTimePad
 
 from axiom.item import Item
 from axiom.store import Store
@@ -77,39 +78,97 @@ class AMPConfigurationTests(TestCase):
         self.assertTrue(isinstance(protocol, CredReceiver))
 
 
+    def test_generateOneTimePad(self):
+        """
+        L{AMPConfiguration.generateOneTimePad} returns a one-time pad.
+        """
+        object.__setattr__(self.conf, 'callLater', lambda x, y: None)
+        pad = self.conf.generateOneTimePad(self.store)
+        self.assertNotEqual(
+            pad, self.conf.generateOneTimePad(self.store))
+
+
+    def test_oneTimePadExpires(self):
+        """
+        L{AMPConfiguration.generateOneTimePad} should expire its pad.
+        """
+        def callLater(seconds, f):
+            self.assertEqual(
+                seconds, self.conf.ONE_TIME_PAD_DURATION)
+            f()
+        object.__setattr__(self.conf, 'callLater', callLater)
+        pad = self.conf.generateOneTimePad(self.store)
+        self.assertFalse(pad in self.conf._oneTimePads)
+
+
+
+class AMPConfigurationSubStoreTests(TestCase):
+    """
+    Tests for L{AMPConfiguration} which require a substore.
+    """
+    def setUp(self):
+        """
+        Create an in-memory L{Store} with an L{AMPConfiguration} in it, and a
+        substore.
+        """
+        self.store = Store()
+        self.conf = AMPConfiguration(store=self.store)
+        installOn(self.conf, self.store)
+
+        self.localpart = u'alice'
+        self.domain = u'example.org'
+        self.password = u'foobar'
+
+        loginSystem = self.store.findUnique(LoginSystem)
+        account = loginSystem.addAccount(
+            self.localpart, self.domain, self.password, internal=True)
+        self.subStore = account.avatars.open()
+
+
+    def _testPortalLogin(self, credentials):
+        factory = self.conf.getFactory()
+        protocol = factory.buildProtocol(None)
+        portal = protocol.portal
+
+        class IDummy(Interface):
+            pass
+
+        avatar = object()
+        self.subStore.inMemoryPowerUp(avatar, IDummy)
+        login = portal.login(credentials, None, IDummy)
+        def cbLoggedIn(result):
+            self.assertIdentical(IDummy, result[0])
+            self.assertIdentical(avatar, result[1])
+        login.addCallback(cbLoggedIn)
+        return login
+
+
     def test_portal(self):
         """
         L{AMPConfiguration.getFactory} returns a factory which creates
         protocols which have a C{portal} attribute which is a L{Portal} which
         authenticates and authorizes using L{axiom.userbase}.
         """
-        factory = self.conf.getFactory()
-        protocol = factory.buildProtocol(None)
-        portal = protocol.portal
-
-        localpart = u'alice'
-        domain = u'example.org'
-        password = u'foobar'
-
-        class IDummy(Interface):
-            pass
-
-        loginSystem = self.store.findUnique(LoginSystem)
-        account = loginSystem.addAccount(
-            localpart, domain, password,internal=True)
-        subStore = account.avatars.open()
-        avatar = object()
-        subStore.inMemoryPowerUp(avatar, IDummy)
-        login = portal.login(
+        return self._testPortalLogin(
             UsernamePassword(
-                '%s@%s' % (localpart.encode('ascii'), domain.encode('ascii')),
-                password),
-            None, IDummy)
-        def cbLoggedIn(result):
-            self.assertIdentical(IDummy, result[0])
-            self.assertIdentical(avatar, result[1])
-        login.addCallback(cbLoggedIn)
-        return login
+                '%s@%s' % (self.localpart.encode('ascii'),
+                           self.domain.encode('ascii')),
+                self.password),)
+
+
+    def test_portalOneTimePad(self):
+        """
+        L{AMPConfiguration.getFactory} returns a factory which creates
+        protocols which have a C{portal} attribute which is a L{Portal} which
+        can authenticate using one-time pads.
+        """
+        object.__setattr__(self.conf, 'callLater', lambda x, y: None)
+        PAD = self.conf.generateOneTimePad(self.subStore)
+        class OTP:
+            implements(IOneTimePad)
+            padValue = PAD
+
+        return self._testPortalLogin(OTP())
 
 
 

@@ -16,17 +16,20 @@ from twisted.internet import reactor
 from twisted.cred.portal import Portal
 from twisted.protocols.amp import IBoxReceiver, Unicode
 from twisted.protocols.amp import BoxDispatcher, CommandLocator, Command
+from twisted.python.randbytes import secureRandom
 
-from epsilon.ampauth import CredReceiver
+from epsilon.ampauth import CredReceiver, OneTimePadChecker
 from epsilon.amprouter import Router
 
 from axiom.iaxiom import IPowerupIndirector
 from axiom.item import Item
-from axiom.attributes import integer
+from axiom.attributes import integer, inmemory
 from axiom.dependency import dependsOn
-from axiom.userbase import LoginSystem
+from axiom.userbase import LoginSystem, getLoginMethods
+from axiom.upgrade import registerAttributeCopyingUpgrader
 
-from xmantissa.ixmantissa import IProtocolFactoryFactory, IBoxReceiverFactory
+from xmantissa.ixmantissa import (
+    IProtocolFactoryFactory, IBoxReceiverFactory, IOneTimePadGenerator)
 
 __metaclass__ = type
 
@@ -34,12 +37,44 @@ __metaclass__ = type
 class AMPConfiguration(Item):
     """
     Configuration object for a Mantissa AMP server.
+
+    @ivar ONE_TIME_PAD_DURATION: The duration of each one-time pad, in
+        seconds.
+    @type ONE_TIME_PAD_DURATION: C{int}
     """
-    powerupInterfaces = (IProtocolFactoryFactory,)
+    powerupInterfaces = (IProtocolFactoryFactory, IOneTimePadGenerator)
     implements(*powerupInterfaces)
 
-    loginSystem = dependsOn(LoginSystem)
+    schemaVersion = 2
 
+    loginSystem = dependsOn(LoginSystem)
+    _oneTimePads = inmemory()
+
+    ONE_TIME_PAD_DURATION = 60 * 2
+    callLater = staticmethod(reactor.callLater)
+
+    def activate(self):
+        """
+        Initialize L{_oneTimePads}
+        """
+        self._oneTimePads = {}
+
+
+    # IOneTimePadGenerator
+    def generateOneTimePad(self, userStore):
+        """
+        Generate a pad which can be used to authenticate via AMP.  This pad
+        will expire in L{ONE_TIME_PAD_DURATION} seconds.
+        """
+        pad = secureRandom(16).encode('hex')
+        self._oneTimePads[pad] = userStore.idInParent
+        def expirePad():
+            self._oneTimePads.pop(pad, None)
+        self.callLater(self.ONE_TIME_PAD_DURATION, expirePad)
+        return pad
+
+
+    # IProtocolFactoryFactory
     def getFactory(self):
         """
         Return a server factory which creates AMP protocol instances.
@@ -47,10 +82,19 @@ class AMPConfiguration(Item):
         factory = ServerFactory()
         def protocol():
             proto = CredReceiver()
-            proto.portal = Portal(self.loginSystem, [self.loginSystem])
+            proto.portal = Portal(
+                self.loginSystem,
+                [self.loginSystem,
+                 OneTimePadChecker(self._oneTimePads)])
             return proto
         factory.protocol = protocol
         return factory
+
+
+
+registerAttributeCopyingUpgrader(
+    AMPConfiguration, 1, 2,
+    postCopy=lambda new: new.store.powerUp(new, IOneTimePadGenerator))
 
 
 
