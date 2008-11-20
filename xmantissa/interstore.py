@@ -122,18 +122,19 @@ class _QueuedMessage(Item, WithRecordAttributes):
         """
         This is the username of the user who is sending the message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     senderDomain = text(
         """
         This is the domain name of the user who is sending the message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     senderShareID = text(
         """
         This is the shareID of the shared item which is sending the message.
-        """)
+        """,
+        caseSensitive=True)
 
     sender = RecordAttribute(Identifier,
                              [senderShareID, senderUsername, senderDomain])
@@ -143,21 +144,21 @@ class _QueuedMessage(Item, WithRecordAttributes):
         This is the username of the user which is intended to receive the
         message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     targetDomain = text(
         """
         This is the domain name fo the user which is intended to receive the
         message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     targetShareID = text(
         """
         This is the target shareID object that the message will be delivered to
         in the foreign store.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     target = RecordAttribute(Identifier,
                              [targetShareID, targetUsername, targetDomain])
@@ -166,7 +167,7 @@ class _QueuedMessage(Item, WithRecordAttributes):
         """
         The content-type of the data stored in my L{messageData} attribute.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     messageData = bytes(
         """
@@ -209,7 +210,7 @@ class _FailedAnswer(Item, WithRecordAttributes):
         """
         The content-type of the data stored in my L{messageData} attribute.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     messageData = bytes(
         """
@@ -222,7 +223,7 @@ class _FailedAnswer(Item, WithRecordAttributes):
         """
         The content-type of the data stored in my L{answerData} attribute.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     answerData = bytes(
         """
@@ -236,18 +237,19 @@ class _FailedAnswer(Item, WithRecordAttributes):
         """
         This is the username of the user who is sending the message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     senderDomain = text(
         """
         This is the domain name of the user who is sending the message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     senderShareID = text(
         """
         This is the shareID of the shared item which is sending the message.
-        """)
+        """,
+        caseSensitive=True)
 
     sender = RecordAttribute(Identifier,
                              [senderShareID, senderUsername, senderDomain])
@@ -257,21 +259,21 @@ class _FailedAnswer(Item, WithRecordAttributes):
         This is the username of the user which is intended to receive the
         message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     targetDomain = text(
         """
         This is the domain name fo the user which is intended to receive the
         message.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     targetShareID = text(
         """
         This is the target shareID object that the message will be delivered to
         in the foreign store.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     target = RecordAttribute(Identifier,
                              [targetShareID, targetUsername, targetDomain])
@@ -323,7 +325,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         this answer is in response to; the one that the answer is being
         delivered to.
         """,
-        allowNone=True)
+        allowNone=True, caseSensitive=True)
 
     originalSenderUsername = text(
         """
@@ -331,7 +333,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         message that this answer is in response to; the one that the answer is
         being delivered to.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     originalSenderDomain = text(
         """
@@ -339,7 +341,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         message that this answer is in response to; the one that the answer is
         being delivered to.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
 
     originalSender = RecordAttribute(Identifier,
@@ -353,7 +355,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         that this answer in response to.  This is the item that the response is
         being sent from.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     originalTargetUsername = text(
         """
@@ -361,7 +363,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         message that this answer in response to.  This is the user that the
         response is being sent from.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     originalTargetDomain = text(
         """
@@ -369,7 +371,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         message that this answer in response to.  This is the user that the
         response is being sent from.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     originalTarget = RecordAttribute(Identifier,
                                      [originalTargetShareID,
@@ -388,7 +390,7 @@ class _AlreadyAnswered(Item, WithRecordAttributes):
         in L{answerData} - this attribute will be set to L{DELIVERY_ERROR} if
         the answer could not be delivered.
         """,
-        allowNone=False)
+        allowNone=False, caseSensitive=True)
 
     answerData = bytes(
         """

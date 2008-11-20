@@ -1512,6 +1512,29 @@ class ExpositionTests(TestCase):
 
 
 
+class QueuedMessageTestCase(TestCase):
+    """
+    Tests for L{_QueuedMessage}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{_QueuedMessage}'s schema.
+        """
+        assertSchema(self, _QueuedMessage, dict(
+            senderUsername = text(allowNone=False, caseSensitive=True),
+            senderDomain = text(allowNone=False, caseSensitive=True),
+            senderShareID = text(caseSensitive=True),
+            targetUsername = text(allowNone=False, caseSensitive=True),
+            targetDomain = text(allowNone=False, caseSensitive=True),
+            targetShareID = text(allowNone=False, caseSensitive=True),
+            messageType = text(allowNone=False, caseSensitive=True),
+            messageData = bytes(allowNone=False),
+            messageID = integer(allowNone=False),
+            consequence = reference(allowNone=True)))
+
+
+
 class FailedAnswerTestCase(TestCase):
     """
     Tests for L{_FailedAnswer}.
@@ -1524,13 +1547,35 @@ class FailedAnswerTestCase(TestCase):
         assertSchema(self, _FailedAnswer, dict(
             consequence = reference(
                 allowNone=False, whenDeleted=reference.CASCADE),
-            messageType = text(allowNone=False),
+            messageType = text(allowNone=False, caseSensitive=True),
             messageData = bytes(allowNone=False),
-            answerType = text(allowNone=False),
+            answerType = text(allowNone=False, caseSensitive=True),
             answerData = bytes(allowNone=False),
-            senderUsername = text(allowNone=False),
-            senderDomain = text(allowNone=False),
-            senderShareID = text(),
-            targetUsername = text(allowNone=False),
-            targetDomain = text(allowNone=False),
-            targetShareID = text(allowNone=False)))
+            senderUsername = text(allowNone=False, caseSensitive=True),
+            senderDomain = text(allowNone=False, caseSensitive=True),
+            senderShareID = text(caseSensitive=True),
+            targetUsername = text(allowNone=False, caseSensitive=True),
+            targetDomain = text(allowNone=False, caseSensitive=True),
+            targetShareID = text(allowNone=False, caseSensitive=True)))
+
+
+
+class AlreadyAnsweredTestCase(TestCase):
+    """
+    Tests for L{_AlreadyAnswered}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{_AlreadyAnswered}'s schema.
+        """
+        assertSchema(self, _AlreadyAnswered, dict(
+            originalSenderShareID = text(allowNone=True, caseSensitive=True),
+            originalSenderUsername = text(allowNone=False, caseSensitive=True),
+            originalSenderDomain = text(allowNone=False, caseSensitive=True),
+            originalTargetShareID = text(allowNone=False, caseSensitive=True),
+            originalTargetUsername = text(allowNone=False, caseSensitive=True),
+            originalTargetDomain = text(allowNone=False, caseSensitive=True),
+            messageID = integer(allowNone=False),
+            answerType = text(allowNone=False, caseSensitive=True),
+            answerData = bytes(allowNone=False)))

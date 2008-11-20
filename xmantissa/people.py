@@ -1872,8 +1872,7 @@ class EmailAddress(item.Item):
         This is a label for the role of the email address, usually something like
         "home", "work", "school".
         """,
-        allowNone=False,
-        default=u'')
+        allowNone=False, default=u'', caseSensitive=True)
 
 def emailAddress1to2(old):
     return old.upgradeVersion('mantissa_organizer_addressbook_emailaddress',
@@ -1912,8 +1911,7 @@ class PhoneNumber(item.Item):
         """
         This is a label for the role of the phone number.
         """,
-        allowNone=False,
-        default=u'',)
+        allowNone=False, default=u'', caseSensitive=True)
 
 
     class LABELS:

@@ -685,6 +685,18 @@ class EmailAddressTests(unittest.TestCase):
     """
     Tests for L{EmailAddress}.
     """
+
+    def test_schema(self):
+        """
+        Verify L{EmailAddress}'s schema.
+        """
+        assertSchema(self, EmailAddress, dict(
+            address = text(allowNone=False),
+            person = reference(
+                allowNone=False, whenDeleted=reference.CASCADE, reftype=Person),
+            label = text(allowNone=False, default=u'', caseSensitive=True)))
+
+
     def test_deletedWithPerson(self):
         """
         An L{EmailAddress} should be deleted when the L{Person} it is
@@ -729,7 +741,7 @@ class PhoneNumberTestCase(unittest.TestCase):
         assertSchema(self, PhoneNumber, dict(
             number = text(allowNone=False),
             person = reference(allowNone=False, whenDeleted=reference.CASCADE),
-            label = text(allowNone=False, default=u'')))
+            label = text(allowNone=False, default=u'', caseSensitive=True)))
 
 
 
