@@ -22,13 +22,11 @@ from epsilon.extime import Time
 from axiom.store import Store
 from axiom.errors import UnsatisfiedRequirement
 from axiom.item import Item, POWERUP_BEFORE
-from axiom.attributes import text, bytes, integer, boolean, inmemory
-
+from axiom.attributes import text, bytes, integer, boolean, inmemory, reference
 from axiom.userbase import LoginSystem, LoginMethod, LoginAccount
-
 from axiom.dependency import installOn
-
 from axiom.scheduler import TimedEvent
+from axiom.test.util import assertSchema
 
 from xmantissa.interstore import (
     # Public Names
@@ -1511,3 +1509,28 @@ class ExpositionTests(TestCase):
         tc = TestClass()
         callable = self.ampExposer.responderForName(tc, TrivialCommand.commandName)
         self.assertEqual(callable(), 1)
+
+
+
+class FailedAnswerTestCase(TestCase):
+    """
+    Tests for L{_FailedAnswer}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{_FailedAnswer}'s schema.
+        """
+        assertSchema(self, _FailedAnswer, dict(
+            consequence = reference(
+                allowNone=False, whenDeleted=reference.CASCADE),
+            messageType = text(allowNone=False),
+            messageData = bytes(allowNone=False),
+            answerType = text(allowNone=False),
+            answerData = bytes(allowNone=False),
+            senderUsername = text(allowNone=False),
+            senderDomain = text(allowNone=False),
+            senderShareID = text(),
+            targetUsername = text(allowNone=False),
+            targetDomain = text(allowNone=False),
+            targetShareID = text(allowNone=False)))

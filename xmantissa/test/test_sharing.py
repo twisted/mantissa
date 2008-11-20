@@ -17,8 +17,8 @@ from twisted.protocols.amp import Command, Box, parseString
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, boolean
-from axiom.test.util import QueryCounter
+from axiom.attributes import integer, boolean, text, reference
+from axiom.test.util import QueryCounter, assertSchema
 from axiom.userbase import LoginMethod, LoginAccount
 
 from xmantissa import sharing
@@ -884,3 +884,19 @@ class IdentifierArgumentTests(unittest.TestCase):
             parseString(self.expectedData)[0], None)
         self.assertEquals(argDict, dict(shareIdentTest=self.identifier))
 
+
+
+class ShareTestCase(unittest.TestCase):
+    """
+    Tests for L{sharing.Share}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{sharing.Share}'s schema.
+        """
+        assertSchema(self, sharing.Share, dict(
+            shareID = text(allowNone=False),
+            sharedItem = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            sharedTo = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            sharedInterfaceNames = text(allowNone=False)))

@@ -3,8 +3,9 @@ from twisted.trial import unittest
 
 from axiom import store, userbase
 from axiom.item import Item
-from axiom.attributes import inmemory, integer
+from axiom.attributes import inmemory, integer, text, reference
 from axiom.plugins import mantissacmd
+from axiom.test.util import assertSchema
 
 from xmantissa import signup, offering
 from xmantissa.plugins import free_signup
@@ -221,3 +222,23 @@ class ValidatingSignupFormTests(unittest.TestCase):
         userInfo = signup.UserInfoSignup(store=siteStore, prefixURL=u"opaque")
         form = signup.ValidatingSignupForm(userInfo)
         self.assertEqual(form.getInitialArguments(), (domain,))
+
+
+
+class TicketTestCase(unittest.TestCase):
+    """
+    Tests for L{signup.Ticket}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{signup.Ticket}'s schema.
+        """
+        assertSchema(self, signup.Ticket, dict(
+            issuer = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            booth = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            avatar = reference(),
+            claimed = integer(default=0),
+            product = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            email = text(),
+            nonce = text()))

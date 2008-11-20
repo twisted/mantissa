@@ -33,9 +33,10 @@ require('twisted', 'trial_assertwarns')
 from axiom.store import Store, AtomicFile
 from axiom.dependency import installOn
 from axiom.item import Item
-from axiom.attributes import text, AND
+from axiom.attributes import text, path, reference, AND
 from axiom.errors import DeletionDisallowed
 from axiom import tags
+from axiom.test.util import assertSchema
 
 from axiom.userbase import LoginSystem
 
@@ -450,6 +451,18 @@ class MugshotTestCase(unittest.TestCase):
     """
     Tests for L{Mugshot}.
     """
+
+    def test_schema(self):
+        """
+        Verify L{Mugshot}'s schema.
+        """
+        assertSchema(self, Mugshot, dict(
+            type = text(allowNone=False),
+            body = path(allowNone=False),
+            smallerBody = path(allowNone=False),
+            person = reference(allowNone=False, whenDeleted=reference.CASCADE)))
+
+
     def _doFromFileTest(self, store, person):
         """
         Verify that the L{Mugshot} returned from L{Mugshot.fromFile} has the
@@ -701,6 +714,22 @@ class PostalAddressTests(unittest.TestCase):
             store=store, person=person, address=u'123 Street Rd')
         person.deleteFromStore()
         self.assertEqual(store.query(PostalAddress).count(), 0)
+
+
+
+class PhoneNumberTestCase(unittest.TestCase):
+    """
+    Tests for L{PhoneNumber}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{PhoneNumber}'s schema.
+        """
+        assertSchema(self, PhoneNumber, dict(
+            number = text(allowNone=False),
+            person = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            label = text(allowNone=False, default=u'')))
 
 
 
@@ -1272,6 +1301,21 @@ class PhoneNumberContactTypeTestCase(unittest.TestCase, ContactTestsMixin):
         view = self.contactType.getReadOnlyView(contactItem)
         self.assertTrue(isinstance(view, ReadOnlyPhoneNumberView))
         self.assertIdentical(view.phoneNumber, contactItem)
+
+
+
+class NotesTestCase(unittest.TestCase):
+    """
+    Tests for L{Notes}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{Notes}'s schema.
+        """
+        assertSchema(self, Notes, dict(
+            notes = text(allowNone=False),
+            person = reference(allowNone=False, whenDeleted=reference.CASCADE)))
 
 
 

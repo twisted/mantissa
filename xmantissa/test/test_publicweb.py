@@ -11,13 +11,13 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
 from axiom.userbase import LoginSystem
-from axiom.attributes import boolean, integer, inmemory
+from axiom.attributes import boolean, integer, text, reference, inmemory
 from axiom.plugins.axiom_plugins import Create
 from axiom.plugins.mantissacmd import Mantissa
 from axiom.plugins.offeringcmd import SetFrontPage
 from axiom.dependency import installOn
 
-from axiom.test.util import CommandStubMixin
+from axiom.test.util import CommandStubMixin, assertSchema
 
 from nevow import rend, context, inevow
 from nevow.inevow import IResource
@@ -42,7 +42,7 @@ from xmantissa.webtheme import theThemeCache
 from xmantissa.sharing import shareItem, getEveryoneRole
 from xmantissa.websharing import getDefaultShareID, UserIndexPage
 from xmantissa.publicweb import (
-    _AnonymousWebViewer, FrontPage, PublicAthenaLivePage,
+    PublicWeb, _AnonymousWebViewer, FrontPage, PublicAthenaLivePage,
     PublicNavAthenaLivePage, _PublicFrontPage, getLoader, AnonymousSite,
     _OfferingsFragment, _CustomizingResource, PublicPage, LoginPage)
 
@@ -82,6 +82,25 @@ class FakeTheme(object):
         the given name is unknown.
         """
         return self.docFactories.get(fragmentName, default)
+
+
+
+class PublicWebTestCase(TestCase):
+    """
+    Tests for L{PublicWeb}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{PublicWeb}'s schema.
+        """
+        assertSchema(self, PublicWeb, dict(
+            prefixURL = text(allowNone=False),
+            application = reference(
+                allowNone=False, whenDeleted=reference.CASCADE),
+            installedOn = reference(),
+            sessioned = boolean(default=False),
+            sessionless = boolean(default=False)))
 
 
 
