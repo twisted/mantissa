@@ -898,5 +898,7 @@ class ShareTestCase(unittest.TestCase):
         assertSchema(self, sharing.Share, dict(
             shareID = text(allowNone=False),
             sharedItem = reference(allowNone=False, whenDeleted=reference.CASCADE),
-            sharedTo = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            sharedTo = reference(
+                reftype=sharing.Role, allowNone=False,
+                whenDeleted=reference.CASCADE),
             sharedInterfaceNames = text(allowNone=False)))

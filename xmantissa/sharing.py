@@ -524,7 +524,7 @@ class Share(Item):
         The sharedTo attribute is a reference to the Role which this item is shared
         with.
         """,
-        allowNone=False, whenDeleted=reference.CASCADE)
+        reftype=Role, allowNone=False, whenDeleted=reference.CASCADE)
 
     sharedInterfaceNames = text(
         doc="""

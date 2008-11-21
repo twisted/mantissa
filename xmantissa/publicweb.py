@@ -16,6 +16,7 @@ from nevow import rend, tags, inevow
 from nevow.url import URL
 
 from axiom.iaxiom import IPowerupIndirector
+from axiom.substore import SubStore
 from axiom import item, attributes, upgrade, userbase
 from axiom.dependency import dependsOn, requiresFromSite
 
@@ -97,7 +98,7 @@ class PublicWeb(item.Item, website.PrefixURLMixin):
         doc="""
         A L{SubStore} for an application store.
         """,
-        allowNone=False, whenDeleted=attributes.reference.CASCADE)
+        reftype=SubStore, allowNone=False, whenDeleted=attributes.reference.CASCADE)
 
     installedOn = attributes.reference(
         doc="""

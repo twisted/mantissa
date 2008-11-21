@@ -97,7 +97,8 @@ class PublicWebTestCase(TestCase):
         assertSchema(self, PublicWeb, dict(
             prefixURL = text(allowNone=False),
             application = reference(
-                allowNone=False, whenDeleted=reference.CASCADE),
+                reftype=SubStore, allowNone=False,
+                whenDeleted=reference.CASCADE),
             installedOn = reference(),
             sessioned = boolean(default=False),
             sessionless = boolean(default=False)))

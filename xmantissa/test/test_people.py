@@ -460,7 +460,9 @@ class MugshotTestCase(unittest.TestCase):
             type = text(allowNone=False),
             body = path(allowNone=False),
             smallerBody = path(allowNone=False),
-            person = reference(allowNone=False, whenDeleted=reference.CASCADE)))
+            person = reference(
+                reftype=Person, allowNone=False,
+                whenDeleted=reference.CASCADE)))
 
 
     def _doFromFileTest(self, store, person):
@@ -740,7 +742,8 @@ class PhoneNumberTestCase(unittest.TestCase):
         """
         assertSchema(self, PhoneNumber, dict(
             number = text(allowNone=False),
-            person = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            person = reference(
+                reftype=Person, allowNone=False, whenDeleted=reference.CASCADE),
             label = text(allowNone=False, default=u'', caseSensitive=True)))
 
 
@@ -1327,7 +1330,9 @@ class NotesTestCase(unittest.TestCase):
         """
         assertSchema(self, Notes, dict(
             notes = text(allowNone=False),
-            person = reference(allowNone=False, whenDeleted=reference.CASCADE)))
+            person = reference(
+                reftype=Person, allowNone=False,
+                whenDeleted=reference.CASCADE)))
 
 
 
