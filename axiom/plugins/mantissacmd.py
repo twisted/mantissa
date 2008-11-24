@@ -247,7 +247,6 @@ class OneTimePadGenerate(axiomatic.AxiomaticSubCommand):
         pad = generator.generateOneTimePad(
             account.avatars.open())
         print 'Pad: %r' % (pad,)
-        return pad
 
 
 

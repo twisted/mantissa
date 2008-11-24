@@ -4,6 +4,7 @@
 Tests for I{axiomatic mantissa} and other functionality provided by
 L{axiom.plugins.mantissacmd}.
 """
+from zope.interface import implements
 
 from twisted.trial.unittest import TestCase
 from twisted.python.filepath import FilePath
@@ -13,8 +14,11 @@ from axiom.store import Store
 from axiom.plugins.mantissacmd import genSerial, Mantissa, OneTimePadGenerate
 from axiom.test.util import CommandStubMixin
 from axiom.userbase import LoginSystem
+from axiom.dependency import installOn
+from axiom.item import Item
+from axiom.attributes import integer, inmemory
 
-from xmantissa.ixmantissa import IOfferingTechnician
+from xmantissa.ixmantissa import IOfferingTechnician, IOneTimePadGenerator
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.web import SiteConfiguration
 from xmantissa.plugins.baseoff import baseOffering
@@ -136,6 +140,25 @@ class MantissaCommandTests(TestCase, CommandStubMixin):
 
 
 
+class OneTimePadGenerator(Item):
+    """
+    Trivial L{IOneTimePadGenerator}.
+    """
+    implements(IOneTimePadGenerator)
+    powerupInterfaces = (IOneTimePadGenerator,)
+
+    garbage = integer()
+    generatedFor = inmemory()
+
+    def activate(self):
+        self.generatedFor = []
+
+    def generateOneTimePad(self, userStore):
+        self.generatedFor.append(userStore)
+        return 'This is a one-time pad'
+
+
+
 class OneTimePadGenerateTests(TestCase):
     """
     Tests for L{OneTimePadGenerate}.
@@ -145,6 +168,8 @@ class OneTimePadGenerateTests(TestCase):
         L{OneTimePadGenerate} should generate a pad for the given user.
         """
         site = Store()
+        otpGenerator = OneTimePadGenerator(store=site)
+        installOn(otpGenerator, site)
         IOfferingTechnician(site).installOffering(baseOffering)
 
         loginSystem = site.findUnique(LoginSystem)
@@ -153,7 +178,9 @@ class OneTimePadGenerateTests(TestCase):
 
         cmd = OneTimePadGenerate()
         class ParentCommand:
-            store = site
             parent = property(lambda self: self)
+            def getStore(self):
+                return site
         cmd.parent = ParentCommand()
         cmd.parseOptions(['--account', 'alice@example.org'])
+        self.assertEqual(otpGenerator.generatedFor, [store])
