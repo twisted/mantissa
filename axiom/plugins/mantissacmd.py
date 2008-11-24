@@ -13,7 +13,7 @@ from axiom.attributes import AND
 from axiom.dependency import installOn
 from axiom.iaxiom import IVersion
 
-from xmantissa.ixmantissa import IOfferingTechnician
+from xmantissa.ixmantissa import IOfferingTechnician, IOneTimePadGenerator
 from xmantissa import webadmin, publicweb, stats
 from xmantissa.web import SiteConfiguration
 from xmantissa.port import TCPPort, SSLPort
@@ -230,7 +230,39 @@ class RemoteStats(axiomatic.AxiomaticCommand):
                    ("remove", None, RemoteStatsRemove, "Remove a remote stats target")]
 
 
+
+class OneTimePadGenerate(axiomatic.AxiomaticSubCommand):
+    """
+    Sub-command of L{OneTimePad} responsible for generating pads.
+    """
+    optParameters = [
+        ('account', 'u', None, 'The name of the account to generate a pad for')]
+
+    def postOptions(self):
+        (localpart, domain) = self.decodeCommandLine(
+            self['account']).split('@')
+        store = self.parent.parent.getStore()
+        account = portal.IRealm(store).accountByAddress(localpart, domain)
+        generator = IOneTimePadGenerator(store)
+        pad = generator.generateOneTimePad(
+            account.avatars.open())
+        print 'Pad: %r' % (pad,)
+        return pad
+
+
+
+class OneTimePad(axiomatic.AxiomaticCommand):
+    """
+    Axiomatic parent command for all OTP-related commands.
+    """
+    name = 'otp'
+    description = 'Utilities related to one-time pads'
+    subCommands = [('generate', None, OneTimePadGenerate, 'Generate a one-time pad')]
+
+
+
 __all__ = [
     PortConfiguration.__name__, Mantissa.__name__, Generate.__name__,
     RemoteStats.__name__, RemoteStatsAdd.__name__, RemoteStatsList.__name__,
-    RemoteStatsRemove.__name__]
+    RemoteStatsRemove.__name__, OneTimePadGenerate.__name__,
+    OneTimePad.__name__]

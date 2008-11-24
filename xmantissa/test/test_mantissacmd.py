@@ -10,8 +10,9 @@ from twisted.python.filepath import FilePath
 from twisted.internet.ssl import Certificate
 
 from axiom.store import Store
-from axiom.plugins.mantissacmd import genSerial, Mantissa
+from axiom.plugins.mantissacmd import genSerial, Mantissa, OneTimePadGenerate
 from axiom.test.util import CommandStubMixin
+from axiom.userbase import LoginSystem
 
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa.port import TCPPort, SSLPort
@@ -132,3 +133,27 @@ class MantissaCommandTests(TestCase, CommandStubMixin):
         options.installSite(self.siteStore, u"example.net", u"", False)
         site = self.siteStore.findUnique(SiteConfiguration)
         self.assertEqual(site.hostname, u"example.net")
+
+
+
+class OneTimePadGenerateTests(TestCase):
+    """
+    Tests for L{OneTimePadGenerate}.
+    """
+    def test_generatesPad(self):
+        """
+        L{OneTimePadGenerate} should generate a pad for the given user.
+        """
+        site = Store()
+        IOfferingTechnician(site).installOffering(baseOffering)
+
+        loginSystem = site.findUnique(LoginSystem)
+        account = loginSystem.addAccount(u'alice', u'example.org', None)
+        store = account.avatars.open()
+
+        cmd = OneTimePadGenerate()
+        class ParentCommand:
+            store = site
+            parent = property(lambda self: self)
+        cmd.parent = ParentCommand()
+        cmd.parseOptions(['--account', 'alice@example.org'])
