@@ -637,7 +637,7 @@ class PrivateApplication(Item, PrefixURLMixin):
 
 
 
-PrivateApplicationV2 = declareLegacyItem(PrivateApplication.typeName, 2, dict(
+declareLegacyItem(PrivateApplication.typeName, 2, dict(
     installedOn = reference(),
     preferredTheme = text(),
     hitCount = integer(default=0),
