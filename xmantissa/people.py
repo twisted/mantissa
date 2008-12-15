@@ -1592,6 +1592,12 @@ class OrganizerFragment(LiveElement):
         self.wt = organizer._webTranslator
 
 
+    def head(self):
+        """
+        Do nothing.
+        """
+
+
     def beforeRender(self, ctx):
         """
         Implement this hook to initialize the L{initialPerson} and
@@ -1625,13 +1631,6 @@ class OrganizerFragment(LiveElement):
         if self.initialPerson is not None:
             initialArguments += (self.initialPerson.name, self.initialState)
         return initialArguments
-
-
-    def head(self):
-        """
-        Return L{tabbedPane.tabbedPaneGlue.inlineCSS}.
-        """
-        return tabbedPane.tabbedPaneGlue.inlineCSS
 
 
     def getAddPerson(self):

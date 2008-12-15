@@ -2536,11 +2536,9 @@ class OrganizerFragmentTests(unittest.TestCase):
 
     def test_head(self):
         """
-        L{OrganizerFragment.head} should return
-        L{tabbedPane.tabbedPaneGlue.inlineCSS}.
+        L{OrganizerFragment.head} should return C{None}.
         """
-        self.assertIdentical(
-            self.fragment.head(), tabbedPane.tabbedPaneGlue.inlineCSS)
+        self.assertIdentical(self.fragment.head(), None)
 
 
     def test_peopleTable(self):
