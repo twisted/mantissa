@@ -115,6 +115,28 @@ class Installation(Item):
         self._items = []
 
 
+
+def createProduct(store, powerups):
+    """
+    Create a new L{Product} instance which confers the given
+    powerups.
+
+    @type store: an L{axiom.store.Store}
+    @type powerups: C{list} of powerup item types
+
+    @rtype: L{Product}
+    @return: The new product instance.
+    """
+    types = [qual(powerup).decode('ascii')
+                   for powerup in powerups]
+    for p in store.query(Product):
+        for t in types:
+            if t in p.types:
+                raise ValueError("%s is already included in a Product" % (t,))
+    return Product(store=store,
+                   types=types)
+
+
 class ProductConfiguration(Item):
     implements(INavigableElement)
     attribute = integer(doc="It is an attribute")
@@ -136,14 +158,10 @@ class ProductConfiguration(Item):
         @rtype: L{Product}
         @return: The new product instance.
         """
-        types = [qual(powerup).decode('ascii')
-                       for powerup in powerups]
-        for p in self.store.parent.query(Product):
-            for t in types:
-                if t in p.types:
-                    raise ValueError("%s is already included in a Product" % (t,))
-        return Product(store=self.store.parent,
-                       types=types)
+        return createProduct(self.store.parent, powerups)
+
+
+
 
 class ProductFragment(athena.LiveElement):
     fragmentName = 'product-configuration'

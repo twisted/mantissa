@@ -7,7 +7,7 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer
 
-from xmantissa.product import Installation, ProductConfiguration, Product, ProductFragment
+from xmantissa.product import Installation, ProductConfiguration, Product, ProductFragment, createProduct
 
 class IFoo(Interface):
     pass
@@ -44,7 +44,7 @@ class ProductTest(TestCase):
         self.assertEqual(i.types, self.product.types)
 
 
-    def test_createProduct(self):
+    def test_createProductMethod(self):
         """
         Verify that L{ProductConfiguration.createProduct} creates a
         correctly configured L{Product} and returns it.
@@ -52,6 +52,15 @@ class ProductTest(TestCase):
         conf = ProductConfiguration(store=self.userStore)
         product = conf.createProduct([Foo, Baz])
         self.assertEqual(product.types, [qual(Foo), qual(Baz)])
+
+    def test_createProduct(self):
+        """
+        Verify that L{createProduct} creates a
+        correctly configured L{Product} and returns it.
+        """
+        product = createProduct(self.siteStore, [Foo, Baz])
+        self.assertEqual(product.types, [qual(Foo), qual(Baz)])
+
 
 
 

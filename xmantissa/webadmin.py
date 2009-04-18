@@ -796,60 +796,56 @@ class AdministrativeBenefactor(Item):
                     "xmantissa.webadmin.LocalUserBrowser"]
 
 
-def endowAdminPowerups(userStore):
-    powerups = [
-            # Install a web site for the individual user as well.
-            # This is necessary because although we have a top-level
-            # website for everybody, not all users should be allowed
-            # to log in through the web (like UNIX's "system users",
-            # "nobody", "database", etc.)  Note, however, that there
-            # is no port number, because the WebSite's job in this
-            # case is to be a web *resource*, not a web *server*.
-            WebSite,
+ADMIN_POWERUPS = [
+    # Install a web site for the individual user as well.
+    # This is necessary because although we have a top-level
+    # website for everybody, not all users should be allowed
+    # to log in through the web (like UNIX's "system users",
+    # "nobody", "database", etc.)  Note, however, that there
+    # is no port number, because the WebSite's job in this
+    # case is to be a web *resource*, not a web *server*.
+    WebSite,
 
-            # Now we install the 'private application' plugin for
-            # 'admin', on admin's private store, This provides the URL
-            # "/private", but only when 'admin' is logged in.  It is a
-            # hook to hang other applications on.  (XXX Rename:
-            # PrivateApplication should probably be called
-            # PrivateAppShell)
-            PrivateApplication,
+    # Now we install the 'private application' plugin for
+    # 'admin', on admin's private store, This provides the URL
+    # "/private", but only when 'admin' is logged in.  It is a
+    # hook to hang other applications on.  (XXX Rename:
+    # PrivateApplication should probably be called
+    # PrivateAppShell)
+    PrivateApplication,
 
-            # This is a plugin *for* the PrivateApplication; it publishes
-            # objects via the tab-based navigation (a Python interactive
-            # interpreter).
-            DeveloperApplication,
+    # This is a plugin *for* the PrivateApplication; it publishes
+    # objects via the tab-based navigation (a Python interactive
+    # interpreter).
+    DeveloperApplication,
 
-            #ProductConfiguration lets admins collect powerups into
-            #Products users can sign up for.
+    #ProductConfiguration lets admins collect powerups into
+    #Products users can sign up for.
 
-            ProductConfiguration,
+    ProductConfiguration,
 
-            # And another one: SignupConfiguration allows the
-            # administrator to add signup forms which grant various
-            # kinds of account.
-            signup.SignupConfiguration,
+    # And another one: SignupConfiguration allows the
+    # administrator to add signup forms which grant various
+    # kinds of account.
+    signup.SignupConfiguration,
 
-            # This one lets the administrator view unhandled
-            # exceptions which occur in the server.
-            TracebackViewer,
+    # This one lets the administrator view unhandled
+    # exceptions which occur in the server.
+    TracebackViewer,
 
-            # Allow the administrator to set the ports associated with
-            # different network services.
-            PortConfiguration,
+    # Allow the administrator to set the ports associated with
+    # different network services.
+    PortConfiguration,
 
-            # This one lets the administrator ssh in to a REPL in the
-            # batch process.
-            BatchManholePowerup,
+    # This one lets the administrator ssh in to a REPL in the
+    # batch process.
+    BatchManholePowerup,
 
-            # And this one gives the administrator a page listing all
-            # users which exist in this site's credentials database.
-            LocalUserBrowser
-            ]
-    for powerup in powerups:
-        installOn(powerup(store=userStore), userStore)
+    # And this one gives the administrator a page listing all
+    # users which exist in this site's credentials database.
+    LocalUserBrowser,
     # This is another PrivateApplication plugin.  It allows
     # the administrator to configure the services offered
     # here.
-    oc = offering.OfferingConfiguration(store=userStore)
-    installOn(oc, userStore)
+    offering.OfferingConfiguration
+    ]

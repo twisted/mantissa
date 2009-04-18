@@ -18,6 +18,7 @@ from xmantissa import webadmin, publicweb, stats
 from xmantissa.web import SiteConfiguration
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.plugins.baseoff import baseOffering
+from xmantissa.product import createProduct
 
 # PortConfiguration isn't used here, but it's a plugin, so it gets discovered
 # here.
@@ -126,11 +127,6 @@ class Mantissa(axiomatic.AxiomaticCommand):
                     certificatePath=certPath),
             siteStore)
 
-        # Install a front page on the top level store so that the
-        # developer will have something to look at when they start up
-        # the server.
-        fp = siteStore.findOrCreate(publicweb.FrontPage, prefixURL=u'')
-        installOn(fp, siteStore)
 
 
     def installAdmin(self, s, username, domain, password):
@@ -143,7 +139,10 @@ class Mantissa(axiomatic.AxiomaticCommand):
             acc = r.accountByAddress(username, domain)
 
         accStore = acc.avatars.open()
-        accStore.transact(webadmin.endowAdminPowerups, accStore)
+        def endowAdmin():
+            p = createProduct(s, webadmin.ADMIN_POWERUPS)
+            p.installProductOn(accStore)
+        accStore.transact(endowAdmin)
 
 
 

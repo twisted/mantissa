@@ -11,12 +11,15 @@ from twisted.internet.ssl import Certificate
 
 from axiom.store import Store
 from axiom.plugins.mantissacmd import genSerial, Mantissa
+from axiom.userbase import LoginMethod
 from axiom.test.util import CommandStubMixin
 
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.web import SiteConfiguration
+from xmantissa.publicweb import FrontPage
 from xmantissa.plugins.baseoff import baseOffering
+from xmantissa import webadmin
 
 
 class MiscTestCase(TestCase):
@@ -132,3 +135,30 @@ class MantissaCommandTests(TestCase, CommandStubMixin):
         options.installSite(self.siteStore, u"example.net", u"", False)
         site = self.siteStore.findUnique(SiteConfiguration)
         self.assertEqual(site.hostname, u"example.net")
+
+
+    def test_frontpage(self):
+        """
+        L{Mantissa.installSite} installs L{FrontPage} on the site store.
+        """
+        options = Mantissa()
+        options.installSite(self.siteStore, u"example.com", u"", False)
+
+        fps = list(self.siteStore.query(FrontPage))
+        self.assertEqual(len(fps), 1)
+
+
+    def test_adminPowerups(self):
+        """
+        L{Mantissa.installAdmin} installs all the powerups in
+        L{webadmin.ADMIN_POWERUPS} on the admin user.
+        """
+        Mantissa().installSite(self.siteStore, u"localhost", u"", False)
+        Mantissa().installAdmin(self.siteStore, u'admin', u'localhost', u'asdf')
+        self.siteMethod = self.siteStore.findUnique(
+            LoginMethod, LoginMethod.localpart == u'admin')
+        self.siteAccount = self.siteMethod.account
+        userStore = self.siteAccount.avatars.open()
+        for p in webadmin.ADMIN_POWERUPS:
+            self.assertEqual(len(list(userStore.query(p))), 1,
+                             "%s not installed" % (p.__name__,))

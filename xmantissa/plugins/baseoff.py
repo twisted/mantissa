@@ -8,7 +8,7 @@ from xmantissa.ixmantissa import ISiteURLGenerator
 from xmantissa import offering
 from xmantissa.web import SiteConfiguration
 from xmantissa.webtheme import MantissaTheme
-from xmantissa.publicweb import AnonymousSite
+from xmantissa.publicweb import AnonymousSite, FrontPage
 from xmantissa.ampserver import AMPConfiguration, AMPAvatar, EchoFactory
 import xmantissa
 
@@ -17,7 +17,8 @@ baseOffering = offering.Offering(
     description=u'Basic Mantissa functionality',
     siteRequirements=[
         (ISiteURLGenerator, SiteConfiguration),
-        (IResource, AnonymousSite)],
+        (IResource, AnonymousSite),
+        (None, FrontPage)],
     appPowerups=[],
     installablePowerups=[],
     loginInterfaces = [(IResource, "Web logins"),
