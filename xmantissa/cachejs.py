@@ -88,7 +88,7 @@ class HashedJSModuleProvider(object):
 
     def getModule(self, moduleName):
         """
-        Retrieve a JavaScript module from the file path cache.
+        Retrieve the most recent module from the file path cache.
         """
         if moduleName not in self.moduleCache:
             modulePath = FilePath(
@@ -97,6 +97,7 @@ class HashedJSModuleProvider(object):
                 moduleName, modulePath)
         else:
             cachedModule = self.moduleCache[moduleName]
+            cachedModule.maybeUpdate()
         return cachedModule
 
 
