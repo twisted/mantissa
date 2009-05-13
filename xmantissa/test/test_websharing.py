@@ -15,7 +15,7 @@ from epsilon.structlike import record
 from axiom.item import Item
 from axiom.attributes import integer, text
 from axiom.store import Store
-from axiom.userbase import LoginSystem
+from axiom.userbase import LoginSystem, LoginMethod
 from axiom.dependency import installOn
 from axiom.plugins.mantissacmd import Mantissa
 
@@ -90,6 +90,16 @@ class WebSharingTestCase(TestCase):
         acct.addLoginMethod(
             u'wrong', u'host', internal=False, verified=False)
         self.share = sharing.shareItem(self.ls, shareID=u'loginsystem')
+
+
+    def test_noLoginMethods(self):
+        """
+        L{websharing.linkTo} raises a L{RuntimeError} when the shared item is
+        in a store with no internal L{LoginMethod}s.
+        """
+        for lm in self.s.query(LoginMethod):
+            lm.internal = False
+        self.assertRaises(RuntimeError, websharing.linkTo, self.share)
 
 
     def test_linkToShare(self):

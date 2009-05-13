@@ -170,10 +170,14 @@ def linkTo(sharedProxyOrItem):
     @param sharedProxy: a L{sharing.SharedProxy} or L{sharing.Share}
 
     @return: a URL object, which when converted to a string will look
-    something like '/users/user@host/shareID'
+        something like '/users/user@host/shareID'.
+
     @rtype: L{nevow.url.URL}
 
-    @rtype: str
+    @raise: L{RuntimeError} if the store that the C{sharedProxyOrItem} is
+        stored in is not accessible via the web, for example due to the fact
+        that the store has no L{LoginMethod} objects to indicate who it is
+        owned by.
     """
     if isinstance(sharedProxyOrItem, sharing.SharedProxy):
         userStore = sharing.itemFromProxy(sharedProxyOrItem).store
@@ -190,6 +194,11 @@ def linkTo(sharedProxyOrItem):
         for lm in userbase.getLoginMethods(userStore):
             if lm.internal:
                 path = ['users', lm.localpart.encode('ascii')]
+                break
+        else:
+            raise RuntimeError(
+                "Shared item is in a user store with no"
+                " internal username -- can't generate a link.")
     if (sharedProxyOrItem.shareID == getDefaultShareID(userStore)):
         shareID = sharedProxyOrItem.shareID
         path.append('')
