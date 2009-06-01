@@ -16,6 +16,7 @@ from axiom.iaxiom import IVersion
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa import webadmin, publicweb, stats
 from xmantissa.web import SiteConfiguration
+from xmantissa.terminal import SecureShellConfiguration
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.plugins.baseoff import baseOffering
 
@@ -105,6 +106,9 @@ class Mantissa(axiomatic.AxiomaticCommand):
 
 
     def installSite(self, siteStore, domain, publicURL, generateCert=True):
+        """
+        Create the necessary items to run an HTTP server and an SSH server.
+        """
         certPath = siteStore.filesdir.child("server.pem")
         if generateCert and not certPath.exists():
             certcreate.main([
@@ -124,6 +128,12 @@ class Mantissa(axiomatic.AxiomaticCommand):
         installOn(
             SSLPort(store=siteStore, factory=site, portNumber=8443,
                     certificatePath=certPath),
+            siteStore)
+
+        # Make the SSH server baseOffering includes listen somewhere.
+        shell = siteStore.findUnique(SecureShellConfiguration)
+        installOn(
+            TCPPort(store=siteStore, factory=shell, portNumber=8022),
             siteStore)
 
         # Install a front page on the top level store so that the

@@ -16,6 +16,7 @@ from axiom.test.util import CommandStubMixin
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.web import SiteConfiguration
+from xmantissa.terminal import SecureShellConfiguration
 from xmantissa.plugins.baseoff import baseOffering
 
 
@@ -104,7 +105,7 @@ class MantissaCommandTests(TestCase, CommandStubMixin):
             [baseOffering.name])
 
 
-    def test_ports(self):
+    def test_httpPorts(self):
         """
         L{Mantissa.installSite} creates a TCP port and an SSL port for the
         L{SiteConfiguration} which comes with the base offering it installs.
@@ -132,3 +133,19 @@ class MantissaCommandTests(TestCase, CommandStubMixin):
         options.installSite(self.siteStore, u"example.net", u"", False)
         site = self.siteStore.findUnique(SiteConfiguration)
         self.assertEqual(site.hostname, u"example.net")
+
+
+    def test_sshPorts(self):
+        """
+        L{Mantissa.installSite} creates a TCP port for the
+        L{SecureShellConfiguration} which comes with the base offering it
+        installs.
+        """
+        options = Mantissa()
+        options.installSite(self.siteStore, u"example.com", u"", False)
+
+        shell = self.siteStore.findUnique(SecureShellConfiguration)
+        tcps = list(self.siteStore.query(TCPPort, TCPPort.factory == shell))
+
+        self.assertEqual(len(tcps), 1)
+        self.assertEqual(tcps[0].portNumber, 8022)

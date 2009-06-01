@@ -745,6 +745,23 @@ class HeuristicTestCases(unittest.TestCase):
                            sharing.getEveryoneRole(self.store)])
 
 
+    def test_getAccountRole(self):
+        """
+        L{getAccountRole} returns a L{Role} in a given store for one of the
+        account names passed to it.
+        """
+        role = sharing.getAccountRole(
+            self.store, [(u"username", u"domain.example.com")])
+        self.assertEquals(role.externalID, u"username@domain.example.com")
+
+
+    def test_noAccountRole(self):
+        """
+        L{getAccountRole} raises L{ValueError} if passed an empty list of account names.
+        """
+        self.assertRaises(ValueError, sharing.getAccountRole, self.store, [])
+
+
     def test_identifierFromSharedItem(self):
         """
         L{sharing.Identifier.fromSharedItem} should identify a shared Item's shareID.

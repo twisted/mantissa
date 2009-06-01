@@ -278,7 +278,22 @@ class IStaticShellContent(Interface):
 
 
 
-class IWebViewer(Interface):
+class IViewer(Interface):
+    def roleIn(userStore):
+        """
+        Retrieve a L{xmantissa.sharing.Role} object for the user that this
+        viewer represents in the provided user-store.
+
+        @param userStore: a store that contains some sharing roles.
+
+        @type userStore: L{axiom.store.Store}
+
+        @rtype: L{xmantissa.sharing.Role}
+        """
+
+
+
+class IWebViewer(IViewer):
     """
     An object that provides navigation bits for web content produced by
     Mantissa applications.
@@ -290,20 +305,6 @@ class IWebViewer(Interface):
 
         @param model: An L{Item} or L{SharedProxy}.
         """
-
-
-    def roleIn(userStore):
-        """
-        Retrieve a L{xmantissa.sharing.Role} object for the user that this
-        web viewer represents in the provided user-store.
-
-        @param userStore: a store that contains some sharing roles.
-
-        @type userStore: L{axiom.store.Store}
-
-        @rtype: L{xmantissa.sharing.Role}
-        """
-
 
 
 
@@ -1373,6 +1374,26 @@ class IOneTimePadGenerator(Interface):
         """
 
 
+
+class ITerminalServerFactory(Interface):
+    """
+    A factory for L{ITerminalProtocol} providers which can create objects to
+    handle input from and produce output to a terminal interface.
+    """
+    name = Attribute(
+        "A short, user-facing C{unicode} string which identifies the "
+        "functionality provided by this factory.")
+
+    def buildTerminalProtocol(shellViewer):
+        """
+        Create and return a new L{ITerminalProtocol} provider to handle
+        interact with a user.
+
+        @param shellViewer: An L{IViewer} provider
+        """
+
+
+
 __all__ = [
     'IColumn', 'ITemplateNameResolver', 'IPreferenceAggregator',
     'ISearchProvider', 'ISearchAggregator', 'IFulltextIndexer',
@@ -1382,5 +1403,6 @@ __all__ = [
     'INavigableFragment', 'ITab', 'IBenefactor', 'IBenefactorFactory',
     'IQ2QService', 'IPreferenceCollection', 'ITemporalEvent', 'IDateBook',
     'IOrganizerPlugin', 'IPersonFragment', 'IOffering', 'ISignupMechanism',
-    'IProtocolFactoryFactory', 'IParameterView', 'IOneTimePadGenerator'
+    'IProtocolFactoryFactory', 'IParameterView', 'IOneTimePadGenerator',
+    'ITerminalServerFactory',
     ]

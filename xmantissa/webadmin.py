@@ -21,7 +21,6 @@ from axiom.attributes import (integer, boolean, timestamp, bytes, reference,
     inmemory, AND)
 from axiom.item import Item, declareLegacyItem
 from axiom import userbase
-from axiom.batch import BatchManholePowerup
 from axiom.dependency import installOn, dependsOn
 from axiom.upgrade import registerUpgrader
 
@@ -35,6 +34,7 @@ from xmantissa.tdb import AttributeColumn
 from xmantissa.scrolltable import ScrollingFragment
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
+from xmantissa.terminal import TerminalManhole
 from xmantissa.ixmantissa import (
     INavigableElement, INavigableFragment, ISessionlessSiteRootPlugin,
     IProtocolFactoryFactory)
@@ -838,13 +838,12 @@ def endowAdminPowerups(userStore):
             # different network services.
             PortConfiguration,
 
-            # This one lets the administrator ssh in to a REPL in the
-            # batch process.
-            BatchManholePowerup,
-
             # And this one gives the administrator a page listing all
             # users which exist in this site's credentials database.
-            LocalUserBrowser
+            LocalUserBrowser,
+
+            # Grant Python REPL access to the server.
+            TerminalManhole,
             ]
     for powerup in powerups:
         installOn(powerup(store=userStore), userStore)
