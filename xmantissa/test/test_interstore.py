@@ -1333,7 +1333,7 @@ class AMPMessagingTests(TestCase):
     def test_unhandledErrorReceived(self):
         """
         L{AMPReceiver.answerReceived} should raise L{MethodNotExposed} when it
-        is passed value containing an AMP error for which there is no defined
+        is passed a value containing an AMP error for which there is no defined
         error handler.
         """
         originalMessageData = Box(_command=SimpleCommand.commandName).serialize()
@@ -1400,7 +1400,7 @@ class AMPMessagingTests(TestCase):
         unknownMessages = []
         for badType in u'some.random.type', AMP_MESSAGE_TYPE:
             value = Value(badType, data)
-            originalValue = Value(None, originalMessage)
+            originalValue = Value(None, originalMessageData)
             sender = target = None
             amr.answerReceived(value, originalValue, sender, target)
             unknownMessages.append((value, originalValue, sender, target))
