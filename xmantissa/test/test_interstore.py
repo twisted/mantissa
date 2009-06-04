@@ -18,6 +18,7 @@ from twisted.internet.defer import Deferred
 from twisted.protocols.amp import Box, Command, Integer, String
 
 from epsilon.extime import Time
+from epsilon.expose import MethodNotExposed
 
 from axiom.store import Store
 from axiom.errors import UnsatisfiedRequirement
@@ -470,9 +471,9 @@ class SingleSiteMessagingTests(TestCase):
         """
         carolStore, carolQueue = self.accountify(Store())
         acct = LoginAccount(store=carolStore, password=u'asdf')
-        lm = LoginMethod(store=carolStore, localpart=u'carol',
-                         domain=u'example.com', internal=True, protocol=u'*',
-                         account=acct, verified=True)
+        LoginMethod(store=carolStore, localpart=u'carol',
+                    domain=u'example.com', internal=True, protocol=u'*',
+                    account=acct, verified=True)
         return carolStore, carolQueue
 
 
@@ -661,7 +662,7 @@ class SingleSiteMessagingTests(TestCase):
         L{routeAnswer} is fired.
         """
         slowRouter = self.stubSlowRouter()
-        sdc = self.aliceToBobWithConsequence()
+        self.aliceToBobWithConsequence()
         self.runQueue(self.aliceQueue)
         slowRouter.flushMessages(stallAcks=True)
         self.assertEqual(len(slowRouter.acks), 1)
@@ -1003,7 +1004,7 @@ class SingleSiteMessagingTests(TestCase):
         self.receiver.reciprocate = True
         receiver2 = StubReceiver(store=self.aliceStore)
         getEveryoneRole(self.aliceStore).shareItem(receiver2, u'nothing')
-        sdc = self.aliceToBobWithConsequence()
+        self.aliceToBobWithConsequence()
         self.runQueue(self.aliceQueue)
         self.runQueue(self.bobQueue)
         self.assertEqual(receiver2.receivedCount, 1)
@@ -1316,6 +1317,22 @@ class AMPMessagingTests(TestCase):
         self.assertEqual(amr.commandAnswers, [])
         amr.commandErrors.pop().trap(SimpleError)
         self.assertEqual(amr.commandErrors, [])
+
+
+    def test_unhandledErrorReceived(self):
+        """
+        L{AMPReceiver.answerReceived} should raise L{MethodNotExposed} when it
+        is passed value containing an AMP error for which there is no defined
+        error handler.
+        """
+        originalMessageData = Box(_command=SimpleCommand.commandName).serialize()
+        amr = MyAMPReceiver()
+        data = Box(_error="UNHANDLED_ERROR").serialize()
+        self.assertRaises(
+            MethodNotExposed,
+            amr.answerReceived,
+            Value(AMP_ANSWER_TYPE, data), Value(None, originalMessageData),
+            None, None)
 
 
     def test_messageReceivedWrongType(self):
