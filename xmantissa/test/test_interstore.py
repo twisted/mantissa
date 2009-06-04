@@ -1120,6 +1120,9 @@ class RealAMPReceiver(Item, AMPReceiver):
 class MyAMPReceiver(AMPReceiver):
     """
     A simple L{AMPReceiver} subclass with a few exposed methods.
+
+    @ivar unknownAnswers: A C{list} of tuples of the arguments to any calls to
+        L{unknownAnswerType}.
     """
 
     def __init__(self):
@@ -1131,6 +1134,14 @@ class MyAMPReceiver(AMPReceiver):
         self.commandErrors = []
         self.senders = []
         self.targets = []
+        self.unknownAnswers = []
+
+
+    def unknownAnswerType(self, value, originalValue, sender, target):
+        """
+        Record any unrecognized answers.
+        """
+        self.unknownAnswers.append((value, originalValue, sender, target))
 
 
     @commandMethod.expose(SimpleCommand)
@@ -1337,8 +1348,8 @@ class AMPMessagingTests(TestCase):
 
     def test_messageReceivedWrongType(self):
         """
-        An L{UnknownMessageType} should be raised when a message of the wrong
-        type is dispatched to an L{AMPReceiver}.
+        L{UnknownMessageType} is raised when a message of unknown type is
+        dispatched to an L{AMPReceiver}.
         """
         amr = MyAMPReceiver()
         questionBox = Box(_command=SimpleCommand.commandName,
@@ -1378,19 +1389,33 @@ class AMPMessagingTests(TestCase):
 
     def test_answerReceivedWrongType(self):
         """
-        An L{UnknownMessageType} exception should be raised when a answer of
-        the wrong type is dispatched to an L{AMPReceiver}.
+        L{AMPReceiver.unknownAnswerType} is called when a message of the wrong
+        type is dispatched to L{AMPReceiver.answerReceived}.
         """
-        originalMessageData = Box(_command=SimpleCommand.commandName).serialize()
+        originalMessage = Box(_command=SimpleCommand.commandName)
+        originalMessageData = originalMessage.serialize()
         amr = MyAMPReceiver()
         answerBox = Box(int3="4")
         data = answerBox.serialize()
+        unknownMessages = []
         for badType in u'some.random.type', AMP_MESSAGE_TYPE:
-            self.assertRaises(UnknownMessageType, amr.answerReceived,
-                              Value(badType, data),
-                              Value(None, originalMessageData),
-                              None, None)
-        self.assertEqual(amr.commandAnswers, [])
+            value = Value(badType, data)
+            originalValue = Value(None, originalMessage)
+            sender = target = None
+            amr.answerReceived(value, originalValue, sender, target)
+            unknownMessages.append((value, originalValue, sender, target))
+        self.assertEquals(amr.commandAnswers, [])
+        self.assertEquals(amr.unknownAnswers, unknownMessages)
+
+
+    def test_unknownAnswerType(self):
+        """
+        L{AMPReceiver.unknownAnswerType} raises L{UnknownMessageType}.
+        """
+        amr = AMPReceiver()
+        self.assertRaises(
+            UnknownMessageType,
+            amr.unknownAnswerType, None, None, None, None)
 
 
     def test_messageReceivedSenderArgument(self):

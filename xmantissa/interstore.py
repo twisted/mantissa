@@ -1020,6 +1020,19 @@ class AMPReceiver(object):
             return Value(AMP_ANSWER_TYPE, response.serialize())
 
 
+    def unknownAnswerType(self, value, originalValue,
+                           originalSender, originalTarget):
+        """
+        Cause handling of otherwise unhandled answers to fail so that a
+        persistent record of the event is created.
+
+        Override this to provide different behavior.
+
+        @raise UnknownMessageType: Always raised.
+        """
+        raise UnknownMessageType()
+
+
     def answerReceived(self, value, originalValue,
                        originalSender, originalTarget):
         """
@@ -1029,7 +1042,10 @@ class AMPReceiver(object):
         @see L{IDeliveryConsequence.answerReceived}.
         """
         if value.type != AMP_ANSWER_TYPE:
-            raise UnknownMessageType()
+            self.unknownAnswerType(
+                value, originalValue, originalSender, originalTarget)
+            return
+
         commandName = self._boxFromData(originalValue.data)[COMMAND]
         rawArgs = self._boxFromData(value.data)
         placeholder = _ProtocolPlaceholder(originalSender, originalTarget)
