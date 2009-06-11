@@ -16,6 +16,8 @@ from epsilon.view import SlicedView
 
 from axiom import item, attributes, iaxiom, batch
 from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
+from axiom.store import Store, AttributeQuery
+from axiom.attributes import AttributeValueComparison, SimpleOrdering
 
 from xmantissa import ixmantissa
 
@@ -745,3 +747,116 @@ def pyLuceneIndexer4to5(old):
     return new
 
 registerUpgrader(pyLuceneIndexer4to5, PyLuceneIndexer.typeName, 4, 5)
+
+
+
+class _SQLiteResultWrapper(object):
+    """
+    Trivial wrapper around SQLite FTS search results.
+    """
+    def __init__(self, docId):
+        self.uniqueIdentifier = docId
+
+
+
+class _SQLiteIndex(object):
+    """
+    FTS3 index interface.
+    """
+
+    addSQL = """
+    INSERT INTO fts (docid, content) VALUES (?, ?)
+    """
+
+    removeSQL = """
+    DELETE FROM fts WHERE docid = ?
+    """
+
+    searchSQL = """
+    SELECT docid
+    FROM fts
+    WHERE content MATCH ?
+    ORDER BY docid %s
+    """
+
+    def __init__(self, store):
+        self.store = store
+        self.close = self.store.close
+
+
+    def add(self, document):
+        """
+        Add a document to the database.
+        """
+        docid = int(document.uniqueIdentifier())
+        text = u' '.join(document.textParts())
+
+        self.store.executeSQL(self.addSQL, (docid, text))
+
+
+    def remove(self, docid):
+        """
+        Remove a document from the database.
+        """
+        docid = int(docid)
+        self.store.executeSQL(self.removeSQL, (docid,))
+
+
+    def search(self, term, keywords=None, sortAscending=True):
+        """
+        Search the database.
+        """
+        if sortAscending:
+            direction = 'ASC'
+        else:
+            direction = 'DESC'
+
+        return [_SQLiteResultWrapper(r[0]) for r in
+                self.store.querySQL(self.searchSQL % (direction,), (term,))]
+
+
+
+class SQLiteIndexer(RemoteIndexer, item.Item):
+    """
+    Indexer implementation using SQLite FTS3.
+
+    XXX: Keywords are currently not supported; see #2877
+    """
+    indexCount = attributes.integer(default=0)
+    indexDirectory = attributes.text(default=u'sqlite.index')
+
+    _index = attributes.inmemory()
+
+    schemaSQL = """
+    CREATE VIRTUAL TABLE fts
+    USING fts3(content)
+    """
+
+    def _getStore(self):
+        """
+        Get the Store used for FTS.
+
+        If it does not exist, it is created and initialised.
+        """
+        storeDir = self.store.newDirectory(self.indexDirectory)
+        if not storeDir.exists():
+            store = Store(storeDir)
+            self._initStore(store)
+            return store
+        else:
+            return Store(storeDir)
+
+
+    def _initStore(self, store):
+        """
+        Initialise a store for FTS use.
+        """
+        store.createSQL('CREATE VIRTUAL TABLE fts USING fts3')
+
+
+    def openReadIndex(self):
+        return self.openWriteIndex()
+
+
+    def openWriteIndex(self):
+        return _SQLiteIndex(self._getStore())
