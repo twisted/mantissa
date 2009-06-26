@@ -482,13 +482,10 @@ class INavigableElement(Interface):
         For example, a powerup which wanted to install navigation under the
         Divmod tab would return this list:::
 
-        [Tab("Divmod", quotient.iquotient.ISummaryPage, 1.0
+        [Tab("Divmod", self.storeID, 1.0
              children=[
-                    Tab("Summary", quotient.iquotient.ISummaryPage, 1.0),
-                    Tab("Inbox", lambda x:
-                        IRootPool(x).getNamedElement(
-                            'Mail Folders').getNamedElement('Inbox'),
-                        0.8)
+                    Tab("Summary", self.storeID, 1.0),
+                    Tab("Inbox", self.inbox.storeID, 0.8)
                     ])]
         """
 

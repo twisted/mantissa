@@ -15,7 +15,7 @@ Let's say we wanted to write an application which allowed Alice
       L{IMessageReceiver} such that it can receive appointment requests.
 
     - Create these hypothetical calendar items in both Bob and Alice's stores.
-      It should also be shared - specifically its IMessageReceiver interface
+      These should also be shared - specifically its IMessageReceiver interface
       must be shared, at least from Alice to Bob and from Bob to Alice.  Give
       it a shareID qualified with the name of the application - for example,
       "exampleapp.root.calendar" - to avoid conflicts with other applications.
@@ -43,11 +43,11 @@ Let's say we wanted to write an application which allowed Alice
 This model of inter-user communciation is a bit more work than simply
 manipulating a shared database, but the loose coupling it enforces provides a
 long list of advantages.  System upgrades, for example, can be performed
-incrementally, one account at a time, and newer versions can talk to over
+incrementally, one account at a time, and newer versions can talk to older
 versions using a compatible protocol.  The message routing mechanism is
 pluggable, and it is possible to implement versions which talk to multiple
 Mantissa processes to take advantage of multiple CPU cores, multiple mounted
-disks, different mantissa deployments across the internet, or multiple Mantissa
+disks, different Mantissa deployments across the internet, or multiple Mantissa
 nodes of the same application within a cluster.  Although these things don't
 come "out of the box", the programming model here allows all of these changes
 to be made without changing any of your application code, just the high-level
@@ -935,7 +935,7 @@ deal with AMP command responses.  Use like so::
 
 errorMethod = _AMPErrorExposer("""
 Use this exposer to expose methods on L{AMPReceiver} subclasses which can
-deal with AMP command responses.  Use like so::
+deal with AMP command error responses.  Use like so::
 
     @errorMethod.expose(YourCommand, YourCommandException)
     def yourMethod(self, failure):
@@ -999,7 +999,7 @@ class AMPReceiver(object):
         command responder, i.e. a method on this object exposed with
         L{commandMethod.expose}.
 
-        @see L{IMessageReceiver.messageReceived}.
+        @see IMessageReceiver.messageReceived
         """
         if value.type != AMP_MESSAGE_TYPE:
             raise UnknownMessageType()
@@ -1026,7 +1026,7 @@ class AMPReceiver(object):
         An answer was received.  Dispatch to the appropriate answer responder,
         i.e. a method on this object exposed with L{answerMethod.expose}.
 
-        @see L{IDeliveryConsequence.answerReceived}.
+        @see IDeliveryConsequence.answerReceived
         """
         if value.type != AMP_ANSWER_TYPE:
             raise UnknownMessageType()

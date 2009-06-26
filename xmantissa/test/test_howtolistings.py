@@ -26,6 +26,7 @@ from nevow.url import URL
 from axiom.store import Store
 
 from xmantissa.ixmantissa import ISiteRootPlugin, IMantissaSite, IWebViewer
+from xmantissa.ixmantissa import IMessageReceiver
 from xmantissa.publicweb import AnonymousSite
 from axiom.plugins.mantissacmd import Mantissa
 
@@ -166,3 +167,32 @@ class SiteRootDocumentationTest(ExampleTestBase, TestCase):
                                                     tuple(['admin.php']),
                                                     viewer)
         self.assertEquals(result, URL.fromString("http://localhost/private"))
+
+
+
+class InterstoreMessagingDocumentationTests(ExampleTestBase, TestCase):
+    """
+    Tests for doc/interstore.xhtml and related files.
+    """
+    examplePath = ['listings', 'interstore']
+
+    def setUp(self):
+        """
+        Import the interstore messaging example code.
+        """
+        ExampleTestBase.setUp(self)
+        import cal
+        self.cal = cal
+
+
+    def test_powerUp(self):
+        """
+        L{Calendar} is an L{IMessageReceiver} powerup.
+        """
+        store = Store()
+        calendar = self.cal.Calendar(store=store)
+        self.assertTrue(verifyObject(IMessageReceiver, calendar))
+        store.powerUp(calendar)
+        self.assertEquals(
+            list(store.powerupsFor(IMessageReceiver)), [calendar])
+
