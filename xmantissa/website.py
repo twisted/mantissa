@@ -82,6 +82,7 @@ class MantissaLivePage(athena.LivePage):
         self.webSite = webSite
         athena.LivePage.__init__(self, transportRoot=url.root.child('live'),
                                  *a, **k)
+        self._jsDepsMemo = self.hashCache.depsMemo
 
 
     def beforeRender(self, ctx):

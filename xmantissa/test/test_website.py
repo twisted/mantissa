@@ -19,14 +19,16 @@ from twisted.trial.unittest import TestCase
 from twisted.trial import util
 from twisted.python.filepath import FilePath
 
+from nevow import tags
 from nevow.flat import flatten
 from nevow.context import WebContext
 from nevow.testutil import FakeRequest
 from nevow.url import URL
 from nevow.inevow import IResource, IRequest
 from nevow.rend import WovenContext, NotFound
-from nevow.athena import LivePage
+from nevow.athena import LivePage, LiveElement, AthenaModule, jsDeps
 from nevow.guard import LOGIN_AVATAR
+from nevow.loaders import stan
 
 from axiom import userbase
 from axiom.userbase import LoginSystem
@@ -1091,8 +1093,8 @@ class AthenaResourcesTestCase(TestCase):
     """
     Test aspects of L{GenericNavigationAthenaPage}.
     """
-
     hostname = 'test-mantissa-live-page-mixin.example.com'
+
     def _preRender(self, resource):
         """
         Test helper which executes beforeRender on the given resource.
@@ -1171,6 +1173,47 @@ class AthenaResourcesTestCase(TestCase):
         self.assertEqual(page.getJSModuleURL(module),
                          url.child(expect).child(module))
 
+
+    def test_jsCaching(self):
+        """
+        Rendering a L{MantissaLivePage} causes each of its dependent modules to
+        be loaded at most once.
+        """
+        _realdeps = AthenaModule.dependencies
+        def dependencies(self):
+            self.count = getattr(self, 'count', 0) + 1
+            return _realdeps(self)
+        self.patch(AthenaModule, 'dependencies', dependencies)
+
+        module = jsDeps.getModuleForName('Mantissa.Test.Dummy.DummyWidget')
+        module.count = 0
+
+        root = URL(netloc='example.com', pathsegs=['a', 'b'])
+        class FakeWebSite(object):
+            def rootURL(self, request):
+                return root
+
+        def _renderPage():
+            page = MantissaLivePage(FakeWebSite())
+            element = LiveElement(stan(tags.span(render=tags.directive('liveElement'))))
+            element.setFragmentParent(page)
+            element.jsClass = u'Mantissa.Test.Dummy.DummyWidget'
+            page.docFactory = stan([tags.span(render=tags.directive('liveglue')), element])
+
+            ctx = WovenContext()
+            req = FakeRequest(headers={'host': self.hostname})
+            ctx.remember(req, IRequest)
+            page.beforeRender(ctx)
+            page.renderHTTP(ctx)
+            page._messageDeliverer.close()
+
+        # Make sure we have a fresh dependencies memo.
+        self.patch(theHashModuleProvider, 'depsMemo', {})
+
+        _renderPage()
+        self.assertEqual(module.count, 1)
+        _renderPage()
+        self.assertEqual(module.count, 1)
 
 
 

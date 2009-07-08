@@ -76,6 +76,9 @@ class HashedJSModuleProvider(object):
 
     @ivar moduleCache: a map of JS module names to CachedJSModule objects,
     representing the filesystem locations and contents of the modules.
+
+    @ivar depsMemo: A memo of module dependencies.
+    @type depsMemo: C{dict} of C{module name: dependent modules}
     """
     implements(IResource)
 
@@ -84,11 +87,15 @@ class HashedJSModuleProvider(object):
         Create a HashedJSModuleProvider.
         """
         self.moduleCache = {}
+        self.depsMemo = {}
 
 
     def getModule(self, moduleName):
         """
-        Retrieve the most recent module from the file path cache.
+        Retrieve a JavaScript module cache from the file path cache.
+
+        @returns: Module cache for the named module.
+        @rtype: L{CachedJSModule}
         """
         if moduleName not in self.moduleCache:
             modulePath = FilePath(
@@ -97,7 +104,6 @@ class HashedJSModuleProvider(object):
                 moduleName, modulePath)
         else:
             cachedModule = self.moduleCache[moduleName]
-            cachedModule.maybeUpdate()
         return cachedModule
 
 
