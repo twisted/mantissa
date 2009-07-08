@@ -27,7 +27,6 @@ from xmantissa.error import Unsortable
 
 from xmantissa.scrolltable import (
     InequalityModel,
-    ScrollableView,
     ScrollingFragment,
     ScrollingElement,
     SequenceScrollingFragment,
@@ -835,6 +834,7 @@ class InequalityPerformanceTests(unittest.TestCase):
         Like L{test_rowsAfterValue}, but for
         L{InequalityModel.rowsBeforeValue}.
         """
+        DataThunkWithIndex(store=self.store, a=-1)
         first = self.rowsBeforeValue(2, 2)
         DataThunkWithIndex(store=self.store, a=-1)
         second = self.rowsBeforeValue(2, 2)
@@ -846,6 +846,7 @@ class InequalityPerformanceTests(unittest.TestCase):
         Like L{test_rowsAfterValueWithDuplicatesBeforeStart}, but for
         L{InequalityModel.rowsBeforeValue}.
         """
+        DataThunkWithIndex(store=self.store, a=-1)
         first = self.rowsBeforeValue(2, 2)
         DataThunkWithIndex(store=self.store, a=3)
         second = self.rowsBeforeValue(2, 2)
@@ -868,6 +869,7 @@ class InequalityPerformanceTests(unittest.TestCase):
         Like L{test_rowsAfterValueWithDuplicatesInResult}, but for
         L{InequalityModel.rowsBeforeValue}.
         """
+        DataThunkWithIndex(store=self.store, a=1)
         first = self.rowsBeforeValue(2, 2)
         DataThunkWithIndex(store=self.store, a=1)
         second = self.rowsBeforeValue(2, 2)
@@ -879,6 +881,7 @@ class InequalityPerformanceTests(unittest.TestCase):
         Like L{test_rowsAfterValueWithDuplicatesAfter}, but for
         L{InequalityModel.rowsBeforeValue}.
         """
+        DataThunkWithIndex(store=self.store, a=0)
         first = self.rowsBeforeValue(2, 2)
         DataThunkWithIndex(store=self.store, a=0)
         second = self.rowsBeforeValue(2, 2)
