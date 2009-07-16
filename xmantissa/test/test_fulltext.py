@@ -8,7 +8,6 @@ from twisted.internet.defer import gatherResults
 
 from axiom import iaxiom, store, batch, item, attributes
 from axiom.userbase import LoginSystem
-from axiom.scheduler import Scheduler
 from axiom.dependency import installOn
 from axiom.errors import SQLError
 
@@ -101,7 +100,6 @@ class IndexerTestsMixin:
     def setUp(self):
         self.path = u'index'
         self.store = store.Store(filesdir=self.mktemp())
-        installOn(Scheduler(store=self.store), self.store)
         self.indexer = self.createIndexer()
 
 

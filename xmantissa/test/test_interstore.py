@@ -19,6 +19,7 @@ from twisted.protocols.amp import Box, Command, Integer, String
 
 from epsilon.extime import Time
 
+from axiom.iaxiom import IScheduler
 from axiom.store import Store
 from axiom.errors import UnsatisfiedRequirement
 from axiom.item import Item, POWERUP_BEFORE
@@ -434,7 +435,7 @@ class SingleSiteMessagingTests(TestCase):
         """
         queue = MessageQueue(store=userStore)
         installOn(queue, userStore)
-        queue.scheduler.now = self.time.peek
+        IScheduler(userStore).now = self.time.peek
         return userStore, queue
 
 
@@ -694,7 +695,7 @@ class SingleSiteMessagingTests(TestCase):
         slowRouter.flushMessages(dropAcks=True, dropAckErrorType=errorType)
         # It should be scheduled.
         self.assertEqual(
-            len(list(self.bobQueue.scheduler.scheduledTimes(self.bobQueue))),
+            len(list(IScheduler(self.bobQueue.store).scheduledTimes(self.bobQueue))),
             1)
         # Now let's run it and see if the ack gets redelivered.
         self.runQueue(self.bobQueue)
@@ -900,7 +901,7 @@ class SingleSiteMessagingTests(TestCase):
             Identifier(u"nothing", u"alice", u"example.com"),
             Identifier(u"suitcase", u"bob", u"example.com"),
             Value(u"custom.message.type", "Message2"))
-        time1 ,= self.aliceQueue.scheduler.scheduledTimes(self.aliceQueue)
+        [time1] = IScheduler(self.aliceQueue.store).scheduledTimes(self.aliceQueue)
         time2 = self.runQueue(self.aliceQueue)
         self.assertEqual(time2 - self.time.peek(), self.retransmitDelta)
         self.assertEqual(self.receiver.receivedCount, 0)
@@ -965,7 +966,7 @@ class SingleSiteMessagingTests(TestCase):
         self.assertEqual(bucket, [])
         self.runQueue(self.aliceQueue)
         slowRouter.flushMessages(dropAcks=True)
-        time1 ,= self.bobQueue.scheduler.scheduledTimes(self.bobQueue)
+        [time1] = IScheduler(self.bobQueue.store).scheduledTimes(self.bobQueue)
         time2 = self.runQueue(self.bobQueue)
         self.assertEqual(time2 - self.time.peek(), self.retransmitDelta)
         slowRouter.flushMessages()

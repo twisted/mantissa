@@ -67,12 +67,13 @@ from epsilon.structlike import record
 
 from epsilon.expose import Exposer
 
-from axiom.item import Item
+from axiom.iaxiom import IScheduler
+from axiom.item import Item, declareLegacyItem
 from axiom.errors import UnsatisfiedRequirement
 from axiom.attributes import text, bytes, integer, AND, reference, inmemory
 from axiom.dependency import dependsOn, requiresFromSite
 from axiom.userbase import LoginSystem, LoginMethod
-from axiom.scheduler import SubScheduler
+from axiom.upgrade import registerUpgrader
 
 from xmantissa.ixmantissa import (
     IMessageRouter, IDeliveryConsequence, IMessageReceiver)
@@ -520,13 +521,12 @@ class MessageQueue(Item):
     """
     A queue of outgoing L{QueuedMessage} objects.
     """
+    schemaVersion = 2
     powerupInterfaces = (IMessageRouter,)
 
     siteRouter = requiresFromSite(IMessageRouter,
                                   _createLocalRouter,
                                   _accidentalSiteRouter)
-
-    scheduler = dependsOn(SubScheduler)
 
     messageCounter = integer(
         """
@@ -541,8 +541,9 @@ class MessageQueue(Item):
         future.  Tell the dependent scheduler to schedule it if it isn't
         already pending execution.
         """
-        if len(list(self.scheduler.scheduledTimes(self))) == 0:
-            self.scheduler.schedule(self, self.scheduler.now())
+        sched = IScheduler(self.store)
+        if len(list(sched.scheduledTimes(self))) == 0:
+            sched.schedule(self, sched.now())
 
 
     def routeMessage(self, sender, target, value, messageID):
@@ -744,7 +745,22 @@ class MessageQueue(Item):
             if nextanswer is not None:
                 delay = _RETRANSMIT_DELAY
         if delay is not None:
-            return self.scheduler.now() + timedelta(seconds=delay)
+            return IScheduler(self.store).now() + timedelta(seconds=delay)
+
+
+declareLegacyItem(
+    MessageQueue.typeName, 1,
+    dict(messageCounter=integer(default=0, allowNone=False),
+         scheduler=reference()))
+
+def upgradeMessageQueue1to2(old):
+    """
+    Copy the C{messageCounter} attribute to the upgraded MessageQueue.
+    """
+    return old.upgradeVersion(
+        MessageQueue.typeName, 1, 2, messageCounter=old.messageCounter)
+
+registerUpgrader(upgradeMessageQueue1to2, MessageQueue.typeName, 1, 2)
 
 
 #### High-level convenience API ####

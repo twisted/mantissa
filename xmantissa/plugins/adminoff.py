@@ -1,6 +1,4 @@
 
-from axiom import scheduler
-
 from xmantissa import offering, stats
 from xmantissa.webadmin import (TracebackViewer, LocalUserBrowser,
                                 DeveloperApplication,
@@ -11,7 +9,7 @@ adminOffering = offering.Offering(
     name = u'mantissa',
     description = u'Powerups for administrative control of a Mantissa server.',
     siteRequirements = [],
-    appPowerups = [scheduler.SubScheduler, stats.StatsService],
+    appPowerups = [stats.StatsService],
     installablePowerups = [("Signup Configuration", "Allows configuration of signup mechanisms", SignupConfiguration),
                            ("Traceback Viewer", "Allows viewing unhandled exceptions which occur on the server", TracebackViewer),
                            ("Port Configuration", "Allows manipulation of network service configuration.", PortConfiguration),
