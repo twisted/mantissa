@@ -13,12 +13,13 @@ from twisted.internet.defer import maybeDeferred
 from twisted.cred.portal import Portal
 from twisted.cred.checkers import AllowAnonymousAccess
 
-from nevow.inevow import IRequest, IResource
+from nevow.inevow import IRequest, IResource, ICanHandleNotFound
 from nevow.url import URL
 from nevow.appserver import NevowSite, NevowRequest
 from nevow.rend import NotFound
 from nevow.static import File
 from nevow.athena import LivePage
+from nevow.page import Element, renderer
 
 from epsilon.structlike import record
 
@@ -31,6 +32,8 @@ from xmantissa.ixmantissa import ISiteURLGenerator, IProtocolFactoryFactory, IOf
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.cachejs import theHashModuleProvider
 from xmantissa.websession import PersistentSessionWrapper
+from xmantissa.webtheme import ThemedDocumentFactory
+
 
 
 class AxiomRequest(NevowRequest):
@@ -175,7 +178,9 @@ class SiteConfiguration(Item):
         logPath = None
         if self.httpLog is not None:
             logPath = self.httpLog.path
-        return AxiomSite(self.store, securingRoot, logPath=logPath)
+        site = AxiomSite(self.store, securingRoot, logPath=logPath)
+        site.remember(Mantissa404(self.store), ICanHandleNotFound)
+        return site
 
 
 
@@ -322,6 +327,52 @@ class SecuringWrapper(record('urlGenerator wrappedResource')):
         else:
             renderer = _SecureWrapper(self.urlGenerator, self.wrappedResource)
         return renderer.renderHTTP(context)
+
+
+
+class Mantissa404Element(Element):
+    docFactory = ThemedDocumentFactory('not-found', 'siteStore')
+    title = '404 - Page not found'
+
+
+    def __init__(self, siteStore):
+        self.siteStore = siteStore
+
+
+    def accessedURI(self, req, tag):
+        return tag[req.uri]
+    accessedURI = renderer(accessedURI)
+
+
+    def technical(self, req, tag):
+        rowValues = [(attr, repr(getattr(req, attr)))
+                     for attr in [
+                         'method', 'uri', 'path', 'prepath', 'postpath',
+                         'args', 'received_headers', 'client']]
+
+        def row((label, value)):
+            return rowPattern(
+                ).fillSlots('label', label
+                ).fillSlots('value', value)
+
+        rowPattern = tag.patternGenerator('row')
+        return tag[map(row, rowValues)]
+    technical = renderer(technical)
+
+
+
+class Mantissa404(object):
+    implements(ICanHandleNotFound)
+
+    def __init__(self, siteStore):
+        self.siteStore = siteStore
+
+
+    def renderHTTP_notFound(self, context):
+        # XXX: cyclic imports
+        from xmantissa.publicweb import PublicPage
+        fragment = Mantissa404Element(self.siteStore)
+        return PublicPage(self, self.siteStore, fragment, None, None)
 
 
 

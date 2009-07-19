@@ -1434,3 +1434,8 @@ a.active-person-plugin-name:link, a.active-person-plugin-name:visited {
 a.active-person-plugin-name:hover {
     cursor: default;
 }
+
+.not-found-technical th {
+    text-align: left;
+    vertical-align: top;
+}

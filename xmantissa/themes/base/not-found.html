@@ -1,0 +1,18 @@
+<div xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+    <h1>Page not found</h1>
+    <p>The URI <code nevow:render="accessedURI" /> does not specify a valid resource.</p>
+    <p>
+        Perhaps try the <a href="/">front page</a> or your
+        <a href="/private">private page</a>.
+    </p>
+
+    <div class="not-found-technical" >
+        <h2>Technical information</h2>
+        <table nevow:render="technical" class="not-found-technical">
+            <tr nevow:pattern="row">
+                <th><nevow:slot name="label" /></th>
+                <td><code><nevow:slot name="value" /></code></td>
+            </tr>
+        </table>
+    </div>
+</div>
