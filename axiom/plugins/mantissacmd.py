@@ -3,7 +3,7 @@ import sys, os, struct
 
 from zope.interface import directlyProvides
 
-from twisted.python import util
+from twisted.python import util, usage
 from twisted.cred import portal
 from twisted.plugin import IPlugin
 
@@ -56,6 +56,38 @@ def genSerial():
 
 
 
+class MantissaSiteCommand(axiomatic.AxiomaticSubCommand):
+    optParameters = [
+        ('compression', 'c', None,
+         'Set the resource types to compress for the site')]
+
+
+    def postOptions(self):
+        siteStore = self.parent.getStore()
+        site = siteStore.findUnique(SiteConfiguration)
+
+        if self['compression']:
+            siteStore.transact(self.setCompression, site)
+
+
+    def setCompression(self, site):
+        """
+        Configure site resource compression.
+
+        @type site: L{SiteConfiguration}
+        """
+        compression = self.decodeCommandLine(self['compression']).lower()
+        _enums = dict(SiteConfiguration._resourceCompressionEnum).keys()
+        if compression not in _enums:
+            _enums = ', '.join(_enums)
+            raise usage.UsageError(
+                'Invalid compression value "%s", must be one of: %s' % (
+                    compression, _enums))
+
+        site.resourceCompression = compression
+
+
+
 class Mantissa(axiomatic.AxiomaticCommand):
     """
     Create all the moving parts necessary to begin interactively developing a
@@ -77,6 +109,10 @@ class Mantissa(axiomatic.AxiomaticCommand):
 
     longdesc = __doc__
 
+    subCommands = [
+        ('site', None, MantissaSiteCommand, 'Configure a Mantissa site'),
+        ]
+
     optParameters = [
         ('admin-user', 'a', 'admin@localhost',
          'Account name for the administrative user.'),
@@ -85,6 +121,11 @@ class Mantissa(axiomatic.AxiomaticCommand):
          '(if omitted, will be prompted for).'),
         ('public-url', None, '',
          'URL at which to publish the public front page.')]
+
+
+    def getStore(self):
+        return self.parent.getStore()
+
 
     def postOptions(self):
         siteStore = self.parent.getStore()

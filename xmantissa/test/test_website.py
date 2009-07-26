@@ -18,6 +18,7 @@ from twisted.internet.address import IPv4Address
 from twisted.trial.unittest import TestCase
 from twisted.trial import util
 from twisted.python.filepath import FilePath
+from twisted.python import usage
 
 from nevow import tags
 from nevow.flat import flatten
@@ -29,12 +30,14 @@ from nevow.rend import WovenContext, NotFound
 from nevow.athena import LivePage, LiveElement, AthenaModule, jsDeps
 from nevow.guard import LOGIN_AVATAR
 from nevow.loaders import stan
+from nevow.compression import CompressingResourceWrapper
 
 from axiom import userbase
 from axiom.userbase import LoginSystem
 from axiom.store import Store
 from axiom.dependency import installOn
-from axiom.plugins.mantissacmd import Mantissa
+from axiom.plugins.mantissacmd import Mantissa, MantissaSiteCommand
+from axiom.test.util import CommandStub
 
 from xmantissa.ixmantissa import (
     IProtocolFactoryFactory, ISiteURLGenerator, ISiteRootPlugin, IWebViewer,
@@ -576,15 +579,46 @@ class UnguardedWrapperTests(TestCase):
         self.site = ISiteURLGenerator(self.store)
 
 
+    def _makeWrapper(self, compressed=False):
+        """
+        Create an L{UnguardedWrapper} instance.
+        """
+        return UnguardedWrapper(self.store, None, compressed)
+
+
+    def _makeResource(self, uri, child, wrapper):
+        """
+        Create a L{FakeRequest} for C{uri} and retrieve the resource at
+        C{child} on C{wrapper}.
+        """
+        request = FakeRequest(uri=uri, currentSegments=[])
+        return getattr(wrapper, 'child_' + child)(request)
+
+
     def test_live(self):
         """
         L{UnguardedWrapper} has a I{live} child which returns a L{LivePage}
         instance.
         """
-        request = FakeRequest(uri='/live/foo', currentSegments=[])
-        wrapper = UnguardedWrapper(self.store, None)
-        resource = wrapper.child_live(request)
+        resource = self._makeResource(
+            uri='/live/foo',
+            child='live',
+            wrapper=self._makeWrapper())
         self.assertTrue(isinstance(resource, LivePage))
+
+
+    def test_compressedLive(self):
+        """
+        L{UnguardedWrapper} has a I{live} child which returns a L{LivePage}
+        instance wrapped in a L{CompressingResourceWrapper} instance when
+        compressed dynamic content is requested.
+        """
+        resource = self._makeResource(
+            uri='/live/foo',
+            child='live',
+            wrapper=self._makeWrapper(True))
+        self.assertTrue(type(resource), CompressingResourceWrapper)
+        self.assertTrue(isinstance(resource.underlying, LivePage))
 
 
     def test_jsmodules(self):
@@ -592,27 +626,70 @@ class UnguardedWrapperTests(TestCase):
         L{UnguardedWrapper} has a I{__jsmodules__} child which returns a
         L{LivePage} instance.
         """
-        request = FakeRequest(uri='/__jsmodule__/foo', currentSegments=[])
-        wrapper = UnguardedWrapper(None, None)
-        resource = wrapper.child___jsmodule__(request)
+        resource = self._makeResource(
+            uri='/__jsmodule__/foo',
+            child='__jsmodule__',
+            wrapper=self._makeWrapper())
 
         # This is weak.  Identity of this object doesn't matter.  The caching
         # and jsmodule serving features are what matter. -exarkun
         self.assertIdentical(resource, theHashModuleProvider)
 
 
+    def test_compressedJSModules(self):
+        """
+        L{UnguardedWrapper} has a I{__jsmodules__} child which returns a
+        L{LivePage} instance wrapped in a L{CompressingResourceWrapper}
+        when compressed resources are enabled.
+        """
+        resource = self._makeResource(
+            uri='/__jsmodule__/foo',
+            child='__jsmodule__',
+            wrapper=self._makeWrapper(True))
+
+        self.assertIdentical(type(resource), CompressingResourceWrapper)
+
+
     def test_static(self):
         """
         L{UnguardedWrapper} has a I{static} child which returns a
-        L{StaticContent} instance.
+        L{StaticContent} instance and never compresses static resources.
         """
-        request = FakeRequest(uri='/static/extra', currentSegments=[])
-        wrapper = UnguardedWrapper(self.store, None)
-        resource = wrapper.child_static(request)
-        self.assertTrue(isinstance(resource, StaticContent))
-        self.assertEqual(
-            resource.staticPaths,
-            {baseOffering.name: baseOffering.staticContentPath})
+        def _static(wrapper):
+            resource = self._makeResource(
+                uri='/static/extra',
+                child='static',
+                wrapper=wrapper)
+
+            self.assertTrue(isinstance(resource, StaticContent))
+            self.assertEqual(
+                resource.staticPaths,
+                {baseOffering.name: baseOffering.staticContentPath})
+
+        _static(self._makeWrapper())
+        _static(self._makeWrapper(True))
+
+
+    def _sessionlessPlugin(self, token, wrapper):
+        """
+        Perform resource location on an L{ISessionlessSiteRootPlugin}
+        powerup.
+        """
+        req = FakeRequest()
+        segments = ('foo', 'bar')
+        calledWith = []
+
+        class SiteRootPlugin(object):
+            def sessionlessProduceResource(self, request, segments):
+                calledWith.append((request, segments))
+                return token
+
+        self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
+
+        resource, resultSegments = wrapper.locateChild(req, segments)
+        self.assertEqual(calledWith, [(req, segments)])
+
+        return resource
 
 
     def test_sessionlessPlugin(self):
@@ -621,19 +698,45 @@ class UnguardedWrapperTests(TestCase):
         powerups on its store, and invokes their C{sessionlessProduceResource}
         methods to discover resources.
         """
-        wrapper = UnguardedWrapper(self.store, None)
+        token = object()
+        resource = self._sessionlessPlugin(token, self._makeWrapper())
+        self.assertIdentical(resource, token)
+
+
+    def test_compressedSessionlessPlugin(self):
+        """
+        L{UnguardedWrapper.locateChild} looks up L{ISessionlessSiteRootPlugin}
+        powerups on its store, and invokes their C{sessionlessProduceResource}
+        methods to discover resources wrapped with
+        L{CompressingResourceWrapper} when resource compression is enabled.
+        """
+        token = object()
+        resource = self._sessionlessPlugin(token, self._makeWrapper(True))
+        self.assertIdentical(type(resource), CompressingResourceWrapper)
+        self.assertIdentical(resource.underlying, token)
+
+
+    def _sessionlessLegacyPlugin(self, token, wrapper):
+        """
+        Perform resource location on an old-style L{ISessionlessSiteRootPlugin}
+        plugin that only implements a C{resourceFactory} method.
+        """
         req = FakeRequest()
         segments = ('foo', 'bar')
+
         calledWith = []
-        result = object()
+
         class SiteRootPlugin(object):
-            def sessionlessProduceResource(self, request, segments):
-                calledWith.append((request, segments))
-                return result
+            def resourceFactory(self, segments):
+                calledWith.append(segments)
+                return token
+
         self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
 
-        resource = wrapper.locateChild(req, segments)
-        self.assertEqual(calledWith, [(req, ("foo", "bar"))])
+        resource, resultSegments = wrapper.locateChild(req, segments)
+
+        self.assertEqual(calledWith, [segments])
+        return resource
 
 
     def test_sessionlessLegacyPlugin(self):
@@ -642,19 +745,49 @@ class UnguardedWrapperTests(TestCase):
         L{ISessionlessSiteRootPlugin} providers that only implement a
         C{resourceFactory} method.
         """
-        wrapper = UnguardedWrapper(self.store, None)
+        token = object()
+        resource = self._sessionlessLegacyPlugin(token, self._makeWrapper())
+        self.assertIdentical(resource, token)
+
+
+    def test_compressedSessionlessLegacyPlugin(self):
+        """
+        L{UnguardedWrapper.locateChild} honors old-style
+        L{ISessionlessSiteRootPlugin} providers that only implement a
+        C{resourceFactory} method, wrapping them with
+        L{CompressingResourceWrapper} when compression is enabled.
+        """
+        token = object()
+        resource = self._sessionlessLegacyPlugin(token, self._makeWrapper(True))
+        self.assertIdentical(type(resource), CompressingResourceWrapper)
+        self.assertIdentical(resource.underlying, token)
+
+
+    def _confusedNewPlugin(self, token, wrapper):
+        """
+        Perform resource location on a plugin that implements both
+        C{sessionlessProduceResource} and C{resourceFactory}.
+        """
         req = FakeRequest()
         segments = ('foo', 'bar')
+
+        test = self
         calledWith = []
-        result = object()
+
         class SiteRootPlugin(object):
             def resourceFactory(self, segments):
-                calledWith.append(segments)
-                return result
+                test.fail("Don't call this.")
+            def sessionlessProduceResource(self, request, segments):
+                calledWith.append((request, segments))
+                return token, segments[1:]
+
         self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
 
-        resource = wrapper.locateChild(req, segments)
-        self.assertEqual(calledWith, [segments])
+        resource, resultSegments = wrapper.locateChild(req, segments)
+
+        self.assertEqual(calledWith, [(req, segments)])
+        self.assertEqual(resultSegments, ('bar',))
+        return resource
 
 
     def test_confusedNewPlugin(self):
@@ -664,24 +797,20 @@ class UnguardedWrapperTests(TestCase):
         prefer the new C{sessionlessProduceResource} method and return that
         resource.
         """
-        wrapper = UnguardedWrapper(self.store, None)
-        req = FakeRequest()
-        test = self
-        segments = ('foo', 'bar')
-        result = object()
-        calledWith = []
-        class SiteRootPlugin(object):
-            def resourceFactory(self, segments):
-                test.fail("Don't call this.")
-            def sessionlessProduceResource(self, request, segments):
-                calledWith.append((request, segments))
-                return result, segments[1:]
-        self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
+        token = object()
+        resource = self._confusedNewPlugin(token, self._makeWrapper())
+        self.assertIdentical(resource, token)
 
-        resource, resultSegments = wrapper.locateChild(req, segments)
-        self.assertEqual(calledWith, [(req, segments)])
-        self.assertIdentical(resource, result)
-        self.assertEqual(resultSegments, ('bar',))
+
+    def test_compressedConfusedNewPlugin(self):
+        """
+        Like L{test_confusedNewPlugin}, except that resources are wrapped with
+        L{CompressingResourceWrapper}.
+        """
+        token = object()
+        resource = self._confusedNewPlugin(token, self._makeWrapper(True))
+        self.assertIdentical(type(resource), CompressingResourceWrapper)
+        self.assertIdentical(resource.underlying, token)
 
 
 
@@ -1359,3 +1488,46 @@ class VirtualHostWrapperTests(TestCase):
         self.assertEqual(
             wrapper.subdomain("bob.example.com:8080"),
             ("bob", "example.com"))
+
+
+
+class MantissaSiteCommandTests(TestCase):
+    def setUp(self):
+        """
+        Create a L{SiteConfiguration} item.
+        """
+        self.store = Store()
+        self.site = SiteConfiguration(store=self.store)
+
+
+    def _makeCommand(self):
+        """
+        Create an AxiomaticSubCommand instance for the C{mantissa site}
+        command.
+        """
+        cmd = MantissaSiteCommand()
+        cmd.parent = CommandStub(self.store, 'mantissa site')
+        return cmd
+
+
+    def test_invalidCompressionType(self):
+        """
+        Passing an unknown resource compression type raises L{UsageError}.
+        """
+        self.assertRaises(
+            usage.UsageError,
+            self._makeCommand().parseOptions,
+            ['-c', 'NOTAREALVALUE'])
+
+
+    def test_setCompression(self):
+        """
+        Passing a valid resource compression type sets
+        L{SiteConfiguration.resourceCompression} to that value.
+        """
+        def _parse(value):
+            self._makeCommand().parseOptions(['-c', value])
+            self.assertEqual(self.site.resourceCompression, unicode(value))
+
+        for value, desc in SiteConfiguration._resourceCompressionEnum:
+            _parse(value)

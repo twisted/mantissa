@@ -19,13 +19,15 @@ from nevow.appserver import NevowSite, NevowRequest
 from nevow.rend import NotFound
 from nevow.static import File
 from nevow.athena import LivePage
+from nevow.compression import CompressingResourceWrapper
 
 from epsilon.structlike import record
 
-from axiom.item import Item
-from axiom.attributes import path, text
+from axiom.item import Item, declareLegacyItem
+from axiom.attributes import path, text, reference
 from axiom.dependency import dependsOn
 from axiom.userbase import LoginSystem
+from axiom.upgrade import registerAttributeCopyingUpgrader
 
 from xmantissa.ixmantissa import ISiteURLGenerator, IProtocolFactoryFactory, IOfferingTechnician, ISessionlessSiteRootPlugin
 from xmantissa.port import TCPPort, SSLPort
@@ -58,7 +60,10 @@ class SiteConfiguration(Item):
     powerupInterfaces = (ISiteURLGenerator, IProtocolFactoryFactory)
     implements(*powerupInterfaces)
 
+    schemaVersion = 2
+
     loginSystem = dependsOn(LoginSystem)
+
 
     # I don't really want this to have a default value at all, but an Item
     # which can't be instantiated with only a store parameter can't be used as
@@ -71,7 +76,29 @@ class SiteConfiguration(Item):
         allowing a host to have multiple recognized hostnames.  See #2501.
         """, allowNone=False, default=u"localhost")
 
+
     httpLog = path(default=None)
+
+
+    resourceCompression = text(doc="""
+    An enumeration value indicating which resource types should be compressed.
+    Available values are::
+        - all:
+          Compress both dynamic and static (anything served from /static)
+          resources.
+
+        - dynamic:
+          Compress only dynamic (HTML, JavaScript mdoules, etc.) resources.
+
+        - none:
+          Don't compress any resources.
+    """, allowNone=False, default=u'all')
+
+
+    _resourceCompressionEnum = [
+        (u'all', u'All resources'),
+        (u'dynamic', u'Only dynamic resources'),
+        (u'none', u'No resource compression')]
 
 
     def _root(self, scheme, hostname, portObj, standardPort):
@@ -170,8 +197,17 @@ class SiteConfiguration(Item):
             self.store,
             Portal(self.loginSystem, checkers),
             domains=[self.hostname])
-        unguardedRoot = UnguardedWrapper(self.store, guardedRoot)
+
+        compressDynamic = self.resourceCompression == u'dynamic'
+        unguardedRoot = UnguardedWrapper(
+            siteStore=self.store,
+            guardedRoot=guardedRoot,
+            compressDynamic=compressDynamic)
+
         securingRoot = SecuringWrapper(self, unguardedRoot)
+        if self.resourceCompression == u'all':
+            securingRoot = CompressingResourceWrapper(securingRoot)
+
         logPath = None
         if self.httpLog is not None:
             logPath = self.httpLog.path
@@ -179,17 +215,33 @@ class SiteConfiguration(Item):
 
 
 
+declareLegacyItem(
+    SiteConfiguration.typeName, 1,
+    dict(
+        loginSystem=reference(),
+        hostname=text(allowNone=False, default=u"localhost"),
+        httpLog=path(default=None)))
 
-class UnguardedWrapper(record('siteStore guardedRoot')):
+registerAttributeCopyingUpgrader(SiteConfiguration, 1, 2)
+
+
+
+class UnguardedWrapper(record('siteStore guardedRoot compressDynamic')):
     """
     Resource which wraps the top of the Mantissa resource hierarchy and adds
     resources which must be available to all clients all the time.
 
     @ivar siteStore: The site L{Store} for the resource hierarchy being
         wrapped.
+
     @ivar guardedRoot: The root resource of the hierarchy being wrapped.
+
+    @type compressDynamic: C{bool}
+    @ivar compressDynamic: Flag indicating whether to compress dynamic content
+        or not.
     """
     implements(IResource)
+
 
     def child_live(self, ctx):
         """
@@ -203,7 +255,10 @@ class UnguardedWrapper(record('siteStore guardedRoot')):
 
         @return: an L{athena.LivePage} instance.
         """
-        return LivePage(None, None)
+        res = LivePage(None, None)
+        if self.compressDynamic:
+            res = CompressingResourceWrapper(res)
+        return res
 
 
     def child___jsmodule__(self, ignored):
@@ -211,7 +266,10 @@ class UnguardedWrapper(record('siteStore guardedRoot')):
         __jsmodule__ child which provides support for Athena applications to
         use a centralized URL to deploy JavaScript code.
         """
-        return theHashModuleProvider
+        res = theHashModuleProvider
+        if self.compressDynamic:
+            res = CompressingResourceWrapper(res)
+        return res
 
 
     def child_Mantissa(self, ctx):
@@ -262,23 +320,36 @@ class UnguardedWrapper(record('siteStore guardedRoot')):
         Return a statically defined child or a child defined by a sessionless
         site root plugin or an avatar from guard.
         """
+        res = None
+        compress = self.compressDynamic
+
         shortcut = getattr(self, 'child_' + segments[0], None)
         if shortcut:
             res = shortcut(context)
             if res is not None:
-                return res, segments[1:]
+                segments = segments[1:]
+        else:
+            req = IRequest(context)
+            for plg in self.siteStore.powerupsFor(ISessionlessSiteRootPlugin):
+                spr = getattr(plg, 'sessionlessProduceResource', None)
+                if spr is not None:
+                    childAndSegments = spr(req, segments)
+                else:
+                    childAndSegments = plg.resourceFactory(segments)
 
-        req = IRequest(context)
-        for plg in self.siteStore.powerupsFor(ISessionlessSiteRootPlugin):
-            spr = getattr(plg, 'sessionlessProduceResource', None)
-            if spr is not None:
-                childAndSegments = spr(req, segments)
-            else:
-                childAndSegments = plg.resourceFactory(segments)
-            if childAndSegments is not None:
-                return childAndSegments
+                if childAndSegments is not None:
+                    try:
+                        res, segments = childAndSegments
+                    except TypeError:
+                        res, segments = childAndSegments, segments
 
-        return self.guardedRoot.locateChild(context, segments)
+        if res is None:
+            res, segments = self.guardedRoot.locateChild(context, segments)
+
+        if res is not None and compress:
+            res = CompressingResourceWrapper(res)
+
+        return res, segments
 
 
 
