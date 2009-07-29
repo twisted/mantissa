@@ -188,8 +188,21 @@ class PersistentSessionWrapper(guard.SessionWrapper):
     def cookieDomainForRequest(self, request):
         """
         Pick a domain to use when setting cookies.
+
+        @type request: L{nevow.inevow.IRequest}
+        @param request: Request to determine cookie domain for
+
+        @rtype: C{str} or C{None}
+        @return: Domain name to use when setting cookies, or C{None} to
+            indicate that only the domain in the request should be used
         """
-        host = request.getHeader('host').split(':')[0]
+        host = request.getHeader('host')
+        if host is None:
+            # This is a malformed request that we cannot possibly handle
+            # safely, fall back to the default behaviour.
+            return None
+
+        host = host.split(':')[0]
         for domain in self._domains:
             suffix = "." + domain
             if host == domain:

@@ -67,6 +67,14 @@ class TestPersistentSessionWrapper(TestCase):
         self.assertEqual(resource.cookieDomainForRequest(request), cookie)
 
 
+    def test_missingHostHeaderCookie(self):
+        """
+        L{PersistentSessionWrapper.cookieDomainForRequest} returns C{None} if
+        no host header is present.
+        """
+        self._cookieTest(None, None)
+
+
     def test_noDomainsNoSubdomainsCookie(self):
         """
         L{PersistentSessionWrapper.cookieDomainForRequest} returns C{None} if
