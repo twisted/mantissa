@@ -432,24 +432,13 @@ class REPL(athena.LiveFragment):
 
 registerAdapter(REPL, DeveloperApplication, INavigableFragment)
 
-
-
 class Traceback(Item):
     typeName = 'mantissa_traceback'
     schemaVersion = 1
 
-    when = timestamp(doc="""
-    Time at which the exception occured.
-    """, indexed=True)
-
-    traceback = bytes(doc="""
-    Contents of the traceback.
-    """)
-
-    collector = reference(doc="""
-    Parent L{TracebackCollector} item.
-    """)
-
+    when = timestamp()
+    traceback = bytes()
+    collector = reference()
 
     def __init__(self, store, collector, failure):
         when = extime.Time()
@@ -459,8 +448,6 @@ class Traceback(Item):
             traceback=traceback,
             when=when,
             collector=collector)
-
-
 
 class TracebackCollector(Item, Service):
     implements(IService)
