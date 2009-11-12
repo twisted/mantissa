@@ -11,7 +11,7 @@ from twisted.cred.portal import IRealm
 
 from epsilon.structlike import record
 
-from axiom.userbase import getDomainNames
+from axiom.userbase import getDomainNames, getUsernames
 
 from nevow import athena
 from nevow.rend import NotFound
@@ -219,11 +219,9 @@ class VirtualHostWrapper(record('siteStore webViewer wrapped')):
             C{None} if the domain is not a subdomain of any known domain.
         """
         hostname = hostname.split(":")[0]
-        for domain in getDomainNames(self.siteStore):
-            if hostname.endswith("." + domain):
-                username = hostname[:-len(domain) - 1]
-                if username != "www":
-                    return username, domain
+        for username, domain in getUsernames(self.siteStore):
+            if hostname.endswith(username + "." + domain):
+                return username, domain
         return None
 
 
@@ -241,6 +239,6 @@ class VirtualHostWrapper(record('siteStore webViewer wrapped')):
             username, domain = info
             index = UserIndexPage(IRealm(self.siteStore),
                                   self.webViewer)
-            resource = index.locateChild(None, [username])[0]
+            resource = index.locateChild(context, [username])[0]
             return resource, segments
         return self.wrapped.locateChild(context, segments)

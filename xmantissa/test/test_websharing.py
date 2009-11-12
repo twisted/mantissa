@@ -7,7 +7,7 @@ from twisted.python.components import registerAdapter
 
 from twisted.trial.unittest import TestCase
 
-from nevow import rend, url
+from nevow import rend, url, context, testutil, inevow
 from nevow.athena import LiveElement
 
 from epsilon.structlike import record
@@ -265,34 +265,39 @@ class UserIdentificationTestCase(_UserIdentificationMixin, TestCase):
     """
     Tests for L{xmantissa.websharing._storeFromUsername}
     """
-    def test_sameLocalpartAndUsername(self):
+    def test_sameLocalpart(self):
         """
         Test that L{xmantissa.websharing._storeFromUsername} doesn't get
-        confused when the username it is passed is the same as the localpart
-        of that user's email address
+        confused when it is passed a username that is the same as more than one
+        user's localpart.
         """
         self.signup.createUser(
             u'', u'username', u'localhost', u'', u'username@internet')
+        self.signup.createUser(
+            u'', u'username', u'sub.localhost', u'', u'username2@internet')
         self.assertIdentical(
-            websharing._storeFromUsername(self.siteStore, u'username'),
-            self.loginSystem.accountByAddress(
-                u'username', u'localhost').avatars.open())
+                websharing._storeFromUsername(
+                    self.siteStore, u'username', u'localhost'),
+                self.loginSystem.accountByAddress(
+                    u'username', u'localhost').avatars.open())
 
 
-    def test_usernameMatchesOtherLocalpart(self):
+    def test_sameDomain(self):
         """
         Test that L{xmantissa.websharing._storeFromUsername} doesn't get
-        confused when the username it is passed matches the localpart of
-        another user's email address
+        confused when it is passed a domain that is the same as more than one
+        user's domain.
         """
         self.signup.createUser(
-            u'', u'username', u'localhost', u'', u'notusername@internet')
+            u'', u'userB', u'localhost', u'', u'userA@internet')
         self.signup.createUser(
-            u'', u'notusername', u'localhost', u'', u'username@internet')
+            u'', u'userA', u'localhost', u'', u'userB@internet')
         self.assertIdentical(
-            websharing._storeFromUsername(self.siteStore, u'username'),
-            self.loginSystem.accountByAddress(
-                u'username', u'localhost').avatars.open())
+                websharing._storeFromUsername(
+                    self.siteStore, u'userA', u'localhost'),
+                self.loginSystem.accountByAddress(
+                    u'userA', u'localhost').avatars.open())
+
 
 
 class IShareable(Interface):
@@ -417,7 +422,7 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         self.signup.createUser(
             u'', self.username, self.domain, u'', u'username@internet')
         self.userStore = websharing._storeFromUsername(
-            self.siteStore, self.username)
+            self.siteStore, self.username, self.domain)
         self.shareable = Shareable(store=self.userStore,
                                    magicValue=self.magicValue)
         self.share = sharing.shareItem(self.shareable, shareID=self.shareID)
@@ -437,23 +442,38 @@ class UserIndexPageTestCase(_UserIdentificationMixin, TestCase):
         L{websharing.UserIndexPage.locateChild} should return the named user's
         L{websharing.SharingIndex} (and any remaining segments), or
         L{rend.NotFound}.
+
+        The correct L{websharing.SharingIndex} should be returned, whether 
+        or not 'www' is part of the host name in the request.
         """
-        # Test against at least one other valid user.
+        # Also test against a user whose domain includes a subdomain.
         self.signup.createUser(
-            u'Andr\xe9', u'andr\xe9', u'localhost', u'', u'andr\xe9@internet')
-        userStore2 = websharing._storeFromUsername(self.siteStore, u'andr\xe9')
-        index = websharing.UserIndexPage(self.loginSystem, FakeShellFactory(None))
+            u'Andr\xe9', u'andr\xe9', u'subdomain.localhost', u'',
+            u'andr\xe9@internet')
+        userStore2 = websharing._storeFromUsername(
+                self.siteStore, u'andr\xe9', u'subdomain.localhost')
+        index = websharing.UserIndexPage(self.loginSystem,
+                FakeShellFactory(None))
 
-        for _username, _store in [(self.username, self.userStore),
-                                  (u'andr\xe9', userStore2)]:
-            (found, remaining) = index.locateChild(
-                None, [_username.encode('utf-8'), 'x', 'y', 'z'])
+        for _username, _domain, _store in [
+                    (self.username, self.domain, self.userStore),
+                    (u'andr\xe9', u'subdomain.localhost', userStore2)]:
+            for _requestHostname in (_domain, 'www.' + _domain):
+                ctx = context.WebContext()
+                req = testutil.FakeRequest(headers={'host': _requestHostname})
+                ctx.remember(req, inevow.IRequest)
 
-            self.assertTrue(isinstance(found, websharing.SharingIndex))
-            self.assertIdentical(found.userStore, _store)
-            self.assertEquals(remaining, ['x', 'y', 'z'])
+                (found, remaining) = index.locateChild(
+                    ctx, [_username.encode('utf-8'), 'x', 'y', 'z'])
 
-        self.assertIdentical(index.locateChild(None, ['bogus', 'username']),
+                self.assertTrue(isinstance(found, websharing.SharingIndex))
+                self.assertIdentical(found.userStore, _store)
+                self.assertEquals(remaining, ['x', 'y', 'z'])
+
+        ctx = context.WebContext()
+        req = testutil.FakeRequest(headers={'host': u'localhost'})
+        ctx.remember(req, inevow.IRequest)
+        self.assertIdentical(index.locateChild(ctx, ['bogus', 'username']),
                              rend.NotFound)
 
 

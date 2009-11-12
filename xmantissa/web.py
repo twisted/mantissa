@@ -23,7 +23,7 @@ from nevow.athena import LivePage
 from epsilon.structlike import record
 
 from axiom.item import Item
-from axiom.attributes import path, text
+from axiom.attributes import path, text, AND
 from axiom.dependency import dependsOn
 from axiom.userbase import LoginSystem
 
@@ -148,16 +148,10 @@ class SiteConfiguration(Item):
             this website is available.
         """
         host = request.getHeader('host') or self.hostname
-        if ':' in host:
-            host = host.split(':', 1)[0]
-        if (host == self.hostname or
-            host.startswith('www.') and host[len('www.'):] == self.hostname):
-            return URL(scheme='', netloc='', pathsegs=[''])
+        if request.isSecure():
+            return self.encryptedRoot(host)
         else:
-            if request.isSecure():
-                return self.encryptedRoot(self.hostname)
-            else:
-                return self.cleartextRoot(self.hostname)
+            return self.cleartextRoot(host)
 
 
     def getFactory(self):
@@ -169,7 +163,7 @@ class SiteConfiguration(Item):
         guardedRoot = PersistentSessionWrapper(
             self.store,
             Portal(self.loginSystem, checkers),
-            domains=[self.hostname])
+            domains=[self.hostname], enableSubdomains=True)
         unguardedRoot = UnguardedWrapper(self.store, guardedRoot)
         securingRoot = SecuringWrapper(self, unguardedRoot)
         logPath = None
@@ -365,7 +359,7 @@ class _SecureWrapper(record('urlGenerator wrappedResource')):
         """
         if getattr(self.wrappedResource, 'needsSecure', False):
             request = IRequest(context)
-            url = self.urlGenerator.encryptedRoot()
+            url = self.urlGenerator.encryptedRoot(request.getRequestHostname())
             if url is not None:
                 for seg in request.prepath:
                     url = url.child(seg)

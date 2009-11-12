@@ -204,7 +204,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
         host = host.split(':')[0]
         for domain in self._domains:
-            suffix = "." + domain
+            suffix = str("." + domain)
             if host == domain:
                 # The request is for a domain which is directly recognized.
                 if self._enableSubdomains:
@@ -230,7 +230,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
             # cookie valid for that domain and all its subdomains.  This
             # probably isn't extremely useful.  Perhaps it shouldn't work this
             # way.
-            return "." + host
+            return str("." + host)
 
         # Subdomains are disabled and the domain from the request was not
         # recognized.  Return None to get the default behavior.

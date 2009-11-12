@@ -36,7 +36,7 @@ from xmantissa.ixmantissa import (
 from xmantissa.port import SSLPort
 from xmantissa.offering import Offering
 from xmantissa.product import Product
-from xmantissa.web import SiteConfiguration
+from xmantissa.web import SiteConfiguration, StaticContent
 from xmantissa.webapp import PrivateApplication
 from xmantissa.sharing import getEveryoneRole
 from xmantissa.websharing import addDefaultShareID
@@ -236,6 +236,29 @@ class IntegrationTestsMixin:
         del self.origFunctions
 
 
+    def _installFakeOffering(self, offeringName, childName, childContent):   
+        offeringPath = FilePath(self.mktemp())
+        offeringPath.makedirs()
+        offeringPath.child(childName).setContent(childContent)
+
+        self._fakeOfferings(self.store, {
+                offeringName: Offering(
+                    offeringName, None, None, None, None, None, None,
+                    offeringPath, None)})
+
+
+    def _fakeOfferings(self, store, offerings):
+        """
+        Override the adaption hook on the given L{Store} instance so that
+        adapting it to L{IOfferingTechnician} returns an object which
+        reports the given offerings as installed.
+        """
+        class FakeOfferingTechnician(object):
+            def getInstalledOfferings(self):
+                return offerings
+        store.inMemoryPowerUp(FakeOfferingTechnician(), IOfferingTechnician)
+
+
 
 class AnonymousWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
     """
@@ -286,18 +309,6 @@ class AnonymousWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         return self._verifyResource('/Mantissa/mantissa.css', rendered)
 
 
-    def _fakeOfferings(self, store, offerings):
-        """
-        Override the adaption hook on the given L{Store} instance so that
-        adapting it to L{IOfferingTechnician} returns an object which
-        reports the given offerings as installed.
-        """
-        class FakeOfferingTechnician(object):
-            def getInstalledOfferings(self):
-                return offerings
-        store.inMemoryPowerUp(FakeOfferingTechnician(), IOfferingTechnician)
-
-
     def test_offeringWithStaticContent(self):
         """
         L{StaticContent} has a L{File} child with the name of one of the
@@ -305,16 +316,9 @@ class AnonymousWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         """
         # Make a fake offering to get its static content rendered.
         offeringName = u'name of the offering'
-        offeringPath = FilePath(self.mktemp())
-        offeringPath.makedirs()
         childName = 'content'
         childContent = 'the content'
-        offeringPath.child(childName).setContent(childContent)
-
-        self._fakeOfferings(self.store, {
-                offeringName: Offering(
-                    offeringName, None, None, None, None, None, None,
-                    offeringPath, None)})
+        self._installFakeOffering(offeringName, childName, childContent)
 
         def rendered(request):
             self.assertEqual(request.accumulator, childContent)
@@ -723,3 +727,32 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
                 self.sharedContent.encode('ascii'), request.accumulator)
         login.addCallback(rendered)
         return login
+
+
+    def test_staticContentAccessibleFromVirtualHost(self):
+        """
+        Static content is retrievable behind a username virtual host.
+
+        While the root resource at a username virtual host is a
+        L{SharingIndex} over the user's store, C{/static} is a special
+        namespace reserved for serving static content.
+
+        Currently, the special namespace for static content is preserved by
+        the implmentation detail that the site's root resource is wrapped
+        in an L{UnguardedWrapper} that statically provides the URL
+        hierarchies under C{/Mantissa}, C{/__jsmodule__} and C{/static}.
+        """
+        offeringName = u'name of the offering'
+        childName = 'content'
+        childContent = 'the content'
+        self._installFakeOffering(offeringName, childName, childContent)
+
+        def rendered(request):
+            self.assertEqual(request.accumulator, childContent)
+
+        page = getWithSession(
+            self.factory, 2, '/static/%s/%s' % (offeringName.encode('ascii'),
+                                                childName),
+            {'host': self.virtualHost.encode('ascii')})
+        page.addCallback(rendered)
+        return page

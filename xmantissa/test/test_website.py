@@ -151,9 +151,13 @@ class SiteConfigurationTests(TestCase):
 
     def _hostOverrideTest(self, portType, scheme, portNumber, method):
         portType(store=self.store, portNumber=portNumber, factory=self.site)
+        netloc = 'example.net'
+        if (portType == TCPPort and portNumber != 80 or
+            portType == SSLPort and portNumber != 443):
+            netloc = netloc + ':' + str(portNumber)
         self.assertEquals(
             getattr(self.site, method)(u'example.net'),
-            URL(scheme, 'example.net'))
+            URL(scheme, netloc))
 
 
     def test_cleartextRootHostOverride(self):
@@ -170,6 +174,22 @@ class SiteConfigurationTests(TestCase):
         configured hostname in the result.
         """
         self._hostOverrideTest(SSLPort, 'https', 443, 'encryptedRoot')
+
+
+    def test_cleartextRootHostOverrideNonstandardPort(self):
+        """
+        A hostname passed to L{SiteConfiguration.cleartextRoot} overrides the
+        configured hostname in the result.
+        """
+        self._hostOverrideTest(TCPPort, 'http', 8080, 'cleartextRoot')
+
+
+    def test_encryptedRootHostOverrideNonstandardPort(self):
+        """
+        A hostname passed to L{SiteConfiguration.encryptedRoot} overrides the
+        configured hostname in the result.
+        """
+        self._hostOverrideTest(SSLPort, 'https', 8443, 'encryptedRoot')
 
 
     def _portZero(self, portType, scheme, method):
@@ -231,102 +251,26 @@ class SiteConfigurationTests(TestCase):
 
     def test_rootURL(self):
         """
-        L{SiteConfiguration.rootURL} returns C{/} for a request made onto the
-        hostname with which the L{SiteConfiguration} is configured.
+        L{SiteConfiguration.rootURL} returns an absolute URL based on the
+        incoming request.
         """
-        request = FakeRequest(headers={
-            'host': self.domain.encode('ascii')})
-        self.assertEqual(self.site.rootURL(request), URL('', ''))
+        host = self.domain.encode('ascii')
+        request = FakeRequest(headers={'host': host})
+        TCPPort(store=self.store, portNumber=80, factory=self.site)
+        self.assertEqual(self.site.rootURL(request),
+                         URL(scheme='http', netloc=host))
 
 
     def test_rootURLWithoutHost(self):
         """
-        L{SiteConfiguration.rootURL} returns C{/} for a request made without a
-        I{Host} header.
+        L{SiteConfiguration.rootURL} returns an absolute URL based on the
+        configured hostname for a request made without a I{Host} header.
         """
         request = FakeRequest()
-        self.assertEqual(self.site.rootURL(request), URL('', ''))
-
-
-    def test_rootURLWWWSubdomain(self):
-        """
-        L{SiteConfiguration.rootURL} returns C{/} for a request made onto the
-        I{www} subdomain of the hostname of the L{SiteConfiguration}.
-        """
-        request = FakeRequest(headers={
-            'host': 'www.' + self.domain.encode('ascii')})
-        self.assertEqual(self.site.rootURL(request), URL('', ''))
-
-
-    def _differentHostnameTest(self, portType, portNumber, isSecure, scheme):
-        request = FakeRequest(isSecure=isSecure, headers={
-            'host': 'alice.' + self.domain.encode('ascii')})
-        portType(store=self.store, factory=self.site, portNumber=portNumber)
-        self.assertEqual(self.site.rootURL(request), URL(scheme, self.domain))
-
-
-    def test_cleartextRootURLDifferentHostname(self):
-        """
-        L{SiteConfiguration.rootURL} returns an absolute URL with the HTTP
-        scheme and its hostname as the netloc and with a path of C{/} for a
-        request made over HTTP onto a hostname different from the hostname of the
-        L{SiteConfiguration}.
-
-        """
-        self._differentHostnameTest(TCPPort, 80, False, 'http')
-
-
-    def test_encryptedRootURLDifferentHostname(self):
-        """
-        L{SiteConfiguration.rootURL} returns an absolute URL with its hostname
-        as the netloc and with a path of C{/} for a request made over HTTPS onto a
-        hostname different from the hostname of the L{SiteConfiguration}.
-        """
-        self._differentHostnameTest(SSLPort, 443, True, 'https')
-
-
-    def _differentHostnameNonstandardPort(self, portType, isSecure, scheme):
-        portNumber = 12345
-        request = FakeRequest(isSecure=isSecure, headers={
-            'host': 'alice.' + self.domain.encode('ascii')})
-        portType(store=self.store, factory=self.site, portNumber=portNumber)
-        self.assertEqual(
-            self.site.rootURL(request),
-            URL(scheme, '%s:%s' % (self.domain.encode('ascii'), portNumber)))
-
-
-    def test_cleartextRootURLDifferentHostnameNonstandardPort(self):
-        """
-        L{SiteConfiguration.rootURL} returns an absolute URL with an HTTP
-        scheme and an explicit port number in the netloc for a request made
-        over HTTP onto a hostname different from the hostname of the
-        L{SiteConfiguration} if the L{SiteConfiguration} has an HTTP server on
-        a non-standard port.
-        """
-        self._differentHostnameNonstandardPort(TCPPort, False, 'http')
-
-
-    def test_encryptedRootURLDifferentHostnameNonstandardPort(self):
-        """
-        L{SiteConfiguration.rootURL} returns an absolute URL with an HTTPS
-        scheme and an explicit port number in the netloc for a request made
-        over HTTPS onto a hostname different from the hostname of the
-        L{SiteConfiguration} if the L{SiteConfiguration} has an HTTPS server on
-        a non-standard port.
-        """
-        self._differentHostnameNonstandardPort(SSLPort, True, 'https')
-
-
-    def test_rootURLNonstandardRequestPort(self):
-        """
-        L{SiteConfiguration.rootURL} returns C{/} for a request made onto a
-        non-standard port which is one on which the L{SiteConfiguration} is
-        configured to listen.
-        """
-        request = FakeRequest(headers={
-            'host': '%s:%s' % (self.domain.encode('ascii'), 54321)})
-        TCPPort(store=self.store, factory=self.site, portNumber=54321)
-        self.assertEqual(self.site.rootURL(request), URL('', ''))
+        TCPPort(store=self.store, portNumber=80, factory=self.site)
+        self.assertEqual(self.site.rootURL(request),
+                         URL(scheme='http',
+                             netloc=self.site.hostname.encode('ascii')))
 
 
 
@@ -518,7 +462,7 @@ class LoginPageTests(TestCase):
         expectedLocation = URL.fromString('/')
         for segment in (LOGIN_AVATAR,) + segments:
             expectedLocation = expectedLocation.child(segment)
-        self.assertEqual(loginAction, expectedLocation)
+        self.assertEqual(loginAction._qpathlist, expectedLocation._qpathlist)
 
 
     def test_queryArguments(self):
@@ -534,7 +478,7 @@ class LoginPageTests(TestCase):
         expectedLocation = URL.fromString('/')
         expectedLocation = expectedLocation.child(LOGIN_AVATAR)
         expectedLocation = expectedLocation.add('foo', 'bar')
-        self.assertEqual(loginAction, expectedLocation)
+        self.assertEqual(loginAction._querylist, expectedLocation._querylist)
 
 
     def test_locateChildPreservesSegments(self):
@@ -999,11 +943,14 @@ class SecuringWrapperTests(TestCase):
         """
         SSLPort(store=self.store, factory=self.urlGenerator, portNumber=443)
         request = FakeRequest(
+            headers={'host': self.urlGenerator.hostname.encode('ascii')},
             isSecure=False, uri='/bar/baz', currentSegments=['bar', 'baz'])
         self.resource.needsSecure = True
         result = self.wrapper.renderHTTP(request)
         self.assertEqual(
-            result, URL('https', self.urlGenerator.hostname, ['bar', 'baz']))
+            result,
+            URL('https', self.urlGenerator.hostname.encode('ascii'),
+                ['bar', 'baz']))
 
 
     def test_renderHTTP(self):
@@ -1292,21 +1239,30 @@ class VirtualHostWrapperTests(TestCase):
     # XXX only integration tests cover L{VirtualHostWrapper.locateChild}.  That
     # is important functionality, it should be covered here.
 
-    def test_nonSubdomain(self):
+    def test_nonUserSubdomain(self):
         """
         L{VirtualHostWrapper.subdomain} returns C{None} when passed a hostname
-        which is not a subdomain of a domain of the site.
+        that that does not correspond to the combined localpart and domain
+        of an existing user.
         """
         site = Store()
         wrapper = VirtualHostWrapper(site, None, None)
-        self.assertIdentical(wrapper.subdomain("example.com"), None)
+        userbase.LoginMethod(
+            store=site,
+            account=site,
+            protocol=u'*',
+            internal=True,
+            verified=True,
+            localpart=u'alice',
+            domain=u'example.com')
+        self.assertEqual(wrapper.subdomain("bob.example.com"), None)
 
 
-    def test_subdomain(self):
+    def test_userSubdomain(self):
         """
-        L{VirtualHostWrapper.subdomain} returns a two-tuple of a username and a
-        domain name when passed a hostname which is a subdomain of a known
-        domain.
+        L{VirtualHostWrapper.subdomain} returns a two-tuple of the localpart
+        and domain portions of a username when passed a hostname which is a
+        combination of those portions for an existing user.
         """
         site = Store()
         wrapper = VirtualHostWrapper(site, None, None)
@@ -1319,14 +1275,14 @@ class VirtualHostWrapperTests(TestCase):
             localpart=u'alice',
             domain=u'example.com')
         self.assertEqual(
-            wrapper.subdomain("bob.example.com"),
-            ("bob", "example.com"))
+            wrapper.subdomain("alice.example.com"),
+            ("alice", "example.com"))
 
 
-    def test_wwwSubdomain(self):
+    def test_wwwUserSubdomain(self):
         """
-        L{VirtualHostWrapper.subdomain} returns C{None} when passed a hostname
-        which is the I{www} subdomain of a domain of the site.
+        L{VirtualHostWrapper.subdomain} handles any cruft such as 'www'
+        preceding a valid localpart.domain combination in the passed subdomain.
         """
         site = Store()
         wrapper = VirtualHostWrapper(site, None, None)
@@ -1338,7 +1294,9 @@ class VirtualHostWrapperTests(TestCase):
             verified=True,
             localpart=u'alice',
             domain=u'example.com')
-        self.assertIdentical(wrapper.subdomain("www.example.com"), None)
+        self.assertEqual(
+            wrapper.subdomain("www.foo.alice.example.com"),
+            ("alice", "example.com"))
 
 
     def test_subdomainWithPort(self):
@@ -1357,5 +1315,5 @@ class VirtualHostWrapperTests(TestCase):
             localpart=u'alice',
             domain=u'example.com')
         self.assertEqual(
-            wrapper.subdomain("bob.example.com:8080"),
-            ("bob", "example.com"))
+            wrapper.subdomain("alice.example.com:8080"),
+            ("alice", "example.com"))

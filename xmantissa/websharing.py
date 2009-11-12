@@ -209,7 +209,7 @@ def linkTo(sharedProxyOrItem):
 
 
 
-def _storeFromUsername(store, username):
+def _storeFromUsername(store, username, domain):
     """
     Find the user store of the user with username C{store}
 
@@ -219,12 +219,16 @@ def _storeFromUsername(store, username):
     @param username: the name a user signed up with
     @type username: C{unicode}
 
+    @param domain: the domain a user signed up with
+    @type domain: C{unicode}
+
     @rtype: L{axiom.store.Store} or C{None}
     """
     lm = store.findUnique(
             userbase.LoginMethod,
             attributes.AND(
                 userbase.LoginMethod.localpart == username,
+                userbase.LoginMethod.domain == domain,
                 userbase.LoginMethod.internal == True),
             default=None)
     if lm is not None:
@@ -257,8 +261,14 @@ class UserIndexPage(object):
         """
         Retrieve a L{SharingIndex} for a particular user, or rend.NotFound.
         """
+        request = inevow.IRequest(ctx)
+
+        username = segments[0].decode('utf-8')
+        domain = request.getRequestHostname().decode('utf-8')
+        domain = domain.replace('www','').replace(username,'').strip('.')
+
         store = _storeFromUsername(
-            self.loginSystem.store, segments[0].decode('utf-8'))
+            self.loginSystem.store, segments[0].decode('utf-8'), domain)
         if store is None:
             return rend.NotFound
         return (SharingIndex(store, self.webViewer), segments[1:])
