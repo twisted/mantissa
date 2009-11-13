@@ -17,7 +17,7 @@ from twisted.protocols.amp import Command, Box, parseString
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, boolean
+from axiom.attributes import integer, boolean, AND
 from axiom.test.util import QueryCounter
 from axiom.userbase import LoginMethod, LoginAccount
 
@@ -708,6 +708,36 @@ class AccessibilityQuery(unittest.TestCase):
         self.assertEquals(before, after)
     test_limitEfficiency.todo = (
         'currently gets too many results because we should be using paginate')
+
+
+    def test_partFromRelationshipExists(self):
+        """
+        If a relationship exists between the user role and specified group
+        role, then L{Role.partFrom} should delete the relationship.
+        """
+        users = sharing.Role(store=self.store, externalID=u'users')
+        self.bob.becomeMemberOf(users)
+        relationship = self.store.findFirst(
+            sharing.RoleRelationship,
+            AND(sharing.RoleRelationship.member==self.bob,
+                sharing.RoleRelationship.group==users))
+        self.assertEquals(self.bob, relationship.member)
+        self.assertEquals(users, relationship.group)
+        self.bob.partFrom(users)
+        self.assertEquals(None, self.store.findFirst(
+            sharing.RoleRelationship,
+            AND(sharing.RoleRelationship.member==self.bob,
+                sharing.RoleRelationship.group==users)))
+
+
+    def test_partFromRelationshipDoesNotExist(self):
+        """
+        If no relationship exists between the user role and specified group
+        role, then L{Role.partFrom} should not throw an exception and return
+        normally.
+        """
+        users = sharing.Role(store=self.store, externalID=u'users')
+        self.bob.partFrom(users)
 
 
 class HeuristicTestCases(unittest.TestCase):

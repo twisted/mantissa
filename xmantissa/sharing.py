@@ -199,6 +199,22 @@ class Role(Item):
                                 member=self)
 
 
+    def partFrom(self, groupRole):
+        """
+        Instruct this (user or group) Role to depart from a group role.
+
+        @param groupRole: The role that this user or group should depart from.
+        """
+        membership = self.store.findUnique(
+            RoleRelationship,
+            AND(RoleRelationship.group == groupRole,
+                RoleRelationship.member == self),
+            None)
+
+        if membership is not None:
+            membership.deleteFromStore()
+
+
     def allRoles(self, memo=None):
         """
         Identify all the roles that this role is authorized to act as.
