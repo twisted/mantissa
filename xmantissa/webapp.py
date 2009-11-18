@@ -95,7 +95,7 @@ class _AuthenticatedWebViewer(WebViewerHelper):
 
 
     # Complete WebViewerHelper implementation
-    def _wrapNavFrag(self, frag, useAthena):
+    def _wrapNavFrag(self, frag, useAthena, publicNavigation):
         """
         Wrap the given L{INavigableFragment} in an appropriate
         L{_FragmentWrapperMixin} subclass.
@@ -110,7 +110,7 @@ class _AuthenticatedWebViewer(WebViewerHelper):
             pageClass = GenericNavigationPage
         return pageClass(self._privateApplication, frag,
                          self._privateApplication.getPageComponents(),
-                         username)
+                         username, publicNavigation)
 
 
 
@@ -130,10 +130,12 @@ class _ShellRenderingMixin(object):
     fragmentName = 'main'
     searchPattern = None
 
-    def __init__(self, webapp, pageComponents, username):
+    def __init__(self, webapp, pageComponents, username,
+                 publicNavigation=None):
         self.webapp = self.translator = self.resolver = webapp
         self.pageComponents = pageComponents
         self.username = username
+        self.publicNavigation = publicNavigation or []
 
 
     def _siteStore(self):
@@ -193,16 +195,6 @@ class _ShellRenderingMixin(object):
             return ctx.tag
 
 
-    def render_startmenu(self, ctx, data):
-        """
-        Add start-menu style navigation to the given tag.
-
-        @see {xmantissa.webnav.startMenu}
-        """
-        return startMenu(
-            self.translator, self.pageComponents.navigation, ctx.tag)
-
-
     def render_settingsLink(self, ctx, data):
         """
         Add the URL of the settings page to the given tag.
@@ -219,8 +211,8 @@ class _ShellRenderingMixin(object):
 
         @see L{xmantissa.webnav.applicationNavigation}
         """
-        return applicationNavigation(
-            ctx, self.translator, self.pageComponents.navigation)
+        return startMenu(self.translator, self.pageComponents.navigation,
+                IRequest(ctx), ctx.tag)
 
 
     def render_urchin(self, ctx, data):
@@ -325,9 +317,11 @@ class _FragmentWrapperMixin(MantissaViewHelper):
         return ctx.tag[self.fragment]
 
 class GenericNavigationPage(_FragmentWrapperMixin, Page, _ShellRenderingMixin):
-    def __init__(self, webapp, fragment, pageComponents, username):
+    def __init__(self, webapp, fragment, pageComponents, username,
+                 publicNavigation):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
+        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username,
+                                      publicNavigation)
         _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
 
 
@@ -362,7 +356,8 @@ class GenericNavigationAthenaPage(_FragmentWrapperMixin,
     This class provides the generic navigation elements for surrounding all
     pages navigated under the /private/ namespace.
     """
-    def __init__(self, webapp, fragment, pageComponents, username):
+    def __init__(self, webapp, fragment, pageComponents, username,
+                 publicNavigation):
         """
         Top-level container for Mantissa application views.
 
@@ -386,7 +381,8 @@ class GenericNavigationAthenaPage(_FragmentWrapperMixin,
             fragment,
             jsModuleRoot=None,
             docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
+        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username,
+                                      publicNavigation)
         _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
         self.unsupportedBrowserLoader = (webapp
                                          .getDocFactory("athena-unsupported"))

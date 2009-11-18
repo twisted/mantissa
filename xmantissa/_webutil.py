@@ -18,8 +18,10 @@ from nevow.rend import NotFound
 from nevow.inevow import IResource, IRequest
 
 from xmantissa.ixmantissa import (IWebViewer, INavigableFragment,
-                                  ISiteRootPlugin)
+                                  INavigableShare, ISiteRootPlugin)
 
+from xmantissa.sharing import itemFromProxy, SharedProxy
+from xmantissa.webnav import getTabs
 from xmantissa.websharing import UserIndexPage
 
 from xmantissa.error import CouldNotLoadFromThemes
@@ -44,7 +46,7 @@ class WebViewerHelper(object):
         self._preferredThemes = _preferredThemes
 
 
-    def _wrapNavFrag(self, fragment, useAthena):
+    def _wrapNavFrag(self, fragment, useAthena, publicNavigation):
         """
         Subclasses must implement this to wrap a fragment.
 
@@ -55,6 +57,9 @@ class WebViewerHelper(object):
             L{LivePage}.
 
         @type useAthena: L{bool}
+
+        @param publicNavigation: Navigation tabs provided by the substore
+            containing the wrapped model, if any.
 
         @return: a fragment to display to the user.
 
@@ -76,8 +81,16 @@ class WebViewerHelper(object):
                     frag.docFactory = fragDocFactory
             if frag.docFactory is None:
                 raise CouldNotLoadFromThemes(frag, self._preferredThemes())
-            useAthena = isinstance(frag, (athena.LiveFragment, athena.LiveElement))
-            return self._wrapNavFrag(frag, useAthena)
+            useAthena = isinstance(frag, (athena.LiveFragment,
+                                          athena.LiveElement))
+            if isinstance(model, SharedProxy):
+                publicStore = itemFromProxy(model).store
+                publicNavigation = getTabs(
+                        publicStore.powerupsFor(INavigableShare),
+                        self.roleIn(publicStore))
+            else:
+                publicNavigation = None
+            return self._wrapNavFrag(frag, useAthena, publicNavigation)
         else:
             return res
 

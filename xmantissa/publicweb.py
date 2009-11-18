@@ -194,15 +194,17 @@ class _AnonymousWebViewer(WebViewerHelper):
 
 
     # Complete WebViewerHelper implementation
-    def _wrapNavFrag(self, frag, useAthena):
+    def _wrapNavFrag(self, frag, useAthena, publicNavigation):
         """
         Wrap the given L{INavigableFragment} in the appropriate type of
         L{_PublicPageMixin}.
         """
         if useAthena:
-            return PublicAthenaLivePage(self._siteStore, frag)
+            return PublicAthenaLivePage(self._siteStore, frag,
+                                        publicNavigation)
         else:
-            return PublicPage(None, self._siteStore, frag, None, None)
+            return PublicPage(None, self._siteStore, frag, None, None,
+                              publicNavigation)
 
 
 
@@ -397,31 +399,26 @@ class _PublicPageMixin(MantissaViewHelper):
         # problems...  -glyph
         from xmantissa.signup import _getPublicSignupInfo
 
+        # TODO: what was the point of this change??
         IQ = inevow.IQ(ctx.tag)
+        loginPattern = IQ.patternGenerator('login-link')
         signupPattern = IQ.patternGenerator('signup-link')
+        links = []
 
-        signups = []
+        segs = inevow.IRequest(ctx).prepath
+        if not segs or segs[0] == '':
+            segs = ['login', 'private']
+        elif segs[0] != 'login':
+            segs.insert(0, 'login')
+        loginURL = '/' + '/'.join(segs)
+        links.append(loginPattern.fillSlots('loginURL', loginURL))
+
         for (prompt, url) in _getPublicSignupInfo(self.store):
-            signups.append(signupPattern.fillSlots(
+            links.append(signupPattern.fillSlots(
                     'prompt', prompt).fillSlots(
                     'url', url))
 
-        return ctx.tag[signups]
-
-
-    def render_startmenu(self, ctx, data):
-        """
-        For authenticated users, add the start-menu style navigation to the
-        given tag.  For unauthenticated users, remove the given tag from the
-        output.
-
-        @see L{xmantissa.webnav.startMenu}
-        """
-        if self.username is None:
-            return ''
-        translator = self._getViewerPrivateApplication()
-        pageComponents = translator.getPageComponents()
-        return startMenu(translator, pageComponents.navigation, ctx.tag)
+        return ctx.tag[links]
 
 
     def render_settingsLink(self, ctx, data):
@@ -449,10 +446,13 @@ class _PublicPageMixin(MantissaViewHelper):
         if self.username is None:
             return ''
         translator = self._getViewerPrivateApplication()
-        return applicationNavigation(
-            ctx,
-            translator,
-            translator.getPageComponents().navigation)
+        return startMenu(translator,
+                translator.getPageComponents().navigation, IRequest(ctx),
+                ctx.tag)
+
+
+    def render_publicNavigation(self, ctx, data):
+        return startMenu(None, self.publicNavigation, IRequest(ctx), ctx.tag)
 
 
     def render_search(self, ctx, data):
@@ -579,7 +579,7 @@ class PublicPage(_PublicPageMixin, rend.Page):
     docFactory = ThemedDocumentFactory('shell', 'templateResolver')
 
     def __init__(self, original, store, fragment, staticContent, forUser,
-                 templateResolver=None):
+                 templateResolver=None, publicNavigation=None):
         """
         Create a public page.
 
@@ -608,6 +608,7 @@ class PublicPage(_PublicPageMixin, rend.Page):
         if forUser is not None:
             assert isinstance(forUser, unicode), forUser
         self.username = forUser
+        self.publicNavigation = publicNavigation
 
 
 
@@ -928,7 +929,7 @@ class PublicAthenaLivePage(_PublicPageMixin, website.MantissaLivePage):
     fragment = None
 
     def __init__(self, store, fragment, staticContent=None, forUser=None,
-                 templateResolver=None,
+                 templateResolver=None, publicNavigation=None,
                  *a, **kw):
         """
         Create a PublicAthenaLivePage.
@@ -963,6 +964,7 @@ class PublicAthenaLivePage(_PublicPageMixin, website.MantissaLivePage):
                 fragment.page = self
         self.staticContent = staticContent
         self.username = forUser
+        self.publicNavigation = publicNavigation
 
 
     def render_head(self, ctx, data):

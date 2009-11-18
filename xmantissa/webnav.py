@@ -9,8 +9,9 @@ from nevow import url
 
 from nevow.stan import NodeNotFound
 
-from xmantissa.ixmantissa import ITab
+from xmantissa.ixmantissa import ITab, INavigableShare
 from xmantissa.fragmentutils import dictFillSlots
+from xmantissa.websharing import linkTo
 
 class TabMisconfiguration(Exception):
     def __init__(self, info, tab):
@@ -19,8 +20,8 @@ class TabMisconfiguration(Exception):
             "Inconsistent tab item factory information",
             info, tab)
 
-TabInfo = record('priority storeID children linkURL authoritative',
-                 authoritative=None)
+TabInfo = record('priority storeID children linkURL authoritative share',
+                 authoritative=None, share=None)
 
 class Tab(object):
     """
@@ -52,13 +53,14 @@ class Tab(object):
     implements(ITab)
 
     def __init__(self, name, storeID, priority, children=(),
-                 authoritative=True, linkURL=None):
+                 authoritative=True, linkURL=None, share=None):
         self.name = name
         self.storeID = storeID
         self.priority = priority
         self.children = tuple(children)
         self.authoritative = authoritative
         self.linkURL = linkURL
+        self.share = share
 
     def __repr__(self):
         return '<%s%s %r/%0.3f %r [%r]>' % (self.authoritative and '*' or '',
@@ -99,34 +101,45 @@ class Tab(object):
                 return [self]
         return []
 
-def getTabs(navElements):
+
+
+def getTabs(navElements, role=None):
     # XXX TODO: multiple levels of nesting, this is hard-coded to 2.
     # Map primary tab names to a TabInfo
     primary = {}
 
     # Merge tab information from all nav plugins into one big structure
-    for plg in navElements:
-        for tab in plg.getTabs():
-            if tab.name not in primary:
-                primary[tab.name] = TabInfo(
-                    priority=tab.priority,
-                    storeID=tab.storeID,
-                    children=list(tab.children),
-                    linkURL=tab.linkURL)
+    def createTab(tab, primary):
+        if tab.name not in primary:
+            primary[tab.name] = TabInfo(
+                priority=tab.priority,
+                storeID=tab.storeID,
+                children=list(tab.children),
+                linkURL=tab.linkURL,
+                share=tab.share)
+        else:
+            info = primary[tab.name]
+
+            if info.authoritative:
+                if tab.authoritative:
+                    raise TabMisconfiguration(info, tab)
             else:
-                info = primary[tab.name]
+                if tab.authoritative:
+                    info.authoritative = True
+                    info.priority = tab.priority
+                    info.storeID = tab.storeID
+                    info.linkURL = tab.linkURL
+                    info.share = tab.share
+            info.children.extend(tab.children)
 
-                if info.authoritative:
-                    if tab.authoritative:
-                        raise TabMisconfiguration(info, tab)
-                else:
-                    if tab.authoritative:
-                        info.authoritative = True
-                        info.priority = tab.priority
-                        info.storeID = tab.storeID
-                        info.linkURL = tab.linkURL
-                info.children.extend(tab.children)
-
+    for plg in navElements:
+        if INavigableShare.providedBy(plg):
+            for tab in plg.getTabs(role):
+                createTab(tab, primary)
+        else:
+            for tab in plg.getTabs():
+                createTab(tab, primary)
+    
     # Sort the tabs and their children by their priority
     def key(o):
         return -o.priority
@@ -144,6 +157,8 @@ def getTabs(navElements):
 
     return resultTabs
 
+
+
 def setTabURLs(tabs, webTranslator):
     """
     Sets the C{linkURL} attribute on each L{Tab} instance
@@ -158,8 +173,13 @@ def setTabURLs(tabs, webTranslator):
 
     for tab in tabs:
         if not tab.linkURL:
-            tab.linkURL = webTranslator.linkTo(tab.storeID)
+            if tab.share is not None:
+                tab.linkURL = str(linkTo(tab.share))
+            else:
+                tab.linkURL = webTranslator.linkTo(tab.storeID)
         setTabURLs(tab.children, webTranslator)
+
+
 
 def getSelectedTab(tabs, forURL):
     """
@@ -199,7 +219,7 @@ def getSelectedTab(tabs, forURL):
 
 
 
-def startMenu(translator, navigation, tag):
+def startMenu(translator, navigation, request, tag):
     """
     Drop-down menu-style navigation view.
 
@@ -220,7 +240,13 @@ def startMenu(translator, navigation, tag):
 
     @rtype: {nevow.stan.Tag}
     """
+    if not navigation:
+        return ''
+
     setTabURLs(navigation, translator)
+    selectedTab = getSelectedTab(navigation,
+                                 url.URL.fromRequest(request))
+
     getp = IQ(tag).onePattern
 
     def fillSlots(tabs):
@@ -230,7 +256,12 @@ def startMenu(translator, navigation, tag):
             else:
                 kids = ''
 
-            yield dictFillSlots(getp('tab'), dict(href=tab.linkURL,
+            if tab == selectedTab or selectedTab in tab.children:
+                p = 'selected-tab'
+            else:
+                p = 'tab'
+
+            yield dictFillSlots(getp(p), dict(href=tab.linkURL,
                                                   name=tab.name,
                                                   kids=kids))
     return tag.fillSlots('tabs', fillSlots(navigation))

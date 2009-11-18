@@ -65,7 +65,10 @@
           </td>
 
           <td class="mantissa-global-navigation-links" nevow:render="authenticateLinks">
-            <a class="mantissa-global-navigation-link" href="/login/private">Log in</a>
+              <a class="mantissa-global-navigation-link" nevow:pattern="login-link">
+                  <nevow:attr name="href"><nevow:slot name="loginURL" /></nevow:attr>
+                  Log in
+              </a>
             <a class="mantissa-global-navigation-link" nevow:pattern="signup-link">
               <span class="mantissa-global-navigation-separator">|</span>
               <nevow:attr name="href"><nevow:slot name="url" /></nevow:attr>
@@ -76,91 +79,70 @@
       </tbody>
     </table>
 
-    <table style="width: 100%;" cellspacing="0" cellpadding="0" class="mantissa-application-menubar">
-      <thead />
-      <tbody>
-        <tr>
-          <td style="height: 2em;" />
-          <td class="app-nav-container" nevow:render="applicationNavigation">
-            <nevow:invisible nevow:pattern="subtab">
-              <nevow:slot name="tab-contents" />
-            </nevow:invisible>
-            <a nevow:pattern="subtab-contents">
-              <nevow:attr name="href"><nevow:slot name="href"/></nevow:attr>
-              <nevow:slot name="name" />
-            </a>
+    <div class="mantissa-application-menubar">
+        <ul class="app-nav-container" nevow:render="applicationNavigation">
             <nevow:slot name="tabs" />
-            <div nevow:pattern="app-tab" class="tab-button">
-              <nevow:slot name="tab-contents" />
-              <div class="subtabs" style="z-index: 1000;
-                                          display: none;
-                                          position: absolute"
-                   onmouseover="MantissaShell.subtabHover(this);"
-                   onmouseout="MantissaShell.tabUnhover(this);"
-                   ><nevow:slot name="subtabs" /></div>
-            </div>
-            <div nevow:pattern="selected-app-tab" class="selected-tab-button">
-              <nevow:slot name="tab-contents" />
-              <div class="subtabs" style="z-index: 1000;
-                                          display: none;
-                                          position: absolute;
-                                          "
-                   onmouseover="MantissaShell.subtabHover(this);"
-                   onmouseout="MantissaShell.tabUnhover(this);"
-                   ><nevow:slot name="subtabs" /></div>
-            </div>
-            <table nevow:pattern="selected-tab-contents"
-                   onmouseover="MantissaShell.tabHover(this, false)"
-                   onmouseout="MantissaShell.tabUnhover(this)"
-                   cellpadding="0" cellspacing="0">
-              <tr class="tab-button-row">
-                <td class="tab-tl-corner" />
-                <td class="tab-top-edge" />
-                <td class="tab-tr-corner" />
-              </tr>
-              <tr class="tab-text-row">
-                <td class="tab-left-edge" />
-                <td class="tab-text-cell">
-                  <div>
-                    <a>
-                      <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
-                      <nevow:slot name="name" />
-                    </a>
-                  </div>
-                </td>
-                <td class="tab-right-edge" />
-              </tr>
-            </table>
-            <table nevow:pattern="tab-contents"
-                   onmouseover="MantissaShell.tabHover(this, false)"
-                   onmouseout="MantissaShell.tabUnhover(this)"
-                   cellpadding="0" cellspacing="0">
-              <tr class="tab-button-row">
-                <td class="tab-tl-corner" />
-                <td class="tab-top-edge" />
-                <td class="tab-tr-corner" />
-              </tr>
-              <tr class="tab-text-row">
-                <td class="tab-left-edge" />
-                <td class="tab-text-cell">
-                  <a onmouseover="MantissaShell.tabHover(this, false)"
-                     onmouseout="MantissaShell.tabUnhover(this)">
-                    <nevow:attr name="href"><nevow:slot name="href" /></nevow:attr>
+            <li class="tab-button" nevow:pattern="tab">
+                <a class="tab-link"
+                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseout="MantissaShell.tabUnhover(this);">
+                    <nevow:attr name="href"><nevow:slot
+                        name="href" /></nevow:attr>
                     <nevow:slot name="name" />
-                  </a>
-                </td>
-                <td class="tab-right-edge" />
-              </tr>
-              <tr class="tab-button-row">
-                <td class="tab-bl-corner" />
-                <td class="tab-bottom-edge" />
-                <td class="tab-br-corner" />
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+                </a>
+                <nevow:slot name="kids" />
+            </li>
+            <li class="selected-tab-button" nevow:pattern="selected-tab">
+                <a class="tab-link"
+                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseout="MantissaShell.tabUnhover(this);">
+                    <nevow:attr name="href"><nevow:slot
+                        name="href" /></nevow:attr>
+                    <nevow:slot name="name" />
+                </a>
+                <nevow:slot name="kids" />
+            </li>
+            <ul class="subtabs"
+                style="z-index: 1000; display: none; position: absolute"
+                onmouseover="MantissaShell.subtabHover(this);"
+                onmouseout="MantissaShell.tabUnhover(this);"
+                nevow:pattern="subtabs">
+                <nevow:slot name="kids" />
+            </ul>
+        </ul>
+        <ul class="app-nav-container" nevow:render="publicNavigation">
+            <nevow:slot name="tabs" />
+            <li class="tab-button" nevow:pattern="tab">
+                <a class="tab-link"
+                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseout="MantissaShell.tabUnhover(this);">
+                    <nevow:attr name="href"><nevow:slot
+                        name="href" /></nevow:attr>
+                    <nevow:slot name="name" />
+                </a>
+                <nevow:slot name="kids" />
+            </li>
+            <li class="selected-tab-button" nevow:pattern="selected-tab">
+                <a class="tab-link"
+                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseout="MantissaShell.tabUnhover(this);">
+                    <nevow:attr name="href"><nevow:slot
+                        name="href" /></nevow:attr>
+                    <nevow:slot name="name" />
+                </a>
+                <nevow:slot name="kids" />
+            </li>
+            <ul class="subtabs"
+                style="z-index: 1000; display: none; position: absolute"
+                onmouseover="MantissaShell.subtabHover(this);"
+                onmouseout="MantissaShell.tabUnhover(this);"
+                nevow:pattern="subtabs">
+                <nevow:slot name="kids" />
+            </ul>
+        </ul>
+        <div class="terminator" />
+    </div>
+
     <div class="private-fragment-content" nevow:render="content" />
     <div id="mantissa-footer" nevow:render="footer" />
     <nevow:invisible nevow:render="urchin">

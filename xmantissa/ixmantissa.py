@@ -489,6 +489,25 @@ class INavigableElement(Interface):
                     ])]
         """
 
+
+
+class INavigableShare(Interface):
+    """
+    Tab interface used by shared objects that wish to contribute to the
+    overall naviagation scheme.
+    """
+
+
+    def getTabs(role):
+        """
+        Retrieve data about this shared object's navigation based on the
+        specified role.
+
+        This returns a list of C{xmantissa.webnav.Tab}s.
+        """
+
+
+
 class INavigableFragment(Interface):
     """
     Register an adapter to this interface in order to provide web UI content
@@ -1395,8 +1414,8 @@ __all__ = [
     'IColumn', 'ITemplateNameResolver', 'IPreferenceAggregator',
     'ISearchProvider', 'ISearchAggregator', 'IFulltextIndexer',
     'IFulltextIndexable', 'IStaticShellContent', 'ISiteRootPlugin',
-    'ISessionlessSiteRootPlugin', 'ICustomizable',
-    'ICustomizablePublicPage', 'IWebTranslator', 'INavigableElement',
+    'ISessionlessSiteRootPlugin', 'ICustomizable', 'ICustomizablePublicPage',
+    'IWebTranslator', 'INavigableElement', 'INavigableShare',
     'INavigableFragment', 'ITab', 'IBenefactor', 'IBenefactorFactory',
     'IQ2QService', 'IPreferenceCollection', 'ITemporalEvent', 'IDateBook',
     'IOrganizerPlugin', 'IPersonFragment', 'IOffering', 'ISignupMechanism',

@@ -650,7 +650,7 @@ iframe.mugshot-upload {
  legacy code.  They are not particularly pretty, but they aren't really
  intended to be. */
 
-#divmod-menu, .subtabs {
+#divmod-menu {
     position: absolute;
     border: 1px solid black;
     background-color: #eeeeee;
@@ -658,19 +658,6 @@ iframe.mugshot-upload {
     margin: 0px;
     list-style: none;
     padding: 0px;
-}
-
-.subtabs a, .subtabs a:link, .subtabs a:visited {
-    font-size: 130%;
-    display: block;
-    padding: 4px;
-    width: 150px;
-    color: black;
-}
-
-.subtabs a:hover {
-    background-color: blue;
-    color: white;
 }
 
 #divmod-menu {
@@ -715,20 +702,12 @@ iframe.mugshot-upload {
     width: 100%;
 }
 
-.tab-link {
+/*.tab-link {
     font-size: 1.2em;
-    display: block;
+    display: block;*/
     /* hack to force this element to "have layout" on IE */
-    zoom: 1;
-}
-
-.tab-link:link, .tab-link:visited {
-    color: #CCCCCC;
-}
-
-.tab-link:hover {
-    color: #FFFFFF;
-}
+    /*zoom: 1;
+}*/
 
 .divmod-menu-container {
     background-color: #000000;
@@ -743,6 +722,9 @@ iframe.mugshot-upload {
 
 .app-nav-container {
     white-space: nowrap;
+    float: left;
+    margin: 0;
+    padding: 0;
 }
 
 .search-container {
@@ -754,120 +736,68 @@ iframe.mugshot-upload {
     color: #FFFFFF;
 }
 
+/* Begin StartMenu Navigation Styles */
+.subtabs {
+    border: 1px solid #039;
+    border-left: solid 8px #039;
+    background-color: #eeeeee;
+    list-style: none;
+    margin: 0 0 0 -0.25em;
+    padding: 0;
+}
+
 .tab-button, .selected-tab-button {
     float: left;
     display: block;
     margin-left: 8px;
+    padding: .25em;
 }
 
-.tab-contents, .selected-tab-contents {
-    position: relative;
+.subtabs .tab-button, .subtabs .selected-tab-button {
+    margin: 0;
+    padding: 0;
+    clear: left;
+    width: 100%;
 }
 
-.tab-button {
-    margin-bottom: 2px;
+a.tab-link, a.tab-link:link, a.tab-link:visited {
+    font-size: 1.25em;
+    color: #039;
+}
+
+a.tab-link:hover {
+    color: white;
 }
 
 .selected-tab-button {
-    border-bottom: solid 1px #0099CC;
+    background-color: #039;
 }
 
-.tab-button-row {
-    line-height: 0px;
+.selected-tab-button a.tab-link, .selected-tab-button a.tab-link:link,
+    .selected-tab-button a.tab-link:visited, .selected-tab-button a:hover {
+    color: white;
 }
 
-.selected-tab-button .tab-tl-corner, .selected-tab-button .tab-tr-corner {
-    width: 3px;
-    height: 3px;
+.subtabs .selected-tab-button {
+    background-color: #eee;
 }
 
-.tab-corner {
-    vertical-align: top;
+.subtabs a.tab-link, .subtabs a.tab-link:link, .subtabs a.tab-link:visited {
+    font-size: 1.1em;
+    display: block;
+    padding: .25em; 
+    color: black;
 }
 
-.tab-button .tab-top-edge {
-    height: 3px;
+.subtabs .tab-button:hover, .subtabs a.tab-link:hover {
+    background-color: #039;
+    color: white;
 }
+/* End StartMenu Navigation Styles */
 
-.tab-text-cell {
-    color: #FFFFFF;
-    padding: 2px 4px 0px 4px;
-    font-size: 1.4em;
+.private-fragment-content {
+    clear: both;
 }
-
-.selected-tab-button .tab-text-cell {
-    padding: 2px 0px 0px 0px;
-}
-
-.tab-text-cell div {
-    margin-bottom: 2px;
-}
-
-.tab-text-cell a, .tab-text-cell a:visited, .tab-text-cell a:link {
-    color: #FFFFFF;
-}
-
-.selected-tab-button .tab-text-row {
-    background-image: url(/Mantissa/images/tab-bg.png);
-    background-color: #77C9E3;
-    background-repeat: repeat-x;
-}
-
-.tab-text-row {
-    text-align: center;
-}
-
-.selected-tab-button .tab-top-edge {
-    background-image: url(/Mantissa/images/tab-top-edge-bg.png);
-    background-repeat: repeat-x;
-}
-
-.tab-button:hover .tab-top-edge {
-    border-bottom: solid 1px #323232;
-}
-
-.tab-button:hover .tab-left-edge {
-    background-color: #323232;
-}
-
-.tab-button .tab-left-edge, .tab-button .tab-right-edge {
-    width: 1px;
-}
-
-.tab-button .tab-bottom-edge {
-    height: 1px;
-}
-
-.tab-button:hover .tab-right-edge, .tab-button:hover .tab-bottom-edge {
-    background-color: #505050;
-}
-
-.tab-button:hover .tab-text-cell {
-    background-color: #484848;
-}
-
-.selected-tab-button .tab-left-edge {
-    background-color: #76C8E3;
-    background-repeat: repeat-x;
-    background-image: url(/Mantissa/images/tab-left-edge.png);
-    width: 17px;
-}
-
-.selected-tab-button .tab-right-edge {
-    background-color: #76C8E3;
-    background-repeat: repeat-x;
-    background-image: url(/Mantissa/images/tab-right-edge.png);
-    width: 17px;
-}
-
-.selected-tab-button .tab-tl-corner {
-    background-image: url(/Mantissa/images/tab-tl-corner.png);
-}
-
-.selected-tab-button .tab-tr-corner {
-    background-image: url(/Mantissa/images/tab-tr-corner.png);
-}
-
 .scrolltable-widget-node {
     margin: 4px;
 }
@@ -1324,8 +1254,13 @@ a.childsellink {
 
 .mantissa-application-menubar {
     background-color: #44B4D9;
+    background-image: url(/Mantissa/images/nav-bg.png);
+    width: 100%;
 }
 
+.terminator {
+    clear: both;
+}
 
 /* end of navigation stuff */
 
