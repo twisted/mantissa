@@ -274,6 +274,30 @@ class Role(Item):
         raise NoSuchShare()
 
 
+    def getShareByItem(self, item):
+        """
+        Retrieve a proxy object for for a given item, previously shared with
+        this role or one of its group roles via L{Role.shareItem}.
+
+        @return: a L{SharedProxy}.
+
+        @raise: L{NoSuchShare} if there is no item shared to the given role
+        for the given item.
+        """
+        shares = list(
+            item.store.query(Share,
+                             AND(Share.sharedItem == item,
+                                 Share.sharedTo.oneOf(self.allRoles()))))
+        interfaces = []
+        for share in shares:
+            interfaces += share.sharedInterfaces
+        if shares:
+            return SharedProxy(shares[0].sharedItem,
+                               interfaces,
+                               shares[0].shareID)
+        raise NoSuchShare()
+
+
     def asAccessibleTo(self, query):
         """
         @param query: An Axiom query describing the Items to retrieve, which this

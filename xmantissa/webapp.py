@@ -215,6 +215,10 @@ class _ShellRenderingMixin(object):
                 IRequest(ctx), ctx.tag)
 
 
+    def render_publicNavigation(self, ctx, data):
+        return startMenu(None, self.publicNavigation, IRequest(ctx), ctx.tag)
+
+
     def render_urchin(self, ctx, data):
         """
         Render the code for recording Google Analytics statistics, if so
