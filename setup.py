@@ -12,8 +12,16 @@ setuphelper.autosetup(
     platforms=["any"],
     description="A multiprotocol application deployment platform",
     classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Environment :: No Input/Output (Daemon)",
+        "Framework :: Twisted",
         "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: JavaScript",
         "Programming Language :: Python",
-        "Development Status :: 2 - Pre-Alpha",
-        "Topic :: Internet"],
+        "Topic :: Internet",
+        "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+        "Topic :: Software Development :: Libraries :: Application Frameworks",
+        "Topic :: Terminals",
+        ],
     )
