@@ -1,3 +1,11 @@
+0.7.0 (2009-11-25):
+  - Add an SSH application server.
+  - Add a SQLite3 FTS3-based fulltext search backend.
+  - Change a bad failure mode of `xmantissa.websharing.linkTo` to a better
+    one with more useful information.
+  - Add documentation covering interstore messaging.
+  - Fix the JavaScript module caching added in the last release.
+
 0.6.22 (2008-12-09):
   - Admin powerup added for exposing statistics information over AMP.
   - Changed the Mantissa AMP server so that it doesn't associate
@@ -5,7 +13,6 @@
     response to the route setup command.
   - Added support for AMP authentication via one-time pads, and a
     facility for generation of one-time pads.
-
 
 0.6.21 (2008-10-02):
   - Contact types can now have their edit forms rendered as siblings
