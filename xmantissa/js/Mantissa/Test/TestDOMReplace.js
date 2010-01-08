@@ -1,5 +1,5 @@
 // -*- test-case-name: xmantissa.test.test_javascript -*-
-// Copyright (c) 2007 Divmod.
+// Copyright (c) 2007-2010 Divmod.
 // See LICENSE for details.
 
 // import Divmod.UnitTest
@@ -176,6 +176,39 @@ Mantissa.Test.TestDOMReplace.DOMReplaceTestCase.methods(
         self.assertIdentical(link.href, 'http://x.yz/foo#bar');
         self.assertIdentical(link.target, '_blank');
         self.assertIdentical(link.childNodes[0].nodeValue, link.href);
+    },
+
+    /**
+     * L{Mantissa.DOMReplace.urlsToLinks} doesn't destroy all of the content
+     * around a url on a line.
+     */
+    function test_urlsToLinksPreservesFollowingText(self) {
+        var text = (
+            'Hello world, enjoy http://x.yz/foo#bar as a link I give to you');
+        var topNode = document.createElement('div');
+        topNode.appendChild(document.createTextNode(text));
+
+        Mantissa.DOMReplace.urlsToLinks(topNode);
+
+        /* Now there should be three nodes; the leading text, the anchor, and
+         * the trailing text.
+         */
+        self.assertIdentical(topNode.childNodes.length, 3);
+
+        var leading = topNode.childNodes[0];
+        var anchor = topNode.childNodes[1];
+        var trailing = topNode.childNodes[2];
+
+        self.assertIdentical(leading.nodeType, document.TEXT_NODE);
+        self.assertIdentical(leading.nodeValue, 'Hello world, enjoy ');
+
+        self.assertIdentical(anchor.tagName, 'A');
+        self.assertIdentical(anchor.href, 'http://x.yz/foo#bar');
+        self.assertIdentical(anchor.target, '_blank');
+        self.assertIdentical(anchor.childNodes[0].nodeValue, anchor.href);
+
+        self.assertIdentical(trailing.nodeType, document.TEXT_NODE);
+        self.assertIdentical(trailing.nodeValue, ' as a link I give to you');
     },
 
     /**

@@ -1,5 +1,5 @@
 // -*- test-case-name: xmantissa.test.test_javascript -*-
-// Copyright (c) 2007 Divmod.
+// Copyright (c) 2007-2010 Divmod.
 // See LICENSE for details.
 
 /**
@@ -23,7 +23,8 @@
  * @return: a list of strings and DOM nodes (returned by C{replacer}).
  * @rtype: C{Array} or C{null}, if C{pattern} does not match anywhere.
  */
-Mantissa.DOMReplace._intermingle = function _intermingle(str, pattern, replacer) {
+Mantissa.DOMReplace._intermingle = function _intermingle(str, pattern,
+                                                         replacer) {
     var piece;
     var pieces = [str];
     var match;
@@ -31,6 +32,17 @@ Mantissa.DOMReplace._intermingle = function _intermingle(str, pattern, replacer)
         piece = pieces.pop();
         match = pattern.exec(piece);
         if(!match) {
+            /* If nothing matched so far, then we can just stop now.  The
+             * check at the end of the function will convert the empty result
+             * array to a null result which saves us a little bit of DOM
+             * munging later.  But if anything else has matched, then we have
+             * to push back the string we're checking: it represents part of
+             * the original input, and if it's not in the pieces array, it
+             * won't end up in the final document.  That would be bad.
+             */
+            if (pieces.length) {
+                pieces.push(piece);
+            }
             break;
         }
         if(0 < match.index) {
@@ -38,7 +50,8 @@ Mantissa.DOMReplace._intermingle = function _intermingle(str, pattern, replacer)
         }
         pieces.push(replacer(match[0]));
         if(match.index + match[0].length < piece.length) {
-            pieces.push(piece.slice(match.index + match[0].length, piece.length));
+            pieces.push(piece.slice(match.index + match[0].length,
+                                    piece.length));
         } else {
             break;
         }
