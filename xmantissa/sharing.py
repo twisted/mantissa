@@ -264,6 +264,22 @@ class Role(Item):
                      sharedInterfaces=interfaces)
 
 
+    def unShareItem(self, shareID):
+        """
+        Unshare a previously shared item with this role.
+
+        @param shareID: the shareID of the item to be unshared.
+        @type shareID: a unicode string.
+        """
+        share = self.store.findFirst(Share,
+                                     AND(Share.sharedTo == self,
+                                         Share.shareID == shareID))
+        if share:
+            share.deleteFromStore()
+            return
+        raise NoSuchShare()
+
+
     def getShare(self, shareID):
         """
         Retrieve a proxy object for a given shareID, previously shared with
