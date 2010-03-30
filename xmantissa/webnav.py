@@ -249,6 +249,16 @@ def startMenu(translator, navigation, request, tag):
 
     getp = IQ(tag).onePattern
 
+    def inTabTree(selectedTab, tab):
+        if selectedTab == tab:
+            return True
+        elif tab.children:
+            for child in tab.children:
+                found = inTabTree(selectedTab, child)
+                if found:
+                    return True
+            return False
+
     def fillSlots(tabs):
         for tab in tabs:
             if tab.children:
@@ -256,7 +266,7 @@ def startMenu(translator, navigation, request, tag):
             else:
                 kids = ''
 
-            if tab == selectedTab or selectedTab in tab.children:
+            if tab == selectedTab or inTabTree(selectedTab, tab):
                 p = 'selected-tab'
             else:
                 p = 'tab'

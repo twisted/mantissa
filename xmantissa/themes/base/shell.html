@@ -84,7 +84,7 @@
             <nevow:slot name="tabs" />
             <li class="tab-button" nevow:pattern="tab">
                 <a class="tab-link"
-                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseover="MantissaShell.tabHover(this);"
                     onmouseout="MantissaShell.tabUnhover(this);">
                     <nevow:attr name="href"><nevow:slot
                         name="href" /></nevow:attr>
@@ -94,7 +94,7 @@
             </li>
             <li class="selected-tab-button" nevow:pattern="selected-tab">
                 <a class="tab-link"
-                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseover="MantissaShell.tabHover(this);"
                     onmouseout="MantissaShell.tabUnhover(this);">
                     <nevow:attr name="href"><nevow:slot
                         name="href" /></nevow:attr>
@@ -114,7 +114,7 @@
             <nevow:slot name="tabs" />
             <li class="tab-button" nevow:pattern="tab">
                 <a class="tab-link"
-                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseover="MantissaShell.tabHover(this);"
                     onmouseout="MantissaShell.tabUnhover(this);">
                     <nevow:attr name="href"><nevow:slot
                         name="href" /></nevow:attr>
@@ -124,7 +124,7 @@
             </li>
             <li class="selected-tab-button" nevow:pattern="selected-tab">
                 <a class="tab-link"
-                    onmouseover="MantissaShell.tabHover(this, false);"
+                    onmouseover="MantissaShell.tabHover(this);"
                     onmouseout="MantissaShell.tabUnhover(this);">
                     <nevow:attr name="href"><nevow:slot
                         name="href" /></nevow:attr>
@@ -134,7 +134,7 @@
             </li>
             <ul class="subtabs"
                 style="z-index: 1000; display: none; position: absolute"
-                onmouseover="MantissaShell.subtabHover(this);"
+                onmouseover="MantissaShell.subtabHover(this);" 
                 onmouseout="MantissaShell.tabUnhover(this);"
                 nevow:pattern="subtabs">
                 <nevow:slot name="kids" />

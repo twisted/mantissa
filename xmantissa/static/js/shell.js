@@ -12,7 +12,7 @@
 var MantissaShell = {};
 
 MantissaShell.activeSubtabs = null;
-MantissaShell.timeoutID = null;
+MantissaShell.timeoutIDs = Array();
 
 /**
  * Return the first immediate child of C{node} which has the class name "subtabs"
@@ -32,9 +32,8 @@ MantissaShell.getSubtabs = function(node) {
  * leaves the top level menu
  */
 MantissaShell.subtabHover = function(node) {
-    if (MantissaShell.timeoutID) {
-        clearTimeout(MantissaShell.timeoutID);
-        MantissaShell.timeoutID = null;
+    if (MantissaShell.timeoutIDs.length > 0) {
+        clearTimeout(MantissaShell.timeoutIDs.pop());
     }
 };
 
@@ -84,9 +83,11 @@ MantissaShell.menuClick = function(node) {
  * If positionLeft is true (the default), then the submenu should appear
  * directly to the right of the parent item when hovered over.
  */
-MantissaShell.tabHover = function(node, positionLeft) {
+MantissaShell.tabHover = function(node) {
     var subtabs = MantissaShell.getSubtabs(node.parentNode);
-    if (positionLeft === undefined) {
+
+    var positionLeft = false;
+    if (node.parentNode.parentNode.className == "subtabs") {
         positionLeft = true;
     }
 
@@ -94,10 +95,9 @@ MantissaShell.tabHover = function(node, positionLeft) {
         return;
     }
 
-    if (MantissaShell.timeoutID) {
-        clearTimeout(MantissaShell.timeoutID);
-        MantissaShell.timeoutID = null;
-        if (MantissaShell.activeSubtabs !== subtabs) {
+    if (MantissaShell.activeSubtabs !== null) {
+        if (MantissaShell.activeSubtabs !== subtabs &&
+                node.parentNode.parentNode != MantissaShell.activeSubtabs) {
             MantissaShell.activeSubtabs.style.display = 'none';
         }
     }
@@ -121,10 +121,10 @@ MantissaShell.tabHover = function(node, positionLeft) {
 MantissaShell.tabUnhover = function(node) {
     var subtabs = MantissaShell.getSubtabs(node.parentNode);
     if(subtabs) {
-        MantissaShell.timeoutID = setTimeout(function() {
+        MantissaShell.timeoutIDs.push(setTimeout(function() {
             subtabs.style.display = "none";
-            MantissaShell.timeoutID = null;
-        }, 100);
+            MantissaShell.timeoutIDs.pop();
+        }, 100));
     }
 };
 
