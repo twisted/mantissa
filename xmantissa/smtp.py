@@ -114,7 +114,7 @@ class _AddressParser(object):
     text = '\x01-\x09\x0B\x0C\x0E-\x7F'
     quotedPair = f(r"\\[%(text)s]") # XXX obs-qp
 
-    dtext = f(r"[%(noWsCtl)s\x21-\x5A\x5E-\x7E]")
+    dtext = f(r"[%(noWsCtl)s%(somePrintableUSAscii)s]")
     dcontent = f(r"%(dtext)s|%(quotedPair)s")
 
     generalAddressLiteral = f(r"%(standardizedTag)s:%(dcontent)s+")
