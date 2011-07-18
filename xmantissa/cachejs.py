@@ -6,7 +6,7 @@ requires some cooperation from L{xmantissa.website}, specifically
 L{xmantissa.website.MantissaLivePage}.
 """
 
-import sha
+import hashlib
 
 from zope.interface import implements
 
@@ -65,7 +65,7 @@ class CachedJSModule(object):
         if self.wasModified():
             self.lastModified = self.filePath.getmtime()
             self.fileContents = self.filePath.getContent()
-            self.hashValue = sha.new(self.fileContents).hexdigest()
+            self.hashValue = hashlib.sha1(self.fileContents).hexdigest()
 
 
 

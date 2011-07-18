@@ -8,7 +8,7 @@ and encrypted communication.  It can be extended by applications which provide
 L{ITerminalServerFactory} powerups to create L{ITerminalProtocol} providers.
 """
 
-from md5 import md5
+from hashlib import md5
 
 from Crypto.PublicKey import RSA
 

@@ -1,6 +1,6 @@
 # -*- test-case-name: xmantissa.test.test_signup,xmantissa.test.test_password_reset -*-
 
-import os, rfc822, md5, time, random
+import os, rfc822, hashlib, time, random
 from itertools import chain
 
 from zope.interface import Interface, implements
@@ -225,7 +225,7 @@ class PasswordResetResource(PublicPage):
         Make a new, probably unique key. This key will be sent in an email to
         the user and is used to access the password change form.
         """
-        return unicode(md5.new(str((usern, time.time(), random.random()))).hexdigest())
+        return unicode(hashlib.md5(str((usern, time.time(), random.random()))).hexdigest())
 
 
     def newAttemptForUser(self, user):
