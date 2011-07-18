@@ -1,4 +1,4 @@
-import sha
+from hashlib import sha1
 
 from twisted.trial.unittest import TestCase
 from twisted.python.filepath import FilePath
@@ -61,7 +61,7 @@ class JSCachingTestCase(TestCase):
         self.moduleProvider.moduleCache[self.MODULE_NAME] = CachedJSModule(
             self.MODULE_NAME, FilePath(self.moduleFile))
         d, segs = self.moduleProvider.locateChild(None,
-                                     [sha.new(self.MODULE_CONTENT).hexdigest(),
+                                     [sha1(self.MODULE_CONTENT).hexdigest(),
                                       self.MODULE_NAME])
         self.assertEqual([], segs)
         d.time = lambda: 12345
