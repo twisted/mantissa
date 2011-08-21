@@ -632,7 +632,7 @@ class UnguardedWrapperTests(TestCase):
                 return result
         self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
 
-        resource = wrapper.locateChild(req, segments)
+        wrapper.locateChild(req, segments)
         self.assertEqual(calledWith, [(req, ("foo", "bar"))])
 
 
@@ -653,7 +653,7 @@ class UnguardedWrapperTests(TestCase):
                 return result
         self.store.inMemoryPowerUp(SiteRootPlugin(), ISessionlessSiteRootPlugin)
 
-        resource = wrapper.locateChild(req, segments)
+        wrapper.locateChild(req, segments)
         self.assertEqual(calledWith, [segments])
 
 
