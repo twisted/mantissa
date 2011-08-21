@@ -2,7 +2,7 @@
 from epsilon import hotfix
 hotfix.require('twisted', 'trial_assertwarns')
 
-from hashlib import sha
+from hashlib import sha1
 
 from zope.interface import implements
 from zope.interface.verify import verifyObject
@@ -1169,7 +1169,7 @@ class AthenaResourcesTestCase(TestCase):
         jsDir = FilePath(__file__).parent().parent().child("js")
         modulePath = jsDir.child(module).child("__init__.js")
         moduleContents = modulePath.open().read()
-        expect = sha(moduleContents).hexdigest()
+        expect = sha1(moduleContents).hexdigest()
         self.assertEqual(page.getJSModuleURL(module),
                          url.child(expect).child(module))
 
