@@ -218,10 +218,8 @@ class IntegrationTestsMixin:
 
         self.factory = self.site.getFactory()
 
-        self.origFunctions = (http._logDateTimeStart,
-                              GuardSession.checkExpired.im_func,
+        self.origFunctions = (GuardSession.checkExpired.im_func,
                               athena.ReliableMessageDelivery)
-        http._logDateTimeStart = lambda: None
         GuardSession.checkExpired = lambda self: None
         athena.ReliableMessageDelivery = lambda *a, **kw: None
 
@@ -230,9 +228,8 @@ class IntegrationTestsMixin:
         """
         Restore the patched functions to their original state.
         """
-        http._logDateTimeStart = self.origFunctions[0]
-        GuardSession.checkExpired = self.origFunctions[1]
-        athena.ReliableMessageDelivery = self.origFunctions[2]
+        GuardSession.checkExpired = self.origFunctions[0]
+        athena.ReliableMessageDelivery = self.origFunctions[1]
         del self.origFunctions
 
 
