@@ -10,7 +10,6 @@ from twisted.python.filepath import FilePath
 from twisted.python.components import registerAdapter
 from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase
-from twisted.web import http
 
 from nevow.inevow import ICurrentSegments, IRemainingSegments
 from nevow.context import RequestContext
@@ -218,10 +217,8 @@ class IntegrationTestsMixin:
 
         self.factory = self.site.getFactory()
 
-        self.origFunctions = (http._logDateTimeStart,
-                              GuardSession.checkExpired.im_func,
+        self.origFunctions = (GuardSession.checkExpired.im_func,
                               athena.ReliableMessageDelivery)
-        http._logDateTimeStart = lambda: None
         GuardSession.checkExpired = lambda self: None
         athena.ReliableMessageDelivery = lambda *a, **kw: None
 
@@ -230,9 +227,8 @@ class IntegrationTestsMixin:
         """
         Restore the patched functions to their original state.
         """
-        http._logDateTimeStart = self.origFunctions[0]
-        GuardSession.checkExpired = self.origFunctions[1]
-        athena.ReliableMessageDelivery = self.origFunctions[2]
+        GuardSession.checkExpired = self.origFunctions[0]
+        athena.ReliableMessageDelivery = self.origFunctions[1]
         del self.origFunctions
 
 
@@ -654,7 +650,6 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         web.installProductOn(bobStore)
 
         # Log in through the web as Bob.
-        cookies = {}
         login = getWithSession(
             self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 username.encode('ascii'), self.domain.encode('ascii'), 'password'),
@@ -702,7 +697,6 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         addDefaultShareID(self.userStore, self.share.shareID, 0)
 
         # Log in through the web as Bob.
-        cookies = {}
         login = getWithSession(
             self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 username.encode('ascii'), self.domain.encode('ascii'), 'password'),
