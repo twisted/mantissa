@@ -10,7 +10,6 @@ from twisted.python.filepath import FilePath
 from twisted.python.components import registerAdapter
 from twisted.internet.defer import Deferred
 from twisted.trial.unittest import TestCase
-from twisted.web import http
 
 from nevow.inevow import ICurrentSegments, IRemainingSegments
 from nevow.context import RequestContext
@@ -651,7 +650,6 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         web.installProductOn(bobStore)
 
         # Log in through the web as Bob.
-        cookies = {}
         login = getWithSession(
             self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 username.encode('ascii'), self.domain.encode('ascii'), 'password'),
@@ -699,7 +697,6 @@ class UserSubdomainWebSiteIntegrationTests(IntegrationTestsMixin, TestCase):
         addDefaultShareID(self.userStore, self.share.shareID, 0)
 
         # Log in through the web as Bob.
-        cookies = {}
         login = getWithSession(
             self.factory, 3, '/__login__?username=%s@%s&password=%s' % (
                 username.encode('ascii'), self.domain.encode('ascii'), 'password'),
