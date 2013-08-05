@@ -509,7 +509,7 @@ class PortConfigurationCommandTests(TestCase):
         # to verify that help text is going to be shown to a user.  -exarkun
         "Usage: axiomatic [options] port [options]\n"
         "Options:\n"
-        "      --version  \n"
+        "      --version  Display Twisted version and exit.\n"
         "      --help     Display this help and exit.\n"
         "\n"
         "This command allows for the inspection and modification of the "
@@ -542,7 +542,7 @@ class PortConfigurationCommandTests(TestCase):
     _listHelpText = (
         "Usage: axiomatic [options] port [options] list [options]\n"
         "Options:\n"
-        "      --version  \n"
+        "      --version  Display Twisted version and exit.\n"
         "      --help     Display this help and exit.\n"
         "\n"
         "Show the port/factory bindings in an Axiom store.\n"
@@ -700,7 +700,7 @@ class PortConfigurationCommandTests(TestCase):
         "Usage: axiomatic [options] port [options] delete [options]\n"
         "Options:\n"
         "      --port-identifier=  Identify a port for deletion.\n"
-        "      --version           \n"
+        "      --version           Display Twisted version and exit.\n"
         "      --help              Display this help and exit.\n"
         "\n"
         "Delete an existing port binding from a factory. If a server is "
@@ -803,7 +803,7 @@ class PortConfigurationCommandTests(TestCase):
         "      --factory-identifier=  Identifier for a protocol factory to "
         "associate with\n"
         "                             the new port.\n"
-        "      --version              \n"
+        "      --version              Display Twisted version and exit.\n"
         "      --help                 Display this help and exit.\n"
         "\n"
         "Create a new port binding for an existing factory. If a server is "
@@ -1056,7 +1056,7 @@ class PortConfigurationCommandTests(TestCase):
             ["create", "--strport", "quux:foo",
              "--factory-identifier", str(factory.storeID)])
         self.assertEqual(
-            "Unrecognized port type.\n", sys.stdout.getvalue())
+            "'quux:foo' is not a valid port description.\n", sys.stdout.getvalue())
 
 
     def test_createUnsupported(self):
