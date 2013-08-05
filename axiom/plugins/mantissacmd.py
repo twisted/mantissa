@@ -16,7 +16,10 @@ from axiom.iaxiom import IVersion
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa import webadmin, publicweb, stats
 from xmantissa.web import SiteConfiguration
-from xmantissa.terminal import SecureShellConfiguration
+try:
+    from xmantissa.terminal import SecureShellConfiguration
+except ImportError:
+    SecureShellConfiguration = None
 from xmantissa.port import TCPPort, SSLPort
 from xmantissa.plugins.baseoff import baseOffering
 

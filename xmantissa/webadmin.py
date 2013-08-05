@@ -34,7 +34,10 @@ from xmantissa.tdb import AttributeColumn
 from xmantissa.scrolltable import ScrollingFragment
 from xmantissa.webapp import PrivateApplication
 from xmantissa.website import WebSite, PrefixURLMixin
-from xmantissa.terminal import TerminalManhole
+try:
+    from xmantissa.terminal import TerminalManhole
+except ImportError:
+    TerminalManhole = None
 from xmantissa.ixmantissa import (
     INavigableElement, INavigableFragment, ISessionlessSiteRootPlugin,
     IProtocolFactoryFactory)
