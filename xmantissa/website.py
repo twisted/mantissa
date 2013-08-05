@@ -14,7 +14,7 @@ import warnings
 from zope.interface import implements
 
 try:
-    from cssutils import CSSParser
+    from cssutils import CSSParser, replaceUrls
     CSSParser
 except ImportError:
     CSSParser = None
@@ -476,7 +476,7 @@ class StylesheetRewritingRequestWrapper(object):
         stylesheet = ''.join(self._buffer)
         parser = CSSParser()
         css = parser.parseString(stylesheet)
-        css.replaceUrls(self._replace)
+        replaceUrls(css, self._replace)
         self.request.write(css.cssText)
         return self.request.finish()
 
