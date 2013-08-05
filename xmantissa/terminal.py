@@ -10,7 +10,10 @@ L{ITerminalServerFactory} powerups to create L{ITerminalProtocol} providers.
 
 from hashlib import md5
 
-from Crypto.PublicKey import RSA
+try:
+    from Crypto.PublicKey import RSA
+except ImportError:
+    RSA = None
 
 from zope.interface import implements
 
@@ -20,12 +23,16 @@ from twisted.python.components import Componentized
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.conch.interfaces import IConchUser, ISession
-from twisted.conch.ssh.factory import SSHFactory
-from twisted.conch.ssh.keys import Key
-from twisted.conch.manhole_ssh import TerminalUser, TerminalSession, TerminalSessionTransport
-from twisted.conch.insults.insults import ServerProtocol, TerminalProtocol
-from twisted.conch.insults.window import TopWindow, VBox, Border, Button
-from twisted.conch.manhole import ColoredManhole
+try:
+    from twisted.conch.ssh.factory import SSHFactory
+    from twisted.conch.ssh.keys import Key
+    from twisted.conch.manhole_ssh import TerminalUser, TerminalSession, TerminalSessionTransport
+    from twisted.conch.insults.insults import ServerProtocol, TerminalProtocol
+    from twisted.conch.insults.window import TopWindow, VBox, Border, Button
+    from twisted.conch.manhole import ColoredManhole
+    conch = True
+except ImportError:
+    conch = False
 
 from axiom.iaxiom import IPowerupIndirector
 from axiom.item import Item
@@ -140,156 +147,162 @@ class _ReturnToMenuWrapper:
 
 
 
-class ShellServer(TerminalProtocol):
-    """
-    A terminal protocol which finds L{ITerminalServerFactory} powerups in the
-    same store and presents the option of beginning a session with one of them.
-
-    @ivar _store: The L{Store} which will be searched for
-        L{ITerminalServerFactory} powerups.
-
-    @ivar _protocol: If an L{ITerminalServerFactory} has been selected to
-        interact with, then this attribute refers to the L{ITerminalProtocol}
-        produced by that factory's C{buildTerminalProtocol} method.  Input from
-        the terminal is delivered to this protocol.  This attribute is C{None}
-        whenever the "main menu" user interface is being displayed.
-
-    @ivar _window: A L{TopWindow} instance which contains the "main menu" user
-        interface.  Whenever the C{_protocol} attribute is C{None}, input is
-        directed to this object instead.  Whenever the C{_protocol} attribute
-        is not C{None}, this window is hidden.
-    """
-    _width = 80
-    _height = 24
-
-    _protocol = None
-
-    def __init__(self, store):
-        TerminalProtocol.__init__(self)
-        self._store = store
-
-
-    def _draw(self):
+if conch:
+    class ShellServer(TerminalProtocol):
         """
-        Call the drawing API for the main menu widget with the current known
-        terminal size and the terminal.
+        A terminal protocol which finds L{ITerminalServerFactory} powerups in
+        the same store and presents the option of beginning a session with one
+        of them.
+
+        @ivar _store: The L{Store} which will be searched for
+            L{ITerminalServerFactory} powerups.
+
+        @ivar _protocol: If an L{ITerminalServerFactory} has been selected to
+            interact with, then this attribute refers to the
+            L{ITerminalProtocol} produced by that factory's
+            C{buildTerminalProtocol} method.  Input from the terminal is
+            delivered to this protocol.  This attribute is C{None} whenever the
+            "main menu" user interface is being displayed.
+
+        @ivar _window: A L{TopWindow} instance which contains the "main menu"
+            user interface.  Whenever the C{_protocol} attribute is C{None},
+            input is directed to this object instead.  Whenever the
+            C{_protocol} attribute is not C{None}, this window is hidden.
         """
-        self._window.draw(self._width, self._height, self.terminal)
+        _width = 80
+        _height = 24
+
+        _protocol = None
+
+        def __init__(self, store):
+            TerminalProtocol.__init__(self)
+            self._store = store
 
 
-    def _appButtons(self):
-        for factory in self._store.powerupsFor(ITerminalServerFactory):
-            yield Button(
-                factory.name.encode('utf-8'),
-                lambda factory=factory: self.switchTo(factory))
+        def _draw(self):
+            """
+            Call the drawing API for the main menu widget with the current
+            known terminal size and the terminal.
+            """
+            self._window.draw(self._width, self._height, self.terminal)
 
 
-    def _logoffButton(self):
-        return Button("logoff", self.logoff)
+        def _appButtons(self):
+            for factory in self._store.powerupsFor(ITerminalServerFactory):
+                yield Button(
+                    factory.name.encode('utf-8'),
+                    lambda factory=factory: self.switchTo(factory))
 
 
-    def _makeWindow(self):
-        buttons = VBox()
-        for button in self._appButtons():
-            buttons.addChild(Border(button))
-        buttons.addChild(Border(self._logoffButton()))
-
-        from twisted.internet import reactor
-        window = TopWindow(self._draw, lambda f: reactor.callLater(0, f))
-        window.addChild(Border(buttons))
-        return window
+        def _logoffButton(self):
+            return Button("logoff", self.logoff)
 
 
-    def connectionMade(self):
+        def _makeWindow(self):
+            buttons = VBox()
+            for button in self._appButtons():
+                buttons.addChild(Border(button))
+            buttons.addChild(Border(self._logoffButton()))
+
+            from twisted.internet import reactor
+            window = TopWindow(self._draw, lambda f: reactor.callLater(0, f))
+            window.addChild(Border(buttons))
+            return window
+
+
+        def connectionMade(self):
+            """
+            Reset the terminal and create a UI for selecting an application to
+            use.
+            """
+            self.terminal.reset()
+            self._window = self._makeWindow()
+
+
+        def reactivate(self):
+            """
+            Called when a sub-protocol is finished.  This disconnects the
+            sub-protocol and redraws the main menu UI.
+            """
+            self._protocol.connectionLost(None)
+            self._protocol = None
+            self.terminal.reset()
+            self._window.filthy()
+            self._window.repaint()
+
+
+        def switchTo(self, app):
+            """
+            Use the given L{ITerminalServerFactory} to create a new
+            L{ITerminalProtocol} and connect it to C{self.terminal} (such that
+            it cannot actually disconnect, but can do most anything else).
+            Control of the terminal is delegated to it until it gives up that
+            control by disconnecting itself from the terminal.
+
+            @type app: L{ITerminalServerFactory} provider
+            @param app: The factory which will be used to create a protocol
+                instance.
+            """
+            viewer = _AuthenticatedShellViewer(
+                list(getAccountNames(self._store)))
+            self._protocol = app.buildTerminalProtocol(viewer)
+            self._protocol.makeConnection(
+                _ReturnToMenuWrapper(self, self.terminal))
+
+
+        def keystrokeReceived(self, keyID, modifier):
+            """
+            Forward input events to the application-supplied protocol if one is
+            currently active, otherwise forward them to the main menu UI.
+            """
+            if self._protocol is not None:
+                self._protocol.keystrokeReceived(keyID, modifier)
+            else:
+                self._window.keystrokeReceived(keyID, modifier)
+
+
+        def logoff(self):
+            """
+            Disconnect from the terminal completely.
+            """
+            self.terminal.loseConnection()
+
+
+
+    class _BetterTerminalSession(TerminalSession):
         """
-        Reset the terminal and create a UI for selecting an application to use.
+        L{TerminalSession} is missing C{windowChanged} and C{eofReceived} for
+        some reason.  Add it here until it's fixed in Twisted.  See Twisted
+        ticket #3303.
         """
-        self.terminal.reset()
-        self._window = self._makeWindow()
+        def windowChanged(self, newWindowSize):
+            """
+            Ignore window size change events.
+            """
 
 
-    def reactivate(self):
+        def eofReceived(self):
+            """
+            Ignore the eof event.
+            """
+
+
+    class _BetterTerminalUser(TerminalUser):
         """
-        Called when a sub-protocol is finished.  This disconnects the
-        sub-protocol and redraws the main menu UI.
+        L{TerminalUser} is missing C{conn} for some reason reason (probably the
+        reason that it's not a very great thing and generally an implementation
+        will be missing it for a while).  Add it here until it's fixed in
+        Twisted.  See Twisted ticket #3863.
         """
-        self._protocol.connectionLost(None)
-        self._protocol = None
-        self.terminal.reset()
-        self._window.filthy()
-        self._window.repaint()
-
-
-    def switchTo(self, app):
-        """
-        Use the given L{ITerminalServerFactory} to create a new
-        L{ITerminalProtocol} and connect it to C{self.terminal} (such that it
-        cannot actually disconnect, but can do most anything else).  Control of
-        the terminal is delegated to it until it gives up that control by
-        disconnecting itself from the terminal.
-
-        @type app: L{ITerminalServerFactory} provider
-        @param app: The factory which will be used to create a protocol
-            instance.
-        """
-        viewer = _AuthenticatedShellViewer(list(getAccountNames(self._store)))
-        self._protocol = app.buildTerminalProtocol(viewer)
-        self._protocol.makeConnection(_ReturnToMenuWrapper(self, self.terminal))
-
-
-    def keystrokeReceived(self, keyID, modifier):
-        """
-        Forward input events to the application-supplied protocol if one is
-        currently active, otherwise forward them to the main menu UI.
-        """
-        if self._protocol is not None:
-            self._protocol.keystrokeReceived(keyID, modifier)
-        else:
-            self._window.keystrokeReceived(keyID, modifier)
-
-
-    def logoff(self):
-        """
-        Disconnect from the terminal completely.
-        """
-        self.terminal.loseConnection()
-
-
-
-class _BetterTerminalSession(TerminalSession):
-    """
-    L{TerminalSession} is missing C{windowChanged} and C{eofReceived} for some
-    reason.  Add it here until it's fixed in Twisted.  See Twisted ticket
-    #3303.
-    """
-    def windowChanged(self, newWindowSize):
-        """
-        Ignore window size change events.
-        """
-
-
-    def eofReceived(self):
-        """
-        Ignore the eof event.
-        """
-
-
-class _BetterTerminalUser(TerminalUser):
-    """
-    L{TerminalUser} is missing C{conn} for some reason reason (probably the
-    reason that it's not a very great thing and generally an implementation
-    will be missing it for a while).  Add it here until it's fixed in Twisted.
-    See Twisted ticket #3863.
-    """
-    # Some code in conch will rudely rebind this attribute later.  For now,
-    # make sure that it is at least bound to something so that the object
-    # appears to fully implement IConchUser.  Most likely, TerminalUser should
-    # be taking care of this, not us.  Or even better, this attribute shouldn't
-    # be part of the interface; some better means should be provided for
-    # informing the IConchUser avatar of the connection object (I'm not even
-    # sure why the avatar would care about having a reference to the connection
-    # object).
-    conn = None
+        # Some code in conch will rudely rebind this attribute later.  For now,
+        # make sure that it is at least bound to something so that the object
+        # appears to fully implement IConchUser.  Most likely, TerminalUser
+        # should be taking care of this, not us.  Or even better, this
+        # attribute shouldn't be part of the interface; some better means
+        # should be provided for informing the IConchUser avatar of the
+        # connection object (I'm not even sure why the avatar would care about
+        # having a reference to the connection object).
+        conn = None
 
 
 class ShellAccount(Item):

@@ -11,23 +11,16 @@ from xmantissa.web import SiteConfiguration
 from xmantissa.webtheme import MantissaTheme
 from xmantissa.publicweb import AnonymousSite
 from xmantissa.ampserver import AMPConfiguration, AMPAvatar, EchoFactory
+from xmantissa.terminal import SecureShellConfiguration
 import xmantissa
-
-try:
-    from xmantissa.terminal import SecureShellConfiguration
-except ImportError:
-    SecureShellConfiguration = None
-
-siteRequirements = [
-    (ISiteURLGenerator, SiteConfiguration),
-    (IResource, AnonymousSite)]
-if SecureShellConfiguration is not None:
-    siteRequirements.append((None, SecureShellConfiguration))
 
 baseOffering = offering.Offering(
     name=u'mantissa-base',
     description=u'Basic Mantissa functionality',
-    siteRequirements=siteRequirements,
+    siteRequirements=[
+        (ISiteURLGenerator, SiteConfiguration),
+        (IResource, AnonymousSite),
+        (None, SecureShellConfiguration)],
     appPowerups=(),
     installablePowerups=(),
     loginInterfaces = [
