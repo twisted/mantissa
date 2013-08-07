@@ -360,7 +360,7 @@ class PortTestsMixin:
         Test that the deletion of a C{self.portType}'s factory item results in the
         C{self.portType} being deleted.
         """
-        port = self.port(store=self.store, portNumber=self.lowPortNumber, factory=self.factory)
+        self.port(store=self.store, portNumber=self.lowPortNumber, factory=self.factory)
         self.factory.deleteFromStore()
         self.assertEqual(list(self.store.query(self.portType)), [])
 
