@@ -50,11 +50,13 @@ except ImportError:
     SSL = None
 
 from twisted.application.service import IService, IServiceCollection
+from twisted.application import strports
 from twisted.application.strports import parse
 from twisted.internet.ssl import PrivateCertificate, CertificateOptions
 from twisted.python.reflect import qual
 from twisted.python.usage import Options
 from twisted.python.filepath import FilePath
+from twisted.python.components import proxyForInterface
 
 from axiom.item import Item, declareLegacyItem, normalize
 from axiom.attributes import inmemory, integer, reference, path, text
@@ -273,6 +275,63 @@ declareLegacyItem(
         listeningPort=inmemory()))
 
 registerAttributeCopyingUpgrader(SSLPort, 1, 2)
+
+
+
+class EndpointPort(PortMixin, Item):
+    """
+    A Service that will bind a port described by an endpoint string.
+    """
+    description = text(doc="""
+    An ASCII description of the endpoint this service will create.
+    """)
+
+    factory = reference(doc="""
+    An Item with a C{getFactory} method which returns a Twisted protocol
+    factory.
+    """, whenDeleted=reference.CASCADE)
+
+    _service = inmemory(doc="""
+    A reference to the endpoint service wrapped by this item.
+    """)
+
+    parent = inmemory(doc="""
+    A reference to the parent service of this service, whenever there is a
+    parent.
+    """)
+
+
+    # Required by IService but unused by this code.
+    name = None
+
+    def activate(self):
+        self.parent = None
+        self._service = None
+
+
+    @property
+    def service(self):
+        if self._service is None:
+            self._service = strports.service(
+                self.description, self.factory.getFactory())
+        return self._service
+
+
+    # IService
+
+    def privilegedStartService(self):
+        self.service.privilegedStartService()
+
+
+    def startService(self):
+        self.service.startService()
+
+
+    def stopService(self):
+        d = self.service.stopService()
+        self._service = None
+        return d
+
 
 
 class ListOptions(Options):
