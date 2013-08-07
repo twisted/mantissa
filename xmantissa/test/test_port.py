@@ -28,7 +28,7 @@ from axiom.scripts.axiomatic import Options as AxiomaticOptions
 from axiom.test.util import CommandStub
 
 from xmantissa.ixmantissa import IProtocolFactoryFactory
-from xmantissa.port import TCPPort, SSLPort
+from xmantissa.port import TCPPort, SSLPort, EndpointPort
 from xmantissa.port import PortConfiguration
 
 
@@ -112,22 +112,14 @@ class DummyFactory(Item):
 
 
 
-class PortTestsMixin:
+class BasePortTestsMixin:
     """
-    Test method-defining mixin class for port types with C{portNumber} and
-    C{factory} attributes.
+    Test method-defining mixin class for port types.
 
-    Included are tests for various persistence-related behaviors as well as the
-    L{IService} implementation which all ports should have.
+    Included are tests for the L{IService} implementation which all ports
+    should have.
 
     @ivar portType: The L{Item} subclass which will be tested.
-
-    @ivar lowPortNumber: A port number which requires privileges to bind on
-    POSIX.  Used to test L{privilegedStartService}.
-
-    @ivar highPortNumber: A port number which does not require privileges to
-    bind on POSIX.  Used to test the interaction between
-    L{privilegedStartService} and L{startService}.
 
     @ivar dbdir: The path at which to create the test L{Store}.  This must be
     bound before L{setUp} is run, since that is the only method which examines
@@ -136,40 +128,11 @@ class PortTestsMixin:
     @ivar ports: A list of ports which have been bound using L{listen}.
     created in L{setUp}.
     """
-    portType = None
-
-    lowPortNumber = 123
-    highPortNumber = 1234
-    someInterface = u'127.0.0.1'
-
     def port(self, **kw):
         """
         Create and return a new port instance with the given attribute values.
         """
         return self.portType(**kw)
-
-
-    def listen(self, *a, **kw):
-        """
-        Pretend to bind a port.  Used as a stub implementation of a reactor
-        listen method.  Subclasses should override and implement to append
-        useful information to C{self.ports}.
-        """
-        raise NotImplementedError()
-
-
-    def checkPort(self, port, alternatePort=None):
-        """
-        Assert that the given port has been properly created.
-
-        @type port: L{DummyPort}
-        @param port: A port which has been created by the code being tested.
-
-        @type alternatePort: C{int}
-        @param alternatePort: If not C{None}, the port number on which C{port}
-        should be listening.
-        """
-        raise NotImplementedError()
 
 
     def setUp(self):
@@ -178,24 +141,6 @@ class PortTestsMixin:
         self.realFactory = ServerFactory()
         self.factory = DummyFactory(store=self.store, realFactory=self.realFactory)
         self.ports = []
-
-
-    def test_portNumberAttribute(self):
-        """
-        Test that C{self.portType} remembers the port number it is told to
-        listen on.
-        """
-        port = self.port(store=self.store, portNumber=self.lowPortNumber)
-        self.assertEqual(port.portNumber, self.lowPortNumber)
-
-
-    def test_interfaceAttribute(self):
-        """
-        Test that C{self.portType} remembers the interface it is told to listen
-        on.
-        """
-        port = self.port(store=self.store, interface=self.someInterface)
-        self.assertEqual(port.interface, self.someInterface)
 
 
     def test_factoryAttribute(self):
@@ -250,6 +195,91 @@ class PortTestsMixin:
 
         service = IServiceCollection(self.store)
         self.failUnlessIn(port, list(service))
+
+
+    def test_deletedFactory(self):
+        """
+        Test that the deletion of a C{self.portType}'s factory item results in the
+        C{self.portType} being deleted.
+        """
+        self.port(store=self.store, factory=self.factory)
+        self.factory.deleteFromStore()
+        self.assertEqual(list(self.store.query(self.portType)), [])
+
+
+    def test_deletionDisownsParent(self):
+        """
+        Test that a deleted C{self.portType} no longer shows up in the children list
+        of the service which used to be its parent.
+        """
+        port = self.port(store=self.store, factory=self.factory)
+        port.setServiceParent(self.store)
+        port.deleteFromStore()
+        service = IServiceCollection(self.store)
+        self.failIfIn(port, list(service))
+
+
+
+class PortTestsMixin(BasePortTestsMixin):
+    """
+    Test method-defining mixin class for behaviour that is shared between
+    L{TCPPort} and L{SSLPort}.
+
+    Included are tests for various persistence-related behaviors.
+
+    @ivar lowPortNumber: A port number which requires privileges to bind on
+    POSIX.  Used to test L{privilegedStartService}.
+
+    @ivar highPortNumber: A port number which does not require privileges to
+    bind on POSIX.  Used to test the interaction between
+    L{privilegedStartService} and L{startService}.
+    """
+    portType = None
+
+    lowPortNumber = 123
+    highPortNumber = 1234
+    someInterface = u'127.0.0.1'
+
+
+    def listen(self, *a, **kw):
+        """
+        Pretend to bind a port.  Used as a stub implementation of a reactor
+        listen method.  Subclasses should override and implement to append
+        useful information to C{self.ports}.
+        """
+        raise NotImplementedError()
+
+
+    def checkPort(self, port, alternatePort=None):
+        """
+        Assert that the given port has been properly created.
+
+        @type port: L{DummyPort}
+        @param port: A port which has been created by the code being tested.
+
+        @type alternatePort: C{int}
+        @param alternatePort: If not C{None}, the port number on which C{port}
+        should be listening.
+        """
+        raise NotImplementedError()
+
+
+    def test_portNumberAttribute(self):
+        """
+        Test that C{self.portType} remembers the port number it is told to
+        listen on.
+        """
+        port = self.port(store=self.store, portNumber=self.lowPortNumber)
+        self.assertEqual(port.portNumber, self.lowPortNumber)
+
+
+    def test_interfaceAttribute(self):
+        """
+        Test that C{self.portType} remembers the interface it is told to listen
+        on.
+        """
+        port = self.port(store=self.store, interface=self.someInterface)
+        self.assertEqual(port.interface, self.someInterface)
 
 
     def _start(self, portNumber, methodName):
@@ -355,28 +385,6 @@ class PortTestsMixin:
         self.assertIdentical(stopped, stopping)
 
 
-    def test_deletedFactory(self):
-        """
-        Test that the deletion of a C{self.portType}'s factory item results in the
-        C{self.portType} being deleted.
-        """
-        self.port(store=self.store, portNumber=self.lowPortNumber, factory=self.factory)
-        self.factory.deleteFromStore()
-        self.assertEqual(list(self.store.query(self.portType)), [])
-
-
-    def test_deletionDisownsParent(self):
-        """
-        Test that a deleted C{self.portType} no longer shows up in the children list
-        of the service which used to be its parent.
-        """
-        port = self.port(store=self.store, portNumber=self.lowPortNumber, factory=self.factory)
-        port.setServiceParent(self.store)
-        port.deleteFromStore()
-        service = IServiceCollection(self.store)
-        self.failIfIn(port, list(service))
-
-
 
 class TCPPortTests(PortTestsMixin, TestCase):
     """
@@ -432,6 +440,14 @@ class SSLPortTests(PortTestsMixin, TestCase):
         certificatePath = self.store.newFilePath('foo', 'bar')
         port = self.port(store=self.store, certificatePath=certificatePath)
         self.assertEqual(port.certificatePath, certificatePath)
+
+
+
+class EndpointPortTests(BasePortTestsMixin, TestCase):
+    """
+    Tests for L{xmantissa.port.EndpointPort}.
+    """
+    portType = EndpointPort
 
 
 
