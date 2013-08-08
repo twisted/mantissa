@@ -539,7 +539,8 @@ class EndpointPortTests(BasePortTestsMixin, TestCase):
         r = port._makeService(_strports_service)
         self.assertEqual(42, r)
         self.assertEqual(
-            [(port.description, self.factory.realFactory)], events)
+            [('PORT_DESCRIPTION', self.factory.realFactory)], events)
+        self.assertIsInstance(events[0][0], str)
 
 
 

@@ -316,7 +316,7 @@ class EndpointPort(PortMixin, Item):
         @param _strports_service: A replacement for L{strports.service}.
         """
         return _strports_service(
-            self.description, self.factory.getFactory())
+            self.description.encode('ascii'), self.factory.getFactory())
 
 
 
