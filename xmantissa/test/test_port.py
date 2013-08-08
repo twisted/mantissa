@@ -443,11 +443,103 @@ class SSLPortTests(PortTestsMixin, TestCase):
 
 
 
+class MockService(object):
+    """
+    Mock LIService} implementation for testing L{EndpointPort}.
+
+    @type events: L{list}
+    @ivar events: A list of events that have occurred on this mock.
+    """
+    implements(IService)
+
+    def __init__(self):
+        self.events = []
+
+
+    # IService
+
+    def setName(self, name):
+        self.events.append(('setName', name))
+
+
+    def setServiceParent(self, parent):
+        self.events.append(('setServiceParent', parent))
+
+
+    def disownServiceParent(self):
+        self.events.append('disownServiceParent')
+
+
+    def startService(self):
+        self.events.append('startService')
+
+
+    def stopService(self):
+        self.events.append('stopService')
+
+
+    def privilegedStartService(self):
+        self.events.append('privilegedStartService')
+
+
+
 class EndpointPortTests(BasePortTestsMixin, TestCase):
     """
     Tests for L{xmantissa.port.EndpointPort}.
     """
     portType = EndpointPort
+
+    def setUp(self):
+        super(EndpointPortTests, self).setUp()
+        self.service = MockService()
+        self.mockedPort = self.portType()
+        self.mockedPort._service = self.service
+
+
+    def test_startService(self):
+        """
+        Starting an L{EndpointPort} starts the underlying service.
+        """
+        self.mockedPort.startService()
+        self.assertEqual(['startService'], self.service.events)
+
+
+    def test_privilegedStartService(self):
+        """
+        Privileged start on an L{EndpointPort} does the same on the underlying
+        service.
+        """
+        self.mockedPort.privilegedStartService()
+        self.assertEqual(['privilegedStartService'], self.service.events)
+
+
+    def test_stopService(self):
+        """
+        Stopping an L{EndpointPort} stops the underlying service and discards
+        it.
+        """
+        self.mockedPort.stopService()
+        self.assertEqual(['stopService'], self.service.events)
+        self.assertIdentical(None, self.mockedPort._service)
+
+
+    def test_serviceConstruction(self):
+        """
+        L{EndpointPort} constructs a service by passing the stored service
+        description, and a protocol factory obtained from the stored protocol
+        factory factory.
+        """
+        events = []
+        def _strports_service(description, factory):
+            events.append((description, factory))
+            return 42
+        self.factory.realFactory = 24
+        port = self.portType(
+            description=u'PORT_DESCRIPTION', factory=self.factory)
+        r = port._makeService(_strports_service)
+        self.assertEqual(42, r)
+        self.assertEqual(
+            [(port.description, self.factory.realFactory)], events)
 
 
 

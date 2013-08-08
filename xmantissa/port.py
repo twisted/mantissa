@@ -309,6 +309,17 @@ class EndpointPort(PortMixin, Item):
         self._service = None
 
 
+    def _makeService(self, _strports_service=strports.service):
+        """
+        Construct an L{IService} from the endpoint description.
+
+        @param _strports_service: A replacement for L{strports.service}.
+        """
+        return _strports_service(
+            self.description, self.factory.getFactory())
+
+
+
     @property
     def service(self):
         if self._service is None:
