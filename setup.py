@@ -1,13 +1,16 @@
-from epsilon import setuphelper
+from setuptools import setup, find_packages
+import re
 
-from xmantissa import version
+versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
+with open("xmantissa/_version.py", "rt") as f:
+    version = versionPattern.search(f.read()).group(1)
 
-setuphelper.autosetup(
+setup(
     name="Mantissa",
-    version=version.short(),
-    maintainer="Divmod, Inc.",
-    maintainer_email="support@divmod.org",
-    url="http://divmod.org/trac/wiki/DivmodMantissa",
+    version=version,
+    maintainer="Tristan Seligmann",
+    maintainer_email="mithrandi@mithrandi.net",
+    url="https://github.com/twisted/mantissa",
     license="MIT",
     platforms=["any"],
     description="A multiprotocol application deployment platform",
@@ -24,4 +27,17 @@ setuphelper.autosetup(
         "Topic :: Software Development :: Libraries :: Application Frameworks",
         "Topic :: Terminals",
         ],
+    install_requires=[
+        "Twisted>=14.0.0",
+        "PyOpenSSL>=0.13",
+        "Axiom>=0.7.0",
+        "Vertex>=0.2.0",
+        "PyTZ",
+        "Pillow",
+        "cssutils>=0.9.4a4",
+        "Nevow>=0.9.5",
+        "PyCrypto",
+        ],
+    packages=find_packages() + ['axiom.plugins', 'nevow.plugins'],
+    include_package_data=True,
     )

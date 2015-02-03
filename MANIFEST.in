@@ -1,7 +1,7 @@
 include LICENSE
 include NAME.txt
-include DEPS.txt
 include NEWS.txt
-graft xmantissa
-graft axiom
-graft nevow
+graft xmantissa/static
+graft xmantissa/js
+recursive-include xmantissa/test/historic *.tbz2
+graft xmantissa/test/resources
