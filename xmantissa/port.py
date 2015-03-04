@@ -276,7 +276,7 @@ registerAttributeCopyingUpgrader(SSLPort, 1, 2)
 
 
 
-class EndpointPort(PortMixin, Item):
+class StringEndpointPort(PortMixin, Item):
     """
     An Axiom Service Item which will listen on an endpoint described by a
     string when started.
@@ -505,7 +505,7 @@ class CreateOptions(AxiomaticSubCommand):
                 except ValueError:
                     print "%r is not a valid port description." % (strport,)
                     raise SystemExit(1)
-                port = EndpointPort(
+                port = StringEndpointPort(
                     store=store, description=description, factory=factory)
                 installOn(port, store)
                 print "Created."

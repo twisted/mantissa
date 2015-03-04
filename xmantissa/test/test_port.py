@@ -28,7 +28,7 @@ from axiom.scripts.axiomatic import Options as AxiomaticOptions
 from axiom.test.util import CommandStub
 
 from xmantissa.ixmantissa import IProtocolFactoryFactory
-from xmantissa.port import TCPPort, SSLPort, EndpointPort
+from xmantissa.port import TCPPort, SSLPort, StringEndpointPort
 from xmantissa.port import PortConfiguration
 
 
@@ -438,7 +438,7 @@ class SSLPortTests(PortTestsMixin, TestCase):
 class _FakeService(object):
     """
     Fake L{twisted.application.service.IService} implementation for testing
-    L{xmantissa.port.EndpointPort}'s wrapping behaviour.
+    L{xmantissa.port.StringEndpointPort}'s wrapping behaviour.
     """
     def __init__(self, description):
         self.description = description
@@ -460,9 +460,9 @@ class _FakeService(object):
 
 
 
-class EndpointPortTests(TestCase):
+class StringEndpointPortTests(TestCase):
     """
-    Tests for L{xmantissa.port.EndpointPort}.
+    Tests for L{xmantissa.port.StringEndpointPort}.
     """
     def _fakeService(self, description):
         self._service = _FakeService(description)
@@ -470,7 +470,7 @@ class EndpointPortTests(TestCase):
 
 
     def port(self, **kw):
-        port = EndpointPort(store=Store(), **kw)
+        port = StringEndpointPort(store=Store(), **kw)
         port._endpointService = self._fakeService
         return port
 
@@ -478,7 +478,7 @@ class EndpointPortTests(TestCase):
     def test_startService(self):
         """
         The underlying endpoint service is started when
-        L{xmantissa.port.EndpointPort} is started.
+        L{xmantissa.port.StringEndpointPort} is started.
         """
         port = self.port(description=u'foo')
         port.privilegedStartService()
@@ -490,7 +490,7 @@ class EndpointPortTests(TestCase):
     def test_description(self):
         """
         The underlying endpoint service is created with the description
-        specified by the L{xmantissa.port.EndpointPort}.
+        specified by the L{xmantissa.port.StringEndpointPort}.
         """
         port = self.port(description=u'foo')
         port.startService()
@@ -500,7 +500,7 @@ class EndpointPortTests(TestCase):
     def test_stopService(self):
         """
         The underlying endpoint service is stopped when
-        L{xmantissa.port.EndpointPort} is stopped.
+        L{xmantissa.port.StringEndpointPort} is stopped.
         """
         port = self.port(description=u'foo')
         port.startService()
@@ -960,9 +960,10 @@ class PortConfigurationCommandTests(TestCase):
 
     def test_createPort(self):
         """
-        I{axiomatic port create} creates a new L{EndpointPort} with the
-        specified description, referring to the specified factory. The port is
-        also powered up on the store for L{IService}.
+        I{axiomatic port create} creates a new
+        L{xmantissa.port.StringEndpointPort} with the specified description,
+        referring to the specified factory. The port is also powered up on the
+        store for L{IService}.
         """
         store = Store()
         factory = DummyFactory(store=store)
@@ -971,6 +972,6 @@ class PortConfigurationCommandTests(TestCase):
             ["create", "--strport", "tcp:8080",
              "--factory-identifier", str(factory.storeID)])
         self.assertEqual("Created.\n", sys.stdout.getvalue())
-        [port] = list(store.query(EndpointPort))
+        [port] = list(store.query(StringEndpointPort))
         self.assertEqual(u'tcp:8080', port.description)
         self.assertEqual(list(store.interfacesFor(port)), [IService])
