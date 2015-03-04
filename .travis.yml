@@ -1,0 +1,33 @@
+language: "python"
+
+branches:
+  only:
+    - master
+
+matrix:
+  include:
+    # PyPy isn't supported just yet
+    #- python: "pypy"
+    - python: "2.7"
+
+install:
+  # Tools for checking coverage and uploading to coveralls
+  - pip install coveralls coverage
+  # Need to install Epsilon first, in order to execute Vertex's setup.py
+  - pip install Epsilon
+  - pip install .
+
+script:
+  - coverage run --branch --source=xmantissa $(type -p trial) xmantissa
+  - coverage report -m
+
+after_success:
+  - coveralls
+
+notifications:
+  email: false
+  irc:
+     channels: "chat.freenode.net#divmod"
+     template:
+       - "%{repository}@%{branch} - %{author}: %{message} (%{build_url})"
+     use_notice: true
