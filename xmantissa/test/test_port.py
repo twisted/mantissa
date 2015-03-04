@@ -559,6 +559,13 @@ class PortConfigurationCommandTests(TestCase):
         self.assertEqual(exc.args, (code,))
 
 
+    def assertSpacelessEqual(self, first, second):
+        """
+        Assert the equality of two strings without respect to their whitespace.
+        """
+        self.assertEqual(' '.join(first.split()), ' '.join(second.split()))
+
+
     def test_providesCommandInterface(self):
         """
         L{PortConfiguration} provides L{IAxiomaticCommand}.
@@ -601,7 +608,7 @@ class PortConfigurationCommandTests(TestCase):
         is written to standard out and the process exits successfully.
         """
         self.assertSuccessStatus(self._makeConfig(None), [])
-        self.assertEqual(self._portHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._portHelpText, sys.stdout.getvalue())
 
 
     def test_explicitPortHelp(self):
@@ -610,7 +617,7 @@ class PortConfigurationCommandTests(TestCase):
         written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["--help"])
-        self.assertEqual(self._portHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._portHelpText, sys.stdout.getvalue())
 
 
     _listHelpText = (
@@ -628,7 +635,7 @@ class PortConfigurationCommandTests(TestCase):
         information for the C{list} subcommand is written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["list", "--help"])
-        self.assertEqual(self._listHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._listHelpText, sys.stdout.getvalue())
 
 
     def test_listEmpty(self):
@@ -777,12 +784,10 @@ class PortConfigurationCommandTests(TestCase):
         "      --version           Display Twisted version and exit.\n"
         "      --help              Display this help and exit.\n"
         "\n"
-        "Delete an existing port binding from a factory.  If a server is "
-        "currently\n"
-        "running using the database from which the port is deleted, the "
-        "factory will\n"
-        "*not* stop listening on that port until the server is restarted.\n"
-        "\n")
+        "Delete an existing port binding from a factory. If a server is "
+        "currently running using the database from which the port is deleted, "
+        "the factory will *not* stop listening on that port until the server "
+        "is restarted.")
 
     def test_explicitDeleteHelp(self):
         """
@@ -791,7 +796,7 @@ class PortConfigurationCommandTests(TestCase):
         """
         store = Store()
         self.assertSuccessStatus(self._makeConfig(store), ["delete", "--help"])
-        self.assertEqual(self._deleteHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._deleteHelpText, sys.stdout.getvalue())
 
 
     def test_implicitDeleteHelp(self):
@@ -801,7 +806,7 @@ class PortConfigurationCommandTests(TestCase):
         """
         store = Store()
         self.assertSuccessStatus(self._makeConfig(store), ["delete"])
-        self.assertEqual(self._deleteHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._deleteHelpText, sys.stdout.getvalue())
 
 
     def test_deletePorts(self):
@@ -893,7 +898,7 @@ class PortConfigurationCommandTests(TestCase):
         information for the C{create} subcommand is written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["create"])
-        self.assertEqual(self._createHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._createHelpText, sys.stdout.getvalue())
 
 
     def test_createExplicitHelp(self):
@@ -902,7 +907,7 @@ class PortConfigurationCommandTests(TestCase):
         usage information for the C{add} subcommand is written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["create", "--help"])
-        self.assertEqual(self._createHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._createHelpText, sys.stdout.getvalue())
 
 
     def test_createInvalidPortDescription(self):
