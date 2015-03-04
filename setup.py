@@ -34,7 +34,7 @@ setup(
         "Vertex>=0.2.0",
         "PyTZ",
         "Pillow",
-        "cssutils>=0.9.4a4",
+        "cssutils>=0.9.5",
         "Nevow>=0.9.5",
         "PyCrypto",
         ],
