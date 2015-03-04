@@ -260,35 +260,6 @@ class PeopleUtilitiesTestCase(unittest.TestCase):
             self.assertEquals(output.format, input.format, cause)
 
 
-    def test_makeThumbnail116(self):
-        """
-        Subset of L{test_makeThumbnail} requiring PIL 1.1.6 or above.
-        """
-        try:
-            from PIL import Image
-        except ImportError:
-            raise unittest.SkipTest('PIL is not available')
-        if map(int, Image.VERSION.split('.')) < [1, 1, 6]:
-            raise unittest.SkipTest(
-                'PIL < 1.1.6 resizing has off-by-0.5 errors;  see #2521')
-
-        sizes = [(x, y) for x in [30, 60, 120]
-                        for y in [30, 60, 120]
-                        if 60 < max(x, y)]
-        for (input, output, cause) in self._makeThumbnailPairs(sizes, 60):
-            # Compare the output color distribution to Image.ANTIALIAS sampling.
-            # (Skip JPEG due to compression artifacts.)
-            if output.format != 'JPEG':
-                expectedColors = (9, 13)[input.size != (120, 120)]
-                self.assertEqual(len(output.getcolors()), expectedColors, cause)
-                if 1 < len(output.getbands()):  # Ugh.
-                    extremas = output.getextrema()
-                else:
-                    extremas = (output.getextrema(),)
-                for extrema in extremas:
-                    self.assertEqual(extrema, (0, 119), cause)
-
-
     def test_makeThumbnailNoResize(self):
         """
         L{makeThumbnail} should leave images under thumbnail size unchanged.
