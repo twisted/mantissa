@@ -801,11 +801,6 @@ class InequalityPerformanceTests(unittest.TestCase):
         DataThunkWithIndex(store=self.store, a=0)
         second = self.rowsAfterItem(self.data[0], 2)
         self.assertEqual(first, second)
-    test_rowsAfterItemWithDuplicatesAtStart.todo = (
-        "Index scan to find appropriate storeID starting point once the "
-        "value index has been used to seek to /near/ the correct starting "
-        "place causes this to be O(N) on the number of rows with duplicate "
-        "values.")
 
 
     def test_rowsAfterItemWithDuplicatesInResult(self):
@@ -916,11 +911,6 @@ class InequalityPerformanceTests(unittest.TestCase):
         DataThunkWithIndex(store=self.store, a=3)
         second = self.rowsBeforeItem(self.data[3], 2)
         self.assertEqual(first, second)
-    test_rowsBeforeItemWithDuplicatesAtStart.todo = (
-        "Index scan to find appropriate storeID starting point once the "
-        "value index has been used to seek to /near/ the correct starting "
-        "place causes this to be O(N) on the number of rows with duplicate "
-        "values.")
 
 
     def test_rowsBeforeItemWithDuplicatesInResult(self):
