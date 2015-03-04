@@ -987,7 +987,7 @@ class CustomizedPublicPageTests(TestCase):
 
         self.assertIsInstance(wrapper, _CustomizingResource)
         self.assertIdentical(wrapper.currentResource, result)
-        self.assertIdentical(resultSegs, ())
+        self.assertEqual(resultSegs, ())
 
 
 
