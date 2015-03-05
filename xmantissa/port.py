@@ -41,7 +41,6 @@ All concerns related to binding ports can be disregarded.  Once this item has
 been added to a site store, an administrator will have access to it and may
 configure it to listen on one or more ports.
 """
-
 from zope.interface import implements
 
 try:
@@ -50,11 +49,12 @@ except ImportError:
     SSL = None
 
 from twisted.application.service import IService, IServiceCollection
-from twisted.application.strports import parse
+from twisted.application.strports import service
+from twisted.internet import reactor
+from twisted.internet.endpoints import serverFromString
 from twisted.internet.ssl import PrivateCertificate, CertificateOptions
 from twisted.python.reflect import qual
 from twisted.python.usage import Options
-from twisted.python.filepath import FilePath
 
 from axiom.item import Item, declareLegacyItem, normalize
 from axiom.attributes import inmemory, integer, reference, path, text
@@ -275,6 +275,68 @@ declareLegacyItem(
 registerAttributeCopyingUpgrader(SSLPort, 1, 2)
 
 
+
+class StringEndpointPort(PortMixin, Item):
+    """
+    An Axiom Service Item which will listen on an endpoint described by a
+    string when started.
+    """
+    description = text(doc="""
+    String description of the endpoint to listen on.
+    """, allowNone=False)
+
+    factory = reference(doc="""
+    An Item with a C{getFactory} method which returns a Twisted protocol
+    factory.
+    """, whenDeleted=reference.CASCADE)
+
+    parent = inmemory(doc="""
+    A reference to the parent service of this service, whenever there is a
+    parent.
+    """)
+
+    _service = inmemory(doc="""
+    A reference to the real endpoint L{IService}.
+    """)
+
+    _endpointService = inmemory(doc="""
+    A callable implementing the same API as
+    L{twisted.application.strports.service}, or C{None}.
+    """)
+
+    def activate(self):
+        self.parent = None
+        self._service = None
+        self._endpointService = None
+
+
+    def _makeService(self):
+        """
+        Construct a service for the endpoint as described.
+        """
+        if self._endpointService is None:
+            return service(self.description.encode('ascii'))
+        else:
+            return self._endpointService(self.description.encode('ascii'))
+
+
+    def privilegedStartService(self):
+        if self._service is None:
+            self._service = self._makeService()
+        self._service.privilegedStartService()
+
+
+    def startService(self):
+        if self._service is None:
+            self._service = self._makeService()
+        self._service.startService()
+
+
+    def stopService(self):
+        self._service.stopService()
+
+
+
 class ListOptions(Options):
     """
     I{axiomatic port} subcommand for displaying the ports which are currently
@@ -437,77 +499,17 @@ class CreateOptions(AxiomaticSubCommand):
                 print "%d does not identify a factory." % (storeID,)
                 raise SystemExit(1)
             else:
+                description = self.decodeCommandLine(strport)
                 try:
-                    kind, args, kwargs = parse(strport, factory)
+                    serverFromString(reactor, description.encode('ascii'))
                 except ValueError:
                     print "%r is not a valid port description." % (strport,)
                     raise SystemExit(1)
-                except KeyError:
-                    print "Unrecognized port type."
-                    raise SystemExit(1)
-                except SSL.Error, e:
-                    if self._pemFormatError in e.args[0]:
-                        print 'Certificate file must use PEM format.'
-                        raise SystemExit(1)
-                    elif self._noSuchFileError in e.args[0]:
-                        if self._certFileError in e.args[0]:
-                            print "Specified certificate file does not exist."
-                            raise SystemExit(1)
-                        elif self._keyFileError in e.args[0]:
-                            print "Specified private key file does not exist."
-                            raise SystemExit(1)
-                        else:
-                            # Note, no test coverage.
-                            raise
-                    else:
-                        # Note, no test coverage.
-                        raise
-                else:
-                    try:
-                        method = getattr(self, 'create_' + kind)
-                    except AttributeError:
-                        print "Unsupported port type."
-                        raise SystemExit(1)
-                    else:
-                        port = method(store, *args, **kwargs)
-                        installOn(port, store)
-                        print "Created."
+                port = StringEndpointPort(
+                    store=store, description=description, factory=factory)
+                installOn(port, store)
+                print "Created."
         raise SystemExit(0)
-
-
-    def create_TCP(self, store, port, factory, backlog, interface):
-        """
-        Create a new L{TCPPort} with the specified parameters.
-        """
-        return TCPPort(
-            store=store, portNumber=port,
-            factory=factory, interface=self.decodeCommandLine(interface))
-
-
-    def create_SSL(self, store, port, factory, context, backlog, interface):
-        """
-        Create a new L{SSLPort} with the specified parameters.
-
-        @type context: L{DefaultOpenSSLContextFactory}
-        """
-        key = context.privateKeyFileName
-        cert = context.certificateFileName
-        if key != cert:
-            print "You must specify the same file for certKey and privateKey."
-            raise SystemExit(1)
-        elif context.sslmethod != SSL.SSLv23_METHOD:
-            print "Only SSLv23_METHOD is supported."
-            raise SystemExit(1)
-        else:
-            port = SSLPort(
-                store=store, portNumber=port, factory=factory,
-                interface=self.decodeCommandLine(interface))
-            targetDir = store.filesdir.child(str(port.storeID))
-            targetDir.makedirs()
-            targetPath = targetDir.child("cert.pem")
-            port.certificatePath = targetPath
-            FilePath(key).copyTo(targetPath)
-            return port
 
 
 

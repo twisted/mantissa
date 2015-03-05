@@ -28,7 +28,7 @@ from axiom.scripts.axiomatic import Options as AxiomaticOptions
 from axiom.test.util import CommandStub
 
 from xmantissa.ixmantissa import IProtocolFactoryFactory
-from xmantissa.port import TCPPort, SSLPort
+from xmantissa.port import TCPPort, SSLPort, StringEndpointPort
 from xmantissa.port import PortConfiguration
 
 
@@ -435,6 +435,80 @@ class SSLPortTests(PortTestsMixin, TestCase):
 
 
 
+class _FakeService(object):
+    """
+    Fake L{twisted.application.service.IService} implementation for testing
+    L{xmantissa.port.StringEndpointPort}'s wrapping behaviour.
+    """
+    def __init__(self, description):
+        self.description = description
+        self.privilegedStarted = False
+        self.started = False
+        self.stopped = False
+
+
+    def privilegedStartService(self):
+        self.privilegedStarted = True
+
+
+    def startService(self):
+        self.started = True
+
+
+    def stopService(self):
+        self.stopped = True
+
+
+
+class StringEndpointPortTests(TestCase):
+    """
+    Tests for L{xmantissa.port.StringEndpointPort}.
+    """
+    def _fakeService(self, description):
+        self._service = _FakeService(description)
+        return self._service
+
+
+    def port(self, **kw):
+        port = StringEndpointPort(store=Store(), **kw)
+        port._endpointService = self._fakeService
+        return port
+
+
+    def test_startService(self):
+        """
+        The underlying endpoint service is started when
+        L{xmantissa.port.StringEndpointPort} is started.
+        """
+        port = self.port(description=u'foo')
+        port.privilegedStartService()
+        self.assertTrue(self._service.privilegedStarted)
+        port.startService()
+        self.assertTrue(self._service.started)
+
+
+    def test_description(self):
+        """
+        The underlying endpoint service is created with the description
+        specified by the L{xmantissa.port.StringEndpointPort}.
+        """
+        port = self.port(description=u'foo')
+        port.startService()
+        self.assertEqual(u'foo', self._service.description)
+
+
+    def test_stopService(self):
+        """
+        The underlying endpoint service is stopped when
+        L{xmantissa.port.StringEndpointPort} is stopped.
+        """
+        port = self.port(description=u'foo')
+        port.startService()
+        port.stopService()
+        self.assertTrue(self._service.stopped)
+
+
+
 class PortConfigurationCommandTests(TestCase):
     """
     Tests for the I{axiomatic port} command.
@@ -485,6 +559,13 @@ class PortConfigurationCommandTests(TestCase):
         self.assertEqual(exc.args, (code,))
 
 
+    def assertSpacelessEqual(self, first, second):
+        """
+        Assert the equality of two strings without respect to their whitespace.
+        """
+        self.assertEqual(' '.join(first.split()), ' '.join(second.split()))
+
+
     def test_providesCommandInterface(self):
         """
         L{PortConfiguration} provides L{IAxiomaticCommand}.
@@ -527,7 +608,7 @@ class PortConfigurationCommandTests(TestCase):
         is written to standard out and the process exits successfully.
         """
         self.assertSuccessStatus(self._makeConfig(None), [])
-        self.assertEqual(self._portHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._portHelpText, sys.stdout.getvalue())
 
 
     def test_explicitPortHelp(self):
@@ -536,7 +617,7 @@ class PortConfigurationCommandTests(TestCase):
         written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["--help"])
-        self.assertEqual(self._portHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._portHelpText, sys.stdout.getvalue())
 
 
     _listHelpText = (
@@ -554,7 +635,7 @@ class PortConfigurationCommandTests(TestCase):
         information for the C{list} subcommand is written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["list", "--help"])
-        self.assertEqual(self._listHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._listHelpText, sys.stdout.getvalue())
 
 
     def test_listEmpty(self):
@@ -704,11 +785,9 @@ class PortConfigurationCommandTests(TestCase):
         "      --help              Display this help and exit.\n"
         "\n"
         "Delete an existing port binding from a factory. If a server is "
-        "currently running\n"
-        "using the database from which the port is deleted, the factory "
-        "will *not* stop\n"
-        "listening on that port until the server is restarted.\n"
-        "\n")
+        "currently running using the database from which the port is deleted, "
+        "the factory will *not* stop listening on that port until the server "
+        "is restarted.")
 
     def test_explicitDeleteHelp(self):
         """
@@ -717,7 +796,7 @@ class PortConfigurationCommandTests(TestCase):
         """
         store = Store()
         self.assertSuccessStatus(self._makeConfig(store), ["delete", "--help"])
-        self.assertEqual(self._deleteHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._deleteHelpText, sys.stdout.getvalue())
 
 
     def test_implicitDeleteHelp(self):
@@ -727,7 +806,7 @@ class PortConfigurationCommandTests(TestCase):
         """
         store = Store()
         self.assertSuccessStatus(self._makeConfig(store), ["delete"])
-        self.assertEqual(self._deleteHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._deleteHelpText, sys.stdout.getvalue())
 
 
     def test_deletePorts(self):
@@ -806,7 +885,7 @@ class PortConfigurationCommandTests(TestCase):
         "      --version              Display Twisted version and exit.\n"
         "      --help                 Display this help and exit.\n"
         "\n"
-        "Create a new port binding for an existing factory. If a server is "
+        "Create a new port binding for an existing factory.  If a server is "
         "currently\n"
         "running using the database in which the port is created, the "
         "factory will *not*\n"
@@ -819,7 +898,7 @@ class PortConfigurationCommandTests(TestCase):
         information for the C{create} subcommand is written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["create"])
-        self.assertEqual(self._createHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._createHelpText, sys.stdout.getvalue())
 
 
     def test_createExplicitHelp(self):
@@ -828,7 +907,7 @@ class PortConfigurationCommandTests(TestCase):
         usage information for the C{add} subcommand is written to standard out.
         """
         self.assertSuccessStatus(self._makeConfig(None), ["create", "--help"])
-        self.assertEqual(self._createHelpText, sys.stdout.getvalue())
+        self.assertSpacelessEqual(self._createHelpText, sys.stdout.getvalue())
 
 
     def test_createInvalidPortDescription(self):
@@ -879,12 +958,12 @@ class PortConfigurationCommandTests(TestCase):
             sys.stdout.getvalue())
 
 
-    def test_createTCPPort(self):
+    def test_createPort(self):
         """
-        If given a valid strport description of a TCP port and the storeID of
-        an extant factory, I{axiomatic port create} creates a new L{TCPPort}
-        with the specified configuration and referring to that factory.  The
-        port is also powered up on the store for L{IService}.
+        I{axiomatic port create} creates a new
+        L{xmantissa.port.StringEndpointPort} with the specified description,
+        referring to the specified factory. The port is also powered up on the
+        store for L{IService}.
         """
         store = Store()
         factory = DummyFactory(store=store)
@@ -893,183 +972,6 @@ class PortConfigurationCommandTests(TestCase):
             ["create", "--strport", "tcp:8080",
              "--factory-identifier", str(factory.storeID)])
         self.assertEqual("Created.\n", sys.stdout.getvalue())
-        [tcp] = list(store.query(TCPPort))
-        self.assertEqual(tcp.portNumber, 8080)
-        self.assertIdentical(tcp.factory, factory)
-        self.assertEqual(list(store.interfacesFor(tcp)), [IService])
-
-
-    def test_createSSLPortInvalidCertificate(self):
-        """
-        If given a certificate file which does not contain a PEM-format
-        certificate, I{axiomatic port create} writes a short error message to
-        standard output.
-        """
-        pemPath = FilePath(self.mktemp())
-        pemPath.setContent("pem goes here")
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create", "--strport", "ssl:8443:certKey=" + pemPath.path,
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "Certificate file must use PEM format.\n",
-            sys.stdout.getvalue())
-        self.assertEqual(store.query(SSLPort).count(), 0)
-
-
-    def test_createSSLPortNonExistentCertificateFile(self):
-        """
-        Specifying a certificate file which does not exist when creating an SSL
-        port with I{axiomatic port create} causes a short error message to be
-        written to stdout.
-        """
-        pemPath = FilePath(self.mktemp())
-        pemPath.setContent(PRIVATEKEY_DATA)
-
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create",
-             "--strport", "ssl:8443:certKey=quux:privateKey=" + pemPath.path,
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "Specified certificate file does not exist.\n",
-            sys.stdout.getvalue())
-        self.assertEqual(store.query(SSLPort).count(), 0)
-
-
-    def test_createSSLPortNonExistentKeyFile(self):
-        """
-        Specifying a private key file which does not exist when creating an SSL
-        port with I{axiomatic port create} causes a short error message to be
-        written to stdout.
-        """
-        pemPath = FilePath(self.mktemp())
-        pemPath.setContent(CERTIFICATE_DATA)
-
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create",
-             "--strport", "ssl:8443:privateKey=quux:certKey=" + pemPath.path,
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "Specified private key file does not exist.\n",
-            sys.stdout.getvalue())
-        self.assertEqual(store.query(SSLPort).count(), 0)
-
-
-    def test_createSSLPortInconsistentCertificateAndKeyFiles(self):
-        """
-        If different values are specified for the certificate file and the
-        private key file when creating an SSL port with I{axiomatic port
-        create}, a short error message is written to standard output.
-
-        This reflects an implementation limitation which may be lifted in the
-        future.
-        """
-        certPath = FilePath(self.mktemp())
-        certPath.setContent(CERTIFICATE_DATA)
-        keyPath = FilePath(self.mktemp())
-        keyPath.setContent(PRIVATEKEY_DATA)
-
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create",
-             "--strport", "ssl:8443:privateKey=" + keyPath.path +
-             ":certKey=" + certPath.path,
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "You must specify the same file for certKey and privateKey.\n",
-            sys.stdout.getvalue())
-        self.assertEqual(store.query(SSLPort).count(), 0)
-
-
-    def test_createSSLPortWithMethod(self):
-        """
-        SSL method configuration is unsupported and when I{axiomatic port
-        create} is used to create an SSL port, an error is written to standard
-        out if an attempt is made to specify a method.
-        """
-        pemPath = FilePath(self.mktemp())
-        pemPath.setContent(CERTIFICATE_DATA + PRIVATEKEY_DATA)
-
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create",
-             "--strport", "ssl:8443:privateKey=" + pemPath.path +
-             ":certKey=" + pemPath.path + ":sslmethod=TLSv1_METHOD",
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "Only SSLv23_METHOD is supported.\n",
-            sys.stdout.getvalue())
-        self.assertEqual(store.query(SSLPort).count(), 0)
-
-
-    def test_createSSLPort(self):
-        """
-        If a given valid strport description of an SSL port and the storeID of
-        an extant factory, I{axiomatic port create} creates a new L{SSLPort}
-        with the specified configuration and referring to that factory.  The
-        certificate file specified is copied to a path inside the Store's files
-        directory.  The port is also powered up on the store for L{IService}.
-        """
-        pemPath = FilePath(self.mktemp())
-        pemPath.setContent(CERTIFICATE_DATA + PRIVATEKEY_DATA)
-        store = Store(filesdir=self.mktemp())
-        factory = DummyFactory(store=store)
-        self.assertSuccessStatus(
-            self._makeConfig(store),
-            ["create", "--strport",
-             "ssl:8443:certKey=" + pemPath.path +
-             ":privateKey=" + pemPath.path,
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual("Created.\n", sys.stdout.getvalue())
-        [ssl] = list(store.query(SSLPort))
-        self.assertEqual(ssl.portNumber, 8443)
-        self.assertEqual(
-            ssl.certificatePath.getContent(),
-            CERTIFICATE_DATA + PRIVATEKEY_DATA)
-        self.assertIdentical(ssl.factory, factory)
-        self.assertEqual(
-            pemPath.getContent(), CERTIFICATE_DATA + PRIVATEKEY_DATA)
-        self.assertEqual(list(store.interfacesFor(ssl)), [IService])
-
-
-    def test_createUnrecognized(self):
-        """
-        If given a strport description of an unrecognized port type,
-        I{axiomatic port create} writes an error message to standard output.
-        """
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create", "--strport", "quux:foo",
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "'quux:foo' is not a valid port description.\n", sys.stdout.getvalue())
-
-
-    def test_createUnsupported(self):
-        """
-        If given a strport description of a valid type which is not supported
-        by Mantissa, I{axiomatic port create} writes an error message to
-        standard output.
-        """
-        store = Store()
-        factory = DummyFactory(store=store)
-        self.assertFailStatus(
-            1, self._makeConfig(store),
-            ["create", "--strport", "unix:/foo",
-             "--factory-identifier", str(factory.storeID)])
-        self.assertEqual(
-            "Unsupported port type.\n", sys.stdout.getvalue())
+        [port] = list(store.query(StringEndpointPort))
+        self.assertEqual(u'tcp:8080', port.description)
+        self.assertEqual(list(store.interfacesFor(port)), [IService])
