@@ -1,3 +1,15 @@
+0.8.0 (2015-06-01):
+  - Fix the JavaScript function for linkifying a block of text so that it
+    doesn't drop all the text following the last link in the text.
+  - Fix compatibility with modern versions of Twisted.
+  - Fix compatibility with modern versions of cssutils.
+  - Add a new port type, StringEndpointPort, which is now used by
+    `axiomatic port`. This now allows using any endpoint type supported by the
+    string endpoint parser in Twisted (which is extensible through plugins).
+  - PyPy is now supported and should be fully functional (although there has
+    not been much real-world testing of this yet).
+  - Switch to setuptools; pip installation should be much easier now.
+
 0.7.0 (2009-11-25):
   - Add an SSH application server.
   - Add a SQLite3 FTS3-based fulltext search backend.
