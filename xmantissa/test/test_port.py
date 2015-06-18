@@ -691,6 +691,23 @@ class PortConfigurationCommandTests(TestCase):
             sys.stdout.getvalue())
 
 
+    def test_listStringEndpointPort(self):
+        """
+        When I{axiomatic port list} is invoked for a L{Store} which has an
+        L{StringEndpointPort} in it, the endpoint description and factory are
+        written to stdout.
+        """
+        store = Store()
+        factory = DummyFactory(store=store)
+        port = StringEndpointPort(
+            store=store, factory=factory, description=u'tcp:1234')
+        self.assertSuccessStatus(self._makeConfig(store), ["list"])
+        self.assertEqual(
+            "{:d}) {!r} listening on:\n".format(factory.storeID, factory) +
+            "  {:d}) Endpoint {!r}\n".format(port.storeID, port.description),
+            sys.stdout.getvalue())
+
+
     def test_listAnyInterface(self):
         """
         I{axiomatic port list} displays a special string for a port bound to

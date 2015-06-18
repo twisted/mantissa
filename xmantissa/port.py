@@ -352,7 +352,7 @@ class ListOptions(Options):
         store = self.parent.parent.getStore()
         port = None
         factories = {}
-        for portType in [TCPPort, SSLPort]:
+        for portType in [TCPPort, SSLPort, StringEndpointPort]:
             for port in store.query(portType):
                 key = port.factory.storeID
                 if key not in factories:
@@ -368,14 +368,14 @@ class ListOptions(Options):
             if ports:
                 print '%d) %r listening on:' % (factory.storeID, factory)
                 for port in ports:
-                    if port.interface:
+                    if getattr(port, 'interface', None):
                         interface = "interface " + port.interface
                     else:
                         interface = "any interface"
                     if isinstance(port, TCPPort):
                         print '  %d) TCP, %s, port %d' % (
                             port.storeID, interface, port.portNumber)
-                    else:
+                    elif isinstance(port, SSLPort):
                         if port.certificatePath is not None:
                             pathPart = 'certificate %s' % (
                                 port.certificatePath.path,)
@@ -387,6 +387,9 @@ class ListOptions(Options):
                             portPart = 'NO PORT'
                         print '  %d) SSL, %s, %s, %s' % (
                             port.storeID, interface, portPart, pathPart)
+                    elif isinstance(port, StringEndpointPort):
+                        print '  {:d}) Endpoint {!r}'.format(
+                            port.storeID, port.description)
             else:
                 print '%d) %r is not listening.' % (factory.storeID, factory)
         if not factories:
