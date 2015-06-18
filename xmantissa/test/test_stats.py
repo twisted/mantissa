@@ -59,10 +59,9 @@ class RemoteStatsCollectorTest(BoxReceiverFactoryPowerupTestMixin, unittest.Test
                 (d['key'], d['value'])
                 for d in parseString(stat['data'])
                 if d['key'] != 'time'])
-        self.assertEqual(
-            data,
-            set([('foo', 'bar'), ('baz', '12'),
-                 ('quux', u'\N{SNOWMAN}'.encode('utf-8'))]))
+        for item in set([('foo', 'bar'), ('baz', '12'),
+                         ('quux', u'\N{SNOWMAN}'.encode('utf-8'))]):
+            self.assertIn(item, data)
 
 
     def test_ignoreOtherEvents(self):
