@@ -440,8 +440,9 @@ class _FakeService(object):
     Fake L{twisted.application.service.IService} implementation for testing
     L{xmantissa.port.StringEndpointPort}'s wrapping behaviour.
     """
-    def __init__(self, description):
+    def __init__(self, description, factory):
         self.description = description
+        self.factory = factory
         self.privilegedStarted = False
         self.started = False
         self.stopped = False
@@ -464,8 +465,12 @@ class StringEndpointPortTests(TestCase):
     """
     Tests for L{xmantissa.port.StringEndpointPort}.
     """
-    def _fakeService(self, description):
-        self._service = _FakeService(description)
+    def _fakeService(self, description, factory):
+        """
+        A fake for L{twisted.application.strports.service} that just constructs
+        our fake service object.
+        """
+        self._service = _FakeService(description, factory)
         return self._service
 
 
@@ -683,6 +688,23 @@ class PortConfigurationCommandTests(TestCase):
             "  %d) SSL, interface %s, port %d, certificate %s\n" % (
                 port.storeID, port.interface, port.portNumber,
                 port.certificatePath.path),
+            sys.stdout.getvalue())
+
+
+    def test_listStringEndpointPort(self):
+        """
+        When I{axiomatic port list} is invoked for a L{Store} which has an
+        L{StringEndpointPort} in it, the endpoint description and factory are
+        written to stdout.
+        """
+        store = Store()
+        factory = DummyFactory(store=store)
+        port = StringEndpointPort(
+            store=store, factory=factory, description=u'tcp:1234')
+        self.assertSuccessStatus(self._makeConfig(store), ["list"])
+        self.assertEqual(
+            "{:d}) {!r} listening on:\n".format(factory.storeID, factory) +
+            "  {:d}) Endpoint {!r}\n".format(port.storeID, port.description),
             sys.stdout.getvalue())
 
 
