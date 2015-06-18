@@ -315,9 +315,10 @@ class StringEndpointPort(PortMixin, Item):
         Construct a service for the endpoint as described.
         """
         if self._endpointService is None:
-            return service(self.description.encode('ascii'))
+            _service = service
         else:
-            return self._endpointService(self.description.encode('ascii'))
+            _service = self._endpointService
+        return _service(self.description.encode('ascii'), self.factory)
 
 
     def privilegedStartService(self):
