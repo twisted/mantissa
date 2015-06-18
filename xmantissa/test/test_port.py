@@ -440,8 +440,9 @@ class _FakeService(object):
     Fake L{twisted.application.service.IService} implementation for testing
     L{xmantissa.port.StringEndpointPort}'s wrapping behaviour.
     """
-    def __init__(self, description):
+    def __init__(self, description, factory):
         self.description = description
+        self.factory = factory
         self.privilegedStarted = False
         self.started = False
         self.stopped = False
@@ -464,8 +465,12 @@ class StringEndpointPortTests(TestCase):
     """
     Tests for L{xmantissa.port.StringEndpointPort}.
     """
-    def _fakeService(self, description):
-        self._service = _FakeService(description)
+    def _fakeService(self, description, factory):
+        """
+        A fake for L{twisted.application.strports.service} that just constructs
+        our fake service object.
+        """
+        self._service = _FakeService(description, factory)
         return self._service
 
 
