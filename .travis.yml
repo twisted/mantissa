@@ -18,6 +18,8 @@ env:
   - MODE=wheel
 
 install:
+  # Upgrade pip/setuptools
+  - pip install -U pip setuptools
   # Tools for checking coverage and uploading to coveralls
   - pip install coveralls coverage
   - |
@@ -33,8 +35,8 @@ install:
     fi
 
 script:
-  - coverage run --branch --source=xmantissa $(type -p trial) xmantissa
-  - coverage report -m
+  - cd /tmp && coverage run --branch --source=xmantissa $(type -p trial) xmantissa
+  - cd /tmp && coverage report -m
 
 after_success:
   - coveralls
