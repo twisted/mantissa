@@ -8,6 +8,11 @@ branches:
   only:
     - master
 
+env:
+  - MODE=inplace
+  - MODE=sdist
+  - MODE=wheel
+
 matrix:
   include:
     # PyPy isn't supported just yet
@@ -17,7 +22,17 @@ matrix:
 install:
   # Tools for checking coverage and uploading to coveralls
   - pip install coveralls coverage
-  - pip install .
+  - |
+    if [ "${MODE}" == "inplace" ]; then
+        pip install --editable .
+    elif [ "${MODE}" == "sdist" ]; then
+        python setup.py sdist
+        pip install dist/Mantissa-"$(python setup.py --version)".tar.gz
+    elif [ "${MODE}" == "wheel" ]; then
+        pip install wheel
+        pip wheel
+        pip install dist/Mantissa-*.whl
+    fi
 
 script:
   - coverage run --branch --source=xmantissa $(type -p trial) xmantissa
