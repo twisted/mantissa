@@ -17,8 +17,6 @@ matrix:
 install:
   # Tools for checking coverage and uploading to coveralls
   - pip install coveralls coverage
-  # Need to install Epsilon first, in order to execute Vertex's setup.py
-  - pip install Epsilon
   - pip install .
 
 script:
