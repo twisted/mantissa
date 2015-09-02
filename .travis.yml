@@ -23,6 +23,7 @@ install:
   # Tools for checking coverage and uploading to coveralls
   - pip install coveralls coverage
   - |
+    python setup.py --version
     if [ "${MODE}" == "inplace" ]; then
         pip install --editable .
     elif [ "${MODE}" == "sdist" ]; then
