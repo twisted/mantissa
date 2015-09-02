@@ -8,16 +8,14 @@ branches:
   only:
     - master
 
+python:
+  - "2.7"
+  #- "pypy"
+
 env:
   - MODE=inplace
   - MODE=sdist
   - MODE=wheel
-
-matrix:
-  include:
-    # PyPy isn't supported just yet
-    #- python: "pypy"
-    - python: "2.7"
 
 install:
   # Tools for checking coverage and uploading to coveralls
@@ -30,8 +28,8 @@ install:
         pip install dist/Mantissa-"$(python setup.py --version)".tar.gz
     elif [ "${MODE}" == "wheel" ]; then
         pip install wheel
-        pip wheel
-        pip install dist/Mantissa-*.whl
+        python setup.py bdist_wheel
+        pip install dist/Mantissa-"$(python setup.py --version)"-py2-none-any.whl
     fi
 
 script:
