@@ -40,7 +40,7 @@ script:
   - cd /tmp && coverage report -m
 
 after_success:
-  - cd /tmp && GIT_DIR="${TRAVIS_BUILD_DIR}" coveralls
+  - cd "${TRAVIS_BUILD_DIR}" && mv /tmp/.coverage . && coveralls
 
 notifications:
   email: false
