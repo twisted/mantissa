@@ -1,3 +1,10 @@
+0.8.2 (2015-09-04):
+  - Fix a major issue with the last few releases which resulted in a number of
+    static files not being installed and/or missing from the source tarball.
+  - Somewhat related to the previous issue, the tests no longer fail when
+    running from an installed copy due to the documentation / examples being
+    missing (these are not installed into site-packages).
+
 0.8.1 (2015-07-20):
   - Fix some issues with the new StringEndpointPort which, among other things,
     rendered it completely broken.
@@ -43,8 +50,8 @@
     the introduction of the new IWebViewer interface. Shared items may
     now provide non-live adapters and IResource adapters.
   - Pluggable AMP server added based on the AMP routing facilities in
-    Epsilon. 
-  
+    Epsilon.
+
 0.6.20 (2008-08-12):
   - Mugshot thumbnail generation:  avoid aliasing paletted and bicolor images.
   - Better support for IRIs.
@@ -59,7 +66,7 @@
   - 'axiomatic port' command added for general listening-port
     configuration.
   - IPublicPage is now deprecated, in favor of using the sharing
-    system for providing public pages from app stores. 
+    system for providing public pages from app stores.
 
 0.6.19 (2008-02-19):
   - The Mantissa People mugshot placeholder image has been updated and
