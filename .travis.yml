@@ -1,32 +1,46 @@
 language: "python"
 sudo: false
 cache:
-    directories:
-        - $HOME/.cache/pip
+  directories:
+    - $HOME/.cache/pip
 
 branches:
   only:
     - master
 
-matrix:
-  include:
-    # PyPy isn't supported just yet
-    #- python: "pypy"
-    - python: "2.7"
+python:
+  - "2.7"
+  #- "pypy"
+
+env:
+  - MODE=inplace
+  - MODE=sdist
+  - MODE=wheel
 
 install:
+  # Upgrade pip/setuptools
+  - pip install -U pip setuptools
   # Tools for checking coverage and uploading to coveralls
   - pip install coveralls coverage
-  # Need to install Epsilon first, in order to execute Vertex's setup.py
-  - pip install Epsilon
-  - pip install .
+  - |
+    python setup.py --version
+    if [ "${MODE}" == "inplace" ]; then
+        pip install --editable .
+    elif [ "${MODE}" == "sdist" ]; then
+        python setup.py sdist
+        pip install dist/Mantissa-"$(python setup.py --version)".tar.gz
+    elif [ "${MODE}" == "wheel" ]; then
+        pip install wheel
+        python setup.py bdist_wheel
+        pip install dist/Mantissa-"$(python setup.py --version)"-py2-none-any.whl
+    fi
 
 script:
-  - coverage run --branch --source=xmantissa $(type -p trial) xmantissa
-  - coverage report -m
+  - cd /tmp && coverage run --branch --source=xmantissa $(type -p trial) xmantissa
+  - cd /tmp && coverage report -m
 
 after_success:
-  - coveralls
+  - cd "${TRAVIS_BUILD_DIR}" && mv /tmp/.coverage . && coveralls
 
 notifications:
   email: false

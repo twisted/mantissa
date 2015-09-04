@@ -15,7 +15,7 @@ from zope.interface.verify import verifyObject
 
 from twisted.python.filepath import FilePath
 
-from twisted.trial.unittest import TestCase
+from twisted.trial.unittest import TestCase, SkipTest
 
 from epsilon.structlike import record
 
@@ -68,6 +68,8 @@ class ExampleTestBase(object):
         here = FilePath(__file__).parent().parent().parent().child('doc')
         for childName in self.examplePath:
             here = here.child(childName)
+        if not here.exists():
+            raise SkipTest('Docs not found at %r' % (here,))
         sys.path.append(here.path)
         self.addCleanup(sys.path.remove, here.path)
 
