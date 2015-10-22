@@ -475,7 +475,10 @@ class StringEndpointPortTests(TestCase):
 
 
     def port(self, **kw):
-        port = StringEndpointPort(store=Store(), **kw)
+        store = Store()
+        factory = DummyFactory(store=store)
+        factory.realFactory = ServerFactory()
+        port = StringEndpointPort(store=store, factory=factory, **kw)
         port._endpointService = self._fakeService
         return port
 
@@ -508,12 +511,8 @@ class StringEndpointPortTests(TestCase):
         by invoking C{getFactory()} on the C{factory} attribute.
         """
         port = self.port(description=u'foo')
-        realFactory = ServerFactory()
-        factory = DummyFactory(store=port.store)
-        factory.realFactory = realFactory
-        port.factory = factory
         port.startService()
-        self.assertIdentical(self._service.factory, realFactory)
+        self.assertIdentical(self._service.factory, port.factory.realFactory)
 
 
     def test_stopService(self):

@@ -318,7 +318,8 @@ class StringEndpointPort(PortMixin, Item):
             _service = service
         else:
             _service = self._endpointService
-        return _service(self.description.encode('ascii'), self.factory)
+        return _service(
+            self.description.encode('ascii'), self.factory.getFactory())
 
 
     def privilegedStartService(self):
