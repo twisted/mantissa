@@ -502,6 +502,20 @@ class StringEndpointPortTests(TestCase):
         self.assertEqual(u'foo', self._service.description)
 
 
+    def test_factory(self):
+        """
+        The underlying endpoint service is created with the factory specified
+        by invoking C{getFactory()} on the C{factory} attribute.
+        """
+        port = self.port(description=u'foo')
+        realFactory = ServerFactory()
+        factory = DummyFactory(store=port.store)
+        factory.realFactory = realFactory
+        port.factory = factory
+        port.startService()
+        self.assertIdentical(self._service.factory, realFactory)
+
+
     def test_stopService(self):
         """
         The underlying endpoint service is stopped when
