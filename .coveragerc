@@ -1,0 +1,4 @@
+[run]
+omit =
+    xmantissa/_version.py
+    versioneer.py
