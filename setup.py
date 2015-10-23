@@ -1,13 +1,10 @@
 from setuptools import setup, find_packages
-import re
-
-versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
-with open("xmantissa/_version.py", "rt") as f:
-    version = versionPattern.search(f.read()).group(1)
+import versioneer
 
 setup(
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     name="Mantissa",
-    version=version,
     maintainer="Tristan Seligmann",
     maintainer_email="mithrandi@mithrandi.net",
     url="https://github.com/twisted/mantissa",
