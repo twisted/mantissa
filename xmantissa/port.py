@@ -442,7 +442,7 @@ class DeleteOptions(Options):
             except KeyError:
                 print "%d does not identify an item." % (portID,)
                 raise SystemExit(1)
-            if isinstance(port, (TCPPort, SSLPort)):
+            if isinstance(port, (TCPPort, SSLPort, StringEndpointPort)):
                 port.deleteFromStore()
             else:
                 print "%d does not identify a port." % (portID,)
