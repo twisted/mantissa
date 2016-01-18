@@ -861,14 +861,20 @@ class PortConfigurationCommandTests(TestCase):
         keepSSL = SSLPort(
             store=store, factory=factory, portNumber=10, interface=u"quux",
             certificatePath=store.filesdir.child("quux"))
+        deleteEndpoint = StringEndpointPort(
+            store=store, factory=factory, description=u'tcp:1234')
+        keepEndpoint = StringEndpointPort(
+            store=store, factory=factory, description=u'tcp:1235')
         self.assertSuccessStatus(
             self._makeConfig(store),
             ["delete",
              "--port-identifier", str(deleteTCP.storeID),
-             "--port-identifier", str(deleteSSL.storeID)])
+             "--port-identifier", str(deleteSSL.storeID),
+             "--port-identifier", str(deleteEndpoint.storeID)])
         self.assertEqual("Deleted.\n", sys.stdout.getvalue())
         self.assertEqual(list(store.query(TCPPort)), [keepTCP])
         self.assertEqual(list(store.query(SSLPort)), [keepSSL])
+        self.assertEqual(list(store.query(StringEndpointPort)), [keepEndpoint])
 
 
     def test_cannotDeleteOtherStuff(self):
