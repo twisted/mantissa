@@ -140,12 +140,12 @@ class Mantissa(axiomatic.AxiomaticCommand):
             .serial_number(serial)
             .public_key(publicKey)
             .add_extension(
+                x509.BasicConstraints(ca=False, path_length=None),
+                critical=True)
+            .add_extension(
                 x509.SubjectAlternativeName([
                     x509.DNSName(hostname)]),
                 critical=False)
-            .add_extension(
-                x509.BasicConstraints(ca=False, path_length=None),
-                critical=True)
             .add_extension(
                 x509.KeyUsage(
                     digital_signature=True,
@@ -157,7 +157,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
                     crl_sign=False,
                     encipher_only=False,
                     decipher_only=False),
-                critical=False)
+                critical=True)
             .add_extension(
                 x509.ExtendedKeyUsage([
                     ExtendedKeyUsageOID.SERVER_AUTH]),
