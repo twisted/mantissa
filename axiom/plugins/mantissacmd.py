@@ -143,7 +143,7 @@ class Mantissa(axiomatic.AxiomaticCommand):
                 critical=True,
             ).sign(
                 private_key=privateKey,
-                algorithm=hashes.SHA384(),
+                algorithm=hashes.SHA256(),
                 backend=default_backend())
         return '\n'.join([
             privateKey.private_bytes(
