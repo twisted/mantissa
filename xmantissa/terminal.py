@@ -113,6 +113,13 @@ class SecureShellConfiguration(Item):
         return factory
 
 
+    def rotate(self):
+        """
+        Generate a new host key pair.
+        """
+        self.hostKey = _generate()
+
+
 
 class _ReturnToMenuWrapper:
     """
