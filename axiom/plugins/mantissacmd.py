@@ -140,6 +140,10 @@ class Mantissa(axiomatic.AxiomaticCommand):
             .serial_number(serial)
             .public_key(publicKey)
             .add_extension(
+                x509.SubjectAlternativeName([
+                    x509.DNSName(hostname)]),
+                critical=False)
+            .add_extension(
                 x509.BasicConstraints(ca=False, path_length=None),
                 critical=True)
             .sign(
