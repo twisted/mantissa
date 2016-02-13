@@ -131,20 +131,21 @@ class Mantissa(axiomatic.AxiomaticCommand):
         publicKey = privateKey.public_key()
         name = x509.Name([
             x509.NameAttribute(NameOID.COMMON_NAME, hostname)])
-        certificate = x509.CertificateBuilder(
-            ).subject_name(name
-            ).issuer_name(name
-            ).not_valid_before(datetime.today() - timedelta(days=1)
-            ).not_valid_after(datetime.today() + timedelta(days=365)
-            ).serial_number(serial
-            ).public_key(publicKey
-            ).add_extension(
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .not_valid_before(datetime.today() - timedelta(days=1))
+            .not_valid_after(datetime.today() + timedelta(days=365))
+            .serial_number(serial)
+            .public_key(publicKey)
+            .add_extension(
                 x509.BasicConstraints(ca=False, path_length=None),
-                critical=True,
-            ).sign(
+                critical=True)
+            .sign(
                 private_key=privateKey,
                 algorithm=hashes.SHA256(),
-                backend=default_backend())
+                backend=default_backend()))
         return '\n'.join([
             privateKey.private_bytes(
                 encoding=serialization.Encoding.PEM,
