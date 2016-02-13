@@ -25,7 +25,7 @@ setup(
         "Topic :: Terminals",
         ],
     install_requires=[
-        "Twisted>=14.0.0",
+        "Twisted>=16.0.0",
         "PyOpenSSL>=0.13",
         "Axiom>=0.7.0",
         "Vertex>=0.2.0",
@@ -33,7 +33,6 @@ setup(
         "Pillow",
         "cssutils>=0.9.5",
         "Nevow>=0.9.5",
-        "PyCrypto",
         ],
     packages=find_packages() + ['axiom.plugins', 'nevow.plugins'],
     include_package_data=True,
