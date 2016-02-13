@@ -42,7 +42,7 @@ class CertificateTestCase(CommandStubMixin, TestCase):
         Get the SSL certificate from an Axiom store directory.
         """
         certFile = FilePath(self.dbdir).child('files').child('server.pem')
-        return Certificate.loadPEM(certFile.open('rb').read())
+        return Certificate.loadPEM(certFile.getContent())
 
 
     def test_uniqueSerial(self):
