@@ -55,6 +55,29 @@ def genSerial():
     return abs(struct.unpack('!l', os.urandom(4))[0])
 
 
+class SSHKeyRotate(axiomatic.AxiomaticSubCommand):
+    """
+    Host key rotation.
+    """
+    name = 'keyrotate'
+
+    def postOptions(self):
+        siteStore = self.parent.parent.parent.getStore()
+        siteStore.transact(
+            lambda: siteStore.findUnique(SecureShellConfiguration).rotate())
+
+
+
+class MantissaSSH(axiomatic.AxiomaticSubCommand):
+    """
+    Sub-command for managing the SSH server.
+    """
+    name = 'ssh'
+
+    subCommands = [
+        ('keyrotate', None, SSHKeyRotate, 'Create a new host key pair.')]
+
+
 
 class Mantissa(axiomatic.AxiomaticCommand):
     """
@@ -77,6 +100,8 @@ class Mantissa(axiomatic.AxiomaticCommand):
 
     longdesc = __doc__
 
+    subCommands = [('ssh', None, MantissaSSH, 'SSH server administration.')]
+
     optParameters = [
         ('admin-user', 'a', 'admin@localhost',
          'Account name for the administrative user.'),
@@ -87,6 +112,8 @@ class Mantissa(axiomatic.AxiomaticCommand):
          'URL at which to publish the public front page.')]
 
     def postOptions(self):
+        if self.subCommand is not None:
+            return
         siteStore = self.parent.getStore()
         if self['admin-password'] is None:
             pws = u'Divmod\u2122 Mantissa\u2122 password for %r: ' % (self['admin-user'],)

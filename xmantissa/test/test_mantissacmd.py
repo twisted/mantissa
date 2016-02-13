@@ -149,3 +149,31 @@ class MantissaCommandTests(TestCase, CommandStubMixin):
 
         self.assertEqual(len(tcps), 1)
         self.assertEqual(tcps[0].portNumber, 8022)
+
+
+
+class MantissaSSHCommandTests(TestCase, CommandStubMixin):
+    """
+    Tests for the C{axiomatic mantissa ssh} command.
+    """
+    def setUp(self):
+        """
+        Create a store to use in tests.
+        """
+        self.filesdir = self.mktemp()
+        self.store = Store(filesdir=self.filesdir)
+
+
+    def test_rotate(self):
+        """
+        The C{keyrotate} subcommand replaces the host key with a new one.
+        """
+        options = Mantissa()
+        options.parent = self
+        options.installSite(self.store, u'example.com', u'', False)
+        oldKey = self.store.findUnique(SecureShellConfiguration).hostKey
+
+        options.parseOptions(['ssh', 'keyrotate'])
+        newKey = self.store.findUnique(SecureShellConfiguration).hostKey
+
+        self.assertNotEqual(oldKey, newKey)
