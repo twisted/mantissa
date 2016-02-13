@@ -156,10 +156,12 @@ class Mantissa(axiomatic.AxiomaticCommand):
                     key_cert_sign=False,
                     crl_sign=False,
                     encipher_only=False,
-                    decipher_only=False))
+                    decipher_only=False),
+                critical=False)
             .add_extension(
                 x509.ExtendedKeyUsage([
-                    ExtendedKeyUsageOID.SERVER_AUTH]))
+                    ExtendedKeyUsageOID.SERVER_AUTH]),
+                critical=False)
             .sign(
                 private_key=privateKey,
                 algorithm=hashes.SHA256(),
