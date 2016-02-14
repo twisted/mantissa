@@ -15,6 +15,10 @@ env:
   # Test inplace on one variant
   - TOXENV=py27-twlatest DEVELOP=--develop
 
+matrix:
+  allow_failures:
+    - env: TOXENV=py27-twtrunk
+
 install:
   - pip install -U pip setuptools wheel
   - pip install tox codecov
