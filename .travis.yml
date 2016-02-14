@@ -20,8 +20,8 @@ env:
 install:
   # Upgrade pip/setuptools
   - pip install -U pip setuptools
-  # Tools for checking coverage and uploading to coveralls
-  - pip install coveralls coverage
+  # Tools for checking coverage and uploading to Codecov
+  - pip install coverage codecov
   - |
     python setup.py --version
     if [ "${MODE}" == "inplace" ]; then
@@ -40,7 +40,7 @@ script:
   - cd /tmp && coverage report -m
 
 after_success:
-  - cd "${TRAVIS_BUILD_DIR}" && mv /tmp/.coverage . && coveralls
+  - cd "${TRAVIS_BUILD_DIR}" && mv /tmp/.coverage . && codecov
 
 notifications:
   email: false
