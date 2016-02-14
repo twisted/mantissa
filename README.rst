@@ -18,8 +18,3 @@ administrative tools, a web server, and a system for different plugins which
 provide facets of functionality to advertise themselves to the administrator,
 install themselves on the site database, and be installed and removed from
 users' accounts.
-
-More information is available at:
-
-    http://www.divmod.org/trac/wiki/DivmodMantissa
-
