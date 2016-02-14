@@ -20,9 +20,8 @@ env:
 
 matrix:
   allow_failures:
-    - env:
-        - TOXENV=py27-twtrunk
-        - TOXENV=pypy-twtrunk
+    - env: TOXENV=py27-twtrunk
+    - env: TOXENV=pypy-twtrunk
 
 install:
   # Install a newer PyPy version
