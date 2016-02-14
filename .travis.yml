@@ -12,9 +12,6 @@ env:
   - TOXENV=py27-twlatest
   - TOXENV=py27-twtrunk
   - TOXENV=py27-tw14
-  - TOXENV=pypy-twlatest
-  - TOXENV=pypy-twtrunk
-  - TOXENV=pypy-tw14
   # Test inplace on one variant
   - TOXENV=py27-twlatest DEVELOP=--develop
 
