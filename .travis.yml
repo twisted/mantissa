@@ -12,12 +12,17 @@ env:
   - TOXENV=py27-twlatest
   - TOXENV=py27-twtrunk
   - TOXENV=py27-tw14
+  - TOXENV=pypy-twlatest
+  - TOXENV=pypy-twtrunk
+  - TOXENV=pypy-tw14
   # Test inplace on one variant
   - TOXENV=py27-twlatest DEVELOP=--develop
 
 matrix:
   allow_failures:
-    - env: TOXENV=py27-twtrunk
+    - env:
+        - TOXENV=py27-twtrunk
+        - TOXENV=pypy-twtrunk
 
 install:
   # Install a newer PyPy version
