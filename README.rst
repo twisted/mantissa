@@ -1,6 +1,8 @@
+.. image:: https://travis-ci.org/twisted/mantissa.svg?branch=master
+  :target: https://travis-ci.org/twisted/mantissa
 
-Divmod Mantissa
-===============
+.. image:: https://codecov.io/github/twisted/mantissa/coverage.svg?branch=master
+  :target: https://codecov.io/github/twisted/mantissa?branch=master
 
 Divmod Mantissa is an application server with a web interface built using Axiom
 and Nevow.
@@ -16,8 +18,3 @@ administrative tools, a web server, and a system for different plugins which
 provide facets of functionality to advertise themselves to the administrator,
 install themselves on the site database, and be installed and removed from
 users' accounts.
-
-More information is available at:
-
-    http://www.divmod.org/trac/wiki/DivmodMantissa
-
