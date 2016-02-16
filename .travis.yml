@@ -41,7 +41,7 @@ script:
   - tox ${DEVELOP}
 
 after_success:
-  - mv .tox/.coverage . && codecov
+  - codecov
 
 notifications:
   email: false
