@@ -241,7 +241,7 @@ class AthenaUnsupported(TestCase):
 
     def test_navPage(self):
         """
-        Test that L{webapp.GenericNavigationLivePage} supports theming of
+        Test that L{webapp.GenericNavigationAthenaPage} supports theming of
         Athena's unsupported-browser page based on an L{ITemplateNameResolver}
         installed on the viewing user's store.
         """
