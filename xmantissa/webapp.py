@@ -21,7 +21,7 @@ from axiom.dependency import dependsOn
 from axiom.userbase import getAccountNames
 
 from nevow.rend import Page
-from nevow import livepage, athena
+from nevow import athena
 from nevow.inevow import IRequest
 from nevow import tags as t
 from nevow import url
@@ -329,29 +329,6 @@ class GenericNavigationPage(_FragmentWrapperMixin, Page, _ShellRenderingMixin):
         Page.__init__(self, docFactory=webapp.getDocFactory('shell'))
         _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
         _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
-
-
-class GenericNavigationLivePage(_FragmentWrapperMixin, livepage.LivePage, _ShellRenderingMixin):
-    def __init__(self, webapp, fragment, pageComponents, username):
-        livepage.LivePage.__init__(self, docFactory=webapp.getDocFactory('shell'))
-        _ShellRenderingMixin.__init__(self, webapp, pageComponents, username)
-        _FragmentWrapperMixin.__init__(self, fragment, pageComponents)
-
-    # XXX TODO: support live nav, live fragments somehow
-    def render_head(self, ctx, data):
-        ctx.tag[t.invisible(render=t.directive("liveglue"))]
-        return _FragmentWrapperMixin.render_head(self, ctx, data)
-
-    def goingLive(self, ctx, client):
-        getattr(self.fragment, 'goingLive', lambda x, y: None)(ctx, client)
-
-    def locateHandler(self, ctx, path, name):
-        handler = getattr(self.fragment, 'locateHandler', None)
-
-        if handler is None:
-            return getattr(self.fragment, 'handle_' + name)
-        else:
-            return handler(ctx, path, name)
 
 
 
