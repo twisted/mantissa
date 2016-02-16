@@ -8,39 +8,26 @@ branches:
   only:
     - master
 
-python:
-  - "2.7"
-  #- "pypy"
-
 env:
-  - MODE=inplace
-  - MODE=sdist
-  - MODE=wheel
+  - TOXENV=py27-twlatest
+  - TOXENV=py27-twtrunk
+  - TOXENV=py27-tw14
+  # Test inplace on one variant
+  - TOXENV=py27-twlatest DEVELOP=--develop
+
+matrix:
+  allow_failures:
+    - env: TOXENV=py27-twtrunk
 
 install:
-  # Upgrade pip/setuptools
-  - pip install -U pip setuptools
-  # Tools for checking coverage and uploading to coveralls
-  - pip install coveralls coverage
-  - |
-    python setup.py --version
-    if [ "${MODE}" == "inplace" ]; then
-        pip install --editable .
-    elif [ "${MODE}" == "sdist" ]; then
-        python setup.py sdist
-        pip install dist/Mantissa-"$(python setup.py --version)".tar.gz
-    elif [ "${MODE}" == "wheel" ]; then
-        pip install wheel
-        python setup.py bdist_wheel
-        pip install dist/Mantissa-"$(python setup.py --version)"-py2-none-any.whl
-    fi
+  - pip install -U pip setuptools wheel
+  - pip install tox codecov
 
 script:
-  - cd /tmp && coverage run --branch --source=xmantissa $(type -p trial) xmantissa
-  - cd /tmp && coverage report -m
+  - tox ${DEVELOP}
 
 after_success:
-  - cd "${TRAVIS_BUILD_DIR}" && mv /tmp/.coverage . && coveralls
+  - mv .tox/.coverage . && codecov
 
 notifications:
   email: false
