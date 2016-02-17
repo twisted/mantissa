@@ -1,3 +1,11 @@
+0.8.4 (2016-02-17):
+  - Remove unused `nevow.livepage` support code; fixes compatibility with Nevow
+    0.13.0.
+  - `StringEndpointPort` ports are now deletable from the commandline (with
+    the `axiomatic port delete` command).
+  - Mantissa's CI now tests against Twisted trunk, for early warnings of
+    breakage.
+
 0.8.3 (2015-10-23):
   - StringEndpointPort was still broken, somehow. It really works now, promise!
 
