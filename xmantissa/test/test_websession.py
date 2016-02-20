@@ -11,7 +11,7 @@ from twisted.cred.checkers import AllowAnonymousAccess
 from twisted.cred.portal import IRealm, Portal
 from twisted.cred.credentials import Anonymous, IAnonymous
 from twisted.internet.task import Clock
-from twisted.trial.unittest import TestCase
+from twisted.trial.unittest import SynchronousTestCase
 from nevow.guard import GuardSession
 from nevow.inevow import IResource
 from nevow.testutil import FakeRequest
@@ -19,7 +19,7 @@ from zope.interface import implementer
 
 from xmantissa.websession import (
     PersistentSession, PersistentSessionWrapper, usernameFromRequest,
-    PERSISTENT_SESSION_LIFETIME, SESSION_CLEAN_FREQUENCY)
+    PERSISTENT_SESSION_LIFETIME, SESSION_CLEAN_FREQUENCY, DBPassthrough)
 
 
 @implementer(IRealm)
@@ -37,7 +37,7 @@ class _TrivialRealm(object):
 
 
 
-class TestUsernameFromRequest(TestCase):
+class TestUsernameFromRequest(SynchronousTestCase):
     """
     Tests for L{xmantissa.websession.usernameFromRequest}.
     """
@@ -65,7 +65,7 @@ class TestUsernameFromRequest(TestCase):
 
 
 
-class TestPersistentSessionWrapper(TestCase):
+class TestPersistentSessionWrapper(SynchronousTestCase):
     """
     Tests for L{PersistentSessionWrapper}.
     """
@@ -275,3 +275,17 @@ class TestPersistentSessionWrapper(TestCase):
         clock.advance(SESSION_CLEAN_FREQUENCY + 1)
         resource.login(request, session, Anonymous(), ())
         self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
+
+class DBPassthroughTests(SynchronousTestCase):
+    """
+    Tests for L{DBPassthrough}.
+    """
+    def test_repr(self):
+        """
+        Getting the repr returns a sensible string.
+        """
+        dbp = DBPassthrough(None)
+        r = repr(dbp)
+        self.assertIn(b'DBPassthrough', r)
