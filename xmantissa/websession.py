@@ -68,10 +68,6 @@ class PersistentSession(item.Item):
     """)
 
 
-    def __repr__(self):
-        return "PersistentSession(%r)" % (self.sessionKey,)
-
-
     def renew(self):
         """
         Renew the lifetime of this object.
