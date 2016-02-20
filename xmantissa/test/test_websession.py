@@ -277,6 +277,21 @@ class TestPersistentSessionWrapper(SynchronousTestCase):
         self.assertEqual(store.query(PersistentSession).count(), 0)
 
 
+    def test_logoutRemovesSession(self):
+        """
+        Logging out explicitly removes your persistent session.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        session = GuardSession(resource, b'uid')
+
+        resource.createSessionForKey(session.uid, b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 1)
+
+        resource.explicitLogout(session)
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
 
 class DBPassthroughTests(SynchronousTestCase):
     """
