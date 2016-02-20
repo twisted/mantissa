@@ -12,7 +12,9 @@ from xmantissa.websession import PersistentSessionWrapper, usernameFromRequest
 
 
 class TestUsernameFromRequest(TestCase):
-
+    """
+    Tests for L{xmantissa.websession.usernameFromRequest}.
+    """
     def test_domainUnspecified(self):
         """
         Test that L{usernameFromRequest} adds the value of host header to the
@@ -108,8 +110,9 @@ class TestPersistentSessionWrapper(TestCase):
         is not found in the supplied domain sequence and subdomains are
         enabled.
         """
-        self._cookieTest('example.com', ".example.com", domains=['example.org'],
-                         enableSubdomains=True)
+        self._cookieTest(
+            'example.com', ".example.com", domains=['example.org'],
+            enableSubdomains=True)
 
 
     def test_domainFoundNoSubdomainsCookie(self):

@@ -2,15 +2,17 @@
 
 # Copyright 2005 Divmod, Inc.  See LICENSE file for details
 
-"""Sessions that persist in the database.
+"""
+Sessions that persist in the database.
 
-Every SESSION_CLEAN_FREQUENCY seconds, a pass is made over all persistant
-sessions, and those that are more than PERSISTENT_SESSION_LIFETIME seconds old
-are deleted. Transient sessions die after TRANSIENT_SESSION_LIFETIME seconds.
+Every L{SESSION_CLEAN_FREQUENCY} seconds, a pass is made over all persistant
+sessions, and those that are more than L{PERSISTENT_SESSION_LIFETIME} seconds
+old are deleted.  Transient sessions die after L{TRANSIENT_SESSION_LIFETIME}
+seconds.
 
 These three globals can be overridden by passing appropriate values to the
-PersistentSessionWrapper constructor: sessionCleanFrequency, persistentSessionLifetime,
-and transientSessionLifetime.
+L{PersistentSessionWrapper} constructor: C{sessionCleanFrequency},
+C{persistentSessionLifetime}, and C{transientSessionLifetime}.
 """
 
 from twisted.cred import credentials
@@ -29,7 +31,7 @@ TRANSIENT_SESSION_LIFETIME = 60 * 12 + 32 # 12 minutes, 32 seconds.
 
 def usernameFromRequest(request):
     """
-    Take a HTTP request and return a username of the form <user>@<domain>.
+    Take an HTTP request and return a username of the form <user>@<domain>.
 
     @type request: L{inevow.IRequest}
     @param request: A HTTP request
@@ -38,17 +40,19 @@ def usernameFromRequest(request):
     """
     username = request.args.get('username', [''])[0]
     if '@' not in username:
-        username = '%s@%s' % (username, request.getHeader('host').split(':')[0])
+        username = '%s@%s' % (
+            username, request.getHeader('host').split(':')[0])
     return username
 
 
 
 class PersistentSession(item.Item):
-    """A session that persists on the database.
+    """
+    A session that persists on the database.
 
     These sessions should not store any state, but are used only to determine
     that the user has previously authenticated and should be given a transient
-    session (a regular guard session, not database persistant) without
+    session (a regular guard session, not database persistent) without
     providing credentials again.
     """
     typeName = 'persistent_session'
@@ -66,33 +70,39 @@ class PersistentSession(item.Item):
         kw['lastUsed'] = extime.Time()
         super(PersistentSession, self).__init__(**kw)
 
+
     def __repr__(self):
-        return "PersistentSession(%r)" % (self.sessionKey, )
+        return "PersistentSession(%r)" % (self.sessionKey,)
+
 
     def renew(self):
-        """Renew the lifetime of this object.
+        """
+        Renew the lifetime of this object.
 
         Call this when the user logs in so this session does not expire.
         """
         self.lastUsed = extime.Time()
 
 
-class DBPassthrough(object):
-    """A dictionaryish thing that manages sessions and interfaces with guard.
 
-    This is set as the sessions attribute on a nevow.guard.SessionWrapper
-    instance, or in this case, a subclass. Guard uses a vanilla dict by
-    default; here we pretend to be a dict and introduce presistant-session
+class DBPassthrough(object):
+    """
+    A dictionaryish thing that manages sessions and interfaces with guard.
+
+    This is set as the C{sessions} attribute on a L{nevow.guard.SessionWrapper}
+    instance, or in this case, a subclass.  Guard uses a vanilla dict by
+    default; here we pretend to be a dict and introduce persistent-session
     behaviour.
     """
     def __init__(self, wrapper):
         self.wrapper = wrapper
         self._transientSessions = {}
 
+
     def __contains__(self, key):
-        # we use __get__ here so that transient sessions are always created.
-        # Otherwise, sometimes guard will call __contains__ and assume the
-        # transient session is there, without creating it.
+        # We use __getitem__ here so that transient sessions are always
+        # created. Otherwise, sometimes guard will call __contains__ and assume
+        # the transient session is there, without creating it.
         try:
             self[key]
         except KeyError:
@@ -115,31 +125,39 @@ class DBPassthrough(object):
                 return session
             raise
 
+
     def __setitem__(self, key, value):
         self._transientSessions[key] = value
+
 
     def __delitem__(self, key):
         del self._transientSessions[key]
 
+
     def __repr__(self):
-        return 'DBPassthrough at %i; %r, with embelishments' % (id(self), self._transientSessions)
+        return 'DBPassthrough at %i; %r' % (id(self), self._transientSessions)
+
 
 
 class PersistentSessionWrapper(guard.SessionWrapper):
     """
-    Extends nevow.guard.SessionWrapper to reauthenticate previously
+    Extends L{nevow.guard.SessionWrapper} to reauthenticate previously
     authenticated users.
 
     There are 4 possible states:
-    1) new user, no persistent session, no transient session
-    2) anonymous user, no persistent session, transient session
-    3) returning user, persistent session, no transient session
-    4) active user, persistent session, transient session
 
-    Guard will look it the sessions dict, and if it finds a key
-    matching a cookie sent by the client, will return the value as the
-    session. However, if a user has a persistent session cookie, but
-    no transient session, one is created here.
+        1. new user, no persistent session, no transient session
+
+        2. anonymous user, no persistent session, transient session
+
+        3. returning user, persistent session, no transient session
+
+        4. active user, persistent session, transient session
+
+    Guard will look in the sessions dict, and if it finds a key matching a
+    cookie sent by the client, will return the value as the session.  However,
+    if a user has a persistent session cookie, but no transient session, one is
+    created here.
     """
     def __init__(
         self,
@@ -151,8 +169,6 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         enableSubdomains=False,
         domains=(),
         **kw):
-        """Initialize the PersistentSessionWrapper
-        """
         guard.SessionWrapper.__init__(self, portal, **kw)
         self.store = store
         self.sessions = DBPassthrough(self)
@@ -165,6 +181,15 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
 
     def createSessionForKey(self, key, user):
+        """
+        Create a persistent session in the database.
+
+        @type key: L{bytes}
+        @param key: The persistent session identifier.
+
+        @type user: L{bytes}
+        @param user: The username (avatar ID) the session will belong to.
+        """
         PersistentSession(
             store=self.store,
             sessionKey=key,
@@ -172,6 +197,16 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
 
     def authenticatedUserForKey(self, key):
+        """
+        Find a persistent session for a user.
+
+        @type key: L{bytes}
+        @param key: The persistent session identifier.
+
+        @rtype: L{bytes} or C{None}
+        @return: The avatar ID the session belongs to, or C{None} if no such
+            session exists.
+        """
         for session in self.store.query(PersistentSession, PersistentSession.sessionKey == key):
             session.renew()
             return session.authenticatedAs
@@ -179,6 +214,12 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
 
     def removeSessionWithKey(self, key):
+        """
+        Remove a persistent session, if it exists.
+
+        @type key: L{bytes}
+        @param key: The persistent session identifier.
+        """
         for session in self.store.query(PersistentSession, PersistentSession.sessionKey == key):
             session.deleteFromStore()
             break
@@ -241,19 +282,36 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         """
         Make the session cookie last as long as the persistant session.
 
+        @type request: L{nevow.inevow.IRequest}
         @param request: The HTTP request object for the guard login URL.
         """
         cookieValue = request.getSession().uid
         request.addCookie(
-            self.cookieKey, cookieValue, path='/', max_age=PERSISTENT_SESSION_LIFETIME,
+            self.cookieKey, cookieValue, path='/',
+            max_age=PERSISTENT_SESSION_LIFETIME,
             domain=self.cookieDomainForRequest(request))
 
 
     def login(self, request, session, creds, segments):
-        """Called to check the credentials of a user.
+        """
+        Called to check the credentials of a user.
 
-        Here we extend guard's implementation to preauthenticate users
-        if they have a valid persistant session.
+        Here we extend guard's implementation to preauthenticate users if they
+        have a valid persistent session.
+
+        @type request: L{nevow.inevow.IRequest}
+        @param request: The HTTP request being handled.
+
+        @type session: L{nevow.guard.GuardSession}
+        @param session: The user's current session.
+
+        @type creds: L{twisted.cred.credentials.ICredentials}
+        @param creds: The credentials the user presented.
+
+        @type segments: L{tuple}
+        @param segments: The remaining segments of the URL.
+
+        @return: A deferred firing with the user's avatar.
         """
         if isinstance(creds, credentials.Anonymous):
             preauth = self.authenticatedUserForKey(session.uid)
@@ -277,16 +335,23 @@ class PersistentSessionWrapper(guard.SessionWrapper):
                     self.savorSessionCookie(request)
             return input
 
-        return guard.SessionWrapper.login(self, request, session, creds, segments
-                                          ).addCallback(cbLoginSuccess)
+        return (
+            guard.SessionWrapper.login(
+                self, request, session, creds, segments)
+            .addCallback(cbLoginSuccess))
 
 
     def explicitLogout(self, session):
         """
-        Here we override guard's behaviour for the logout action to
-        delete the persistent session. In this case the user has
-        explicitly requested a logout, so the persistent session must
-        be deleted to require the user to log in on the next request.
+        Handle a user-requested logout.
+
+        Here we override guard's behaviour for the logout action to delete the
+        persistent session.  In this case the user has explicitly requested a
+        logout, so the persistent session must be deleted to require the user
+        to log in on the next request.
+
+        @type session: L{nevow.guard.GuardSession}
+        @param session: The session of the user logging out.
         """
         guard.SessionWrapper.explicitLogout(self, session)
         self.removeSessionWithKey(session.uid)
@@ -294,9 +359,16 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
     def getCredentials(self, request):
         """
-        Override SessionWrapper.getCredentials to add the Host: header
-        to the credentials.  This will make web-based virtual hosting
-        work.
+        Derive credentials from an HTTP request.
+
+        Override SessionWrapper.getCredentials to add the Host: header to the
+        credentials.  This will make web-based virtual hosting work.
+
+        @type request: L{nevow.inevow.IRequest}
+        @param request: The request being handled.
+
+        @rtype: L{twisted.cred.credentials.1ICredentials}
+        @return: Credentials derived from the HTTP request.
         """
         username = usernameFromRequest(request)
         password = request.args.get('password', [''])[0]
