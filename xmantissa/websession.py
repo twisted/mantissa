@@ -60,8 +60,8 @@ class PersistentSession(item.Item):
     typeName = 'persistent_session'
     schemaVersion = 1
 
-    sessionKey = attributes.bytes(allowNone=False)
-    lastUsed = attributes.timestamp(defaultFactory=extime.Time)
+    sessionKey = attributes.bytes(allowNone=False, indexed=True)
+    lastUsed = attributes.timestamp(defaultFactory=extime.Time, indexed=True)
 
     authenticatedAs = attributes.bytes(allowNone=False, doc="""
     The username and domain that this session was authenticated as.
