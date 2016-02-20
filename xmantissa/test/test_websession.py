@@ -261,17 +261,29 @@ class TestPersistentSessionWrapper(SynchronousTestCase):
             store, portal, domains=['example.org', 'example.com'], clock=clock)
         session = GuardSession(resource, b'uid')
 
-        # Create a session
-        resource.createSessionForKey(b'key', b'username@domain')
-        self.assertEqual(store.query(PersistentSession).count(), 1)
+        # Create two sessions
+        resource.createSessionForKey(b'key1', b'username@domain')
+        resource.createSessionForKey(b'key2', b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 2)
 
         # Session shouldn't be cleaned yet
         resource.login(request, session, Anonymous(), ())
-        self.assertEqual(store.query(PersistentSession).count(), 1)
+        self.assertEqual(store.query(PersistentSession).count(), 2)
 
-        # Session is expired and it's time for a clean
-        ps = store.findUnique(PersistentSession)
+        # First session is expired and it's time for a clean
+        ps = store.findUnique(
+            PersistentSession, PersistentSession.sessionKey == b'key1')
         ps.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
+        clock.advance(SESSION_CLEAN_FREQUENCY + 1)
+        resource.login(request, session, Anonymous(), ())
+        self.assertEqual(
+            list(store.query(PersistentSession).getColumn('sessionKey')),
+            [b'key2'])
+
+        # Now we expire the second session
+        ps2 = store.findUnique(
+            PersistentSession, PersistentSession.sessionKey == b'key2')
+        ps2.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
         clock.advance(SESSION_CLEAN_FREQUENCY + 1)
         resource.login(request, session, Anonymous(), ())
         self.assertEqual(store.query(PersistentSession).count(), 0)
