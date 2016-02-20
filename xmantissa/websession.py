@@ -5,7 +5,7 @@
 """
 Sessions that persist in the database.
 
-Every L{SESSION_CLEAN_FREQUENCY} seconds, a pass is made over all persistant
+Every L{SESSION_CLEAN_FREQUENCY} seconds, a pass is made over all persistent
 sessions, and those that are more than L{PERSISTENT_SESSION_LIFETIME} seconds
 old are deleted.  Transient sessions die after L{TRANSIENT_SESSION_LIFETIME}
 seconds.
@@ -299,7 +299,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
     def savorSessionCookie(self, request):
         """
-        Make the session cookie last as long as the persistant session.
+        Make the session cookie last as long as the persistent session.
 
         @type request: L{nevow.inevow.IRequest}
         @param request: The HTTP request object for the guard login URL.
