@@ -4,12 +4,37 @@
 """
 Tests for L{xmantissa.websession}.
 """
+from datetime import timedelta
+
 from axiom.store import Store
+from twisted.cred.checkers import AllowAnonymousAccess
+from twisted.cred.portal import IRealm, Portal
+from twisted.cred.credentials import Anonymous, IAnonymous
+from twisted.internet.task import Clock
 from twisted.trial.unittest import TestCase
+from nevow.guard import GuardSession
+from nevow.inevow import IResource
 from nevow.testutil import FakeRequest
+from zope.interface import implementer
 
 from xmantissa.websession import (
-    PersistentSession, PersistentSessionWrapper, usernameFromRequest)
+    PersistentSession, PersistentSessionWrapper, usernameFromRequest,
+    PERSISTENT_SESSION_LIFETIME, SESSION_CLEAN_FREQUENCY)
+
+
+@implementer(IRealm)
+class _TrivialRealm(object):
+    """
+    A trivial realm for testing.
+    """
+    def __init__(self, avatarFactory=lambda: None):
+        self._avatarFactory = avatarFactory
+
+
+    def requestAvatar(self, avatarId, mind, *interfaces):
+        avatar = self._avatarFactory()
+        return IResource, avatar, lambda: None
+
 
 
 class TestUsernameFromRequest(TestCase):
@@ -221,3 +246,32 @@ class TestPersistentSessionWrapper(TestCase):
         """
         self._cookieTest('alice.example.com:8080', '.example.com',
                          domains=['example.com'], enableSubdomains=True)
+
+
+    def test_sessionCleanup(self):
+        """
+        Expired sessions are cleaned up every C{sessionCleanFrequency} seconds.
+        """
+        clock = Clock()
+        store = Store()
+        portal = Portal(_TrivialRealm())
+        portal.registerChecker(AllowAnonymousAccess(), IAnonymous)
+        request = FakeRequest(headers={'host': 'example.com'})
+        resource = PersistentSessionWrapper(
+            store, portal, domains=['example.org', 'example.com'], clock=clock)
+        session = GuardSession(resource, b'uid')
+
+        # Create a session
+        resource.createSessionForKey(b'key', b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 1)
+
+        # Session shouldn't be cleaned yet
+        resource.login(request, session, Anonymous(), ())
+        self.assertEqual(store.query(PersistentSession).count(), 1)
+
+        # Session is expired and it's time for a clean
+        ps = store.findUnique(PersistentSession)
+        ps.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
+        clock.advance(SESSION_CLEAN_FREQUENCY + 1)
+        resource.login(request, session, Anonymous(), ())
+        self.assertEqual(store.query(PersistentSession).count(), 0)

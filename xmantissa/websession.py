@@ -14,8 +14,10 @@ These three globals can be overridden by passing appropriate values to the
 L{PersistentSessionWrapper} constructor: C{sessionCleanFrequency},
 C{persistentSessionLifetime}, and C{transientSessionLifetime}.
 """
+from datetime import timedelta
 
 from twisted.cred import credentials
+from twisted.internet import reactor
 
 from epsilon import extime
 
@@ -163,6 +165,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         sessionCleanFrequency=SESSION_CLEAN_FREQUENCY,
         enableSubdomains=False,
         domains=(),
+        clock=None,
         **kw):
         guard.SessionWrapper.__init__(self, portal, **kw)
         self.store = store
@@ -173,6 +176,9 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         self.sessionCleanFrequency = sessionCleanFrequency
         self._enableSubdomains = enableSubdomains
         self._domains = domains
+        self._clock = reactor if clock is None else clock
+        if self.store is not None:
+            self._cleanSessions()
 
 
     def createSessionForKey(self, key, user):
@@ -220,8 +226,27 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         """
         self.store.query(
             PersistentSession,
-            PersistentSession.sessionKey == key
-            ).deleteFromStore()
+            PersistentSession.sessionKey == key).deleteFromStore()
+
+
+    def _cleanSessions(self):
+        """
+        Clean expired sesisons.
+        """
+        tooOld = extime.Time() - timedelta(seconds=PERSISTENT_SESSION_LIFETIME)
+        self.store.query(
+            PersistentSession,
+            PersistentSession.lastUsed < tooOld).deleteFromStore()
+        self._lastClean = self._clock.seconds()
+
+
+    def _maybeCleanSessions(self):
+        """
+        Clean expired sessions if it's been long enough since the last clean.
+        """
+        sinceLast = self._clock.seconds() - self._lastClean
+        if sinceLast > self.sessionCleanFrequency:
+            self._cleanSessions()
 
 
     def cookieDomainForRequest(self, request):
@@ -311,6 +336,8 @@ class PersistentSessionWrapper(guard.SessionWrapper):
 
         @return: A deferred firing with the user's avatar.
         """
+        self._maybeCleanSessions()
+
         if isinstance(creds, credentials.Anonymous):
             preauth = self.authenticatedUserForKey(session.uid)
             if preauth is not None:
