@@ -4,11 +4,12 @@
 """
 Tests for L{xmantissa.websession}.
 """
-
+from axiom.store import Store
 from twisted.trial.unittest import TestCase
 from nevow.testutil import FakeRequest
 
-from xmantissa.websession import PersistentSessionWrapper, usernameFromRequest
+from xmantissa.websession import (
+    PersistentSession, PersistentSessionWrapper, usernameFromRequest)
 
 
 class TestUsernameFromRequest(TestCase):
@@ -55,6 +56,65 @@ class TestPersistentSessionWrapper(TestCase):
         resource.savorSessionCookie(request)
         self.assertEqual(
             request.cookies, {resource.cookieKey: request.getSession().uid})
+
+
+    def test_createSession(self):
+        """
+        L{PersistentSessionWrapper.createSessionForKey} creates a persistent
+        session in the database for the given session ID.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        session = store.findUnique(PersistentSession)
+        self.assertEqual(session.sessionKey, b'key')
+        self.assertEqual(session.authenticatedAs, b'username@domain')
+
+
+    def test_retrieveSession(self):
+        """
+        L{PersistentSessionWrapper.authenticatedUserForKey} returns the user to
+        whom a session belongs.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        user = resource.authenticatedUserForKey(b'key')
+        self.assertEqual(user, b'username@domain')
+
+
+    def test_retrieveNonexistentSession(self):
+        """
+        L{PersistentSessionWrapper.authenticatedUserForKey} returns C{None} if
+        a session does not exist.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        user = resource.authenticatedUserForKey(b'doesnotexist')
+        self.assertIdentical(user, None)
+
+
+    def test_removeSession(self):
+        """
+        L{PersistentSessionWrapper.removeSessionWithKey} removes an existing
+        session with the given key.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 1)
+        resource.removeSessionWithKey(b'key')
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
+    def test_removeNonexistentSession(self):
+        """
+        L{PersistentSessionWrapper.removeSessionWithKey} does nothing if the
+        session does not exist.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.removeSessionWithKey(b'key')
 
 
     def _cookieTest(self, host, cookie, **kw):

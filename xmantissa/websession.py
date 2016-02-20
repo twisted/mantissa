@@ -58,17 +58,12 @@ class PersistentSession(item.Item):
     typeName = 'persistent_session'
     schemaVersion = 1
 
-    sessionKey = attributes.bytes()
-    lastUsed = attributes.timestamp()
+    sessionKey = attributes.bytes(allowNone=False)
+    lastUsed = attributes.timestamp(defaultFactory=extime.Time)
 
-    authenticatedAs = attributes.bytes() # The username and domain
-                                         # that this session was
-                                         # authenticated as.
-
-    def __init__(self, **kw):
-        assert kw.get('sessionKey') is not None, "None cookie propogated to PersistentSession"
-        kw['lastUsed'] = extime.Time()
-        super(PersistentSession, self).__init__(**kw)
+    authenticatedAs = attributes.bytes(allowNone=False, doc="""
+    The username and domain that this session was authenticated as.
+    """)
 
 
     def __repr__(self):
@@ -188,7 +183,7 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         @param key: The persistent session identifier.
 
         @type user: L{bytes}
-        @param user: The username (avatar ID) the session will belong to.
+        @param user: The username the session will belong to.
         """
         PersistentSession(
             store=self.store,
@@ -207,10 +202,13 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         @return: The avatar ID the session belongs to, or C{None} if no such
             session exists.
         """
-        for session in self.store.query(PersistentSession, PersistentSession.sessionKey == key):
+        session = self.store.findFirst(
+            PersistentSession, PersistentSession.sessionKey == key)
+        if session is None:
+            return None
+        else:
             session.renew()
             return session.authenticatedAs
-        return None
 
 
     def removeSessionWithKey(self, key):
@@ -220,10 +218,10 @@ class PersistentSessionWrapper(guard.SessionWrapper):
         @type key: L{bytes}
         @param key: The persistent session identifier.
         """
-        for session in self.store.query(PersistentSession, PersistentSession.sessionKey == key):
-            session.deleteFromStore()
-            break
-        # if the session doesn't exist, we ignore that fact here.
+        self.store.query(
+            PersistentSession,
+            PersistentSession.sessionKey == key
+            ).deleteFromStore()
 
 
     def cookieDomainForRequest(self, request):
