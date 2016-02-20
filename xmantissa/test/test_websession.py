@@ -304,6 +304,21 @@ class TestPersistentSessionWrapper(SynchronousTestCase):
         self.assertEqual(store.query(PersistentSession).count(), 0)
 
 
+    def test_cleanOnStart(self):
+        """
+        L{PersistentSessionWrapper} immediately cleans expired sessions on
+        instantiation.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        ps = store.findUnique(PersistentSession)
+        ps.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
+
+        PersistentSessionWrapper(store, None)
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
 
 class DBPassthroughTests(SynchronousTestCase):
     """
