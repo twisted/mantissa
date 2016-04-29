@@ -1434,7 +1434,7 @@ class ReadOnlyContactInfoView(Element):
         """
         groupPattern = inevow.IQ(tag).patternGenerator('contact-group')
         groupedViews = self.organizer.groupReadOnlyViews(self.person)
-        for (groupName, views) in groupedViews.iteritems():
+        for (groupName, views) in sorted(groupedViews.items()):
             if groupName is None:
                 yield views
             else:

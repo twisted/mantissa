@@ -2862,7 +2862,6 @@ class ReadOnlyContactInfoViewTestCase(unittest.TestCase):
         result of calling L{Organizer.groupReadOnlyViews}.
         """
         person = StubPerson([])
-        contactItems = [object(), object(), object()]
         readOnlyViews = [div(), div(), div()]
         person.organizer = StubOrganizer(
             groupedReadOnlyViews={
