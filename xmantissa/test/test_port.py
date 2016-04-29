@@ -579,9 +579,10 @@ class PortConfigurationCommandTests(TestCase):
 
     def assertSpacelessEqual(self, first, second):
         """
-        Assert the equality of two strings without respect to their whitespace.
+        Assert the equality of two strings without respect to their whitespace
+        or order.
         """
-        self.assertEqual(' '.join(first.split()), ' '.join(second.split()))
+        self.assertEqual(set(first.split()), set(second.split()))
 
 
     def test_providesCommandInterface(self):

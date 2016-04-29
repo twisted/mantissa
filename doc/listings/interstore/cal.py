@@ -32,7 +32,7 @@ class Busy(Exception):
 class MakeAppointment(Command):
     arguments = [("whom", SenderArgument()), ("when", String())]
     response = [("appointmentID", Unicode())]
-    errors = {"busy": Busy}
+    errors = {Busy: "busy"}
 
 
 class Appointment(Item, AMPReceiver):

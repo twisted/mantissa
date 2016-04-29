@@ -86,18 +86,6 @@ class ItemWithRecordAttributeTest(TestCase):
         self.eitherWay(check, RecordAttributeTestItem, alpha=u'one', beta=2)
 
 
-    def test_initialize(self):
-        """
-        Initializing an item with a record attribute set to something should
-        set its underlying attributes.
-        """
-        def check(rati):
-            self.assertEqual(rati.alpha, u'five')
-            self.assertEqual(rati.beta, 6)
-        self.eitherWay(check, RecordAttributeTestItem,
-                       sigma=Sigma(left=u'five', right=6))
-
-
     def test_initializeNoNones(self):
         """
         Initializing an item with a record attribute set to something should

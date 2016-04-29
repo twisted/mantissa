@@ -4,15 +4,43 @@
 """
 Tests for L{xmantissa.websession}.
 """
+from datetime import timedelta
 
-from twisted.trial.unittest import TestCase
+from axiom.store import Store
+from twisted.cred.checkers import AllowAnonymousAccess
+from twisted.cred.portal import IRealm, Portal
+from twisted.cred.credentials import Anonymous, IAnonymous
+from twisted.internet.task import Clock
+from twisted.trial.unittest import SynchronousTestCase
+from nevow.guard import GuardSession
+from nevow.inevow import IResource
 from nevow.testutil import FakeRequest
+from zope.interface import implementer
 
-from xmantissa.websession import PersistentSessionWrapper, usernameFromRequest
+from xmantissa.websession import (
+    PersistentSession, PersistentSessionWrapper, usernameFromRequest,
+    PERSISTENT_SESSION_LIFETIME, SESSION_CLEAN_FREQUENCY, DBPassthrough)
 
 
-class TestUsernameFromRequest(TestCase):
+@implementer(IRealm)
+class _TrivialRealm(object):
+    """
+    A trivial realm for testing.
+    """
+    def __init__(self, avatarFactory=lambda: None):
+        self._avatarFactory = avatarFactory
 
+
+    def requestAvatar(self, avatarId, mind, *interfaces):
+        avatar = self._avatarFactory()
+        return IResource, avatar, lambda: None
+
+
+
+class TestUsernameFromRequest(SynchronousTestCase):
+    """
+    Tests for L{xmantissa.websession.usernameFromRequest}.
+    """
     def test_domainUnspecified(self):
         """
         Test that L{usernameFromRequest} adds the value of host header to the
@@ -37,7 +65,7 @@ class TestUsernameFromRequest(TestCase):
 
 
 
-class TestPersistentSessionWrapper(TestCase):
+class TestPersistentSessionWrapper(SynchronousTestCase):
     """
     Tests for L{PersistentSessionWrapper}.
     """
@@ -53,6 +81,65 @@ class TestPersistentSessionWrapper(TestCase):
         resource.savorSessionCookie(request)
         self.assertEqual(
             request.cookies, {resource.cookieKey: request.getSession().uid})
+
+
+    def test_createSession(self):
+        """
+        L{PersistentSessionWrapper.createSessionForKey} creates a persistent
+        session in the database for the given session ID.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        session = store.findUnique(PersistentSession)
+        self.assertEqual(session.sessionKey, b'key')
+        self.assertEqual(session.authenticatedAs, b'username@domain')
+
+
+    def test_retrieveSession(self):
+        """
+        L{PersistentSessionWrapper.authenticatedUserForKey} returns the user to
+        whom a session belongs.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        user = resource.authenticatedUserForKey(b'key')
+        self.assertEqual(user, b'username@domain')
+
+
+    def test_retrieveNonexistentSession(self):
+        """
+        L{PersistentSessionWrapper.authenticatedUserForKey} returns C{None} if
+        a session does not exist.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        user = resource.authenticatedUserForKey(b'doesnotexist')
+        self.assertIdentical(user, None)
+
+
+    def test_removeSession(self):
+        """
+        L{PersistentSessionWrapper.removeSessionWithKey} removes an existing
+        session with the given key.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 1)
+        resource.removeSessionWithKey(b'key')
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
+    def test_removeNonexistentSession(self):
+        """
+        L{PersistentSessionWrapper.removeSessionWithKey} does nothing if the
+        session does not exist.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.removeSessionWithKey(b'key')
 
 
     def _cookieTest(self, host, cookie, **kw):
@@ -108,8 +195,9 @@ class TestPersistentSessionWrapper(TestCase):
         is not found in the supplied domain sequence and subdomains are
         enabled.
         """
-        self._cookieTest('example.com', ".example.com", domains=['example.org'],
-                         enableSubdomains=True)
+        self._cookieTest(
+            'example.com', ".example.com", domains=['example.org'],
+            enableSubdomains=True)
 
 
     def test_domainFoundNoSubdomainsCookie(self):
@@ -158,3 +246,88 @@ class TestPersistentSessionWrapper(TestCase):
         """
         self._cookieTest('alice.example.com:8080', '.example.com',
                          domains=['example.com'], enableSubdomains=True)
+
+
+    def test_sessionCleanup(self):
+        """
+        Expired sessions are cleaned up every C{sessionCleanFrequency} seconds.
+        """
+        clock = Clock()
+        store = Store()
+        portal = Portal(_TrivialRealm())
+        portal.registerChecker(AllowAnonymousAccess(), IAnonymous)
+        request = FakeRequest(headers={'host': 'example.com'})
+        resource = PersistentSessionWrapper(
+            store, portal, domains=['example.org', 'example.com'], clock=clock)
+        session = GuardSession(resource, b'uid')
+
+        # Create two sessions
+        resource.createSessionForKey(b'key1', b'username@domain')
+        resource.createSessionForKey(b'key2', b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 2)
+
+        # Session shouldn't be cleaned yet
+        resource.login(request, session, Anonymous(), ())
+        self.assertEqual(store.query(PersistentSession).count(), 2)
+
+        # First session is expired and it's time for a clean
+        ps = store.findUnique(
+            PersistentSession, PersistentSession.sessionKey == b'key1')
+        ps.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
+        clock.advance(SESSION_CLEAN_FREQUENCY + 1)
+        resource.login(request, session, Anonymous(), ())
+        self.assertEqual(
+            list(store.query(PersistentSession).getColumn('sessionKey')),
+            [b'key2'])
+
+        # Now we expire the second session
+        ps2 = store.findUnique(
+            PersistentSession, PersistentSession.sessionKey == b'key2')
+        ps2.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
+        clock.advance(SESSION_CLEAN_FREQUENCY + 1)
+        resource.login(request, session, Anonymous(), ())
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
+    def test_logoutRemovesSession(self):
+        """
+        Logging out explicitly removes your persistent session.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        session = GuardSession(resource, b'uid')
+
+        resource.createSessionForKey(session.uid, b'username@domain')
+        self.assertEqual(store.query(PersistentSession).count(), 1)
+
+        resource.explicitLogout(session)
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
+    def test_cleanOnStart(self):
+        """
+        L{PersistentSessionWrapper} immediately cleans expired sessions on
+        instantiation.
+        """
+        store = Store()
+        resource = PersistentSessionWrapper(store, None)
+        resource.createSessionForKey(b'key', b'username@domain')
+        ps = store.findUnique(PersistentSession)
+        ps.lastUsed -= timedelta(seconds=PERSISTENT_SESSION_LIFETIME + 1)
+
+        PersistentSessionWrapper(store, None)
+        self.assertEqual(store.query(PersistentSession).count(), 0)
+
+
+
+class DBPassthroughTests(SynchronousTestCase):
+    """
+    Tests for L{DBPassthrough}.
+    """
+    def test_repr(self):
+        """
+        Getting the repr returns a sensible string.
+        """
+        dbp = DBPassthrough(None)
+        r = repr(dbp)
+        self.assertIn(b'DBPassthrough', r)

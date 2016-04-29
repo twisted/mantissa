@@ -113,7 +113,7 @@ class ViewTests(TestCase):
         createdProducts = []
         fragment = ProductFragment(StubProductConfiguration(createdProducts))
         fragment.coerceProduct(foo=u'bar', baz=u'quux')
-        self.assertEqual(createdProducts, [[u'bar', u'quux']])
+        self.assertEqual(map(sorted, createdProducts), [[u'bar', u'quux']])
 
 
     def test_coerceProductReturn(self):

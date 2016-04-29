@@ -1,4 +1,4 @@
-
+import gc
 
 from zope.interface import implements
 
@@ -747,6 +747,7 @@ class PyLuceneObjectLifetimeTestCase(unittest.TestCase):
         wrapper = fulltext._PyLuceneHitsWrapper(index, None)
         self.failIf(index.closed)
         del wrapper
+        gc.collect()
         self.failUnless(index.closed)
 
 
