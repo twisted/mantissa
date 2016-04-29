@@ -2,3 +2,11 @@
 omit =
     xmantissa/_version.py
     versioneer.py
+branch = True
+source = xmantissa
+
+[paths]
+source =
+    xmantissa
+    .tox/*/lib/python*/site-packages/xmantissa
+    .tox/*/site-packages/xmantissa
