@@ -1,5 +1,6 @@
 
 import sys, os, struct
+from datetime import datetime, timedelta
 
 from zope.interface import directlyProvides
 
@@ -12,6 +13,12 @@ from axiom.scripts import axiomatic
 from axiom.attributes import AND
 from axiom.dependency import installOn
 from axiom.iaxiom import IVersion
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 
 from xmantissa.ixmantissa import IOfferingTechnician
 from xmantissa import webadmin, publicweb, stats
@@ -27,7 +34,6 @@ from xmantissa.port import PortConfiguration
 from xmantissa import version
 
 from epsilon.asplode import splode
-from epsilon.scripts import certcreate
 
 directlyProvides(version, IPlugin, IVersion)
 
@@ -105,16 +111,78 @@ class Mantissa(axiomatic.AxiomaticCommand):
             self.installAdmin, siteStore, adminLocal, adminDomain, adminPassword)
 
 
+    def _createCert(self, hostname, serial):
+        """
+        Create a self-signed X.509 certificate.
+
+        @type hostname: L{unicode}
+        @param hostname: The hostname this certificate should be valid for.
+
+        @type serial: L{int}
+        @param serial: The serial number the certificate should have.
+
+        @rtype: L{bytes}
+        @return: The serialized certificate in PEM format.
+        """
+        privateKey = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend())
+        publicKey = privateKey.public_key()
+        name = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, hostname)])
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .not_valid_before(datetime.today() - timedelta(days=1))
+            .not_valid_after(datetime.today() + timedelta(days=365))
+            .serial_number(serial)
+            .public_key(publicKey)
+            .add_extension(
+                x509.BasicConstraints(ca=False, path_length=None),
+                critical=True)
+            .add_extension(
+                x509.SubjectAlternativeName([
+                    x509.DNSName(hostname)]),
+                critical=False)
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True,
+                    content_commitment=False,
+                    key_encipherment=True,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    key_cert_sign=False,
+                    crl_sign=False,
+                    encipher_only=False,
+                    decipher_only=False),
+                critical=True)
+            .add_extension(
+                x509.ExtendedKeyUsage([
+                    ExtendedKeyUsageOID.SERVER_AUTH]),
+                critical=False)
+            .sign(
+                private_key=privateKey,
+                algorithm=hashes.SHA256(),
+                backend=default_backend()))
+        return '\n'.join([
+            privateKey.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()),
+            certificate.public_bytes(
+                encoding=serialization.Encoding.PEM),
+            ])
+
+
     def installSite(self, siteStore, domain, publicURL, generateCert=True):
         """
         Create the necessary items to run an HTTP server and an SSH server.
         """
         certPath = siteStore.filesdir.child("server.pem")
         if generateCert and not certPath.exists():
-            certcreate.main([
-                    '--filename', certPath.path, '--quiet',
-                    '--serial-number', str(genSerial()),
-                    '--hostname', domain])
+            certPath.setContent(self._createCert(domain, genSerial()))
 
         # Install the base Mantissa offering.
         IOfferingTechnician(siteStore).installOffering(baseOffering)

@@ -4,8 +4,6 @@
 Tests for I{axiomatic mantissa} and other functionality provided by
 L{axiom.plugins.mantissacmd}.
 """
-import gc
-
 from twisted.trial.unittest import TestCase
 from twisted.python.filepath import FilePath
 from twisted.internet.ssl import Certificate
@@ -43,7 +41,7 @@ class CertificateTestCase(CommandStubMixin, TestCase):
         Get the SSL certificate from an Axiom store directory.
         """
         certFile = FilePath(self.dbdir).child('files').child('server.pem')
-        return Certificate.loadPEM(certFile.open('rb').read())
+        return Certificate.loadPEM(certFile.getContent())
 
 
     def test_uniqueSerial(self):
@@ -57,13 +55,11 @@ class CertificateTestCase(CommandStubMixin, TestCase):
         self.dbdir = self.mktemp()
         self.store = Store(self.dbdir)
         m.parseOptions(['--admin-password', 'foo'])
-        gc.collect()
         cert1 = self._getCert()
 
         self.dbdir = self.mktemp()
         self.store = Store(self.dbdir)
         m.parseOptions(['--admin-password', 'foo'])
-        gc.collect()
         cert2 = self._getCert()
 
         self.assertNotEqual(cert1.serialNumber(), cert2.serialNumber())
@@ -79,7 +75,6 @@ class CertificateTestCase(CommandStubMixin, TestCase):
         self.dbdir = self.mktemp()
         self.store = Store(filesdir=FilePath(self.dbdir).child("files").path)
         m.parseOptions(['--admin-user', 'admin@example.com', '--admin-password', 'foo'])
-        gc.collect()
         cert = self._getCert()
         self.assertEqual(cert.getSubject().commonName, "example.com")
 

@@ -34,6 +34,7 @@ setup(
         "cssutils>=0.9.5",
         "Nevow>=0.9.5",
         "PyCrypto",
+        "cryptography>=1.0",
         ],
     packages=find_packages() + ['axiom.plugins', 'nevow.plugins'],
     include_package_data=True,
