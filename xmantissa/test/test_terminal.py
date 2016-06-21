@@ -120,6 +120,19 @@ class SecureShellConfigurationTests(TestCase):
         self.assertHostKey(shell, factory)
 
 
+    def test_keyRotation(self):
+        """
+        L{SecureShellConfiguration.rotate} generates a new key pair replacing
+        the old one.
+        """
+        oldKey = self.shell.hostKey
+        self.shell.rotate()
+        newKey = self.shell.hostKey
+        self.assertNotEqual(oldKey, newKey)
+        factory = self.shell.getFactory()
+        self.assertHostKey(self.shell, factory)
+
+
     def test_portal(self):
         """
         The factory returned by L{SecureShellConfiguration.getFactory} has a

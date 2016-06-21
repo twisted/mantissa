@@ -10,11 +10,10 @@ L{ITerminalServerFactory} powerups to create L{ITerminalProtocol} providers.
 
 from hashlib import md5
 
-from Crypto.PublicKey import RSA
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from zope.interface import implements
-
-from twisted.python.randbytes import secureRandom
 
 from twisted.python.components import Componentized
 from twisted.cred.portal import IRealm, Portal
@@ -45,8 +44,11 @@ def _generate():
     """
     Generate a new SSH key pair.
     """
-    key = RSA.generate(1024, secureRandom)
-    return Key(key).toString('openssh')
+    privateKey = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=4096,
+        backend=default_backend())
+    return Key(privateKey).toString('openssh')
 
 
 
@@ -111,6 +113,13 @@ class SecureShellConfiguration(Item):
         factory.portal = Portal(
             IRealm(self.store), [ICredentialsChecker(self.store)])
         return factory
+
+
+    def rotate(self):
+        """
+        Generate a new host key pair.
+        """
+        self.hostKey = _generate()
 
 
 
