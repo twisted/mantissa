@@ -205,17 +205,19 @@ class IntegrationTestsMixin:
         have to be cleaned up.
         """
         self.store = Store(filesdir=self.mktemp()) # See #2484
-        Mantissa().installSite(self.store, self.domain, u'', False) # See #2483
-        self.site = self.store.findUnique(SiteConfiguration)
-        self.login = self.store.findUnique(LoginSystem)
+        def _tx():
+            Mantissa().installSite(self.store, self.domain, u'', False)
+            self.site = self.store.findUnique(SiteConfiguration)
+            self.login = self.store.findUnique(LoginSystem)
 
-        # Ports should be offering installation parameters.  This assumes a
-        # TCPPort and an SSLPort are created by Mantissa.installSite. See
-        # #538.  -exarkun
-        self.store.query(
-            SSLPort, SSLPort.factory == self.site).deleteFromStore()
+            # Ports should be offering installation parameters.  This assumes a
+            # TCPPort and an SSLPort are created by Mantissa.installSite. See
+            # #538.  -exarkun
+            self.store.query(
+                SSLPort, SSLPort.factory == self.site).deleteFromStore()
 
-        self.factory = self.site.getFactory()
+            self.factory = self.site.getFactory()
+        self.store.transact(_tx)
 
         self.origFunctions = (GuardSession.checkExpired.im_func,
                               athena.ReliableMessageDelivery)
