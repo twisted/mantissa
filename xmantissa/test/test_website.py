@@ -258,6 +258,19 @@ class SiteConfigurationTests(TestCase):
         self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
+    def test_rootURLAlternateSubdomain(self):
+        """
+        L{SiteConfiguration.rootURL} returns C{/} for a request made onto a
+        subdomain known as an internal domain.
+        """
+        userbase.LoginMethod(
+            store=self.store, localpart=u'username', domain=u'example.com',
+            internal=True, protocol=u'*', verified=True, account=self.store)
+        request = FakeRequest(headers={
+            'host': 'example.com'})
+        self.assertEqual(self.site.rootURL(request), URL('', ''))
+
+
     def _differentHostnameTest(self, portType, portNumber, isSecure, scheme):
         request = FakeRequest(isSecure=isSecure, headers={
             'host': 'alice.' + self.domain.encode('ascii')})
