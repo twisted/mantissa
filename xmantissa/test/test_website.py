@@ -264,10 +264,10 @@ class SiteConfigurationTests(TestCase):
         subdomain known as an internal domain.
         """
         userbase.LoginMethod(
-            store=self.store, localpart=u'username', domain=u'example.com',
+            store=self.store, localpart=u'username', domain=u'example.org',
             internal=True, protocol=u'*', verified=True, account=self.store)
         request = FakeRequest(headers={
-            'host': 'example.com'})
+            'host': 'example.org'})
         self.assertEqual(self.site.rootURL(request), URL('', ''))
 
 
