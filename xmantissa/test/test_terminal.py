@@ -260,7 +260,7 @@ class FakeTerminal(TerminalBuffer):
         if hasattr(self, '__bytes__'):
             return self.__bytes__()
         else:
-            return super(FakeTerminal, self).__str__()
+            return TerminalBuffer.__str__(self)
 
 
 
