@@ -255,6 +255,14 @@ class FakeTerminal(TerminalBuffer):
         self.disconnected = True
 
 
+    # Work around https://twistedmatrix.com/trac/ticket/8843
+    def __str__(self):
+        if hasattr(self, '__bytes__'):
+            return self.__bytes__()
+        else:
+            return TerminalBuffer.__str__(self)
+
+
 
 class ReturnToMenuTests(TestCase):
     """
