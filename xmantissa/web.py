@@ -25,7 +25,7 @@ from epsilon.structlike import record
 from axiom.item import Item
 from axiom.attributes import path, text
 from axiom.dependency import dependsOn
-from axiom.userbase import LoginSystem
+from axiom.userbase import LoginSystem, getDomainNames
 
 from xmantissa.ixmantissa import ISiteURLGenerator, IProtocolFactoryFactory, IOfferingTechnician, ISessionlessSiteRootPlugin
 from xmantissa.port import TCPPort, SSLPort
@@ -150,14 +150,14 @@ class SiteConfiguration(Item):
         host = request.getHeader('host') or self.hostname
         if ':' in host:
             host = host.split(':', 1)[0]
-        if (host == self.hostname or
-            host.startswith('www.') and host[len('www.'):] == self.hostname):
-            return URL(scheme='', netloc='', pathsegs=[''])
+        for domain in [self.hostname] + getDomainNames(self.store):
+            if (host == domain or
+                host.startswith('www.') and host[len('www.'):] == domain):
+                return URL(scheme='', netloc='', pathsegs=[''])
+        if request.isSecure():
+            return self.encryptedRoot(self.hostname)
         else:
-            if request.isSecure():
-                return self.encryptedRoot(self.hostname)
-            else:
-                return self.cleartextRoot(self.hostname)
+            return self.cleartextRoot(self.hostname)
 
 
     def getFactory(self):
