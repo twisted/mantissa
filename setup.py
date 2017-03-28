@@ -25,7 +25,7 @@ setup(
         "Topic :: Terminals",
         ],
     install_requires=[
-        "Twisted>=16.0.0",
+        "Twisted[tls,conch]>=16.0.0",
         "PyOpenSSL>=0.13",
         "Axiom>=0.7.0",
         "Vertex>=0.2.0",
