@@ -28,13 +28,10 @@ install:
   # Install a newer PyPy version
   - |
     if [ "${TOXENV::5}" == "pypy-" ]; then
-      # Travis's pyenv is too old for pyenv update
-      ls -la $HOME/.pyenv
+      git clone --depth 1 https://github.com/yyuu/pyenv.git ~/updated-pyenv
+      PYENV_ROOT="$HOME/updated-pyenv"
+      PATH="$PYENV_ROOT/bin:$PATH"
       eval "$(pyenv init -)"
-      pyenv --version
-      pyenv commands
-      pyenv help
-      pyenv update
       pyenv install pypy-5.7.0
       pyenv global pypy-5.7.0
     fi
