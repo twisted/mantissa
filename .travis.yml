@@ -30,10 +30,8 @@ install:
     if [ "${TOXENV::5}" == "pypy-" ]; then
       export PYENV_ROOT="$HOME/updated-pyenv"
       git clone --depth 1 https://github.com/pyenv/pyenv.git $PYENV_ROOT
-      which pyenv
       export PATH="$PYENV_ROOT/bin:$PATH"
-      rehash
-      which pyenv
+      hash -r
       eval "$(command pyenv init -)"
       pyenv install pypy-5.7.0
       pyenv global pypy-5.7.0
