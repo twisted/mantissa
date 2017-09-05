@@ -1,8 +1,20 @@
+0.9.0 (2017-09-09):
+  - Mantissa is now officially supported on PyPy.
+  - Expired web sessions are now actually cleaned up.
+  - Certificate creation now uses ``cryptography``.
+  - SSH key management now uses ``cryptography`` instead of ``PyCrypto``.
+  - The Mantissa SSH server key can now be rotated with the use of the
+    ``axiomatic mantissa ssh keyrotate`` command; it is strongly recommended to
+    do this for any existing Mantissa sites, as key generation previously
+    generated 1024-bit RSA keys which are insecure.
+  - Any domain for which an internal user exists will now be recognized as a
+    canonical hostname, allowing for relative/path-absolute URL generation.
+
 0.8.4 (2016-02-17):
-  - Remove unused `nevow.livepage` support code; fixes compatibility with Nevow
-    0.13.0.
-  - `StringEndpointPort` ports are now deletable from the commandline (with
-    the `axiomatic port delete` command).
+  - Remove unused ``nevow.livepage`` support code; fixes compatibility with
+    Nevow 0.13.0.
+  - ``StringEndpointPort`` ports are now deletable from the commandline (with
+    the ``axiomatic port delete`` command).
   - Mantissa's CI now tests against Twisted trunk, for early warnings of
     breakage.
 
@@ -27,8 +39,9 @@
   - Fix compatibility with modern versions of Twisted.
   - Fix compatibility with modern versions of cssutils.
   - Add a new port type, StringEndpointPort, which is now used by
-    `axiomatic port`. This now allows using any endpoint type supported by the
-    string endpoint parser in Twisted (which is extensible through plugins).
+    ``axiomatic port``. This now allows using any endpoint type supported by
+    the string endpoint parser in Twisted (which is extensible through
+    plugins).
   - PyPy is now supported and should be fully functional (although there has
     not been much real-world testing of this yet).
   - Switch to setuptools; pip installation should be much easier now.
@@ -36,7 +49,7 @@
 0.7.0 (2009-11-25):
   - Add an SSH application server.
   - Add a SQLite3 FTS3-based fulltext search backend.
-  - Change a bad failure mode of `xmantissa.websharing.linkTo` to a better
+  - Change a bad failure mode of ``xmantissa.websharing.linkTo`` to a better
     one with more useful information.
   - Add documentation covering interstore messaging.
   - Fix the JavaScript module caching added in the last release.
